@@ -34,6 +34,7 @@ import (
 	otea "ofam.dev/ochazuke/tea"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/bindings"
+	"ofam.dev/ochazuke/widgets/commandline"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/markdown"
@@ -100,6 +101,7 @@ const (
 	modalReader        = "reader"
 	modalInspect       = "inspect"
 	modalScratch       = "scratch"
+	modalCommandLine   = "commandline"
 
 	readerNode    = "reader.md"
 	scratchScreen = "scratch.screen"
@@ -261,6 +263,8 @@ type App struct {
 	inspecting  string        // the registry the inspector shows
 	scratch     string        // the pane of the global scratch that is shown
 	scratchRole string
+	cmdline     *commandline.Model // persistent per-prefix history for !, |, r!
+	cmdState    *cmdlineState      // active shell I/O bar modal state
 
 	readCache   *data.ReadCache   // async cache for mounted external tool nouns
 	extCatalogs map[string]string // external noun kind -> tool binary
@@ -915,7 +919,7 @@ func (a *App) dropModals(s core.State) core.State {
 	s.Modals = nil
 	a.form, a.answer, a.launch, a.path = nil, nil, nil, nil
 	a.settings, a.bindCapturing = nil, false // the binding editor keeps its undo history
-	a.reader, a.opening, a.yankRef, a.actionRef, a.scratch = nil, nil, nil, nil, ""
+	a.reader, a.opening, a.yankRef, a.actionRef, a.cmdState, a.scratch = nil, nil, nil, nil, nil, ""
 	return s
 }
 
@@ -1765,6 +1769,8 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 			}
 		}
 		return core.Next(s)
+	case ModeCommandLine:
+		return a.cmdlineCommand(s, c)
 	}
 	return core.Next(s)
 }
@@ -1998,6 +2004,8 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 		a.opening = nil
 	case modalScratch:
 		a.scratch = ""
+	case modalCommandLine:
+		a.cmdState = nil
 	}
 	a.say("")
 	return core.Next(closeModal(s, id))
@@ -2187,6 +2195,12 @@ func (a *App) register() {
 		return core.Next(a.openPicker(s, modalPages, pm))
 	})
 	a.handle(CmdRecordActions, a.recordActionsOpen)
+	a.handle(CmdShellOpen, a.shellOpen)
+	for _, id := range []string{commandline.CmdInsert, commandline.CmdSubmit, commandline.CmdCancel,
+		commandline.CmdRegister, commandline.CmdHistoryPrev, commandline.CmdHistoryNext,
+		commandline.CmdCompleteNext, commandline.CmdCompletePrev} {
+		a.handle(id, a.cmdlineCommand)
+	}
 	a.handle(CmdPaletteOpen, func(s core.State, _ core.Command) core.StepResult {
 		pm := picker.New("Commands", a.paletteItems())
 		pm.Placeholder = "a command · !cmd runs a shell command"

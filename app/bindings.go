@@ -7,6 +7,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/widgets/commandline"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/markdown"
@@ -29,8 +30,9 @@ const (
 	ModeBindingsFilter  = "bindings-filter"  // typing the editor's filter
 	ModeBindingsCapture = "bindings-capture" // pressing the new keys of a binding
 
-	ModeReader  = "reader"  // the Markdown reader
-	ModeInspect = "inspect" // the actions and modes inspector
+	ModeReader      = "reader"      // the Markdown reader
+	ModeInspect     = "inspect"     // the actions and modes inspector
+	ModeCommandLine = "commandline" // shell I/O command bar (!, |, r!)
 )
 
 // Commands the app adds to core's built-ins and the widgets' own.
@@ -115,6 +117,7 @@ const (
 	CmdInspectBind       = "inspect.bind"
 	CmdTriageRule        = "triage.rule.from-signal"
 	CmdRecordActions     = "record.actions"
+	CmdShellOpen         = "shell.open"
 )
 
 var leader = core.Layer{Name: "leader", Modes: []string{ModeTerminalLeader, ModeNormal}, ExcludeTags: []string{"motion", "editing"}}
@@ -135,6 +138,7 @@ func Modes() []core.Mode {
 		{Name: ModeBindingsCapture},
 		{Name: ModeReader},
 		{Name: ModeInspect},
+		{Name: ModeCommandLine},
 	}
 }
 
@@ -241,6 +245,9 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, "'", CmdPagesPick, "pages"),
 		bind(n, all, ";", CmdRecordActions, "record actions"),
 		bind(n, all, ":", CmdPaletteOpen, "commands"),
+		with(bind(n, all, "!", CmdShellOpen, "shell command"), map[string]any{"prefix": string(commandline.PrefixShell)}),
+		with(bind(n, all, "|", CmdShellOpen, "pipe record to shell"), map[string]any{"prefix": string(commandline.PrefixPipe)}),
+		with(bind(n, all, "g !", CmdShellOpen, "read shell into note"), map[string]any{"prefix": string(commandline.PrefixReadShell)}),
 		bind(n, all, "?", CmdHelpOpen, "bindings"),
 		bind(n, all, "ctrl+o", CmdPathOpen, "path"),
 		bind(n, all, "S", CmdSettingsOpen, "settings"),
@@ -394,9 +401,22 @@ func DefaultBindings() []core.Binding {
 		bind(ModeOutline, all, "esc", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "q", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "T", CmdModalCancel, "close"),
+
+		// Command line: !, |, r! with Readline editing, history and ctrl+r register paste.
+		{Mode: ModeCommandLine, Class: core.ClassPrintable, Command: commandline.CmdInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
+		{Mode: ModeCommandLine, Class: core.ClassPaste, Command: commandline.CmdInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
+		bind(ModeCommandLine, all, "enter", commandline.CmdSubmit, "run"),
+		bind(ModeCommandLine, all, "esc", commandline.CmdCancel, "cancel"),
+		bind(ModeCommandLine, all, "ctrl+r", commandline.CmdRegister, "paste register"),
+		bind(ModeCommandLine, all, "up", commandline.CmdHistoryPrev, "older"),
+		bind(ModeCommandLine, all, "down", commandline.CmdHistoryNext, "newer"),
+		hidden(bind(ModeCommandLine, all, "ctrl+p", commandline.CmdHistoryPrev, "older")),
+		hidden(bind(ModeCommandLine, all, "ctrl+n", commandline.CmdHistoryNext, "newer")),
+		bind(ModeCommandLine, all, "tab", commandline.CmdCompleteNext, "complete"),
+		hidden(bind(ModeCommandLine, all, "shift+tab", commandline.CmdCompletePrev, "previous completion")),
 	}
 	out = append(out, macroBindings()...)
-	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePicker, ModeBindingsFilter} {
+	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePicker, ModeBindingsFilter, ModeCommandLine} {
 		out = appendReadlineBindings(out, mode, all)
 	}
 	// Motions and space switches work everywhere; the footer leaves them out
@@ -461,6 +481,8 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdOutlineJump, "Open the selected task"),
 		spec(CmdPagesPick, "Pick a page of any pane"),
 		spec(CmdRecordActions, "Pick an action for the focused record"),
+		{ID: CmdShellOpen, Description: "Open the shell I/O bar (! run, | pipe focused record, r! capture note)",
+			Params: []core.ParamSpec{{Name: "prefix", Type: core.ParamString, Enum: []string{"!", "|", "r!"}, Default: "!"}}},
 		spec(CmdPaletteOpen, "Pick a command to run"),
 		spec(CmdHelpOpen, "List the bindings that work here"),
 		recordSpec(CmdPathOpen, "Attach a directory or file to the focused record", nil, ""),
@@ -539,6 +561,14 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: form.CmdInsert, Description: "Type into the active field", Params: text, Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
 		{ID: form.CmdBackspace, Description: "Erase the last character of the active field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
 		{ID: form.CmdPick, Description: "Pick a value for the active field", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
+		{ID: commandline.CmdInsert, Description: "Type into the shell command bar", Params: text, Meta: map[string]any{"internal": true}},
+		{ID: commandline.CmdSubmit, Description: "Run the shell command bar", Meta: map[string]any{"internal": true}},
+		{ID: commandline.CmdCancel, Description: "Close the shell command bar", Meta: map[string]any{"internal": true}},
+		{ID: commandline.CmdRegister, Description: "Paste a register into the shell command bar", Meta: map[string]any{"internal": true}},
+		{ID: commandline.CmdHistoryPrev, Description: "Older shell command from history", Meta: map[string]any{"internal": true}},
+		{ID: commandline.CmdHistoryNext, Description: "Newer shell command from history", Meta: map[string]any{"internal": true}},
+		{ID: commandline.CmdCompleteNext, Description: "Next completion in the shell command bar", Meta: map[string]any{"internal": true}},
+		{ID: commandline.CmdCompletePrev, Description: "Previous completion in the shell command bar", Meta: map[string]any{"internal": true}},
 	}...)
 }
 

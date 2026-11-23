@@ -1,0 +1,289 @@
+package app
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"ofam.dev/matomeru/data"
+	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/commandline"
+)
+
+// Shell I/O redirection via Ochazuke's widgets/commandline:
+//
+//	!   run a shell command with $REF/$ID/$TITLE/$FILE/$DIR expanded
+//	|   pipe the focused record into a shell command (captures stdout into a run + register)
+//	r!  read a shell command's stdout into a new note about the focused record
+//
+// Inside the bar: full Readline editing, up/down per-prefix history, and
+// ctrl+r <reg> to insert any Vim register ("", "0, "%, "a-"z, "+, ":, "/).
+
+type cmdlineState struct {
+	model  *commandline.Model
+	target *core.Ref
+	dir    string
+}
+
+func (a *App) shellVars(ref *core.Ref) (vars map[string]string, dir string) {
+	vars = map[string]string{}
+	if ref == nil || ref.ID == "" {
+		return vars, ""
+	}
+	vars["REF"] = data.RefText(*ref)
+	vars["ID"] = ref.ID
+	vars["TITLE"] = a.title(*ref)
+	rec, err := a.Store.Get(*ref)
+	if err != nil {
+		if extRec, ok := a.cachedExternal(*ref); ok {
+			rec = &extRec
+		} else {
+			return vars, ""
+		}
+	}
+	if fp := rec.Text("filePath"); fp != "" {
+		vars["FILE"] = expandHome(fp)
+		dir = filepath.Dir(vars["FILE"])
+	} else if u := rec.Text("url"); u != "" {
+		vars["FILE"] = u
+	}
+	if d := rec.Text("defaultDir"); d != "" {
+		dir = expandHome(d)
+	} else if d := rec.Text("cwd"); d != "" {
+		dir = expandHome(d)
+	}
+	if dir != "" {
+		vars["DIR"] = dir
+	}
+	return vars, dir
+}
+
+func (a *App) shellOpen(s core.State, c core.Command) core.StepResult {
+	a.syncPath(s)
+	prefix := commandline.Prefix(c.Arg("prefix"))
+	if prefix == "" {
+		prefix = commandline.PrefixShell
+	}
+	if a.cmdline == nil {
+		a.cmdline = commandline.New(prefix)
+		a.cmdline.RegisterLookup = func(reg rune) (string, bool) {
+			v := a.Register(reg)
+			return v, v != ""
+		}
+	} else {
+		a.cmdline.Open(prefix)
+	}
+	var target *core.Ref
+	if ref, ok := a.subject(s, c); ok {
+		r := ref
+		target = &r
+	}
+	vars, dir := a.shellVars(target)
+	a.cmdline.Vars = vars
+	a.cmdState = &cmdlineState{model: a.cmdline, target: target, dir: dir}
+	switch prefix {
+	case commandline.PrefixPipe:
+		a.say("pipe focused record into shell · ctrl+r reg pastes · enter runs")
+	case commandline.PrefixReadShell:
+		a.say("read shell stdout into a new note · ctrl+r reg pastes · enter runs")
+	default:
+		a.say("run shell command · $REF $TITLE $FILE $DIR expand · ctrl+r reg pastes")
+	}
+	return core.Next(openModal(s, modalCommandLine, ModeCommandLine, modalCommandLine+".input"))
+}
+
+func (a *App) cmdlineModal() ui.ViewNode {
+	cs := a.cmdState
+	if cs == nil || cs.model == nil {
+		return overlay(modalCommandLine, "Shell", 76, 0, text("", "no command line", "muted"))
+	}
+	title := "Shell (!)"
+	switch cs.model.Prefix {
+	case commandline.PrefixPipe:
+		title = "Pipe focused record (|)"
+	case commandline.PrefixReadShell:
+		title = "Read shell into note (r!)"
+	}
+	if cs.target != nil {
+		title += " · " + a.title(*cs.target)
+	}
+	var hints []string
+	for _, k := range []string{"REF", "DIR", "FILE"} {
+		if v := cs.model.Vars[k]; v != "" {
+			hints = append(hints, fmt.Sprintf("$%s=%s", k, clip(v, 28)))
+		}
+	}
+	children := []ui.ViewNode{cs.model.View(modalCommandLine + ".input")}
+	if len(hints) > 0 {
+		children = append(children, line(modalCommandLine+".vars", " "+strings.Join(hints, "  "), "muted"))
+	}
+	ov := overlay(modalCommandLine, title, 78, 0, children...)
+	ov.Scope = "commandline"
+	return ov
+}
+
+func (a *App) cmdlineCommand(s core.State, c core.Command) core.StepResult {
+	cs := a.cmdState
+	if cs == nil || cs.model == nil || topModal(s) != modalCommandLine {
+		return core.Next(s)
+	}
+	sub, handled := cs.model.HandleCommand(c)
+	if !handled {
+		return core.Next(s)
+	}
+	switch c.ID {
+	case commandline.CmdCancel:
+		a.cmdState = nil
+		a.say("")
+		return core.Next(closeModal(s, modalCommandLine))
+	case commandline.CmdSubmit:
+		a.cmdState = nil
+		s = closeModal(s, modalCommandLine)
+		return core.Next(a.execShellSubmission(s, sub, cs.target, cs.dir))
+	}
+	return core.Next(s)
+}
+
+func (a *App) recordPayload(ref *core.Ref) string {
+	if ref == nil || ref.ID == "" {
+		return ""
+	}
+	rec, err := a.Store.Get(*ref)
+	if err != nil {
+		if extRec, ok := a.cachedExternal(*ref); ok {
+			rec = &extRec
+		} else {
+			return data.RefText(*ref)
+		}
+	}
+	if body := rec.Text("body"); body != "" {
+		return body
+	}
+	b, err := json.MarshalIndent(rec.MergedFields(), "", "  ")
+	if err != nil {
+		return data.RefText(*ref)
+	}
+	return string(b) + "\n"
+}
+
+func (a *App) execShellSubmission(s core.State, sub commandline.Submission, target *core.Ref, dir string) core.State {
+	cmdLine := strings.TrimSpace(sub.ShellCmd)
+	if sub.Prefix == commandline.PrefixPipe {
+		cmdLine = strings.TrimSpace(sub.PipeCmd)
+	}
+	if cmdLine == "" {
+		a.say("empty command")
+		return s
+	}
+	a.Registers.SetSpecial(core.RegCommand, string(sub.Prefix)+sub.Raw)
+	switch sub.Prefix {
+	case commandline.PrefixShell:
+		return a.startShell(s, "", cmdLine, dir)
+	case commandline.PrefixPipe:
+		stdinText := a.recordPayload(target)
+		a.say("piping into %s…", clip(sub.Raw, 40))
+		var taskRef *core.Ref
+		if target != nil && target.Kind == data.KindTask {
+			r := *target
+			taskRef = &r
+		}
+		a.background(func(ctx context.Context) func(core.State) core.State {
+			out, exitCode, runErr := runShellCapture(ctx, cmdLine, dir, stdinText)
+			return func(s core.State) core.State {
+				status := "done"
+				if runErr != nil || exitCode != 0 {
+					status = "failed"
+				}
+				fields := map[string]any{
+					"title":     "| " + sub.Raw,
+					"command":   cmdLine,
+					"runStatus": status,
+					"exitCode":  exitCode,
+					"output":    out,
+				}
+				if dir != "" {
+					fields["cwd"] = dir
+				}
+				if taskRef != nil {
+					fields["task"] = *taskRef
+				}
+				rec, _, err := a.Store.Create(data.CreateInput{Kind: data.KindRun, Fields: fields}, User)
+				if err != nil {
+					a.fail("pipe run", err)
+					return s
+				}
+				if out != "" {
+					a.Registers.Yank(0, out, false)
+				}
+				a.gen++
+				selectRow(a.records(runsTable, data.KindRun), data.RefText(rec.Ref()))
+				a.say("pipe finished (exit %d) · saved as run & yanked", exitCode)
+				return s
+			}
+		})
+		return s
+	case commandline.PrefixReadShell:
+		a.say("reading %s…", clip(sub.Raw, 40))
+		var aboutRef *core.Ref
+		if target != nil {
+			r := *target
+			aboutRef = &r
+		}
+		a.background(func(ctx context.Context) func(core.State) core.State {
+			out, exitCode, runErr := runShellCapture(ctx, cmdLine, dir, "")
+			return func(s core.State) core.State {
+				if runErr != nil && out == "" {
+					a.fail("read shell", runErr)
+					return s
+				}
+				rec, cs, err := a.Store.Create(data.CreateInput{
+					Kind:   data.KindNote,
+					Fields: map[string]any{"title": "r! " + sub.Raw, "body": out},
+				}, User)
+				if err != nil {
+					a.fail("create note from shell", err)
+					return s
+				}
+				if aboutRef != nil {
+					_ = a.ensureShadow(*aboutRef)
+					_, _, _ = a.Store.Relate(data.RelateInput{From: rec.Ref(), Kind: data.RelAbout, To: *aboutRef}, User)
+				}
+				if out != "" {
+					a.Registers.Yank(0, out, false)
+				}
+				a.gen++
+				a.wrote(fmt.Sprintf("captured note from r! (exit %d)", exitCode), cs, nil)
+				return s
+			}
+		})
+		return s
+	}
+	return s
+}
+
+func runShellCapture(ctx context.Context, command, dir, stdin string) (output string, exitCode int, err error) {
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
+	}
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	err = cmd.Run()
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			exitCode = ee.ExitCode()
+		} else {
+			exitCode = 1
+		}
+	}
+	return buf.String(), exitCode, err
+}

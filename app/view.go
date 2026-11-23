@@ -506,6 +506,11 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 			break
 		}
 		return a.scratchModal()
+	case modalCommandLine:
+		if a.cmdState == nil {
+			break
+		}
+		return a.cmdlineModal()
 	case modalInspect:
 		pm := a.pickers[m.ID]
 		if pm == nil {
