@@ -44,8 +44,8 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 	ed := NewDriver(ea, 120, 36)
 
 	ed.Keys("'")
-	if ea.Modal() != "pages" || ea.Mode() != ModePicker {
-		t.Fatalf("' did not open modalPages on empty store: modal=%q mode=%q", ea.Modal(), ea.Mode())
+	if ea.Modal() != "pages" || ea.Mode() != ModePickerFilter {
+		t.Fatalf("' did not open modalPages in filter mode on empty store: modal=%q mode=%q", ea.Modal(), ea.Mode())
 	}
 	mod := ea.activePicker("pages")
 	if mod == nil || len(mod.Model().Items) == 0 {
@@ -70,7 +70,6 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 		}
 	}
 	// Selecting [app] About opens modalAbout.
-	ed.Keys("/")
 	ed.Type("about")
 	ed.Keys("enter")
 	if ea.Modal() != "about" || ea.Mode() != ModeAbout {
@@ -116,7 +115,6 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 	}
 
 	// Pick mounted extension noun -> jumps directly to 2 Work browsing df.culprit!
-	d.Keys("/")
 	d.Type("culprits")
 	d.Keys("enter")
 	if a.Modal() != "" || a.Space() != SpaceWork || a.workKind() != "df.culprit" {
@@ -124,12 +122,21 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 	}
 
 	// Pick [pane] Screen -> jumps to 1 Panes on Screen.
-	d.Keys("'", "/")
+	d.Keys("'")
 	d.Type("screen claude")
 	d.Keys("enter")
 	if a.Space() != SpacePanes || a.Modal() != "" {
 		t.Fatalf("picking Screen from ': space=%q modal=%q", a.Space(), a.Modal())
 	}
+
+	// Opt-out: ui.pickerDefaultMode="all-normal" opens Pages picker in normal mode.
+	a.cfg.userSettings[SetPickerDefaultMode] = PickerDefaultModeAllNormal
+	a.reloadSettings()
+	d.Keys("'")
+	if a.Modal() != "pages" || a.Mode() != ModePicker {
+		t.Fatalf("all-normal opt-out did not open pages picker in ModePicker: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	d.Keys("esc")
 }
 
 func TestWaveD2AboutInfoAndOverlay(t *testing.T) {

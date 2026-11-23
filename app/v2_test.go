@@ -59,7 +59,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetConfirmQuit: true, SetConfirmDaemonReset: true, SetWorkTasksLayout: WorkTasksLayoutTree, SetWorkHierarchyLayout: WorkHierarchyLayoutAuto,
 		SetAutoArchiveExited: true, SetScrollOff: 5, SetPickerDefaultMode: PickerDefaultModeNormal,
 		SetViewCycle: true, SetFormReactiveFields: true,
-		SetSessionRecord: true, SetSessionPromptSaveOnExit: false}
+		SetSessionRecord: true, SetSessionPromptSaveOnExit: false,
+		SetToolsFDBinary: "", SetSearchFDMaxResults: 200}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

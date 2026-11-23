@@ -36,6 +36,7 @@ type NavController struct {
 	filterTarget string
 	filterLine   input.Line
 	cmdline      *commandline.Model
+	lastFDSearch map[string]any
 	Registers    core.Registers
 	Macros       core.MacroRecorder
 	replaying    int

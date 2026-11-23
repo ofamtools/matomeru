@@ -708,6 +708,7 @@ func DefaultBindings() []core.Binding {
 	}
 	out = append(out, macroBindings()...)
 	out = append(out, viewCycleBindings()...)
+	out = append(out, fdSearchBindings()...)
 	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {
 		out = appendReadlineBindings(out, mode, all)
 	}

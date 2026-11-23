@@ -134,6 +134,8 @@ const (
 	SetFormReactiveFields      = "edit.reactiveFields"
 	SetSessionRecord           = "session.record"
 	SetSessionPromptSaveOnExit = "session.promptSaveOnExit"
+	SetToolsFDBinary           = "tools.fdBinary"
+	SetSearchFDMaxResults      = "search.fdMaxResults"
 	PickerDefaultModeNormal    = "normal"
 	PickerDefaultModeAllNormal = "all-normal"
 	PickerDefaultModeFilter    = "filter"
@@ -207,6 +209,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetFormReactiveFields, true, "evaluate reactive VisibleWhen predicates in forms (false shows all fields)"),
 		flag(SetSessionRecord, true, "record session events into a bounded in-memory ring buffer"),
 		flag(SetSessionPromptSaveOnExit, false, "prompt to save the session recording before quitting"),
+		{Name: SetToolsFDBinary, Type: core.ParamString, Default: "", Description: "path or command name for fd/fdfind file search binary (empty auto-detects fd then fdfind)"},
+		{Name: SetSearchFDMaxResults, Type: core.ParamInt, Default: defaultFDMaxResults, Description: "default maximum results returned by fd file search (0 = unlimited)"},
 	}
 }
 
@@ -456,6 +460,9 @@ func (a *App) commitSetting(fm *form.Model, name string) {
 		}
 		if lf := a.activeLaunchForm(); lf != nil {
 			lf.Model().ShowAllFields = showAll
+		}
+		if ff := a.activeForm(fdSearchModalID); ff != nil {
+			ff.Model().ShowAllFields = showAll
 		}
 	}
 	saved, err := a.writeConfig(settingsFileName, a.cfg.userSettings)

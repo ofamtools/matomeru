@@ -634,6 +634,11 @@ func (a *App) register() {
 	a.handle(CmdSessionRecordToggle, a.sessionRecordToggle)
 	a.handle(CmdSessionRecordClear, a.sessionRecordClear)
 	a.handle(CmdSessionRecordStatus, a.sessionRecordStatus)
+	a.handle(CmdFDSearch, a.fdSearch)
+	a.handle(CmdFDSearchAgain, a.fdSearchAgain)
+	for _, id := range []string{CmdFDResultYank, CmdFDResultOpenWith, CmdFDResultAttach, CmdFDResultRefine} {
+		a.handle(id, a.handleModal)
+	}
 	for id, spec := range a.ext.recordActions {
 		a.handle(id, a.runRecordAction(spec))
 	}

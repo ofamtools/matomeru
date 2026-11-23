@@ -148,6 +148,10 @@ func (a *App) openWith(s core.State, c core.Command) core.StepResult {
 	if !ok {
 		return core.Next(s)
 	}
+	return core.Next(a.openWithTarget(s, t))
+}
+
+func (a *App) openWithTarget(s core.State, t openTarget) core.State {
 	var items []picker.Item
 	for i, rule := range t.rules {
 		item := picker.Item{ID: fmt.Sprint(i), Title: rule.Name, Subtitle: rule.Match, Keywords: []string{rule.Kind}}
@@ -187,7 +191,7 @@ func (a *App) openWith(s core.State, c core.Command) core.StepResult {
 			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
 		},
 	})
-	return core.Next(a.pushModal(s, m))
+	return a.pushModal(s, m)
 }
 
 func editorCommand() string {

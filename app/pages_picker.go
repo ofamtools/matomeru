@@ -182,10 +182,11 @@ func (a *App) pagesPick(s core.State, _ core.Command) core.StepResult {
 	pm := picker.New("Pages", items)
 	pm.Placeholder = "search [app], [pane], and [noun] pages"
 	m := a.newPickerModal(pm, modal.PickerOptions{
-		ID:        "pages",
-		WidthPct:  76,
-		HeightPct: 80,
-		PageSize:  10,
+		ID:            "pages",
+		StartInFilter: a.pickerStartInFilter(true),
+		WidthPct:      76,
+		HeightPct:     80,
+		PageSize:      10,
 		OnConfirm: func(picked picker.Item) modal.Result {
 			id := picked.ID
 			a.afterModal(func(st core.State) core.State {
