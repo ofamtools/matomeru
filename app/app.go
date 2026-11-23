@@ -262,6 +262,10 @@ type App struct {
 	scratch     string        // the pane of the global scratch that is shown
 	scratchRole string
 
+	readCache   *data.ReadCache   // async cache for mounted external tool nouns
+	extCatalogs map[string]string // external noun kind -> tool binary
+	extFetching map[string]bool   // external noun kinds with a fetch in flight
+
 	gen     uint64
 	memoKey string
 	memo    ui.ViewNode
@@ -275,7 +279,8 @@ func New(store *data.Store, opts Options) (*App, error) {
 		Store: store, Router: mcpui.New(store), opts: opts,
 		tables: map[string]*table.Model{}, activePage: map[string]string{}, term: map[string]*termBuf{},
 		pickers: map[string]*picker.Model{}, lastFocus: map[string]string{}, histPos: -1, indexFocus: workTable,
-		userSettings: map[string]any{},
+		userSettings: map[string]any{}, readCache: data.NewReadCache(),
+		extCatalogs: map[string]string{}, extFetching: map[string]bool{},
 	}
 	a.specs = CommandSpecs()
 	a.bindings = DefaultBindings()
@@ -584,21 +589,28 @@ func (a *App) pageSize(tbl *table.Model, id string) {
 	}
 }
 
-// records returns the table of a space's records, rebuilt from the store.
+// records returns the table of a space's records, rebuilt from the store (or
+// from the async ReadCache for a mounted external extension noun).
 func (a *App) records(id, kind string) *table.Model {
-	res, err := a.Store.Query(data.Query{Kind: kind, IncludeArchived: a.showArchived})
-	if err != nil {
-		a.fail("read "+kind, err)
+	var items []data.Record
+	if extItems, ok := a.externalRecords(kind); ok {
+		items = extItems
+	} else {
+		res, err := a.Store.Query(data.Query{Kind: kind, IncludeArchived: a.showArchived})
+		if err != nil {
+			a.fail("read "+kind, err)
+		}
+		items = res.Items
 	}
 	schema := a.schema(kind)
-	fresh := views.TableFromRecords(schema, res.Items)
+	fresh := views.TableFromRecords(schema, items)
 	// A reference shows the record it points at, not its ID.
 	names := map[core.Ref]string{}
 	for _, f := range schema.Fields {
 		if f.Type != core.ParamRef {
 			continue
 		}
-		for i, rec := range res.Items {
+		for i, rec := range items {
 			ref, ok := rec.RefField(f.Name)
 			if !ok {
 				continue
@@ -609,7 +621,7 @@ func (a *App) records(id, kind string) *table.Model {
 			fresh.Rows[i].Cells[f.Name] = names[ref]
 		}
 	}
-	for i, rec := range res.Items {
+	for i, rec := range items {
 		if a.openable(rec) {
 			fresh.Rows[i].Facts[factOpenable] = true // "o" opens it; a row without the fact sorts
 		}
@@ -944,6 +956,7 @@ func (a *App) arrive(s core.State) core.State {
 // show pushes a record's Show page onto the Work space's history, as a
 // browser does: what was ahead of the current page is dropped.
 func (a *App) show(s core.State, ref core.Ref) core.State {
+	_ = a.ensureShadow(ref)
 	if _, err := a.Store.Get(ref); err != nil {
 		a.fail("open "+data.RefText(ref), err)
 		return s
@@ -1005,6 +1018,7 @@ func (a *App) onRecord(what string, do func(core.Ref, core.Actor) (*data.Record,
 			a.say("nothing here to %s", what)
 			return core.Next(s)
 		}
+		_ = a.ensureShadow(ref)
 		_, cs, err := do(ref, User)
 		a.wrote(what+" "+a.title(ref), cs, err)
 		return core.Next(s)
@@ -1089,6 +1103,7 @@ func (a *App) edit(s core.State, c core.Command) core.StepResult {
 		a.say("nothing here to edit")
 		return core.Next(s)
 	}
+	_ = a.ensureShadow(ref)
 	rec, err := a.Store.Get(ref)
 	if err != nil {
 		a.fail("edit", err)

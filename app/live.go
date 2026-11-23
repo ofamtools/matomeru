@@ -373,8 +373,20 @@ func (a *App) extRefresh(s core.State, _ core.Command) core.StepResult {
 	a.say("looking for extensions…")
 	a.background(func(ctx context.Context) func(core.State) core.State {
 		res, err := mgr.Discover(ctx, dirs, store)
+		type loadedCatalog struct {
+			binary   string
+			manifest ext.Manifest
+		}
+		var catalogs []loadedCatalog
+		for _, r := range res {
+			if r.Status == ext.StatusHealthy && r.Binary != "" {
+				if m, cerr := ext.LoadCatalog(ctx, r.Binary); cerr == nil && len(m.Schemas) > 0 {
+					catalogs = append(catalogs, loadedCatalog{binary: r.Binary, manifest: m})
+				}
+			}
+		}
 		return func(s core.State) core.State {
-			found, healthy := 0, 0
+			found, healthy, mounted := 0, 0, 0
 			for _, r := range res {
 				if r.Binary != "" {
 					found++
@@ -383,8 +395,15 @@ func (a *App) extRefresh(s core.State, _ core.Command) core.StepResult {
 					healthy++
 				}
 			}
+			for _, lc := range catalogs {
+				if merr := a.MountCatalog(lc.binary, lc.manifest); merr == nil {
+					mounted += len(lc.manifest.Schemas)
+				}
+			}
 			if err != nil {
 				a.fail("look for extensions", err)
+			} else if mounted > 0 {
+				a.say("%d of %d extensions found, %d healthy · %d external noun(s) mounted", found, len(res), healthy, mounted)
 			} else {
 				a.say("%d of %d extensions found, %d healthy", found, len(res), healthy)
 			}
