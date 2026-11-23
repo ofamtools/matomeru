@@ -8,6 +8,7 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/widgets/form"
+	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/markdown"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
@@ -270,7 +271,6 @@ func DefaultBindings() []core.Binding {
 		bind(ModeFilter, all, "esc", CmdFilterCancel, "clear"),
 		bind(ModeFilter, all, "tab", CmdFilterMode, "match mode"),
 		bind(ModeFilter, all, "ctrl+t", CmdFilterField, "filter field"),
-		bind(ModeFilter, all, "ctrl+u", CmdFilterClear, "empty"),
 
 		// Pickers.
 		{Mode: ModePicker, Class: core.ClassPrintable, Command: CmdPickerInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
@@ -396,6 +396,9 @@ func DefaultBindings() []core.Binding {
 		bind(ModeOutline, all, "T", CmdModalCancel, "close"),
 	}
 	out = append(out, macroBindings()...)
+	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePicker, ModeBindingsFilter} {
+		out = appendReadlineBindings(out, mode, all)
+	}
 	// Motions and space switches work everywhere; the footer leaves them out
 	// (the help overlay lists them).
 	for i, b := range out {
@@ -426,7 +429,7 @@ func recordSpec(id, desc string, kinds []string, whenExpr string, tags ...string
 // the terminal's leader layer leaves them out.
 func CommandSpecs() []core.CommandSpec {
 	text := []core.ParamSpec{{Name: "text", Type: core.ParamString}}
-	return append(readerSpecs(), []core.CommandSpec{
+	return append(append(readerSpecs(), readlineSpecs()...), []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
 		{ID: views.CmdNew, Description: "Create a record", Tags: []string{"editing"}, Params: []core.ParamSpec{{Name: "kind", Type: core.ParamString, Default: "task"}}},
@@ -547,6 +550,38 @@ func readerSpecs() []core.CommandSpec {
 		specs[i].Meta = map[string]any{"internal": true}
 	}
 	return specs
+}
+
+// readlineSpecs exposes Ochazuke's Readline input actions in the registry and
+// inspector while leaving them out of the normal-mode command palette.
+func readlineSpecs() []core.CommandSpec {
+	specs := input.ReadlineSpecs()
+	for i := range specs {
+		specs[i].Meta = map[string]any{"internal": true}
+	}
+	return specs
+}
+
+// appendReadlineBindings appends Ochazuke's default Readline bindings for
+// mode/scope, skipping keys already unconditionally bound in that mode so
+// mode-specific keys (such as ctrl+n/ctrl+p/ctrl+k/ctrl+d/ctrl+u in pickers)
+// remain conflict-free.
+func appendReadlineBindings(out []core.Binding, mode, scope string) []core.Binding {
+	taken := map[string]bool{}
+	for _, b := range out {
+		if b.Mode == mode && b.Scope == scope && b.When == "" && len(b.Keys) > 0 {
+			taken[strings.Join(b.Keys, " ")] = true
+		}
+	}
+	for _, rb := range input.ReadlineBindings(mode, scope) {
+		k := strings.Join(rb.Keys, " ")
+		if taken[k] {
+			continue
+		}
+		taken[k] = true
+		out = append(out, rb)
+	}
+	return out
 }
 
 // internal reports whether a command only makes sense from its own key (typing

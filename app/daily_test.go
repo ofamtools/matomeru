@@ -13,6 +13,7 @@ import (
 	"ofam.dev/matomeru/ptyhost"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/widgets/input"
 )
 
 // browseTo opens the Work index of a record's noun and puts the selection
@@ -832,4 +833,86 @@ func TestRecordActionsPicker(t *testing.T) {
 		t.Fatalf("openable document record actions = %v", ids)
 	}
 	d.Keys("esc")
+}
+
+func TestReadlineBindingsAcrossInputs(t *testing.T) {
+	a, d := demo(t)
+	task := mkRec(t, a, data.KindTask, map[string]any{"title": "alpha beta gamma"})
+	browseTo(t, a, d, task)
+
+	// 1. Form edit mode: ctrl+a, alt+f, ctrl+k, ctrl+w, ctrl+y.
+	d.Keys("e", "i")
+	if a.Mode() != ModeFormEdit {
+		t.Fatalf("mode = %q, want %q", a.Mode(), ModeFormEdit)
+	}
+	d.Keys("ctrl+w") // kills "gamma"
+	if got := a.form.fm.Values["title"]; got != "alpha beta " {
+		t.Fatalf("form ctrl+w -> %q", got)
+	}
+	d.Keys("ctrl+a")
+	d.Type("top ")
+	if got := a.form.fm.Values["title"]; got != "top alpha beta " {
+		t.Fatalf("form ctrl+a + type -> %q", got)
+	}
+	d.Keys("ctrl+e", "ctrl+y", "enter", "esc")
+	rec, err := a.Store.Get(task.Ref())
+	if err != nil || rec.Text("title") != "top alpha beta gamma" {
+		t.Fatalf("form commit after readline = %q (err=%v)", rec.Text("title"), err)
+	}
+
+	// 2. Table filter mode: ctrl+w, ctrl+a, ctrl+u, ctrl+y.
+	d.Keys("/")
+	d.Type("one two")
+	d.Keys("ctrl+w")
+	if got := a.tables[workTable].Query; got != "one " {
+		t.Fatalf("filter ctrl+w -> %q", got)
+	}
+	d.Keys("ctrl+u")
+	if got := a.tables[workTable].Query; got != "" {
+		t.Fatalf("filter ctrl+u -> %q", got)
+	}
+	d.Keys("ctrl+y")
+	if got := a.tables[workTable].Query; got != "one " {
+		t.Fatalf("filter ctrl+y -> %q", got)
+	}
+	d.Keys("esc")
+
+	// 3. Picker mode: ctrl+w / ctrl+a / ctrl+y edit query while ctrl+n moves selection.
+	d.Keys(":")
+	d.Type("record edit")
+	d.Keys("ctrl+w")
+	if got := a.pickers[modalPalette].Query; got != "record " {
+		t.Fatalf("picker ctrl+w -> %q", got)
+	}
+	beforeSel := a.pickers[modalPalette].SelectedIdx
+	d.Keys("ctrl+n")
+	if a.pickers[modalPalette].SelectedIdx == beforeSel {
+		t.Fatal("ctrl+n did not move selection in picker")
+	}
+	d.Keys("esc")
+
+	// 4. Binding editor filter mode: ctrl+w works on filter query.
+	d.Keys("B", "/")
+	d.Type("verb:record.star extra")
+	d.Keys("ctrl+w")
+	if got := a.bindLine.Value(); got != "verb:record.star " {
+		t.Fatalf("bindings filter ctrl+w -> %q", got)
+	}
+	if len(a.bindEd.Filtered()) != 1 {
+		t.Fatalf("bindings filter did not apply query %q (got %d rows)", a.bindLine.Value(), len(a.bindEd.Filtered()))
+	}
+	d.Keys("esc", "esc")
+
+	// 5. All Readline actions appear in the actions inspector with bound keys.
+	actions := ActionsOf(a.bindings, a.specs)
+	byID := map[string]ActionInfo{}
+	for _, act := range actions {
+		byID[act.ID] = act
+	}
+	for _, want := range []string{input.CmdLineStart, input.CmdLineEnd, input.CmdKillWordBack, input.CmdKillLineForward, input.CmdYankKill} {
+		act, ok := byID[want]
+		if !ok || !act.Bound {
+			t.Fatalf("readline action %q in inspector: ok=%v act=%+v", want, ok, act)
+		}
+	}
 }

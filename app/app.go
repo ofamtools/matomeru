@@ -35,6 +35,7 @@ import (
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/bindings"
 	"ofam.dev/ochazuke/widgets/form"
+	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/markdown"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
@@ -208,6 +209,8 @@ type App struct {
 	activePage   map[string]string // pane ID -> the page its site shows
 	tocFilter    string
 	filterTarget string // "toc" or a table's node ID, while filtering
+	filterLine   input.Line
+	bindLine     input.Line
 	history      []historyEntry
 	histPos      int // -1 = the Work index
 	indexFocus   string
@@ -1732,18 +1735,42 @@ func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {
 	return core.Next(withMode(s, ModeFilter))
 }
 
+func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
+	switch a.Engine.Mode(s) {
+	case ModeFormEdit:
+		return a.formCommand(s, c)
+	case ModePicker:
+		return a.pickerCommand(s, c)
+	case ModeFilter:
+		return a.filterEdit(s, c)
+	case ModeBindingsFilter:
+		if a.bindEd != nil && topModal(s) == modalBindings {
+			if changed, _ := a.bindLine.HandleCommand(c); changed {
+				a.bindEd.SetQuery(a.bindLine.Value())
+			}
+		}
+		return core.Next(s)
+	}
+	return core.Next(s)
+}
+
 func (a *App) filterEdit(s core.State, c core.Command) core.StepResult {
 	edit := func(q string) string {
-		switch c.ID {
-		case CmdFilterInsert:
-			return q + c.Arg("text")
-		case CmdFilterBack:
-			if r := []rune(q); len(r) > 0 {
-				return string(r[:len(r)-1])
-			}
-			return q
+		a.filterLine.Sync(q)
+		switch {
+		case c.ID == CmdFilterInsert:
+			a.filterLine.Insert(c.Arg("text"))
+			return a.filterLine.Value()
+		case c.ID == CmdFilterBack:
+			a.filterLine.HandleCommand(core.Command{ID: input.CmdBackspace})
+			return a.filterLine.Value()
+		case input.IsReadlineCommand(c.ID):
+			a.filterLine.HandleCommand(c)
+			return a.filterLine.Value()
+		default:
+			a.filterLine.Set("")
+			return "" // clear, cancel
 		}
-		return "" // clear, cancel
 	}
 	if c.ID != CmdFilterAccept {
 		if a.filterTarget == "toc" {
@@ -2193,6 +2220,9 @@ func (a *App) register() {
 	a.handle(CmdFilterStart, a.filterStart)
 	for _, id := range []string{CmdFilterInsert, CmdFilterBack, CmdFilterAccept, CmdFilterCancel, CmdFilterClear} {
 		a.handle(id, a.filterEdit)
+	}
+	for _, id := range input.ReadlineCommandIDs() {
+		a.handle(id, a.readlineCommand)
 	}
 	for _, id := range []string{CmdFilterMode, CmdFilterField, CmdSortCycle, CmdSortField, CmdGroupField, CmdGroupToggle, CmdMarkToggle} {
 		a.handle(id, a.tableCommand)

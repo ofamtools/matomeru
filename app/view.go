@@ -126,7 +126,14 @@ func (a *App) statusLine(s core.State, chain []core.ContextFrame) string {
 		if tbl.FilterField != views.AnyField && tbl.FilterField != "" {
 			field = tbl.FilterField + " "
 		}
-		out += " · " + field + "/" + tbl.Query + cursor[typing] + " (" + string(tbl.MatchMode) + ")"
+		shownQuery := tbl.Query
+		if typing {
+			a.filterLine.Sync(tbl.Query)
+			rs := []rune(tbl.Query)
+			ci := min(max(a.filterLine.Cursor, 0), len(rs))
+			shownQuery = string(rs[:ci]) + "█" + string(rs[ci:])
+		}
+		out += " · " + field + "/" + shownQuery + " (" + string(tbl.MatchMode) + ")"
 	}
 	if a.status != "" {
 		out += " · " + a.status

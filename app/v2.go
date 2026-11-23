@@ -461,6 +461,7 @@ func (a *App) bindingsCommand(s core.State, c core.Command) core.StepResult {
 		a.say("")
 		return core.Next(withMode(s, ModeBindings))
 	case CmdBindingsFilterClear:
+		a.bindLine.Set("")
 		ed.SetQuery("")
 		a.say("")
 		return core.Next(withMode(s, ModeBindings))
@@ -517,6 +518,14 @@ func (a *App) bindingsCommand(s core.State, c core.Command) core.StepResult {
 	case CmdBindingsMatchMode:
 		ed.HandleCommand(core.Command{ID: "table.filter.mode.cycle"})
 		a.say("the filter's match mode changed")
+	case "bindings.filter.append":
+		if a.bindLine.Insert(c.Arg("text")) {
+			ed.SetQuery(a.bindLine.Value())
+		}
+	case "bindings.filter.backspace":
+		if changed, _ := a.bindLine.HandleCommand(core.Command{ID: "input.backspace"}); changed {
+			ed.SetQuery(a.bindLine.Value())
+		}
 	default:
 		ed.HandleCommand(c) // filter text and motions
 	}
