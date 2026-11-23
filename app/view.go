@@ -406,6 +406,9 @@ func (a *App) workSpace(s core.State) ui.ViewNode {
 	ref, showing := a.Showing()
 	kind := a.workKind()
 	if !showing {
+		if a.inWorkTaskTree(s) {
+			return a.workTaskTreeView()
+		}
 		return views.IndexView(a.schema(kind), a.records(workTable, kind), SpaceWork)
 	}
 	crumbs := []string{a.schema(kind).Plural}
@@ -514,11 +517,7 @@ func overlay(id, title string, widthPct, heightPct int, children ...ui.ViewNode)
 func (a *App) modal(m core.Frame) ui.ViewNode {
 	switch m.ID {
 	case modalOutline:
-		nodes, err := a.Store.TaskTree(a.showArchived)
-		if err != nil {
-			a.fail("outline", err)
-		}
-		panel := views.OutlineView(nodes, a.outlineSel, modalOutline)
+		panel := a.outlineTreeView()
 		ov := overlay(m.ID, panel.Title, 64, 80, panel.Children...)
 		ov.Scope, ov.Badges, ov.Facts = panel.Scope, panel.Badges, panel.Facts
 		return ov
@@ -588,6 +587,12 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 			break
 		}
 		return a.confirmModal()
+	case modalAbout:
+		return a.aboutModal()
+	case modalPages:
+		if pm := a.pickers[m.ID]; pm != nil {
+			return overlay(m.ID, pm.Title, 76, 80, pm.View(m.ID+".list"))
+		}
 	case modalInspect:
 		pm := a.pickers[m.ID]
 		if pm == nil {

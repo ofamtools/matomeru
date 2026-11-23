@@ -202,6 +202,53 @@ func mtmDaemonCommand(g globalOpts) oden.Command {
 					return werr
 				},
 			},
+			{
+				Name:    "upgrade",
+				Summary: "re-exec the daemon in place without killing live panes or subagents",
+				Usage:   "[--binary PATH] [--socket PATH] [--json]",
+				Parameters: []oden.Parameter{
+					socketParam,
+					{Name: "binary", Type: "string", Description: "Replacement mtm binary path (default: current mtm executable)"},
+				},
+				Handle: func(c *oden.Ctx) error {
+					upgradeParams := []oden.Parameter{
+						socketParam,
+						{Name: "binary", Type: "string", Description: "Replacement mtm binary path (default: current mtm executable)"},
+					}
+					p, err := c.Parse(upgradeParams)
+					if err != nil {
+						return err
+					}
+					if len(p.Positional()) != 0 {
+						return errors.New("usage: mtm daemon upgrade [--binary PATH] [--socket PATH] [--json]")
+					}
+					bin := strings.TrimSpace(p.String("binary"))
+					if bin == "" {
+						if exe, err := os.Executable(); err == nil {
+							bin = exe
+						}
+					}
+					sock := daemon.ResolveSocketPath(p.String("socket"))
+					res, err := daemon.NewClient(sock).Upgrade(c.Context, bin)
+					if err != nil {
+						return err
+					}
+					if p.Format() == "json" {
+						return printJSON(c.Stdout, map[string]any{
+							"ok":        true,
+							"upgraded":  true,
+							"pid":       res.PID,
+							"binary":    bin,
+							"socket":    res.Socket,
+							"mcpURL":    res.MCPURL,
+							"paneCount": res.PaneCount,
+						})
+					}
+					_, werr := fmt.Fprintf(c.Stdout, "daemon upgraded in place: pid=%d panes=%d mcpURL=%s (%s)\n",
+						res.PID, res.PaneCount, res.MCPURL, res.Socket)
+					return werr
+				},
+			},
 		},
 	}
 }

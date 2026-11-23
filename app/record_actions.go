@@ -59,7 +59,14 @@ func (a *App) recordFacts(s core.State, ref core.Ref) map[string]any {
 			facts[k] = v
 		}
 	}
-	if rec, err := a.Store.Get(ref); err == nil {
+	rec, err := a.Store.Get(ref)
+	if err != nil {
+		if cached, found := a.cachedExternal(ref); found {
+			rec = &cached
+			err = nil
+		}
+	}
+	if err == nil && rec != nil {
 		schema := a.schema(ref.Kind)
 		facts[data.ColArchiveStatus] = rec.ArchiveStatus
 		facts[data.ColStarStatus] = rec.StarStatus

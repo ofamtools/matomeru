@@ -139,6 +139,8 @@ func TestYankPicker(t *testing.T) {
 // through the engine, and the special registers follow what the owner does.
 func TestRegistersAndMacros(t *testing.T) {
 	a, d := demo(t)
+	a.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
+	a.reloadSettings()
 	d.Keys("2")
 	tbl := func() int { return a.tables[workTable].SelectedIdx }
 	start := tbl()
@@ -352,6 +354,8 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 		t.Fatalf("o on a pane with a directory: modal %q, status %q", a.Modal(), a.Status())
 	}
 	d.Keys("esc")
+	a.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
+	a.reloadSettings()
 	browseTo(t, a, d, titled(t, a, data.KindTask, "ochazuke-v2"))
 	d.Keys("o")
 	if a.Modal() != "" || a.tables[workTable].SortField != "title" {

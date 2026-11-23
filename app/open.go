@@ -74,6 +74,19 @@ func (a *App) targetOf(rec data.Record) (openTarget, bool) {
 			return t, true
 		}
 	}
+	if rec.Kind == data.KindContext {
+		if v := strings.TrimSpace(rec.Text("value")); v != "" {
+			var pane *data.Record
+			if pRef, hasPane := rec.RefField("pane"); hasPane {
+				if p, err := a.Store.Get(pRef); err == nil {
+					pane = p
+				}
+			}
+			t.path = contextTargetPath(rec.Text("contextKind"), v, pane)
+			t.rules = a.Handlers.Match(t.path)
+			return t, true
+		}
+	}
 	if body := rec.Text("body"); body != "" && (rec.Kind == data.KindDocument || rec.Kind == data.KindNote) {
 		t.body = body
 		// Inline text has no path: only the reader can show it.

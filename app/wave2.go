@@ -27,7 +27,7 @@ import (
 const (
 	harnessesFileName  = "harnesses.json"
 	daemonRPCTimeout   = 2 * time.Second
-	oaiDiscoverTimeout = 3 * time.Second
+	oaiDiscoverTimeout = 6 * time.Second
 )
 
 // daemonSyncActor writes automatic daemon reconciliation/reset updates to the
@@ -221,7 +221,7 @@ func (a *App) execDaemonReset(s core.State) core.State {
 		return s
 	}
 	if ha, ok := a.Host.(*daemon.HostAdapter); ok {
-		ha.CloseAll()
+		ha.ClearCache()
 	}
 	a.live.frames = map[string]ptyhost.Frame{}
 	a.live.shown = ""
@@ -262,12 +262,59 @@ func (a *App) execDaemonReset(s core.State) core.State {
 	return s
 }
 
+// daemonUpgrade re-execs the local daemon binary in place without killing any
+// live PTY panes, child processes, or subagents.
+func (a *App) daemonUpgrade(s core.State, _ core.Command) core.StepResult {
+	client := a.daemonClient()
+	if client == nil {
+		a.say("no local daemon is connected")
+		a.pushToast("no local daemon is connected", toast.Warn)
+		return core.Next(s)
+	}
+	bin := ""
+	if len(os.Args) > 0 && os.Args[0] != "" {
+		if p, err := exec.LookPath(os.Args[0]); err == nil {
+			bin = p
+		}
+	}
+	if bin == "" {
+		if exe, err := os.Executable(); err == nil {
+			bin = exe
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := client.Upgrade(ctx, bin)
+	if err != nil {
+		a.fail("daemon upgrade", err)
+		a.pushToast("daemon upgrade: "+err.Error(), toast.Err)
+		return core.Next(s)
+	}
+	msg := fmt.Sprintf("daemon upgraded · pid %d · %d pane(s) preserved", res.PID, res.PaneCount)
+	a.say("%s", msg)
+	a.pushToast(msg, toast.Ok)
+	return core.Next(s)
+}
+
+// appReload marks the client for in-place binary re-exec and exits Bubble Tea
+// cleanly without touching the daemon or any live panes.
+func (a *App) appReload(s core.State, _ core.Command) core.StepResult {
+	a.wantReload = true
+	a.say("reloading Matomeru client...")
+	return core.Next(s, core.QuitEffect{})
+}
+
 // --- 2. Harness catalog + async o-ai discovery -----------------------------------
 
 func defaultInstalledHarnesses() []harness.InstalledHarness {
 	defs := harness.DefaultConfigs()
 	out := make([]harness.InstalledHarness, 0, len(defs))
 	for id := range defs {
+		if id == "antigravity" {
+			if _, hasAgy := defs["agy"]; hasAgy {
+				continue
+			}
+		}
 		out = append(out, harness.InstalledHarness{ID: id, Installed: true})
 	}
 	return out
@@ -316,11 +363,19 @@ func (a *App) lookupHarness(name string) (harness.Entry, bool) {
 	if want == "" {
 		return harness.Entry{}, false
 	}
+	alias := harness.AliasID(want)
 	a.harnessMu.RLock()
 	defer a.harnessMu.RUnlock()
 	for _, e := range a.harnessEntries {
 		if strings.EqualFold(e.ID, want) || strings.EqualFold(e.Name, want) {
 			return e, true
+		}
+	}
+	if alias != "" {
+		for _, e := range a.harnessEntries {
+			if strings.EqualFold(e.ID, alias) || strings.EqualFold(e.Name, alias) {
+				return e, true
+			}
 		}
 	}
 	return harness.Entry{}, false
@@ -340,28 +395,70 @@ func (a *App) harnessChoices(current string) []string {
 	return choices
 }
 
+func (a *App) defaultDirForTask(taskRef core.Ref) string {
+	if a.Store == nil || taskRef.Kind != data.KindTask || taskRef.ID == "" {
+		return ""
+	}
+	cur, err := a.Store.Get(taskRef)
+	if err != nil || cur == nil {
+		return ""
+	}
+	seen := map[string]bool{cur.ID: true}
+	for range 32 {
+		if dir := strings.TrimSpace(cur.Text("defaultDir")); dir != "" {
+			return dir
+		}
+		parentRef, hasParent := cur.RefField("parent")
+		if !hasParent || parentRef.Kind != data.KindTask || parentRef.ID == "" || seen[parentRef.ID] {
+			break
+		}
+		parent, err := a.Store.Get(parentRef)
+		if err != nil || parent == nil {
+			break
+		}
+		seen[parent.ID] = true
+		cur = parent
+	}
+	return ""
+}
+
 func (a *App) applyHarnessChoices(fs *formState) {
 	if fs == nil || fs.fm == nil || fs.kind != data.KindPane {
 		return
 	}
+	wasDirty := fs.fm.Dirty
 	current := data.Text(fs.fm.Values["harness"])
 	choices := a.harnessChoices(current)
-	if len(choices) == 0 {
-		return
-	}
-	for i := range fs.fm.Specs {
-		if fs.fm.Specs[i].Name != "harness" {
-			continue
+	if len(choices) > 0 {
+		for i := range fs.fm.Specs {
+			if fs.fm.Specs[i].Name != "harness" {
+				continue
+			}
+			fs.fm.Specs[i].Enum = choices
+			if fs.ref == nil && strings.TrimSpace(current) == "" {
+				fs.fm.Specs[i].Default = choices[0]
+				fs.fm.SetValue("harness", choices[0])
+			}
+			break
 		}
-		fs.fm.Specs[i].Enum = choices
-		if fs.ref == nil && strings.TrimSpace(current) == "" {
-			wasDirty := fs.fm.Dirty
-			fs.fm.Specs[i].Default = choices[0]
-			fs.fm.SetValue("harness", choices[0])
-			fs.fm.Dirty = wasDirty
-		}
-		break
 	}
+	// Pre-fill cwd on New Pane forms from the selected task/project's defaultDir,
+	// falling back to os.Getwd() so the user always sees the launch directory.
+	if fs.ref == nil && strings.TrimSpace(data.Text(fs.fm.Values["cwd"])) == "" {
+		dir := ""
+		if taskRef, ok := data.AsRef(fs.fm.Values["task"]); ok {
+			dir = a.defaultDirForTask(taskRef)
+		}
+		if dir == "" {
+			if wd, err := os.Getwd(); err == nil {
+				dir = wd
+			}
+		}
+		if dir != "" {
+			fs.fm.SetValue("cwd", dir)
+		}
+	}
+	fs.fm.Dirty = wasDirty
 }
 
 func findOAIBinary(searchDirs []string, storeBinary string) string {

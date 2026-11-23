@@ -39,19 +39,26 @@ type CollectedContextItem struct {
 	SeenAt    time.Time
 }
 
+// contextHarvestActor persists automatically harvested context items to SQLite
+// without entering the owner's undo stack.
+var contextHarvestActor = core.Actor{Kind: "system", ID: "mtm.context", Label: "context"}
+
 type contextIndex struct {
-	mu         sync.RWMutex
-	items      map[string]*CollectedContextItem // paneID\x00canonKey -> item
-	starred    map[string]bool                  // canonKey -> starred
-	pageRevs   map[string]int64
-	docRevs    map[string]int64
-	screenRevs map[string]uint64
+	mu           sync.RWMutex
+	items        map[string]*CollectedContextItem // paneID\x00canonKey -> item
+	starred      map[string]bool                  // canonKey -> starred
+	persisted    map[string]bool                  // paneID\x00canonKey -> persisted in SQLite
+	loadedStored bool
+	pageRevs     map[string]int64
+	docRevs      map[string]int64
+	screenRevs   map[string]uint64
 }
 
 func newContextIndex() *contextIndex {
 	return &contextIndex{
 		items:      map[string]*CollectedContextItem{},
 		starred:    map[string]bool{},
+		persisted:  map[string]bool{},
 		pageRevs:   map[string]int64{},
 		docRevs:    map[string]int64{},
 		screenRevs: map[string]uint64{},
@@ -98,15 +105,119 @@ func (a *App) ensureContextIndex() *contextIndex {
 	return a.ctxIdx
 }
 
+func mapContextRecordKind(kind string) string {
+	switch kind {
+	case contextitems.KindPR:
+		return "pr"
+	case contextitems.KindFile:
+		return "file"
+	case "doc":
+		return "doc"
+	default:
+		return "url"
+	}
+}
+
+func mapContextRecordSource(src string) string {
+	switch src {
+	case contextitems.SourcePrompt:
+		return "prompt"
+	case contextitems.SourceResponse:
+		return "response"
+	case contextitems.SourceScreen:
+		return "screen"
+	default:
+		return "tool"
+	}
+}
+
+func (a *App) loadPersistedContextIndex(idx *contextIndex) {
+	if a.Store == nil {
+		return
+	}
+	idx.mu.RLock()
+	already := idx.loadedStored
+	idx.mu.RUnlock()
+	if already {
+		return
+	}
+	res, err := a.Store.Query(data.Query{Kind: data.KindContext, IncludeArchived: true})
+	if err != nil {
+		return
+	}
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+	if idx.loadedStored {
+		return
+	}
+	for _, rec := range res.Items {
+		val := strings.TrimSpace(rec.Text("value"))
+		kind := rec.Text("contextKind")
+		if kind == "" {
+			kind = "url"
+		}
+		canon := strings.TrimSpace(rec.Text("canonKey"))
+		if canon == "" {
+			canon = contextCanonKey(kind, val)
+		}
+		if canon == "" {
+			continue
+		}
+		paneID := ""
+		if pRef, ok := rec.RefField("pane"); ok {
+			paneID = pRef.ID
+		}
+		key := paneID + "\x00" + canon
+		idx.persisted[key] = true
+		if _, exists := idx.items[key]; !exists && !rec.IsArchived() && val != "" {
+			paneTitle := ""
+			if paneID != "" {
+				paneTitle = a.title(core.Ref{Kind: data.KindPane, ID: paneID})
+			}
+			projID, projTitle := "", unassignedProjectLabel
+			if tRef, ok := rec.RefField("task"); ok {
+				if taskRec, err := a.Store.Get(tRef); err == nil && taskRec != nil {
+					var root core.Ref
+					projTitle, root = a.resolveTaskRoot(*taskRec)
+					projID = root.ID
+				}
+			}
+			idx.items[key] = &CollectedContextItem{
+				Key:       key,
+				CanonKey:  canon,
+				Kind:      kind,
+				Value:     val,
+				Label:     rec.Text("title"),
+				Source:    rec.Text("source"),
+				Line:      recordIntField(rec, "line"),
+				Col:       recordIntField(rec, "col"),
+				PaneID:    paneID,
+				PaneTitle: paneTitle,
+				ProjectID: projID,
+				Project:   projTitle,
+				Starred:   rec.IsStarred() || idx.starred[canon],
+				SeenAt:    rec.UpdatedAt,
+			}
+		}
+	}
+	idx.loadedStored = true
+}
+
 func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, extracted []contextitems.Item) {
 	if len(extracted) == 0 {
 		return
 	}
 	idx := a.ensureContextIndex()
+	a.loadPersistedContextIndex(idx)
 	paneID, paneTitle := "", ""
+	var taskRef *core.Ref
 	if pane != nil {
 		paneID = pane.ID
 		paneTitle = views.Title(a.schema(data.KindPane), *pane)
+		if tRef, hasTask := pane.RefField("task"); hasTask && tRef.Kind == data.KindTask && tRef.ID != "" {
+			r := tRef
+			taskRef = &r
+		}
 		if projTitle == "" {
 			var ref *core.Ref
 			projTitle, ref = a.resolvePaneProject(*pane)
@@ -114,14 +225,18 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 				projID = ref.ID
 			}
 		}
+	} else if projID != "" {
+		r := core.Ref{Kind: data.KindTask, ID: projID}
+		taskRef = &r
 	}
 	if projTitle == "" {
 		projTitle = unassignedProjectLabel
 	}
 	now := a.now()
 
+	var toPersist []CollectedContextItem
+
 	idx.mu.Lock()
-	defer idx.mu.Unlock()
 	for _, it := range extracted {
 		canon := contextCanonKey(it.Kind, it.Value)
 		if canon == "" {
@@ -149,7 +264,7 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 		if p == "" && it.Kind == contextitems.KindFile {
 			p, _, _ = splitContextFileLoc(it.Value)
 		}
-		idx.items[key] = &CollectedContextItem{
+		collected := CollectedContextItem{
 			Key:       key,
 			CanonKey:  canon,
 			Kind:      it.Kind,
@@ -166,6 +281,42 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 			Starred:   idx.starred[canon],
 			SeenAt:    now,
 		}
+		idx.items[key] = &collected
+		if !idx.persisted[key] {
+			idx.persisted[key] = true
+			toPersist = append(toPersist, collected)
+		}
+	}
+	idx.mu.Unlock()
+
+	if a.Store == nil || len(toPersist) == 0 {
+		return
+	}
+	for _, item := range toPersist {
+		title := strings.TrimSpace(item.Label)
+		if title == "" {
+			title = item.Value
+		}
+		fields := map[string]any{
+			"title":       title,
+			"value":       item.Value,
+			"contextKind": mapContextRecordKind(item.Kind),
+			"source":      mapContextRecordSource(item.Source),
+			"canonKey":    item.CanonKey,
+		}
+		if item.Line > 0 {
+			fields["line"] = item.Line
+		}
+		if item.Col > 0 {
+			fields["col"] = item.Col
+		}
+		if pane != nil {
+			fields["pane"] = pane.Ref()
+		}
+		if taskRef != nil {
+			fields["task"] = *taskRef
+		}
+		_, _, _ = a.Store.Create(data.CreateInput{Kind: data.KindContext, Fields: fields}, contextHarvestActor)
 	}
 }
 
@@ -259,6 +410,7 @@ func (a *App) syncContextItems() {
 		return
 	}
 	idx := a.ensureContextIndex()
+	a.loadPersistedContextIndex(idx)
 
 	// 1. Agent response / UI pages.
 	if pages, err := a.Store.Query(data.Query{Kind: data.KindPage, IncludeArchived: a.showArchived}); err == nil {

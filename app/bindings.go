@@ -37,6 +37,7 @@ const (
 	ModeHints       = "hints"       // live terminal link/path hint labels
 	ModeComposer    = "composer"    // multi-line prompt composer overlay
 	ModeConfirm     = "confirm"     // shared confirmation modal (y/enter confirm, n/esc cancel)
+	ModeAbout       = "about"       // scrollable About diagnostics overlay
 )
 
 // Commands the app adds to core's built-ins and the widgets' own.
@@ -104,6 +105,8 @@ const (
 	CmdPaneApprove     = "pane.approve"
 	CmdPaneDeny        = "pane.deny"
 	CmdDaemonReset     = "daemon.reset"
+	CmdDaemonUpgrade   = "daemon.upgrade"
+	CmdAppReload       = "app.reload"
 	CmdSchedulePause   = "schedule.pause"
 	CmdScheduleResume  = "schedule.resume"
 	CmdLaneShow        = "lane.show"
@@ -176,6 +179,16 @@ const (
 	CmdPresetPickerDefault = "table.preset.picker.default"
 	CmdPresetPickerDelete  = "table.preset.picker.delete"
 	CmdFocusHints          = "focus.hints"
+
+	CmdAppAbout       = "app.about"
+	CmdPaneAssociate  = "pane.associate"
+	CmdCommandRun     = "command.run"
+	CmdCommandEditRun = "command.edit_run"
+	CmdDFCulpritClean = "df.culprit.clean"
+	CmdExtSetup       = "extension.setup"
+	CmdTaskAddSibling = "task.add.sibling"
+	CmdTaskAddChild   = "task.add.child"
+	CmdTaskFoldToggle = "task.fold.toggle"
 )
 
 var leader = core.Layer{Name: "leader", Modes: []string{ModeTerminalLeader, ModeNormal}, ExcludeTags: []string{"motion", "editing"}}
@@ -200,6 +213,7 @@ func Modes() []core.Mode {
 		{Name: ModeHints},
 		{Name: ModeComposer},
 		{Name: ModeConfirm},
+		{Name: ModeAbout},
 	}
 }
 
@@ -255,9 +269,19 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(n, "terminal", "i", CmdTermAttach, "type in the pane")),
 		bind(n, "question", "enter", CmdAnswer, "answer"),
 		bind(n, "question", "a", CmdAnswer, "answer"),
-		bind(n, "question", "n", CmdQuestionNext, "next question"),
-		bind(n, "question", "p", CmdQuestionPrev, "previous question"),
-		bind(n, "question", "ctrl+s", CmdQuestionSubmitAll, "submit all answers"),
+		when(bind(n, "question", "n", CmdQuestionNext, "next question"), "facts.space == \"panes\""),
+		when(bind(n, "question", "p", CmdQuestionPrev, "previous question"), "facts.space == \"panes\""),
+		when(bind(n, "question", "ctrl+s", CmdQuestionSubmitAll, "submit all answers"), "facts.space == \"panes\""),
+		bind(n, data.KindCommand, "enter", CmdCommandRun, "run command"),
+		bind(n, data.KindCommand, "r", CmdCommandRun, "run command"),
+		bind(n, data.KindCommand, "e", CmdCommandEditRun, "edit & run command"),
+		bind(n, "df.culprit", "X", CmdDFCulpritClean, "clean culprit"),
+		hidden(when(bind(n, data.KindTask, "o", CmdTaskAddSibling, "add sibling task"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, "O", CmdTaskAddChild, "add child task"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, "z a", CmdTaskFoldToggle, "fold/unfold subtree"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, "space", CmdOutlineStatusCycle, "cycle status"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, ">", CmdOutlineIndent, "indent"), "facts.tasksTree")),
+		hidden(when(bind(n, data.KindTask, "<", CmdOutlineOutdent, "outdent"), "facts.tasksTree")),
 		bind(n, ScopeProjectContext, "enter", CmdProjectContextOpen, "open context item"),
 		bind(n, ScopeProjectContext, "y", CmdProjectContextYank, "yank context item"),
 		bind(n, ScopeProjectContext, "s", CmdProjectContextStar, "star context item"),
@@ -267,6 +291,7 @@ func DefaultBindings() []core.Binding {
 		bind(n, "terminal", "f", CmdPaneHints, "terminal hints"),
 		bind(n, views.ScopeTOC, "f", CmdPaneHints, "terminal hints"),
 		bind(n, SpacePanes, "c", CmdPaneCompose, "compose prompt"),
+		bind(n, SpacePanes, "L", CmdPaneAssociate, "associate pane with task"),
 		bind(n, all, "g c", CmdContextPick, "context items"),
 		bind(n, data.KindExtension, "enter", CmdExtRun, "run"),
 		bind(n, all, "enter", views.CmdOpen, "open"),
@@ -294,6 +319,7 @@ func DefaultBindings() []core.Binding {
 		bind(n, data.KindRun, "x", CmdRunCancel, "cancel"),
 		bind(n, SpaceRuns, "n", CmdRunNew, "run a command"),
 		bind(n, data.KindExtension, "r", CmdExtRun, "run"),
+		bind(n, SpaceExtensions, "U", CmdExtSetup, "extension setup"),
 		bind(n, SpaceExtensions, "R", CmdExtRefresh, "look for extensions"),
 		bind(n, data.KindSignal, "R", CmdTriageRule, "rule from this signal"),
 		when(bind(n, SpacePanes, "Y", CmdPaneApprove, "approve"), "facts.hasPendingApproval"),
@@ -301,6 +327,8 @@ func DefaultBindings() []core.Binding {
 		when(bind(n, data.KindSchedule, "p", CmdSchedulePause, "pause"), "!facts.paused"),
 		when(bind(n, data.KindSchedule, "p", CmdScheduleResume, "resume"), "facts.paused"),
 		bind(n, all, "g R", CmdDaemonReset, "reset daemon"),
+		bind(n, all, "g D", CmdDaemonUpgrade, "upgrade daemon in place"),
+		bind(n, all, "g U", CmdAppReload, "reload client"),
 
 		// Yank: y lists every value of the record, y y copies its main one.
 		bind(n, all, "y", CmdYankPick, "yank"),
@@ -336,6 +364,7 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, "ctrl+o", CmdPathOpen, "path"),
 		bind(n, all, "S", CmdSettingsOpen, "settings"),
 		bind(n, all, "B", CmdBindingsOpen, "edit bindings"),
+		bind(n, all, "g A", CmdAppAbout, "about"),
 		bind(n, all, "W", CmdPaneAttention, "next pane that wants you"),
 		{Mode: n, Keys: keys("ctrl+a"), Layer: &leader, Hint: "leader"},
 		bind(n, all, "Q", core.CmdAppQuit, "quit"),
@@ -518,6 +547,9 @@ func DefaultBindings() []core.Binding {
 		bind(ModeOutline, all, "<", CmdOutlineOutdent, "outdent"),
 		bind(ModeOutline, all, "space", CmdOutlineStatusCycle, "cycle status"),
 		bind(ModeOutline, all, "i", CmdOutlineRename, "rename"),
+		bind(ModeOutline, all, "o", CmdTaskAddSibling, "add sibling task"),
+		bind(ModeOutline, all, "O", CmdTaskAddChild, "add child task"),
+		bind(ModeOutline, all, "z a", CmdTaskFoldToggle, "fold/unfold subtree"),
 		bind(ModeOutline, all, "esc", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "q", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "T", CmdModalCancel, "close"),
@@ -562,6 +594,21 @@ func DefaultBindings() []core.Binding {
 		bind(ModeConfirm, all, "esc", CmdConfirmCancel, "cancel"),
 		hidden(bind(ModeConfirm, all, "q", CmdConfirmCancel, "cancel")),
 		hidden(bind(ModeConfirm, all, "ctrl+c", CmdConfirmCancel, "cancel")),
+
+		// Scrollable About diagnostics overlay.
+		bind(ModeAbout, all, "j", "motion.down", "down"),
+		bind(ModeAbout, all, "k", "motion.up", "up"),
+		hidden(bind(ModeAbout, all, "down", "motion.down", "down")),
+		hidden(bind(ModeAbout, all, "up", "motion.up", "up")),
+		bind(ModeAbout, all, "g g", "motion.top", "top"),
+		bind(ModeAbout, all, "G", "motion.bottom", "bottom"),
+		bind(ModeAbout, all, "ctrl+d", "motion.half.down", "half page down"),
+		bind(ModeAbout, all, "ctrl+u", "motion.half.up", "half page up"),
+		bind(ModeAbout, all, "ctrl+f", "motion.page.down", "page down"),
+		bind(ModeAbout, all, "ctrl+b", "motion.page.up", "page up"),
+		hidden(bind(ModeAbout, all, "space", "motion.page.down", "page down")),
+		bind(ModeAbout, all, "esc", CmdModalCancel, "close"),
+		bind(ModeAbout, all, "q", CmdModalCancel, "close"),
 	}
 	out = append(out, macroBindings()...)
 	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePicker, ModeBindingsFilter, ModeCommandLine, ModeComposer} {
@@ -615,7 +662,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdSiteFocus, "Go to the selected pane's pages"),
 		spec(CmdSitePageOpen, "Open the focused page of the pane's site"),
 		spec(CmdSiteTOCToggle, "Show or hide the pane's Pages table of contents rail"),
-		spec(CmdAnswer, "Answer the focused question", "editing"),
+		recordSpec(CmdAnswer, "Answer the focused question", []string{data.KindQuestion}, "", "editing"),
 		spec(CmdTermAttach, "Type in the pane's terminal"),
 		spec(CmdTermDetach, "Leave the pane's terminal"),
 		{ID: CmdTermInput, Description: "Send a key to the pane", Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}, {Name: "text", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
@@ -671,6 +718,8 @@ func CommandSpecs() []core.CommandSpec {
 		recordSpec(CmdPaneApprove, "Approve the selected pane's pending permission request", []string{data.KindPane}, "facts.hasPendingApproval"),
 		recordSpec(CmdPaneDeny, "Deny the selected pane's pending permission request", []string{data.KindPane}, "facts.hasPendingApproval"),
 		spec(CmdDaemonReset, "Reset the local daemon: close all live panes, clear telemetry and archive dropped panes"),
+		spec(CmdDaemonUpgrade, "Upgrade the local daemon binary in place without killing live panes or subagents"),
+		spec(CmdAppReload, "Reload the Matomeru TUI client binary in place without disturbing running daemon panes"),
 		recordSpec(CmdSchedulePause, "Pause the focused schedule so the daemon stops firing it", []string{data.KindSchedule}, "!facts.paused", "editing"),
 		recordSpec(CmdScheduleResume, "Resume the focused schedule so the daemon fires it again", []string{data.KindSchedule}, "facts.paused", "editing"),
 		recordSpec(CmdLaneShow, "Open the Show page of the pane's active lane", []string{data.KindPane, data.KindLane}, ""),
@@ -791,6 +840,15 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: CmdPresetPickerDefault, Description: "Set the highlighted preset as default for this table", Meta: map[string]any{"internal": true}},
 		{ID: CmdPresetPickerDelete, Description: "Delete the highlighted preset from this table", Meta: map[string]any{"internal": true}},
 		spec(CmdFocusHints, "Show focus-jump hint labels over visible focusable regions"),
+		spec(CmdAppAbout, "Show build versions, daemon status, live pane PIDs, storage paths, extensions, and harnesses"),
+		recordSpec(CmdPaneAssociate, "Associate the selected pane with a task/project and backfill its records", []string{data.KindPane}, "", "editing"),
+		recordSpec(CmdCommandRun, "Run the suggested command in 3 Runs and record status and lastRun", []string{data.KindCommand}, "", "editing"),
+		recordSpec(CmdCommandEditRun, "Edit the suggested command, arguments, or working directory before running it", []string{data.KindCommand}, "", "editing"),
+		recordSpec(CmdDFCulpritClean, "Free disk space for a rebuildable o-df culprit via o-df clean --yes", []string{"df.culprit"}, "", "editing"),
+		recordSpec(CmdExtSetup, "Run setup for the focused extension if it advertises a setup command", []string{data.KindExtension}, "", "editing"),
+		spec(CmdTaskAddSibling, "Add a sibling task beside the focused task", "editing"),
+		spec(CmdTaskAddChild, "Add a child subtask under the focused task", "editing"),
+		spec(CmdTaskFoldToggle, "Fold or unfold the focused task subtree"),
 	}...)
 }
 

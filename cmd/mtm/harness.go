@@ -14,7 +14,7 @@ import (
 	"ofam.dev/oden"
 )
 
-const oaiProbeTimeout = 2 * time.Second
+const oaiProbeTimeout = 6 * time.Second
 
 func mtmHarnessCommand() oden.Command {
 	return oden.Command{

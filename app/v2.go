@@ -289,8 +289,9 @@ func (a *App) assign(s core.State, c core.Command) core.StepResult {
 	}
 	walk(nodes, "", false)
 	pm := picker.New("Move "+a.title(ref)+" to", items)
-	pm.Placeholder = "a task"
+	pm.Placeholder = "a task (or type a new task title)"
 	a.assignRef, a.assignTo = &ref, field
+	a.enablePickerCreate(modalAssign, data.KindTask, pm)
 	return core.Next(a.openPicker(s, modalAssign, pm))
 }
 
@@ -308,6 +309,14 @@ func (a *App) assigned(picked *picker.Item) {
 		where = "no task"
 	}
 	_, cs, err := a.Store.Patch(data.PatchInput{Ref: ref, Fields: map[string]any{field: value}}, User)
+	if err == nil && ref.Kind == data.KindPane && picked.Ref != nil && picked.Ref.Kind == data.KindTask {
+		if linked, berr := data.BackfillPaneTask(a.Store, ref.ID, picked.Ref.ID, User); berr == nil && linked > 0 {
+			a.updatePaneContextProject(ref.ID)
+			a.say("moved %s to %s · %d record(s) linked · u undoes", a.title(ref), where, linked)
+			return
+		}
+		a.updatePaneContextProject(ref.ID)
+	}
 	a.wrote(fmt.Sprintf("moved %s to %s", a.title(ref), where), cs, err)
 }
 
@@ -352,6 +361,7 @@ func (a *App) bindingsOpen(s core.State, _ core.Command) core.StepResult {
 		// Opened once per run: closing the editor keeps its undo history.
 		a.bindEd = bindings.New(Modes(), config.MergeBindings(DefaultBindings(), a.userBindings), a.specs...)
 		a.bindUser = len(a.userBindings)
+		a.bindConflictsInit = false
 	}
 	a.bindEd.SetQuery("")
 	a.bindCapture, a.bindCapturing = nil, false
@@ -363,6 +373,7 @@ func (a *App) bindingsOpen(s core.State, _ core.Command) core.StepResult {
 // overrides.
 func (a *App) bindingsChanged(what string) {
 	ed := a.bindEd
+	a.bindConflictsInit = false
 	a.userBindings = bindingOverrides(ed.Bindings(), DefaultBindings(), a.bindUser)
 	a.bindings = config.MergeBindings(DefaultBindings(), a.userBindings)
 	if err := a.rebuildKeymap(); err != nil {
@@ -490,12 +501,17 @@ func (a *App) bindingsModal() ui.ViewNode {
 	ed := a.bindEd
 	body := ed.View(modalBindings)
 	rows := ed.Bindings()
-	conflicts := 0
-	for _, an := range bindings.AnalyzeBindings(Modes(), rows, nil, a.specs...) {
-		if len(an.Conflicts) > 0 {
-			conflicts++
+	if !a.bindConflictsInit {
+		conflicts := 0
+		for _, an := range bindings.AnalyzeBindings(Modes(), rows, nil, a.specs...) {
+			if len(an.Conflicts) > 0 {
+				conflicts++
+			}
 		}
+		a.bindConflicts = conflicts
+		a.bindConflictsInit = true
 	}
+	conflicts := a.bindConflicts
 	ov := overlay(modalBindings, "Bindings", 90, 85, body)
 	ov.Scope = "bindings"
 	ov.Badges = []ui.Badge{{Text: fmt.Sprintf("%d of %d", len(ed.Filtered()), len(rows))}, {Text: fmt.Sprintf("%d overrides", len(a.userBindings))}}

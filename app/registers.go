@@ -158,9 +158,17 @@ func YankValues(schema data.Schema, rec data.Record) []YankValue {
 	return append(out, YankValue{"markdown", recordMarkdown(schema, rec, fields)})
 }
 
-// PrimaryYank is the one value "y y" copies: the record's title, else its
-// URL, else its file, else its reference.
+// PrimaryYank is the one value "y y" copies: for a suggested command record
+// its literal command string, otherwise the record's title, URL, file, or ref.
 func PrimaryYank(schema data.Schema, rec data.Record) YankValue {
+	if rec.Kind == data.KindCommand {
+		if cmd := rec.Text("command"); cmd != "" {
+			return YankValue{Name: "command", Text: cmd}
+		}
+		if sp := rec.Text("scriptPath"); sp != "" {
+			return YankValue{Name: "scriptPath", Text: sp}
+		}
+	}
 	for _, name := range append([]string{schema.SummaryField}, primaryFields...) {
 		if text := rec.Text(name); name != "" && text != "" {
 			return YankValue{Name: name, Text: text}

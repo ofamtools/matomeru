@@ -32,6 +32,8 @@ const (
 	OpHookEvent       = "hook_event"
 	OpResolveApproval = "resolve_approval"
 	OpTelemetry       = "telemetry"
+	OpSubscribe       = "subscribe"
+	OpUpgrade         = "upgrade"
 )
 
 // Hook telemetry event kinds, pane states, subagent actions, and approval decisions.
@@ -105,6 +107,9 @@ type Request struct {
 	// Resolve approval
 	Decision string `json:"decision,omitempty"`
 	Reason   string `json:"reason,omitempty"`
+
+	// Upgrade
+	Binary string `json:"binary,omitempty"`
 }
 
 // Response is one newline-delimited JSON RPC response returned over the Unix socket.
@@ -120,9 +125,11 @@ type Response struct {
 	Uptime    string  `json:"uptime,omitempty"`
 	UptimeSec float64 `json:"uptimeSec,omitempty"`
 
-	// snapshot
-	Frame *ptyhost.Frame `json:"frame,omitempty"`
-	Found bool           `json:"found,omitempty"`
+	// snapshot / subscribe
+	PaneID              string         `json:"paneId,omitempty"`
+	Frame               *ptyhost.Frame `json:"frame,omitempty"`
+	Found               bool           `json:"found,omitempty"`
+	ScrollbackUnchanged bool           `json:"scrollbackUnchanged,omitempty"`
 
 	// list
 	Panes []PaneInfo `json:"panes,omitempty"`

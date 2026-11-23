@@ -50,6 +50,7 @@ func NewLocalHost() *LocalHost { return &LocalHost{} }
 type session struct {
 	id   string
 	cmd  *exec.Cmd
+	pid  int
 	ptmx *os.File
 
 	mu       sync.Mutex // guards everything below and emu
@@ -122,7 +123,11 @@ func (h *LocalHost) OpenWithEnv(id, cmd, cwd string, cols, rows int, env map[str
 		hist = DefaultHistory
 	}
 	emu.SetScrollbackMaxLines(hist)
-	s := &session{id: id, cmd: c, ptmx: ptmx, emu: emu, histMax: hist, readDone: make(chan struct{}), waitDone: make(chan struct{})}
+	pid := 0
+	if c.Process != nil {
+		pid = c.Process.Pid
+	}
+	s := &session{id: id, cmd: c, pid: pid, ptmx: ptmx, emu: emu, histMax: hist, readDone: make(chan struct{}), waitDone: make(chan struct{})}
 	if h.sessions == nil {
 		h.sessions = map[string]*session{}
 	}
@@ -277,7 +282,9 @@ func (h *LocalHost) Snapshot(id string) (Frame, bool) {
 		AppCursorKeys: e.ApplicationCursorKeys(),
 		Revision:      s.rev,
 	}
-	if s.cmd.Process != nil {
+	if s.pid > 0 {
+		f.PID = s.pid
+	} else if s.cmd != nil && s.cmd.Process != nil {
 		f.PID = s.cmd.Process.Pid
 	}
 	var b strings.Builder
@@ -361,9 +368,13 @@ func (h *LocalHost) CloseAll() {
 // stop kills the process group (the PTY's session leader is its own group),
 // reaps it, closes the PTY and waits for the reader.
 func (s *session) stop() {
-	if p := s.cmd.Process; p != nil {
-		_ = syscall.Kill(-p.Pid, syscall.SIGKILL)
-		_ = p.Kill()
+	pid := s.pid
+	if pid <= 0 && s.cmd != nil && s.cmd.Process != nil {
+		pid = s.cmd.Process.Pid
+	}
+	if pid > 0 {
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
+		_ = syscall.Kill(pid, syscall.SIGKILL)
 	}
 	<-s.waitDone
 	_ = s.ptmx.Close()

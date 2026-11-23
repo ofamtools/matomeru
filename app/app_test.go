@@ -122,7 +122,7 @@ func TestRailFollowsOwnerPrompts(t *testing.T) {
 func TestNewNoteIsAboutTheFocusedRecord(t *testing.T) {
 	a, d := demo(t)
 	task := titled(t, a, data.KindTask, "matomeru-v2")
-	d.Keys("2", "j", "N")
+	d.Keys("2", "z", "a", "j", "N")
 	if a.Modal() != modalForm || !strings.Contains(d.Frame(), "New note") {
 		t.Fatalf("N did not open a new note form (modal %q)", a.Modal())
 	}

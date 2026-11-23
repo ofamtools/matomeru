@@ -140,7 +140,11 @@ func RunSmoke(out io.Writer, dump bool) error {
 		k.has("Lane: Matomeru v2 Step 2  [███▓░░] 3/6 done · 1 running (settings-worker)") && !k.has2("│ Lane"))
 	k.keep("Panes")
 	k.Keys("2")
-	k.check("2 opens Work: the task index", a.Space() == SpaceWork && a.Focus() == workTable && k.has("Tasks", "ochazuke-v2", "matomeru-v2", "Status", "Priority"))
+	if a.workTasksLayout() == WorkTasksLayoutTree {
+		k.check("2 opens Work: the task tree", a.Space() == SpaceWork && a.Focus() == workTable && k.has("Tasks", "ochazuke-v2", "matomeru-v2", "tree", "└─"))
+	} else {
+		k.check("2 opens Work: the task index", a.Space() == SpaceWork && a.Focus() == workTable && k.has("Tasks", "ochazuke-v2", "matomeru-v2", "Status", "Priority"))
+	}
 	k.keep("Work")
 	k.Keys("3")
 	k.check("3 opens Runs: table and detail", a.Space() == SpaceRuns && k.has("Runs", "gate: views", "Command", "go test -p 1 -race ./data", "Output"))
@@ -314,10 +318,21 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("picking one groups the list: status", a.Modal() == "" && a.tables[workTable].GroupField == "workStatus" && k.has("▾ active", "▾ done"))
 	k.Keys("g", "b", "enter")
 	k.check("g b enter ungroups", a.tables[workTable].GroupField == "")
-	k.Keys("o")
-	k.check("o sorts by the first column", a.tables[workTable].SortField == "title" && k.has("Title ▲"))
-	k.Keys("o", "o")
-	k.check("o twice more: descending, then off", a.tables[workTable].SortField == "")
+	if a.inWorkTaskTree(a.State()) {
+		k.Keys("o")
+		k.check("o in task tree opens non-destructive sibling task form", a.Modal() == modalForm && k.has("New task"))
+		k.Keys("esc", "g", "s")
+		k.Type("title")
+		k.Keys("enter")
+		k.check("g s sorts by title", a.tables[workTable].SortField == "title" && k.has("Title ▲"))
+		k.Keys("o", "o")
+		k.check("o twice more: descending, then off", a.tables[workTable].SortField == "")
+	} else {
+		k.Keys("o")
+		k.check("o sorts by the first column", a.tables[workTable].SortField == "title" && k.has("Title ▲"))
+		k.Keys("o", "o")
+		k.check("o twice more: descending, then off", a.tables[workTable].SortField == "")
+	}
 
 	k.section("7. overlays from anywhere")
 	k.Keys("T")
@@ -454,11 +469,17 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.Keys("y")
 	k.check("y y yanks the title into the registers and the clipboard", a.Modal() == "" && a.Register(core.RegUnnamed) == topTitle && a.Register(core.RegClipboard) == topTitle && a.live.clipboard == topTitle)
 	k.check("\"% is the focused record", a.Register(core.RegPath) == top.ID)
+	workPos := func() int {
+		if a.inWorkTaskTree(a.State()) {
+			return slices.Index(a.visibleTaskIDs(), a.workTreeSel)
+		}
+		return a.tables[workTable].SelectedIdx
+	}
 	k.Keys("q", "a", "j", "q")
 	_, recording := a.Macros.Recording()
-	k.check("q a records the keys until q", !recording && a.tables[workTable].SelectedIdx == 1)
+	k.check("q a records the keys until q", !recording && workPos() == 1)
 	k.Keys("@", "a", "@", "@")
-	k.check("@ a and @ @ replay them", a.tables[workTable].SelectedIdx == 3)
+	k.check("@ a and @ @ replay them", workPos() == 3)
 	k.Keys("g", "g", "ctrl+a", "S")
 	k.check("ctrl+a S shows the global scratch terminal over the space", a.Modal() == modalScratch && a.Mode() == ModeTerminal && a.Space() == SpaceWork && k.has("Scratch terminal", "global scratch"))
 	k.keep("Global scratch")

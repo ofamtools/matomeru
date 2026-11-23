@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ofam.dev/matomeru/data"
@@ -58,6 +59,11 @@ type Config struct {
 	Runner Runner
 	// Clock supplies current time (default time.Now).
 	Clock func() time.Time
+	// HandoffPath optionally overrides $MTM_DAEMON_HANDOFF when adopting an
+	// upgraded daemon's live PTY master FDs and listeners.
+	HandoffPath string
+	// ExecFunc overrides syscall.Exec during OpUpgrade (for tests).
+	ExecFunc func(argv0 string, argv []string, envv []string) error
 }
 
 type paneMeta struct {
@@ -87,10 +93,39 @@ type Server struct {
 	mcpURL    string
 	stopSched func()
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-	once   sync.Once
+	subsMu sync.Mutex
+	subs   map[*frameSubscriber]struct{}
+
+	ctx       context.Context
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
+	once      sync.Once
+	upgrading atomic.Bool
+}
+
+type frameSubscriber struct {
+	mu     sync.Mutex
+	dirty  map[string]struct{}
+	notify chan struct{}
+}
+
+type scrollSig struct {
+	n     int
+	ptr   *string
+	first string
+	last  string
+}
+
+func makeScrollSig(sb []string) scrollSig {
+	if len(sb) == 0 {
+		return scrollSig{}
+	}
+	return scrollSig{
+		n:     len(sb),
+		ptr:   &sb[0],
+		first: sb[0],
+		last:  sb[len(sb)-1],
+	}
 }
 
 // New constructs a daemon Server from cfg without starting listeners yet.
@@ -122,7 +157,7 @@ func New(cfg Config) (*Server, error) {
 			Clock:    clock,
 		})
 	}
-	return &Server{
+	srv := &Server{
 		cfg:        cfg,
 		socketPath: sockPath,
 		host:       host,
@@ -130,7 +165,16 @@ func New(cfg Config) (*Server, error) {
 		scheduler:  sched,
 		clock:      clock,
 		panes:      map[string]*paneMeta{},
-	}, nil
+		subs:       map[*frameSubscriber]struct{}{},
+	}
+	prevOnChange := host.OnChange
+	host.OnChange = func(id string) {
+		if prevOnChange != nil {
+			prevOnChange(id)
+		}
+		srv.notifyPaneChanged(id)
+	}
+	return srv, nil
 }
 
 // SocketPath returns the configured Unix socket path.
@@ -147,40 +191,98 @@ func (s *Server) MCPURL() string {
 // Scheduler returns the daemon's Scheduler (nil when Store was not configured).
 func (s *Server) Scheduler() *Scheduler { return s.scheduler }
 
-// Start binds the Unix socket, starts the optional HTTP MCP server and
-// background schedule ticker, and begins serving RPC connections.
+// Start binds the Unix socket (or adopts inherited FDs from a zero-downtime
+// upgrade handoff), starts the optional HTTP MCP server and background
+// schedule ticker, and begins serving RPC connections.
 func (s *Server) Start(ctx context.Context) error {
 	if err := os.MkdirAll(filepath.Dir(s.socketPath), 0o700); err != nil {
 		return fmt.Errorf("daemon: mkdir socket dir: %w", err)
 	}
-	// Detect live daemon vs stale socket file.
-	if _, err := os.Stat(s.socketPath); err == nil {
-		conn, derr := net.DialTimeout("unix", s.socketPath, 300*time.Millisecond)
-		if derr == nil {
-			_ = conn.Close()
-			return fmt.Errorf("%w (%s)", ErrAlreadyRunning, s.socketPath)
-		}
-		if rerr := os.Remove(s.socketPath); rerr != nil && !os.IsNotExist(rerr) {
-			return fmt.Errorf("daemon: remove stale socket: %w", rerr)
+
+	handoffPath := s.cfg.HandoffPath
+	if handoffPath == "" {
+		if envPath := os.Getenv(EnvDaemonHandoff); envPath != "" {
+			handoffPath = envPath
+			_ = os.Unsetenv(EnvDaemonHandoff)
 		}
 	}
 
-	unixLn, err := net.Listen("unix", s.socketPath)
-	if err != nil {
-		return fmt.Errorf("daemon: listen unix %s: %w", s.socketPath, err)
+	var handoff *daemonHandoff
+	if handoffPath != "" {
+		var err error
+		handoff, err = s.loadHandoff(handoffPath)
+		if err != nil {
+			return err
+		}
 	}
-	_ = os.Chmod(s.socketPath, 0o600)
+
+	var unixLn net.Listener
+	if handoff != nil && handoff.UnixFD >= 0 {
+		var err error
+		unixLn, err = adoptFileListener(handoff.UnixFD, "unix-listener")
+		if err != nil {
+			return err
+		}
+		if ul, ok := unixLn.(*net.UnixListener); ok {
+			ul.SetUnlinkOnClose(true)
+		}
+	} else {
+		// Detect live daemon vs stale socket file.
+		if _, err := os.Stat(s.socketPath); err == nil {
+			conn, derr := net.DialTimeout("unix", s.socketPath, 300*time.Millisecond)
+			if derr == nil {
+				_ = conn.Close()
+				return fmt.Errorf("%w (%s)", ErrAlreadyRunning, s.socketPath)
+			}
+			if rerr := os.Remove(s.socketPath); rerr != nil && !os.IsNotExist(rerr) {
+				return fmt.Errorf("daemon: remove stale socket: %w", rerr)
+			}
+		}
+
+		var err error
+		unixLn, err = net.Listen("unix", s.socketPath)
+		if err != nil {
+			return fmt.Errorf("daemon: listen unix %s: %w", s.socketPath, err)
+		}
+		_ = os.Chmod(s.socketPath, 0o600)
+	}
 
 	s.ctx, s.cancel = context.WithCancel(ctx)
 	s.startedAt = s.clock()
+	if handoff != nil && !handoff.StartedAt.IsZero() {
+		s.startedAt = handoff.StartedAt
+	}
 	s.unixLn = unixLn
+
+	// Restore inherited panes, PTY sessions, and telemetry before serving.
+	if handoff != nil {
+		if err := s.host.AdoptFromUpgrade(handoff.Sessions); err != nil {
+			_ = unixLn.Close()
+			return err
+		}
+		s.mu.Lock()
+		for _, m := range handoff.Panes {
+			mc := m
+			s.panes[m.ID] = &mc
+		}
+		s.mu.Unlock()
+		s.telemetry.restore(handoff.Telemetry)
+	}
 
 	// Start shared HTTP MCP server when Store is configured and not disabled.
 	if s.cfg.Store != nil && !s.cfg.DisableMCP {
-		httpLn, err := net.Listen("tcp", s.cfg.MCPAddr)
+		var httpLn net.Listener
+		var err error
+		if handoff != nil && handoff.MCPFD >= 0 {
+			httpLn, err = adoptFileListener(handoff.MCPFD, "mcp-listener")
+		} else {
+			httpLn, err = net.Listen("tcp", s.cfg.MCPAddr)
+		}
 		if err != nil {
 			_ = unixLn.Close()
-			_ = os.Remove(s.socketPath)
+			if handoff == nil {
+				_ = os.Remove(s.socketPath)
+			}
 			return fmt.Errorf("daemon: listen mcp http %s: %w", s.cfg.MCPAddr, err)
 		}
 		handler := mcpui.NewHTTPHandler(s.cfg.Store, s.cfg.Router)
@@ -196,6 +298,8 @@ func (s *Server) Start(ctx context.Context) error {
 			defer s.wg.Done()
 			_ = httpSrv.Serve(httpLn)
 		}()
+	} else if handoff != nil && handoff.MCPFD >= 0 {
+		_ = os.NewFile(uintptr(handoff.MCPFD), "unused-mcp-listener").Close()
 	}
 
 	// Start background schedule ticker when Store is configured and interval >= 0.
@@ -214,12 +318,20 @@ func (s *Server) Serve(ctx context.Context) error {
 		return err
 	}
 	<-s.ctx.Done()
+	if s.upgrading.Load() {
+		// execUpgrade is replacing this process in place; wait for syscall.Exec
+		// without closing PTYs or removing the socket.
+		select {}
+	}
 	return s.Shutdown(context.Background())
 }
 
 // Shutdown cleanly stops the Unix listener, HTTP MCP server, scheduler,
 // pending approvals, and all live PTY panes. Safe to call multiple times.
 func (s *Server) Shutdown(ctx context.Context) error {
+	if s.upgrading.Load() {
+		return nil
+	}
 	s.once.Do(func() {
 		if s.cancel != nil {
 			s.cancel()
@@ -281,6 +393,32 @@ func (s *Server) serveConn(conn net.Conn) {
 			_ = enc.Encode(Response{OK: false, Error: "invalid JSON request: " + err.Error()})
 			continue
 		}
+		if req.Op == OpSubscribe {
+			s.serveSubscribe(conn, enc)
+			return
+		}
+		if req.Op == OpUpgrade {
+			bin, err := resolveUpgradeBinary(req.Binary)
+			if err != nil {
+				_ = enc.Encode(Response{OK: false, Error: err.Error()})
+				continue
+			}
+			handoffPath, keepFiles, paneCount, err := s.ExportHandoff()
+			if err != nil {
+				_ = enc.Encode(Response{OK: false, Error: err.Error()})
+				continue
+			}
+			_ = enc.Encode(Response{
+				OK:        true,
+				PID:       os.Getpid(),
+				Socket:    s.socketPath,
+				MCPURL:    s.MCPURL(),
+				PaneCount: paneCount,
+			})
+			_ = conn.Close()
+			go s.execUpgrade(bin, handoffPath, keepFiles)
+			return
+		}
 		resp, shouldShutdown := s.handleRequest(req)
 		if err := enc.Encode(resp); err != nil {
 			if shouldShutdown {
@@ -291,6 +429,168 @@ func (s *Server) serveConn(conn net.Conn) {
 		if shouldShutdown {
 			go func() { _ = s.Shutdown(context.Background()) }()
 			return
+		}
+	}
+}
+
+const subscribeCoalesceWindow = 8 * time.Millisecond
+
+func (s *Server) notifyPaneChanged(id string) {
+	if id == "" {
+		return
+	}
+	s.subsMu.Lock()
+	for sub := range s.subs {
+		sub.mark(id)
+	}
+	s.subsMu.Unlock()
+}
+
+func (sub *frameSubscriber) mark(id string) {
+	sub.mu.Lock()
+	sub.dirty[id] = struct{}{}
+	sub.mu.Unlock()
+	select {
+	case sub.notify <- struct{}{}:
+	default:
+	}
+}
+
+func (sub *frameSubscriber) drain() []string {
+	sub.mu.Lock()
+	if len(sub.dirty) == 0 {
+		sub.mu.Unlock()
+		return nil
+	}
+	ids := make([]string, 0, len(sub.dirty))
+	for id := range sub.dirty {
+		ids = append(ids, id)
+	}
+	clear(sub.dirty)
+	sub.mu.Unlock()
+	slices.Sort(ids)
+	return ids
+}
+
+func (s *Server) serveSubscribe(conn net.Conn, enc *json.Encoder) {
+	// Ack subscription immediately so clients can detect support vs older daemons.
+	if err := enc.Encode(Response{OK: true}); err != nil {
+		return
+	}
+
+	sub := &frameSubscriber{
+		dirty:  map[string]struct{}{},
+		notify: make(chan struct{}, 1),
+	}
+
+	s.subsMu.Lock()
+	s.subs[sub] = struct{}{}
+	s.subsMu.Unlock()
+	defer func() {
+		s.subsMu.Lock()
+		delete(s.subs, sub)
+		s.subsMu.Unlock()
+	}()
+
+	// Seed subscriber with currently open panes so its cache warms immediately.
+	s.mu.Lock()
+	for id := range s.panes {
+		sub.mark(id)
+	}
+	s.mu.Unlock()
+
+	// Detect client disconnect promptly.
+	clientDone := make(chan struct{})
+	go func() {
+		defer close(clientDone)
+		var buf [64]byte
+		for {
+			if _, err := conn.Read(buf[:]); err != nil {
+				return
+			}
+		}
+	}()
+	defer func() {
+		_ = conn.Close()
+		<-clientDone
+	}()
+
+	lastScroll := map[string]scrollSig{}
+	var lastPush time.Time
+	var timer *time.Timer
+	var timerC <-chan time.Time
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
+
+	flush := func() bool {
+		ids := sub.drain()
+		if len(ids) == 0 {
+			return true
+		}
+		for _, id := range ids {
+			frame, ok := s.host.Snapshot(id)
+			if !ok {
+				delete(lastScroll, id)
+				if err := enc.Encode(Response{OK: true, Found: false, PaneID: id}); err != nil {
+					return false
+				}
+				continue
+			}
+			sig := makeScrollSig(frame.Scrollback)
+			unchanged := false
+			if prev, have := lastScroll[id]; have && prev == sig {
+				frame.Scrollback = nil
+				unchanged = true
+			} else {
+				lastScroll[id] = sig
+			}
+			if err := enc.Encode(Response{
+				OK:                  true,
+				Found:               true,
+				PaneID:              id,
+				Frame:               &frame,
+				ScrollbackUnchanged: unchanged,
+			}); err != nil {
+				return false
+			}
+		}
+		lastPush = time.Now()
+		return true
+	}
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-clientDone:
+			return
+		case <-sub.notify:
+			since := time.Since(lastPush)
+			if lastPush.IsZero() || since >= subscribeCoalesceWindow {
+				if timer != nil {
+					timer.Stop()
+					timerC = nil
+				}
+				if !flush() {
+					return
+				}
+			} else if timerC == nil {
+				wait := subscribeCoalesceWindow - since
+				if timer == nil {
+					timer = time.NewTimer(wait)
+				} else {
+					timer.Reset(wait)
+				}
+				timerC = timer.C
+			}
+		case <-timerC:
+			timerC = nil
+			if !flush() {
+				return
+			}
 		}
 	}
 }
@@ -353,6 +653,7 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 			StartedAt: s.clock(),
 		}
 		s.mu.Unlock()
+		s.notifyPaneChanged(id)
 		return Response{OK: true}, false
 
 	case OpWrite:
@@ -377,6 +678,7 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 			meta.Rows = max(req.Rows, 1)
 		}
 		s.mu.Unlock()
+		s.notifyPaneChanged(id)
 		return Response{OK: true}, false
 
 	case OpSnapshot:
@@ -401,17 +703,25 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 		delete(s.panes, id)
 		s.mu.Unlock()
 		s.telemetry.clearPane(id)
+		s.notifyPaneChanged(id)
 		if err != nil {
 			return Response{OK: false, Error: err.Error()}, false
 		}
 		return Response{OK: true}, false
 
 	case OpReset:
-		s.host.CloseAll()
 		s.mu.Lock()
+		closedIDs := make([]string, 0, len(s.panes))
+		for pid := range s.panes {
+			closedIDs = append(closedIDs, pid)
+		}
 		s.panes = map[string]*paneMeta{}
 		s.mu.Unlock()
+		s.host.CloseAll()
 		s.telemetry.reset("daemon reset")
+		for _, pid := range closedIDs {
+			s.notifyPaneChanged(pid)
+		}
 		return Response{OK: true}, false
 
 	case OpShutdown:

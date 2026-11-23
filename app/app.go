@@ -112,6 +112,8 @@ const (
 	modalComposer      = "composer"
 	modalConfirm       = "confirm"
 	modalPresets       = "table.presets"
+	modalAbout         = "about"
+	modalPaneAssociate = "pane.associate"
 
 	readerNode    = "reader.md"
 	scratchScreen = "scratch.screen"
@@ -178,8 +180,10 @@ type formState struct {
 	fm       *form.Model
 	about    *core.Ref // a new note is attached to this record
 	draftKey string
-	// For an answer: the page and card it answers, plus optional batch metadata.
+	// For an answer: the page and card it answers, plus optional batch metadata,
+	// or questionID when answering a KindQuestion record directly from 2 Work.
 	pageID, cardID string
+	questionID     string
 	batch          *batchQuestionInfo
 	batchPos       int
 	// For a launch form: what submit runs. It reports whether to close the form.
@@ -263,11 +267,13 @@ type App struct {
 
 	// The binding editor: its model, how many of its rows are the user's
 	// own, and the keys of a rebind being captured.
-	bindEd        *bindings.Model
-	bindUser      int
-	bindTarget    int
-	bindCapture   []string
-	bindCapturing bool
+	bindEd            *bindings.Model
+	bindUser          int
+	bindTarget        int
+	bindCapture       []string
+	bindCapturing     bool
+	bindConflicts     int
+	bindConflictsInit bool
 
 	browseKind string    // the noun the Work index lists; "" = tasks
 	fieldWhat  string    // what the field picker sets: filter, sort or group
@@ -328,10 +334,23 @@ type App struct {
 	userActions map[string]actions.ActionDef
 	toasts      *toast.Model
 
-	gen     uint64
-	memoKey string
-	memo    ui.ViewNode
+	// Wave D2: About overlay, indented Work Tasks Tree, pane associate, and dynamic ref-picker create.
+	aboutMD            *markdown.Model
+	workTreeSel        string
+	workTreeTableRowID string
+	taskFolded         map[string]bool
+	associatePaneRef   *core.Ref
+	pickerCreate       map[string]refCreateSpec
+
+	gen        uint64
+	memoKey    string
+	memo       ui.ViewNode
+	wantReload bool
 }
+
+// WantReload reports whether the user triggered app.reload so the binary
+// entrypoint should re-exec the freshly installed mtm executable in place.
+func (a *App) WantReload() bool { return a.wantReload }
 
 // New builds the app over store. It reads the user's configuration from
 // opts.ConfigDir when the files exist; a file that cannot be read is
@@ -906,6 +925,10 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 		return core.Next(a.modalMotion(s, id, c))
 	}
 	focus := s.ActiveFrame().FocusID
+	if focus == workTable && a.inWorkTaskTree(s) && c.ID != "motion.left" && c.ID != "motion.right" {
+		a.workTreeMove(c)
+		return core.Next(s)
+	}
 	if tbl := a.tables[focus]; tbl != nil && c.ID != "motion.left" && c.ID != "motion.right" {
 		before := tbl.SelectedIdx
 		tbl.HandleCommand(c)
@@ -955,6 +978,10 @@ func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 		if a.reader != nil {
 			a.reader.md.HandleCommand(c)
 		}
+	case modalAbout:
+		if a.aboutMD != nil {
+			a.aboutMD.HandleCommand(c)
+		}
 	case modalBindings:
 		if a.bindEd != nil {
 			a.bindEd.HandleCommand(c)
@@ -981,6 +1008,7 @@ func (a *App) dropModals(s core.State) core.State {
 	a.reader, a.opening, a.yankRef, a.actionRef, a.cmdState, a.scratch = nil, nil, nil, nil, nil, ""
 	a.contextTarget, a.composer, a.hints = nil, nil, nil
 	a.confirm, a.presetTable = nil, ""
+	a.aboutMD, a.associatePaneRef, a.pickerCreate = nil, nil, nil
 	return s
 }
 
@@ -1437,6 +1465,22 @@ func (a *App) answerQuestion(s core.State, c core.Command) core.StepResult {
 	walk(&root, nil)
 	pane, ok := a.SelectedPane()
 	if card == nil || !ok {
+		// Global KindQuestion record (e.g. in 2 Work -> Questions or Show page).
+		if ref, hasRef := a.subject(s, c); hasRef && ref.Kind == data.KindQuestion {
+			rec, err := a.Store.Get(ref)
+			if err != nil {
+				a.fail("answer", err)
+				return core.Next(s)
+			}
+			// If pressing enter on an already-answered question in the index, open its Show page;
+			// pressing `a` always opens the answer form.
+			if rec.Text("status") != "open" && strings.HasSuffix(c.Source, ":enter") {
+				if cur, showing := a.Showing(); !showing || cur != ref {
+					return core.Next(a.show(s, ref))
+				}
+			}
+			return core.Next(a.openAnswerFormForQuestionRecord(s, *rec))
+		}
 		a.say("no question here to answer")
 		return core.Next(s)
 	}
@@ -1531,7 +1575,13 @@ func (a *App) openRef(s core.State, req *form.RefRequest) core.State {
 		recs = append(recs, res.Items...)
 	}
 	a.refField = req.Field
-	return a.openPicker(s, modalRef, views.PickerFromRecords(a.Store.Registry(), "Pick "+views.Label(req.Field), recs))
+	pm := views.PickerFromRecords(a.Store.Registry(), "Pick "+views.Label(req.Field), recs)
+	if len(kinds) > 0 {
+		if _, known := a.Store.Registry().Get(kinds[0]); known {
+			a.enablePickerCreate(modalRef, kinds[0], pm)
+		}
+	}
+	return a.openPicker(s, modalRef, pm)
 }
 
 func (a *App) pickPath(s core.State, picked *pathpicker.DirEntry) core.State {
@@ -1577,9 +1627,11 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 	switch c.ID {
 	case CmdPickerInsert:
 		pm.AppendQuery(c.Arg("text"))
+		a.syncPickerCreateItem(id, pm)
 		return core.Next(s)
 	case CmdPickerBack:
 		pm.BackspaceQuery()
+		a.syncPickerCreateItem(id, pm)
 		return core.Next(s)
 	}
 	if line, shell := strings.CutPrefix(pm.Query, "!"); shell && id == modalPalette && c.ID == picker.CmdConfirm {
@@ -1597,9 +1649,13 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 	}
 	picked, _ := pm.HandleCommand(c)
 	if picked == nil {
+		if input.IsReadlineCommand(c.ID) {
+			a.syncPickerCreateItem(id, pm)
+		}
 		return core.Next(s)
 	}
 	s = closeModal(s, id)
+	delete(a.pickerCreate, id)
 	switch id {
 	case modalYank:
 		text, _ := picked.Data.(string)
@@ -1632,19 +1688,29 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 			a.applyTablePreset(tableID, picked.ID)
 		}
 	case modalAssign:
+		if _, isCreate := picked.Data.(createRecordPick); isCreate {
+			if ref, ok := a.resolveOrCreatePick(picked); ok {
+				cp := *picked
+				cp.Ref = &ref
+				a.assigned(&cp)
+				break
+			}
+		}
 		a.assigned(picked)
+	case modalPaneAssociate:
+		a.paneAssociatePicked(picked)
 	case modalPages:
-		return core.Next(a.jumpToPage(s, picked.ID))
+		return core.Next(a.jumpToUnifiedPage(s, picked.ID))
 	case modalRecents:
 		if picked.Ref != nil {
 			return core.Next(a.show(s, *picked.Ref))
 		}
 	case modalRef:
-		if picked.Ref != nil {
+		if ref, ok := a.resolveOrCreatePick(picked); ok {
 			if topModal(s) == modalPalette && a.palette != nil {
-				a.palette.SetPickedValue(a.refField, *picked.Ref)
+				a.palette.SetPickedValue(a.refField, ref)
 			} else if fs := a.formOf(topModal(s)); fs != nil {
-				fs.fm.SetValue(a.refField, *picked.Ref)
+				fs.fm.SetValue(a.refField, ref)
 				if i := slices.IndexFunc(fs.fm.Specs, func(p core.ParamSpec) bool { return p.Name == a.refField }); i >= 0 {
 					fs.fm.ActiveIdx = i
 				}
@@ -1942,13 +2008,7 @@ func flatten(nodes []data.TaskNode, out *[]string) {
 }
 
 func (a *App) outlineIDs() []string {
-	nodes, err := a.Store.TaskTree(a.showArchived)
-	if err != nil {
-		a.fail("outline", err)
-	}
-	var ids []string
-	flatten(nodes, &ids)
-	return ids
+	return a.visibleTaskIDs()
 }
 
 func (a *App) outlineMove(c core.Command) {
@@ -2314,6 +2374,13 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 		a.confirm = nil
 	case modalPresets:
 		a.presetTable = ""
+	case modalAbout:
+		a.aboutMD = nil
+	case modalPaneAssociate:
+		a.associatePaneRef = nil
+		delete(a.pickerCreate, modalPaneAssociate)
+	case modalRef, modalAssign:
+		delete(a.pickerCreate, id)
 	}
 	a.say("")
 	return core.Next(closeModal(s, id))
@@ -2414,6 +2481,8 @@ func (a *App) register() {
 	a.handle(CmdPaneApprove, a.paneResolveApproval(daemon.DecisionAllow))
 	a.handle(CmdPaneDeny, a.paneResolveApproval(daemon.DecisionDeny))
 	a.handle(CmdDaemonReset, a.daemonReset)
+	a.handle(CmdDaemonUpgrade, a.daemonUpgrade)
+	a.handle(CmdAppReload, a.appReload)
 	a.handle(CmdSchedulePause, a.schedulePause)
 	a.handle(CmdScheduleResume, a.scheduleResume)
 	a.handle(CmdLaneShow, a.laneShow)
@@ -2491,34 +2560,7 @@ func (a *App) register() {
 	a.handle(CmdOutlineStatusCycle, a.outlineStatusCycle)
 	a.handle(CmdOutlineRename, a.outlineRename)
 	a.handle(CmdRecentsPick, a.recentsPick)
-	a.handle(CmdPagesPick, func(s core.State, _ core.Command) core.StepResult {
-		res, err := a.Router.ListPages(mcpui.ListPagesArgs{})
-		if err != nil {
-			a.fail("pages", err)
-			return core.Next(s)
-		}
-		items := make([]picker.Item, len(res.Pages))
-		for i, p := range res.Pages {
-			ref := core.Ref{Kind: data.KindPage, ID: p.ID}
-			item := picker.Item{ID: p.ID, Title: p.Title, Unread: p.Unread, Ref: &ref, Scope: data.KindPage, Keywords: []string{p.Slug, p.PageKind}}
-			if p.PaneRef != nil {
-				item.Subtitle = a.title(*p.PaneRef)
-			}
-			open := 0
-			for _, q := range p.Questions {
-				if !q.Answered {
-					open++
-				}
-			}
-			if open > 0 {
-				item.Badges = append(item.Badges, ui.Badge{Text: fmt.Sprintf("%d open", open), Tone: "warning"})
-			}
-			items[i] = item
-		}
-		pm := picker.New("Pages", items)
-		pm.Placeholder = "a page of any pane"
-		return core.Next(a.openPicker(s, modalPages, pm))
-	})
+	a.handle(CmdPagesPick, a.pagesPick)
 	a.handle(CmdRecordActions, a.recordActionsOpen)
 	a.handle(CmdShellOpen, a.shellOpen)
 	for _, id := range []string{commandline.CmdInsert, commandline.CmdSubmit, commandline.CmdCancel,
@@ -2648,6 +2690,15 @@ func (a *App) register() {
 	a.handle(CmdPresetPickerDefault, a.presetPickerDefault)
 	a.handle(CmdPresetPickerDelete, a.presetPickerDelete)
 	a.handle(CmdFocusHints, a.focusHints)
+	a.handle(CmdAppAbout, a.aboutOpen)
+	a.handle(CmdPaneAssociate, a.paneAssociate)
+	a.handle(CmdCommandRun, a.commandRun)
+	a.handle(CmdCommandEditRun, a.commandEditRun)
+	a.handle(CmdDFCulpritClean, a.dfCulpritClean)
+	a.handle(CmdExtSetup, a.extSetup)
+	a.handle(CmdTaskAddSibling, a.taskAddRelative(false))
+	a.handle(CmdTaskAddChild, a.taskAddRelative(true))
+	a.handle(CmdTaskFoldToggle, a.taskFoldToggle)
 	for id, def := range a.userActions {
 		a.handle(id, a.runUserAction(def))
 	}

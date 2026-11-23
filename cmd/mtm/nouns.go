@@ -11,6 +11,7 @@ import (
 
 	"ofam.dev/matomeru/app"
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/oden"
 )
@@ -34,6 +35,9 @@ var nounSpecs = []nounSpec{
 	{name: "directory", aliases: []string{"directories", "dir", "dirs"}, kind: "directory", summary: "manage directories"},
 	{name: "extension", aliases: []string{"extensions"}, kind: data.KindExtension, summary: "manage and run o-* extensions"},
 	{name: "rule", aliases: []string{"rules"}, kind: data.KindTriageRule, summary: "manage triage rules"},
+	{name: "question", aliases: []string{"questions", "q"}, kind: data.KindQuestion, summary: "manage agent questions and Q&A"},
+	{name: "command", aliases: []string{"commands", "cmd"}, kind: data.KindCommand, summary: "manage suggested shell commands"},
+	{name: "context", aliases: []string{"contexts", "ctx"}, kind: data.KindContext, summary: "manage context items"},
 }
 
 var nounAliases = map[string]string{
@@ -64,6 +68,15 @@ var nounAliases = map[string]string{
 	"rule":        data.KindTriageRule,
 	"rules":       data.KindTriageRule,
 	"triage.rule": data.KindTriageRule,
+	"question":    data.KindQuestion,
+	"questions":   data.KindQuestion,
+	"q":           data.KindQuestion,
+	"command":     data.KindCommand,
+	"commands":    data.KindCommand,
+	"cmd":         data.KindCommand,
+	"context":     data.KindContext,
+	"contexts":    data.KindContext,
+	"ctx":         data.KindContext,
 }
 
 func resolveNoun(name string) (string, bool) {
@@ -72,7 +85,7 @@ func resolveNoun(name string) (string, bool) {
 }
 
 func bodyFieldName(schema data.Schema) string {
-	for _, name := range []string{"body", "description", "summary"} {
+	for _, name := range []string{"body", "description", "summary", "details", "notes"} {
 		if _, ok := schema.Field(name); ok {
 			return name
 		}
@@ -575,6 +588,63 @@ func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
 		},
 	}
 
+	if kind == data.KindQuestion {
+		answerParams := []oden.Parameter{
+			{Name: "answer", Type: "string", Description: "Answer text (or pass as a positional argument)"},
+			paramFormatJSON,
+		}
+		children = append(children, oden.Command{
+			Name:       "answer",
+			Summary:    "answer a question and sync its linked pane ui.page card",
+			Usage:      `[<id>] (--answer "..." | <answer>) [--format json|table]`,
+			Parameters: answerParams,
+			Handle: func(c *oden.Ctx) error {
+				p, err := c.Parse(answerParams)
+				if err != nil {
+					return err
+				}
+				pos := p.Positional()
+				const use = `usage: mtm question answer <id> (--answer "..." | <answer>)`
+				var query, answer string
+				if p.Has("answer") {
+					if len(pos) > 1 {
+						return errors.New(use)
+					}
+					if len(pos) == 1 {
+						query = pos[0]
+					}
+					answer = p.String("answer")
+				} else {
+					switch len(pos) {
+					case 2:
+						query, answer = pos[0], pos[1]
+					case 1:
+						answer = pos[0]
+					default:
+						return errors.New(use)
+					}
+				}
+				if strings.TrimSpace(answer) == "" {
+					return errors.New("answer is required\n" + use)
+				}
+				store, err := openStoreWithSeed(g)
+				if err != nil {
+					return err
+				}
+				defer store.Close()
+				id, err := resolveRecordID(c.Context, store, kind, query, c.Stdin, use)
+				if err != nil {
+					return err
+				}
+				rec, err := mcpui.New(store).AnswerQuestion(id, answer, cliActor)
+				if err != nil {
+					return err
+				}
+				return printRecordOne(c.Stdout, store, kind, recordFormat(p), rec)
+			},
+		})
+	}
+
 	if kind == data.KindExtension {
 		discoverParams := []oden.Parameter{
 			{Name: "dir", Type: "string", Repeatable: true, Description: "Directory to search before PATH"},
@@ -665,6 +735,7 @@ func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
 		Aliases:  spec.aliases,
 		Summary:  spec.summary,
 		Category: "Records",
+		Audience: oden.AudienceHuman,
 		Children: children,
 	}
 }

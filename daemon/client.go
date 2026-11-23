@@ -244,6 +244,47 @@ func (c *Client) Shutdown(ctx context.Context) error {
 	return err
 }
 
+// Upgrade re-execs the running daemon binary in place without killing any live
+// PTY panes, child processes, or subagents, and waits until the upgraded daemon
+// responds to Status again.
+func (c *Client) Upgrade(ctx context.Context, binary string) (*UpgradeResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	resp, err := c.call(ctx, Request{Op: OpUpgrade, Binary: binary}, 0)
+	if err != nil {
+		return nil, err
+	}
+	res := &UpgradeResult{
+		PID:       resp.PID,
+		Binary:    binary,
+		Socket:    resp.Socket,
+		MCPURL:    resp.MCPURL,
+		PaneCount: resp.PaneCount,
+	}
+	// Wait briefly for the newly exec'd daemon to start accepting connections.
+	waitCtx, cancel := context.WithTimeout(ctx, DefaultEnsureTimeout)
+	defer cancel()
+	backoff := 20 * time.Millisecond
+	for {
+		if st, serr := c.Status(waitCtx); serr == nil {
+			res.PID = st.PID
+			res.Socket = st.Socket
+			res.MCPURL = st.MCPURL
+			res.PaneCount = st.PaneCount
+			return res, nil
+		}
+		select {
+		case <-waitCtx.Done():
+			return res, nil
+		case <-time.After(backoff):
+			if backoff < 100*time.Millisecond {
+				backoff += 20 * time.Millisecond
+			}
+		}
+	}
+}
+
 // HookEvent sends a hook telemetry or blocking approval event to the daemon.
 func (c *Client) HookEvent(ctx context.Context, ev HookEvent) (*HookEventResult, error) {
 	timeout := c.Timeout

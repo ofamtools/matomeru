@@ -166,6 +166,22 @@ func DefaultConfigs() map[string]HarnessConfig {
 				},
 			},
 		},
+		"agy": {
+			Name:    "agy",
+			Label:   "Antigravity",
+			Command: []string{"agy"},
+			HookConfig: map[string]any{
+				"command": "mtm-hook antigravity",
+				"events": []string{
+					"PreInvocation",
+					"PostInvocation",
+					"BeforeTool",
+					"AfterTool",
+					"PermissionRequest",
+					"SessionEnd",
+				},
+			},
+		},
 		"antigravity": {
 			Name:    "antigravity",
 			Label:   "Antigravity",
@@ -460,7 +476,20 @@ func MergeInstalled(installed []InstalledHarness, cfg FileConfig) []Entry {
 		if seen[id] {
 			continue
 		}
-		merged := overlayConfig(defaults[id], userCfg[id], id)
+		base := defaults[id]
+		merged := base
+		if alias := aliasID(id); alias != "" {
+			if merged.Name == "" {
+				merged = defaults[alias]
+			}
+			if au, hasAlias := userCfg[alias]; hasAlias {
+				merged = overlayConfig(merged, au, id)
+				if len(au.Command) == 0 {
+					seen[alias] = true
+				}
+			}
+		}
+		merged = overlayConfig(merged, userCfg[id], id)
 		if merged.Disabled {
 			seen[id] = true
 			continue
@@ -663,6 +692,23 @@ func normalizeID(raw string) string {
 	s = strings.TrimPrefix(s, "harness/")
 	s = strings.TrimPrefix(s, "ai.harness/")
 	return strings.TrimSpace(s)
+}
+
+// AliasID returns the known alternate ID for a built-in harness (e.g.
+// "agy" <-> "antigravity"), or "" if none exists.
+func AliasID(id string) string {
+	return aliasID(normalizeID(id))
+}
+
+func aliasID(id string) string {
+	switch id {
+	case "agy":
+		return "antigravity"
+	case "antigravity":
+		return "agy"
+	default:
+		return ""
+	}
 }
 
 func cloneMap(m map[string]any) map[string]any {

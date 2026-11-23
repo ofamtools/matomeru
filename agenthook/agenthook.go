@@ -444,6 +444,21 @@ func parseArgs(args []string) (cliArgs, bool, error) {
 			}
 			out.timeout = d
 			i = next
+		case a == "--integration" || strings.HasPrefix(a, "--integration="):
+			// Legacy v1 compatibility flag (e.g. `mtm-hook claude-code --integration 3`).
+			_, next, err := takeFlagValue(args, i, "--integration")
+			if err != nil {
+				return out, false, err
+			}
+			i = next
+		case a == "--server" || strings.HasPrefix(a, "--server="):
+			_, next, err := takeFlagValue(args, i, "--server")
+			if err != nil {
+				return out, false, err
+			}
+			i = next
+		case a == "--no-context" || a == "--send-cwd":
+			// Legacy v1 boolean flags accepted for compatibility.
 		case strings.HasPrefix(a, "-"):
 			return out, false, fmt.Errorf("unknown flag %q", a)
 		default:

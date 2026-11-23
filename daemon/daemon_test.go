@@ -7,8 +7,11 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -514,5 +517,224 @@ func TestDaemonHookAutoIndexing(t *testing.T) {
 	}
 	if rels, err := store.Related(pane.Ref(), data.RelContext, data.Outgoing); err != nil || len(rels) != 4 {
 		t.Fatalf("pane RelContext count = %d, err=%v; want 4", len(rels), err)
+	}
+}
+
+func TestDaemonSubscribePushStreamingAndScrollbackPreservation(t *testing.T) {
+	_, client := startTestServer(t, Config{DisableMCP: true})
+	host := NewHostAdapter(client)
+	defer host.CloseAll()
+
+	changes := host.Changes()
+
+	// Wait briefly for the subscription stream to connect.
+	deadline := time.Now().Add(2 * time.Second)
+	for !host.subConnected.Load() && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !host.subConnected.Load() {
+		t.Fatal("HostAdapter subscribe stream did not connect")
+	}
+
+	// Open a pane that creates scrollback lines, then echoes stdin via cat.
+	cmd := `i=1; while [ $i -le 30 ]; do printf "HIST_%02d\n" $i; i=$((i+1)); done; printf "PROMPT_READY\n"; cat`
+	if err := host.Open("sub1", cmd, "", 80, 10); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	// Wait for push-delivered frames containing PROMPT_READY (without polling RPC).
+	waitPushed := func(substr string) ptyhost.Frame {
+		t.Helper()
+		dl := time.After(3 * time.Second)
+		for {
+			if f, ok := host.Snapshot("sub1"); ok && strings.Contains(strings.Join(f.Plain, "\n"), substr) {
+				return f
+			}
+			select {
+			case <-changes:
+			case <-dl:
+				f, _ := host.Snapshot("sub1")
+				t.Fatalf("timed out waiting for pushed %q; screen:\n%s", substr, strings.Join(f.Plain, "\n"))
+			}
+		}
+	}
+
+	f1 := waitPushed("PROMPT_READY")
+	if len(f1.Scrollback) == 0 {
+		t.Fatalf("expected non-empty scrollback after 30 lines in 10-row pane")
+	}
+
+	// Send keystrokes over persistent Write connection and verify immediate push (<500ms)
+	// AND that scrollback is preserved across ScrollbackUnchanged frames.
+	start := time.Now()
+	if err := host.Write("sub1", []byte("FAST_ECHO_TEST\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	f2 := waitPushed("FAST_ECHO_TEST")
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("push latency too slow: %v", elapsed)
+	}
+	if len(f2.Scrollback) < len(f1.Scrollback) {
+		t.Fatalf("scrollback lost across push update: got %d, had %d", len(f2.Scrollback), len(f1.Scrollback))
+	}
+
+	// Second Write on reused persistent connection works smoothly.
+	if err := host.Write("sub1", []byte("SECOND_KEY\n")); err != nil {
+		t.Fatalf("second Write: %v", err)
+	}
+	waitPushed("SECOND_KEY")
+}
+
+// TestHelperDaemonUpgradeServer is invoked as a subprocess by
+// TestDaemonZeroDowntimeExecUpgrade to prove real syscall.Exec handoff.
+func TestHelperDaemonUpgradeServer(t *testing.T) {
+	sock := os.Getenv("MTM_TEST_UPGRADE_SOCK")
+	if sock == "" {
+		return
+	}
+	store, err := data.Open(":memory:")
+	if err != nil {
+		t.Fatalf("data.Open: %v", err)
+	}
+	defer store.Close()
+
+	srv, err := New(Config{
+		SocketPath:        sock,
+		Store:             store,
+		SchedulerInterval: -1,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := srv.Serve(context.Background()); err != nil {
+		t.Fatalf("Serve: %v", err)
+	}
+}
+
+func TestDaemonZeroDowntimeExecUpgrade(t *testing.T) {
+	sock := shortSocketPath(t)
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable: %v", err)
+	}
+
+	// Launch a real daemon subprocess running this test binary.
+	cmd := exec.Command(exe, "-test.run=^TestHelperDaemonUpgradeServer$")
+	cmd.Env = append(os.Environ(), "MTM_TEST_UPGRADE_SOCK="+sock)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start helper daemon: %v", err)
+	}
+	client := NewClient(sock)
+	t.Cleanup(func() {
+		_ = client.Shutdown(context.Background())
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
+
+	// Wait until the helper daemon is ready.
+	var stBefore *StatusResult
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		st, serr := client.Status(context.Background())
+		if serr == nil {
+			stBefore = st
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if stBefore == nil {
+		t.Fatalf("helper daemon never started; stderr:\n%s", stderr.String())
+	}
+
+	// Open a pane that spawns a background child "subagent" (sleep 60 &) and echoes stdin via cat.
+	host := NewHostAdapter(client)
+	defer host.CloseAll()
+	_ = host.Changes()
+
+	paneCmd := `sleep 60 & sub=$!; printf "SUBPID=%d\nBEFORE_UPGRADE\n" "$sub"; cat`
+	if err := host.Open("live1", paneCmd, "", 80, 20); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	frameBefore := waitSnapshotContains(t, host, "live1", "BEFORE_UPGRADE", 4*time.Second)
+
+	// Extract the child subagent PID from the terminal output.
+	subPID := 0
+	for _, line := range frameBefore.Plain {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "SUBPID="); ok {
+			if n, err := strconv.Atoi(strings.TrimSpace(rest)); err == nil && n > 0 {
+				subPID = n
+			}
+		}
+	}
+	if subPID <= 0 {
+		t.Fatalf("could not parse SUBPID from screen:\n%s", strings.Join(frameBefore.Plain, "\n"))
+	}
+	t.Cleanup(func() {
+		_ = syscall.Kill(subPID, syscall.SIGKILL)
+	})
+
+	// Record telemetry before upgrade to verify it also survives exec.
+	if _, err := client.HookEvent(context.Background(), HookEvent{
+		PaneID:  "live1",
+		Harness: "claude",
+		Kind:    HookKindState,
+		State:   StateRunning,
+		Summary: "Running subagent",
+	}); err != nil {
+		t.Fatalf("HookEvent: %v", err)
+	}
+
+	// Trigger a REAL syscall.Exec zero-downtime upgrade of the daemon process!
+	upRes, err := client.Upgrade(context.Background(), exe)
+	if err != nil {
+		t.Fatalf("Upgrade: %v (stderr:\n%s)", err, stderr.String())
+	}
+	if upRes.PID != stBefore.PID {
+		t.Fatalf("upgraded PID = %d, want same PID %d", upRes.PID, stBefore.PID)
+	}
+	if upRes.MCPURL != stBefore.MCPURL {
+		t.Fatalf("upgraded MCPURL = %q, want unchanged %q", upRes.MCPURL, stBefore.MCPURL)
+	}
+	if upRes.PaneCount != 1 {
+		t.Fatalf("upgraded PaneCount = %d, want 1", upRes.PaneCount)
+	}
+
+	// 1. Both the pane process AND its child subagent MUST still be alive!
+	if err := syscall.Kill(subPID, 0); err != nil {
+		t.Fatalf("subagent pid %d died during daemon upgrade: %v", subPID, err)
+	}
+	if frameBefore.PID > 0 {
+		if err := syscall.Kill(frameBefore.PID, 0); err != nil {
+			t.Fatalf("pane process pid %d died during daemon upgrade: %v", frameBefore.PID, err)
+		}
+	}
+
+	// 2. Shared HTTP MCP server must still answer on the EXACT SAME port!
+	resp, err := http.Get(stBefore.MCPURL + "/health")
+	if err != nil {
+		t.Fatalf("GET %s/health after upgrade: %v", stBefore.MCPURL, err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("MCP /health status after upgrade = %d", resp.StatusCode)
+	}
+
+	// 3. Telemetry must survive upgrade.
+	tel, err := client.Telemetry(context.Background(), "live1")
+	if err != nil || tel.Telemetry["live1"] == nil || tel.Telemetry["live1"].Summary != "Running subagent" {
+		t.Fatalf("telemetry after upgrade = %+v, err=%v", tel, err)
+	}
+
+	// 4. Writing to the live pane after upgrade still flows to cat and echoes back!
+	if err := host.Write("live1", []byte("AFTER_UPGRADE_ALIVE\n")); err != nil {
+		t.Fatalf("Write after upgrade: %v", err)
+	}
+	waitSnapshotContains(t, host, "live1", "AFTER_UPGRADE_ALIVE", 4*time.Second)
+
+	// Cleanly close pane (kills pane process) and verify subagent cleanup.
+	if err := host.Close("live1"); err != nil {
+		t.Fatalf("Close after upgrade: %v", err)
 	}
 }

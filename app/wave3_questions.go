@@ -426,10 +426,22 @@ func hasNonEmptyAnswer(values map[string]any) bool {
 	return false
 }
 
-// submitAnswerModal handles form submission inside modalAnswer for both single
-// questions (direct SubmitAnswer) and batched ui.ask questions (staging +
+// submitAnswerModal handles form submission inside modalAnswer for global
+// KindQuestion records (synced via Router.AnswerQuestion), single page
+// questions (direct SubmitAnswer), and batched ui.ask questions (staging +
 // atomic SubmitAnswers when the batch is complete).
 func (a *App) submitAnswerModal(s core.State, fs *formState, values map[string]any) core.State {
+	if fs.questionID != "" {
+		answerText := formatQuestionAnswerValues(values)
+		if _, err := a.Router.AnswerQuestion(fs.questionID, answerText, User); err != nil {
+			a.fail("answer", err)
+			return s
+		}
+		a.clearSubmittedDraft(fs)
+		a.answer = nil
+		a.say("answered %q · synced to pane page · u undoes", fs.fm.Title)
+		return closeModal(s, modalAnswer)
+	}
 	if fs.batch == nil || len(fs.batch.cards) < 2 {
 		_, err := a.Router.SubmitAnswer(fs.pageID, fs.cardID, values, User)
 		if err != nil {

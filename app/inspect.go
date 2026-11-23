@@ -37,11 +37,20 @@ const unboundBadge = "(unbound)"
 type ActionInfo struct {
 	ID          string           `json:"id"`
 	Description string           `json:"description"`
+	Namespace   string           `json:"namespace,omitempty"`
 	Tags        []string         `json:"tags,omitempty"`
 	Params      []core.ParamSpec `json:"params,omitempty"`
 	// Keys are the bindings that run it: "j", or "picker: enter" outside the
 	// normal mode, with "(scope)" after a binding of one scope.
 	Keys []string `json:"keys"`
+	// Mode is the primary mode where this action is bound (when bound).
+	Mode string `json:"mode,omitempty"`
+	// When is the guard expression that enables this action (when guarded).
+	When string `json:"when,omitempty"`
+	// CLI is the equivalent mtm CLI command when applicable.
+	CLI string `json:"cli,omitempty"`
+	// MCP is the equivalent MCP tool name when applicable.
+	MCP string `json:"mcp,omitempty"`
 	// Bound is false for an action no key reaches.
 	Bound bool `json:"bound"`
 	// Internal marks an action that only makes sense from its own key
@@ -72,12 +81,85 @@ func bindingKeys(b core.Binding) string {
 	return keys
 }
 
+var actionCLIMap = map[string]string{
+	"record.new":              "mtm <noun> create",
+	"record.edit":             "mtm <noun> edit <id>",
+	"record.open":             "mtm <noun> get <id>",
+	"record.star":             "mtm <noun> star <id>",
+	"record.unstar":           "mtm <noun> unstar <id>",
+	"record.archive":          "mtm <noun> archive <id>",
+	"record.restore":          "mtm <noun> restore <id>",
+	"record.snooze":           "mtm <noun> snooze <id>",
+	"record.unsnooze":         "mtm <noun> unsnooze <id>",
+	"record.assign":           "mtm <noun> set <id> --field task=<task-id>",
+	"store.undo":              "mtm undo",
+	"store.redo":              "mtm redo",
+	"app.about":               "mtm about",
+	"bindings.open":           "mtm binding list",
+	"settings.open":           "mtm config export",
+	"inspect.open":            "mtm inspect actions",
+	"daemon.reset":            "mtm daemon reset",
+	"extension.refresh":       "mtm extension discover",
+	"extension.run":           "mtm extension run <name> [args...]",
+	"extension.setup":         "mtm extension run <name> setup",
+	"question.answer":         "mtm question answer <id> --answer \"...\"",
+	"command.run":             "mtm command get <id>",
+	"pane.associate":          "mtm pane set <id> --field task=<task-id>",
+	"lane.show":               "mtm lane get <id>",
+	"triage.rule.from-signal": "mtm rule create",
+	"df.culprit.clean":        "o-df clean <name> --yes",
+}
+
+var actionMCPMap = map[string]string{
+	"record.new":              "data.create",
+	"record.edit":             "data.patch",
+	"record.open":             "data.get",
+	"record.star":             "data.star",
+	"record.unstar":           "data.unstar",
+	"record.archive":          "data.archive",
+	"record.restore":          "data.restore",
+	"record.snooze":           "data.snooze",
+	"record.unsnooze":         "data.unsnooze",
+	"record.assign":           "data.patch",
+	"store.undo":              "data.undo",
+	"store.redo":              "data.redo",
+	"question.answer":         "ui.ask",
+	"command.run":             "data.suggest_command",
+	"pane.associate":          "data.patch",
+	"context.attach":          "data.relate",
+	"project.context.attach":  "data.relate",
+	"lane.show":               "lane.status",
+	"triage.rule.from-signal": "triage.apply",
+}
+
+func actionNamespace(sp core.CommandSpec) string {
+	if sp.Meta != nil {
+		if ns, ok := sp.Meta["noun"].(string); ok && strings.TrimSpace(ns) != "" {
+			return strings.TrimSpace(ns)
+		}
+		if kinds, ok := sp.Meta["kinds"].([]string); ok && len(kinds) == 1 && strings.TrimSpace(kinds[0]) != "" {
+			return strings.TrimSpace(kinds[0])
+		}
+	}
+	if ns, _, ok := strings.Cut(sp.ID, "."); ok && ns != "" {
+		return ns
+	}
+	return sp.ID
+}
+
+// ActionRows returns the enriched action catalog rows for the given bindings and specs.
+func ActionRows(rows []core.Binding, specs []core.CommandSpec) []ActionInfo {
+	return ActionsOf(rows, specs)
+}
+
 // ActionsOf lists every command of the registry (core's and specs) with the
 // bindings that run it, by ID.
 func ActionsOf(rows []core.Binding, specs []core.CommandSpec) []ActionInfo {
 	reg := core.DefaultRegistry()
 	reg.Register(specs...)
 	keys := map[string][]string{}
+	primaryMode := map[string]string{}
+	whenExprs := map[string][]string{}
 	for _, b := range rows {
 		if b.Command == "" || b.Unbind {
 			continue
@@ -85,10 +167,53 @@ func ActionsOf(rows []core.Binding, specs []core.CommandSpec) []ActionInfo {
 		if k := bindingKeys(b); !slices.Contains(keys[b.Command], k) {
 			keys[b.Command] = append(keys[b.Command], k)
 		}
+		m := b.Mode
+		if m == "" {
+			m = ModeNormal
+		}
+		if prev, ok := primaryMode[b.Command]; !ok || (prev != ModeNormal && m == ModeNormal) {
+			primaryMode[b.Command] = m
+		}
+		if w := strings.TrimSpace(b.When); w != "" && !slices.Contains(whenExprs[b.Command], w) {
+			whenExprs[b.Command] = append(whenExprs[b.Command], w)
+		}
 	}
 	var out []ActionInfo
 	for _, sp := range reg.List() {
-		info := ActionInfo{ID: sp.ID, Description: sp.Description, Tags: sp.Tags, Params: sp.Params, Keys: keys[sp.ID], Internal: internal(sp)}
+		whenVal := ""
+		if sp.Meta != nil {
+			if w, ok := sp.Meta["when"].(string); ok && strings.TrimSpace(w) != "" {
+				whenVal = strings.TrimSpace(w)
+			}
+		}
+		if whenVal == "" && len(whenExprs[sp.ID]) > 0 {
+			whenVal = strings.Join(whenExprs[sp.ID], " || ")
+		}
+		cliVal := actionCLIMap[sp.ID]
+		if sp.Meta != nil {
+			if v, ok := sp.Meta["cli"].(string); ok && v != "" {
+				cliVal = v
+			}
+		}
+		mcpVal := actionMCPMap[sp.ID]
+		if sp.Meta != nil {
+			if v, ok := sp.Meta["mcp"].(string); ok && v != "" {
+				mcpVal = v
+			}
+		}
+		info := ActionInfo{
+			ID:          sp.ID,
+			Description: sp.Description,
+			Namespace:   actionNamespace(sp),
+			Tags:        sp.Tags,
+			Params:      sp.Params,
+			Keys:        keys[sp.ID],
+			Mode:        primaryMode[sp.ID],
+			When:        whenVal,
+			CLI:         cliVal,
+			MCP:         mcpVal,
+			Internal:    internal(sp),
+		}
 		if info.Keys == nil {
 			info.Keys = []string{}
 		}

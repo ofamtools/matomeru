@@ -4,6 +4,7 @@
 //	mtm [--db PATH] [--seed-demo]            the TUI
 //	mtm --tutorial                           the TUI on a tutorial workspace kept in memory
 //	mtm --smoke [--dump]                     a scripted run with no terminal; exits 0 when every check holds
+//	mtm about [--socket PATH] [--json]       version, daemon, storage, config, and harnesses overview
 //	mtm config export [--jsonl]              the settings and bindings in effect
 //	mtm inspect actions|bindings|modes|schemas [--json]
 //	mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--archived] [--starred]
@@ -29,6 +30,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -48,11 +50,14 @@ import (
 	"ofam.dev/oden"
 )
 
+const mtmVersion = "2.0.0-next"
+
 const usage = `mtm [--db PATH] [--seed-demo]            open the TUI
 mtm --tutorial                           open the TUI on a tutorial workspace kept in memory:
                                          nothing is read from or written to your data or config
 mtm --smoke [--dump]                     scripted run, no terminal needed
                                          (with --tutorial: a scripted walk of the tutorial)
+mtm about [--socket PATH] [--json]       show version, daemon, storage, config, and harness status
 mtm config export [--jsonl]              print the settings and bindings in effect, as JSON or
                                          as JSON lines (settings first, then bindings)
 mtm inspect actions|bindings|modes|schemas [--json]
@@ -62,7 +67,10 @@ mtm binding list [--all] [--json]        list effective key bindings
 mtm binding check [--json]               validate bindings and report any errors
 mtm <noun> list|get|create|add|edit|set|patch|star|unstar|archive|restore|snooze|unsnooze|delete|relate|unrelate ...
                                          nouns: task, pane, note, document (docs), lane, schedule,
-                                         run, signal, directory, extension, rule (plus plurals)
+                                         run, signal, directory, extension, rule, question (q),
+                                         command (cmd), context (ctx) (plus plurals)
+mtm question answer <id> (--answer "..." | <answer>)
+                                         answer a question and sync its linked pane ui.page card
 mtm extension discover [--dir DIR]       discover installed o-* extensions
 mtm extension run <name> [args...]       run an extension command as a recorded run
 mtm undo | redo                          undo or redo the last CLI change
@@ -81,6 +89,8 @@ mtm daemon status [--socket PATH] [--json]
                                          show local daemon status
 mtm daemon reset [--socket PATH] [--json]
                                          drop all live panes held by the daemon
+mtm daemon upgrade [--binary PATH] [--socket PATH] [--json]
+                                         re-exec the daemon in place without killing live panes or subagents
 mtm daemon stop [--socket PATH] [--json] stop the local daemon
 mtm harness list [--json]                list available harnesses and configured launch commands
 mtm migrate --from V1_DB [--dry-run | --apply]
@@ -88,9 +98,10 @@ mtm migrate --from V1_DB [--dry-run | --apply]
                                          file is only read. Nothing is written without --apply.
 
 --db PATH       the SQLite file (default: $MTM_DB, or the user data directory)
-config          settings.json, bindings.json, themes.json, harnesses.json and handlers.json are read from
-                $MTM_CONFIG_DIR, or ~/.config/matomeru. S and B in the TUI change and
-                save the first two; handlers.json says what opens which file (o and O).
+config          settings.json, bindings.json, themes.json, harnesses.json, handlers.json,
+                actions.json and drafts.json are read from $MTM_CONFIG_DIR, or ~/.config/matomeru.
+                S and B in the TUI change and save the first two; handlers.json says what opens
+                which file (o and O).
 --format table  print records as a table instead of JSON`
 
 // cliActor is who the CLI writes as. "mtm record undo" undoes its changes.
@@ -271,7 +282,7 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.Reader, stdout, stderr io.Writer) *oden.App {
 	info := ocli.AppInfo{
 		Name:     "mtm",
-		Version:  "2.0.0-next",
+		Version:  mtmVersion,
 		Summary:  "Matomeru v2 — four-space TUI and CLI over the unified store",
 		HelpText: usage,
 		Modes:    app.Modes,
@@ -306,9 +317,16 @@ func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.
 			if err != nil {
 				return err
 			}
-			defer store.Close()
 			cancel() // the TUI reads ctrl+c itself
-			return runTUI(store, dbPath, stderr)
+			reload, err := runTUI(store, dbPath, stderr)
+			_ = store.Close()
+			if err != nil {
+				return err
+			}
+			if reload {
+				return execSelfReload()
+			}
+			return nil
 		},
 	}
 
@@ -322,6 +340,7 @@ func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.
 	)
 
 	a.Add(
+		mtmAboutCommand(g),
 		mtmConfigCommand(),
 		mtmRecordCommand(g),
 		mtmMCPCommand(g),
@@ -334,10 +353,23 @@ func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.
 	)
 	a.Add(mtmNounCommands(g)...)
 
+	baseClaims := a.Claims
+	a.Claims = func(rootArgs []string) bool {
+		if len(rootArgs) > 1 && strings.EqualFold(rootArgs[0], "commands") {
+			return true
+		}
+		return baseClaims != nil && baseClaims(rootArgs)
+	}
+
 	baseDefault := a.Default
 	a.Default = func(ctx context.Context, rootArgs []string) error {
 		if len(rootArgs) > 0 && strings.EqualFold(rootArgs[0], data.KindTriageRule) {
 			if e := a.Catalog().Lookup("rule"); e != nil {
+				return a.RunEntry(ctx, e, rootArgs[1:])
+			}
+		}
+		if len(rootArgs) > 1 && strings.EqualFold(rootArgs[0], "commands") {
+			if e := a.Catalog().Lookup("command"); e != nil {
 				return a.RunEntry(ctx, e, rootArgs[1:])
 			}
 		}
@@ -802,16 +834,37 @@ func runMigrate(ctx context.Context, g globalOpts, p oden.Parsed, stdout io.Writ
 // real terminals (backed by the local self-hosted daemon unless disabled) and
 // the store is watched for others' writes. Everything it started is stopped
 // when the program ends.
-func runTUI(store *data.Store, dbPath string, stderr io.Writer) error {
+func runTUI(store *data.Store, dbPath string, stderr io.Writer) (bool, error) {
 	opts, warnings := buildTUIOptions(context.Background(), dbPath, configDir(), stderr, nil)
 	a, err := app.New(store, opts)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if len(warnings) > 0 {
 		a.Warnings = append(a.Warnings, warnings...)
 	}
-	return runApp(a)
+	err = runApp(a)
+	return a.WantReload(), err
+}
+
+func execSelfReload() error {
+	bin := ""
+	if len(os.Args) > 0 && os.Args[0] != "" {
+		if p, err := exec.LookPath(os.Args[0]); err == nil {
+			bin = p
+		}
+	}
+	if bin == "" {
+		exe, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("reload client: resolve binary: %w", err)
+		}
+		bin = exe
+	}
+	if abs, err := filepath.Abs(bin); err == nil {
+		bin = abs
+	}
+	return syscall.Exec(bin, os.Args, os.Environ())
 }
 
 // runTutorial opens the live app on the tutorial workspace: a store kept in

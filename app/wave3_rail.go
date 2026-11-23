@@ -184,6 +184,14 @@ func (a *App) buildRail() *table.Model {
 		row.Cells["runStatus"] = formatPaneStatusCell(baseState)
 		row.Facts["statusTone"] = baseTone
 		a.decorateRailRow(row, pane)
+		if _, hasTask := pane.RefField("task"); !hasTask {
+			if cur, ok := row.Cells["rail"].(string); ok {
+				row.Cells["rail"] = cur + " [unlinked]"
+			}
+			row.Badges = append(row.Badges, ui.Badge{Text: "[unlinked]", Tone: "warning"})
+			row.Facts["unlinked"] = true
+			row.Facts["statusTone"] = "warning"
+		}
 		if qn := a.queuedPromptCount(pane.ID); qn > 0 {
 			if cur, ok := row.Cells["rail"].(string); ok {
 				row.Cells["rail"] = fmt.Sprintf("%s [Q:%d]", cur, qn)
@@ -284,6 +292,45 @@ func (a *App) projectDescendants(rootID string) []data.Record {
 		if root.Record.ID == rootID {
 			collect(root.Children)
 			break
+		}
+	}
+	return out
+}
+
+// projectLanes collects active lanes associated with a project, its descendant
+// tasks, or its panes.
+func (a *App) projectLanes(projRef *core.Ref, taskIDs map[string]bool, paneIDs map[string]bool) []data.Record {
+	res, err := a.Store.Query(data.Query{Kind: data.KindLane, IncludeArchived: a.showArchived})
+	if err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []data.Record
+	add := func(rec data.Record) {
+		if seen[rec.ID] {
+			return
+		}
+		status := strings.ToLower(strings.TrimSpace(rec.Text("laneStatus")))
+		if status == "done" || status == "merged" || status == "cancelled" {
+			return
+		}
+		seen[rec.ID] = true
+		out = append(out, rec)
+	}
+	for _, lane := range res.Items {
+		if t, ok := lane.RefField("task"); ok && (taskIDs[t.ID] || (projRef != nil && t.ID == projRef.ID)) {
+			add(lane)
+			continue
+		}
+		rels, err := a.Store.Related(lane.Ref(), data.RelClaim, data.Outgoing)
+		if err != nil {
+			continue
+		}
+		for _, r := range rels {
+			if r.To.Kind == data.KindPane && paneIDs[r.To.ID] {
+				add(lane)
+				break
+			}
 		}
 	}
 	return out
@@ -459,6 +506,7 @@ func (a *App) projectOverviewView(_ core.State, groupName string, projRef *core.
 
 	ctxTbl := a.projectContextTableModel(groupName, projRef)
 	ctxItems := a.projectContextItems(groupName, projRef)
+	lanes := a.projectLanes(projRef, taskIDs, paneIDs)
 	notes := a.projectNotes(projRef, taskIDs, paneIDs)
 	links := a.projectLinks(projRef, taskIDs, ctxItems)
 
@@ -466,6 +514,9 @@ func (a *App) projectOverviewView(_ core.State, groupName string, projRef *core.
 		ui.Badge{Text: fmt.Sprintf("%d panes", len(groupPanes))},
 		ui.Badge{Text: fmt.Sprintf("%d context", len(ctxItems)), Tone: "accent"},
 	)
+	if len(lanes) > 0 {
+		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d lanes", len(lanes)), Tone: "info"})
+	}
 
 	var summaryLines []ui.ViewNode
 	if projRec != nil {
@@ -483,8 +534,23 @@ func (a *App) projectOverviewView(_ core.State, groupName string, projRef *core.
 			summaryLines = append(summaryLines, line("project.overview.meta", " "+strings.Join(meta, " · "), "muted"))
 		}
 	} else {
-		summaryLines = append(summaryLines, line("project.overview.meta", " Panes not assigned to any project task (m assigns a pane to a task)", "muted"))
+		summaryLines = append(summaryLines, line("project.overview.meta", " Panes not assigned to any project task (L associates a pane with a task)", "muted"))
 	}
+
+	// Active Lanes summary.
+	laneSummary := "none"
+	if len(lanes) > 0 {
+		var parts []string
+		for i, l := range lanes {
+			if i >= 4 {
+				parts = append(parts, fmt.Sprintf("+%d more", len(lanes)-4))
+				break
+			}
+			parts = append(parts, fmt.Sprintf("[%s] %s", l.Text("laneStatus"), views.Title(a.schema(data.KindLane), l)))
+		}
+		laneSummary = strings.Join(parts, " · ")
+	}
+	summaryLines = append(summaryLines, line("project.overview.lanes", fmt.Sprintf(" Lanes (%d): %s", len(lanes), laneSummary), "accent"))
 
 	// Related Tasks summary.
 	taskSummary := "none"

@@ -43,8 +43,9 @@ func findOutlineLoc(nodes []data.TaskNode, id string, parent *data.TaskNode, par
 	return outlineLoc{}, false
 }
 
-func (a *App) outlineLoc() (outlineLoc, bool) {
-	if a.outlineSel == "" {
+func (a *App) treeTaskLoc(s core.State) (outlineLoc, bool) {
+	id, ok := a.focusedTreeTaskID(s)
+	if !ok {
 		return outlineLoc{}, false
 	}
 	nodes, err := a.Store.TaskTree(a.showArchived)
@@ -52,12 +53,12 @@ func (a *App) outlineLoc() (outlineLoc, bool) {
 		a.fail("outline", err)
 		return outlineLoc{}, false
 	}
-	return findOutlineLoc(nodes, a.outlineSel, nil, nil, -1, nil)
+	return findOutlineLoc(nodes, id, nil, nil, -1, nil)
 }
 
 func (a *App) outlineMoveSibling(delta int) func(core.State, core.Command) core.StepResult {
 	return func(s core.State, c core.Command) core.StepResult {
-		loc, ok := a.outlineLoc()
+		loc, ok := a.treeTaskLoc(s)
 		if !ok {
 			a.say("no task selected in outline")
 			return core.Next(s)
@@ -97,7 +98,7 @@ func (a *App) outlineMoveSibling(delta int) func(core.State, core.Command) core.
 }
 
 func (a *App) outlineIndent(s core.State, _ core.Command) core.StepResult {
-	loc, ok := a.outlineLoc()
+	loc, ok := a.treeTaskLoc(s)
 	if !ok {
 		a.say("no task selected in outline")
 		return core.Next(s)
@@ -119,7 +120,7 @@ func (a *App) outlineIndent(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) outlineOutdent(s core.State, _ core.Command) core.StepResult {
-	loc, ok := a.outlineLoc()
+	loc, ok := a.treeTaskLoc(s)
 	if !ok {
 		a.say("no task selected in outline")
 		return core.Next(s)
@@ -157,20 +158,21 @@ func (a *App) outlineOutdent(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) outlineStatusCycle(s core.State, _ core.Command) core.StepResult {
-	if a.outlineSel == "" {
+	id, ok := a.focusedTreeTaskID(s)
+	if !ok {
 		a.say("no task selected in outline")
 		return core.Next(s)
 	}
-	ref := core.Ref{Kind: data.KindTask, ID: a.outlineSel}
+	ref := core.Ref{Kind: data.KindTask, ID: id}
 	rec, err := a.Store.Get(ref)
 	if err != nil {
 		a.fail("status", err)
 		return core.Next(s)
 	}
 	schema := a.schema(data.KindTask)
-	col, ok := schema.StatusColumn("workStatus")
+	col, colOK := schema.StatusColumn("workStatus")
 	names := []string{"todo", "active", "blocked", "done"}
-	if ok && len(col.Values) > 0 {
+	if colOK && len(col.Values) > 0 {
 		names = col.Names()
 	}
 	cur := rec.Text("workStatus")
@@ -186,11 +188,12 @@ func (a *App) outlineStatusCycle(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) outlineRename(s core.State, _ core.Command) core.StepResult {
-	if a.outlineSel == "" {
+	id, ok := a.focusedTreeTaskID(s)
+	if !ok {
 		a.say("no task selected in outline")
 		return core.Next(s)
 	}
-	ref := core.Ref{Kind: data.KindTask, ID: a.outlineSel}
+	ref := core.Ref{Kind: data.KindTask, ID: id}
 	rec, err := a.Store.Get(ref)
 	if err != nil {
 		a.fail("rename", err)

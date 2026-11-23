@@ -192,3 +192,34 @@ func TestMergeInstalledAndBuildLaunchCommand(t *testing.T) {
 		t.Fatalf("env = %v", env)
 	}
 }
+
+func TestAntigravityAgyAliasRecognitionAndLaunch(t *testing.T) {
+	defs := harness.DefaultConfigs()
+	if defs["agy"].Label != "Antigravity" || !slices.Equal(defs["agy"].Command, []string{"agy"}) {
+		t.Fatalf("agy default = %+v", defs["agy"])
+	}
+	if defs["antigravity"].Label != "Antigravity" || !slices.Equal(defs["antigravity"].Command, []string{"agy"}) {
+		t.Fatalf("antigravity default = %+v", defs["antigravity"])
+	}
+
+	// o-ai reports id:"agy" with installed:true -> MergeInstalled resolves Antigravity and launches agy.
+	entries := harness.MergeInstalled([]harness.InstalledHarness{
+		{ID: "agy", Installed: true, Configured: true, Executable: "/usr/local/bin/agy"},
+	}, harness.FileConfig{
+		Harnesses: map[string]harness.HarnessConfig{
+			"antigravity": {Env: map[string]string{"AGY_MODE": "fast"}},
+		},
+	})
+	idx := slices.IndexFunc(entries, func(e harness.Entry) bool { return e.ID == "agy" })
+	if idx < 0 {
+		t.Fatalf("agy missing from merged entries: %+v", entries)
+	}
+	got := entries[idx]
+	if got.Label != "Antigravity" || !slices.Equal(got.Command, []string{"agy"}) || got.Env["AGY_MODE"] != "fast" {
+		t.Fatalf("unexpected agy entry: %+v", got)
+	}
+	argv, env := harness.BuildLaunchCommand(got, "", "p-1")
+	if !slices.Equal(argv, []string{"agy"}) || env["AGY_MODE"] != "fast" {
+		t.Fatalf("BuildLaunchCommand(agy) = (%v, %v)", argv, env)
+	}
+}

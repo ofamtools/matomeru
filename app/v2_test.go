@@ -55,7 +55,7 @@ func TestTutorial(t *testing.T) {
 func TestSettingsApplyAndPersist(t *testing.T) {
 	want := map[string]any{SetTheme: "ochazuke-dark", SetDensity: "balanced", SetBorderStyle: "rounded", SetShowMetadata: true, SetShowEmpty: true,
 		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: true, SetRailAutoWiden: false, SetShowTOC: true,
-		SetPanesGroup: PanesGroupProjectPane, SetToast: true, SetTreeGuides: true, SetConfirmQuit: true, SetConfirmDaemonReset: true}
+		SetPanesGroup: PanesGroupProjectPane, SetToast: true, SetTreeGuides: true, SetConfirmQuit: true, SetConfirmDaemonReset: true, SetWorkTasksLayout: WorkTasksLayoutTree}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -87,7 +87,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		d.Keys(keys...)
 		d.Keys("esc")
 	}
-	d.Keys("2")
+	d.Keys("3")
 	if !strings.Contains(d.Frame(), "Flags") {
 		t.Fatal("no flags column to begin with")
 	}
