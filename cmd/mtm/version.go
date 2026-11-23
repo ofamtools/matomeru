@@ -23,15 +23,17 @@ type versionDaemonInfo struct {
 }
 
 type versionOutput struct {
-	Name      string            `json:"name"`
-	Version   string            `json:"version"`
-	Commit    string            `json:"commit,omitempty"`
-	ShortSHA  string            `json:"shortSha,omitempty"`
-	Dirty     bool              `json:"dirty,omitempty"`
-	BuiltAt   string            `json:"builtAt,omitempty"`
-	GoVersion string            `json:"goVersion"`
-	Binary    string            `json:"binary,omitempty"`
-	Daemon    versionDaemonInfo `json:"daemon"`
+	Name            string            `json:"name"`
+	Version         string            `json:"version"`
+	Commit          string            `json:"commit,omitempty"`
+	ShortSHA        string            `json:"shortSha,omitempty"`
+	Dirty           bool              `json:"dirty,omitempty"`
+	BuiltAt         string            `json:"builtAt,omitempty"`
+	GoVersion       string            `json:"goVersion"`
+	OchazukeVersion string            `json:"ochazukeVersion,omitempty"`
+	OdenVersion     string            `json:"odenVersion,omitempty"`
+	Binary          string            `json:"binary,omitempty"`
+	Daemon          versionDaemonInfo `json:"daemon"`
 }
 
 // mtmVersionCommand keeps `--version` and `-v` compact and machine-friendly
@@ -83,15 +85,17 @@ func mtmVersionCommand(flagMode bool) oden.Command {
 			}
 
 			out := versionOutput{
-				Name:      "mtm",
-				Version:   bi.Version,
-				Commit:    bi.Commit,
-				ShortSHA:  bi.ShortSHA,
-				Dirty:     bi.Dirty,
-				BuiltAt:   bi.BuiltAt,
-				GoVersion: bi.GoVersion,
-				Binary:    bi.Binary,
-				Daemon:    dInfo,
+				Name:            "mtm",
+				Version:         bi.Version,
+				Commit:          bi.Commit,
+				ShortSHA:        bi.ShortSHA,
+				Dirty:           bi.Dirty,
+				BuiltAt:         bi.BuiltAt,
+				GoVersion:       bi.GoVersion,
+				OchazukeVersion: bi.OchazukeVersion,
+				OdenVersion:     bi.OdenVersion,
+				Binary:          bi.Binary,
+				Daemon:          dInfo,
 			}
 			if p.Format() == "json" {
 				return printJSON(c.Stdout, out)
@@ -107,16 +111,22 @@ func mtmVersionCommand(flagMode bool) oden.Command {
 				commitLabel += " [dirty]"
 			}
 			fmt.Fprintf(c.Stdout, "mtm %s\n", bi.Version)
-			fmt.Fprintf(c.Stdout, "commit:  %s\n", commitLabel)
-			if bi.BuiltAt != "" {
-				fmt.Fprintf(c.Stdout, "built:   %s\n", bi.BuiltAt)
+			fmt.Fprintf(c.Stdout, "commit:    %s\n", commitLabel)
+			if bi.OchazukeVersion != "" {
+				fmt.Fprintf(c.Stdout, "ochazuke:  %s\n", bi.OchazukeVersion)
 			}
-			fmt.Fprintf(c.Stdout, "go:      %s\n", bi.GoVersion)
+			if bi.OdenVersion != "" {
+				fmt.Fprintf(c.Stdout, "oden:      %s\n", bi.OdenVersion)
+			}
+			if bi.BuiltAt != "" {
+				fmt.Fprintf(c.Stdout, "built:     %s\n", bi.BuiltAt)
+			}
+			fmt.Fprintf(c.Stdout, "go:        %s\n", bi.GoVersion)
 			if bi.Binary != "" {
-				fmt.Fprintf(c.Stdout, "binary:  %s\n", bi.Binary)
+				fmt.Fprintf(c.Stdout, "binary:    %s\n", bi.Binary)
 			}
 			if !dInfo.Running {
-				fmt.Fprintf(c.Stdout, "daemon:  not running (%s)\n", sock)
+				fmt.Fprintf(c.Stdout, "daemon:    not running (%s)\n", sock)
 				return nil
 			}
 			dVer := dInfo.Version
@@ -133,15 +143,15 @@ func mtmVersionCommand(flagMode bool) oden.Command {
 			if dInfo.Dirty {
 				dCommit += " [dirty]"
 			}
-			fmt.Fprintf(c.Stdout, "daemon:  running pid=%d version=%s commit=%s uptime=%s\n", dInfo.PID, dVer, dCommit, dInfo.Uptime)
+			fmt.Fprintf(c.Stdout, "daemon:    running pid=%d version=%s commit=%s uptime=%s\n", dInfo.PID, dVer, dCommit, dInfo.Uptime)
 			if dInfo.Match {
-				fmt.Fprintf(c.Stdout, "status:  MATCH (running daemon matches this binary)\n")
+				fmt.Fprintf(c.Stdout, "status:    MATCH (running daemon matches this binary)\n")
 			} else {
 				hint := "mtm daemon upgrade"
 				if dInfo.Version == "" {
 					hint = "mtm daemon stop  # old daemon predates live upgrade; restart once"
 				}
-				fmt.Fprintf(c.Stdout, "status:  MISMATCH (running daemon differs from this binary; run: %s)\n", hint)
+				fmt.Fprintf(c.Stdout, "status:    MISMATCH (running daemon differs from this binary; run: %s)\n", hint)
 			}
 			return nil
 		},

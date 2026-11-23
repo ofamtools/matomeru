@@ -45,7 +45,7 @@ func TestVersionCommandCompactAndVerbose(t *testing.T) {
 		t.Fatalf("mtm version failed (%d): %s", code, errBuf.String())
 	}
 	text := out.String()
-	for _, want := range []string{"mtm " + daemon.Version, "commit:", "go:", "daemon:  running", "status:  MATCH"} {
+	for _, want := range []string{"mtm " + daemon.Version, "commit:", "ochazuke:", "oden:", "go:", "daemon:    running", "status:    MATCH"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("mtm version missing %q:\n%s", want, text)
 		}

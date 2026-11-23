@@ -867,6 +867,14 @@ func execSelfReload() error {
 	if abs, err := filepath.Abs(bin); err == nil {
 		bin = abs
 	}
+	// If the freshly installed binary on disk differs from the running daemon,
+	// upgrade the daemon in place first without killing any live panes/subagents.
+	if out, err := exec.Command(bin, "version", "--json").Output(); err == nil {
+		var v versionOutput
+		if json.Unmarshal(out, &v) == nil && v.Daemon.Running && !v.Daemon.Match {
+			_ = exec.Command(bin, "daemon", "upgrade", "--binary", bin).Run()
+		}
+	}
 	return syscall.Exec(bin, os.Args, os.Environ())
 }
 

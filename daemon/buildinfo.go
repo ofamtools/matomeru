@@ -9,7 +9,7 @@ import (
 
 // Version is the Matomeru release version. Can be overridden at link time with
 // -ldflags "-X ofam.dev/matomeru/daemon.Version=...".
-var Version = "1.2.1"
+var Version = "1.2.2"
 
 // BuildCommit and BuildTime can optionally be injected at link time; when
 // empty, CurrentBuildInfo reads them from Go's embedded VCS metadata.
@@ -18,20 +18,22 @@ var (
 	BuildTime   = ""
 )
 
-// BuildInfo describes the exact binary version and VCS revision of a running
-// mtm client or daemon process so mismatches are immediately visible.
+// BuildInfo describes the exact binary version, key o-family dependency
+// versions, and VCS revision of a running mtm client or daemon process.
 type BuildInfo struct {
-	Version   string `json:"version"`
-	Commit    string `json:"commit,omitempty"`
-	ShortSHA  string `json:"shortSha,omitempty"`
-	Dirty     bool   `json:"dirty,omitempty"`
-	BuiltAt   string `json:"builtAt,omitempty"`
-	GoVersion string `json:"goVersion"`
-	Binary    string `json:"binary,omitempty"`
+	Version         string `json:"version"`
+	Commit          string `json:"commit,omitempty"`
+	ShortSHA        string `json:"shortSha,omitempty"`
+	Dirty           bool   `json:"dirty,omitempty"`
+	BuiltAt         string `json:"builtAt,omitempty"`
+	GoVersion       string `json:"goVersion"`
+	OchazukeVersion string `json:"ochazukeVersion,omitempty"`
+	OdenVersion     string `json:"odenVersion,omitempty"`
+	Binary          string `json:"binary,omitempty"`
 }
 
-// CurrentBuildInfo returns version, VCS commit SHA, dirty state, build time,
-// Go version, and executable path for the running binary.
+// CurrentBuildInfo returns version, key dependency versions (ochazuke, oden),
+// VCS commit SHA, dirty state, build time, Go version, and executable path.
 func CurrentBuildInfo() BuildInfo {
 	info := BuildInfo{
 		Version:   Version,
@@ -43,6 +45,24 @@ func CurrentBuildInfo() BuildInfo {
 		info.Binary = exe
 	}
 	if bi, ok := debug.ReadBuildInfo(); ok {
+		for _, dep := range bi.Deps {
+			switch dep.Path {
+			case "ofam.dev/ochazuke":
+				info.OchazukeVersion = dep.Version
+				if dep.Replace != nil && dep.Replace.Version != "" {
+					info.OchazukeVersion = dep.Replace.Version
+				} else if dep.Replace != nil && dep.Replace.Path != "" {
+					info.OchazukeVersion = dep.Version + " (local)"
+				}
+			case "ofam.dev/oden":
+				info.OdenVersion = dep.Version
+				if dep.Replace != nil && dep.Replace.Version != "" {
+					info.OdenVersion = dep.Replace.Version
+				} else if dep.Replace != nil && dep.Replace.Path != "" {
+					info.OdenVersion = dep.Version + " (local)"
+				}
+			}
+		}
 		for _, s := range bi.Settings {
 			switch s.Key {
 			case "vcs.revision":
