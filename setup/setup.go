@@ -1,6 +1,7 @@
 // Package setup configures a developer machine for the OFAM toolchain:
 // agent instruction files (AGENTS.md / GEMINI.md / CLAUDE.md), shared skills,
-// and Claude Code hook integration. It uses only the Go standard library.
+// Claude Code hook integration, and MCP server registration. It uses only the
+// Go standard library.
 package setup
 
 import (
@@ -35,14 +36,18 @@ const (
 
 // Options controls machine setup, dry-run preview, and drift checks.
 type Options struct {
-	Home      string
-	Source    string
-	SkillsSrc []string
-	HookCmd   string
-	DryRun    bool
-	Check     bool
-	Force     bool
-	Now       func() time.Time
+	Home          string
+	Source        string
+	SkillsSrc     []string
+	AllSkills     bool
+	HookCmd       string
+	OLaneHookCmd  string
+	SkipOLaneHook bool
+	MCPCmd        string
+	DryRun        bool
+	Check         bool
+	Force         bool
+	Now           func() time.Time
 }
 
 // Action describes the planned, checked, or applied state of one setup target.
@@ -96,7 +101,7 @@ func reportOK(actions []Action) bool {
 	return true
 }
 
-// RunMachine executes all machine setup steps (agents, skills, Claude hooks).
+// RunMachine executes all machine setup steps (agents, skills, Claude hooks, MCP).
 func RunMachine(opts Options) (Report, error) {
 	rep := Report{
 		DryRun:  opts.DryRun,
@@ -118,6 +123,12 @@ func RunMachine(opts Options) (Report, error) {
 
 	hookActions, err := ConfigureClaudeHooks(opts)
 	rep.Actions = append(rep.Actions, hookActions...)
+	if err != nil {
+		return rep, err
+	}
+
+	mcpActions, err := ConfigureMCP(opts)
+	rep.Actions = append(rep.Actions, mcpActions...)
 	if err != nil {
 		return rep, err
 	}
@@ -166,6 +177,21 @@ func RunSkills(opts Options) (Report, error) {
 // RunHooks runs only the Claude Code hook configurator and returns a Report.
 func RunHooks(opts Options) (Report, error) {
 	actions, err := ConfigureClaudeHooks(opts)
+	if actions == nil {
+		actions = []Action{}
+	}
+	rep := Report{
+		OK:      err == nil && reportOK(actions),
+		DryRun:  opts.DryRun,
+		Check:   opts.Check,
+		Actions: actions,
+	}
+	return rep, err
+}
+
+// RunMCP runs only the MCP server configurator and returns a Report.
+func RunMCP(opts Options) (Report, error) {
+	actions, err := ConfigureMCP(opts)
 	if actions == nil {
 		actions = []Action{}
 	}

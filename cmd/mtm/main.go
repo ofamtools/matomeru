@@ -94,7 +94,7 @@ mtm daemon upgrade [--binary PATH] [--socket PATH] [--json]
                                          re-exec the daemon in place without killing live panes or subagents
 mtm daemon stop [--socket PATH] [--json] stop the local daemon
 mtm harness list [--json]                list available harnesses and configured launch commands
-mtm setup [machine|agents|skills|hooks|check] [--home DIR] [--dry-run] [--check] [--force] [--json]
+mtm setup [machine|agents|skills|hooks|mcp|check] [--home DIR] [--dry-run] [--check] [--force] [--json]
 mtm migrate --from V1_DB [--dry-run | --apply]
                                          import a v1 mtm.db; prints a JSON report. The v1
                                          file is only read. Nothing is written without --apply.

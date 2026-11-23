@@ -77,6 +77,9 @@ func TestCLISetup(t *testing.T) {
 		filepath.Join(".agents", "AGENTS.md"),
 		filepath.Join(".agents", "skills", "ofam-wave-release", "SKILL.md"),
 		filepath.Join(".claude", "settings.json"),
+		".claude.json",
+		filepath.Join(".codex", "config.toml"),
+		filepath.Join(".gemini", "settings.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(home, rel)); err != nil {
 			t.Errorf("expected target %s to exist: %v", rel, err)
@@ -97,14 +100,32 @@ func TestCLISetup(t *testing.T) {
 	}
 
 	// 5. Individual component subcommands also succeed on converged home.
-	for _, sub := range []string{"agents", "skills", "hooks"} {
+	for _, sub := range []string{"agents", "skills", "hooks", "mcp"} {
 		code, out, errs = runMTM("setup", sub, "--home", home, "--check", "--json")
 		if code != 0 {
 			t.Fatalf("setup %s --check exit %d: %s %s", sub, code, out, errs)
 		}
 	}
 
-	// 6. Unknown subcommand fails with usage.
+	// 6. Standalone `mtm setup mcp` applies cleanly with custom --mcp-cmd and passes --check.
+	mcpHome := t.TempDir()
+	code, out, errs = runMTM("setup", "mcp", "--home", mcpHome, "--mcp-cmd", "/custom/bin/mtm", "--json")
+	if code != 0 {
+		t.Fatalf("setup mcp exit %d: %s %s", code, out, errs)
+	}
+	var mcpRep setup.Report
+	if err := json.Unmarshal([]byte(out), &mcpRep); err != nil {
+		t.Fatalf("setup mcp JSON: %v\n%s", err, out)
+	}
+	if !mcpRep.OK || len(mcpRep.Actions) != 3 {
+		t.Fatalf("setup mcp report = %+v", mcpRep)
+	}
+	code, out, errs = runMTM("setup", "mcp", "--home", mcpHome, "--check", "--json")
+	if code != 0 {
+		t.Fatalf("setup mcp --check exit %d: %s %s", code, out, errs)
+	}
+
+	// 7. Unknown subcommand fails with usage.
 	code, _, errs = runMTM("setup", "bogus")
 	if code == 0 || !strings.Contains(errs, "usage: mtm setup") {
 		t.Fatalf("setup bogus: code=%d err=%s", code, errs)

@@ -11,14 +11,18 @@ import (
 	"ofam.dev/oden"
 )
 
-const setupUsage = "usage: mtm setup [machine|agents|skills|hooks|check] [--home DIR] [--source FILE] [--skills-src DIR ...] [--hook-cmd CMD] [--dry-run] [--check] [--force] [--json]"
+const setupUsage = "usage: mtm setup [machine|agents|skills|hooks|mcp|check] [--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--dry-run] [--check] [--force] [--json]"
 
 func setupParameters() []oden.Parameter {
 	return []oden.Parameter{
 		{Name: "home", Type: "string", Description: "Override target home directory (default: current user home)"},
 		{Name: "source", Type: "string", Description: "Manage agent instruction targets as symlinks to FILE"},
 		{Name: "skills-src", Type: "string", Repeatable: true, Description: "Additional source directory of skill folders to sync (repeatable)"},
+		{Name: "all-skills", Type: "bool", Description: "Sync all valid skills in ~/.agents/skills instead of OFAM/Matomeru skills only"},
 		{Name: "hook-cmd", Type: "string", Description: "Command invoked by Claude Code hooks (default: mtm-hook claude-code)"},
+		{Name: "olane-hook-cmd", Type: "string", Description: "Command invoked by o-lane Claude Code subagent hooks (default: o-lane agent-hook claude-code)"},
+		{Name: "no-olane-hook", Type: "bool", Description: "Skip wiring o-lane agent-hook on Claude Code SubagentStart/SubagentStop"},
+		{Name: "mcp-cmd", Type: "string", Description: "Command invoked by harness MCP server configs (default: mtm)"},
 		{Name: "dry-run", Type: "bool", Description: "Preview planned changes without writing files"},
 		{Name: "check", Type: "bool", Description: "Read-only drift check; exit non-zero when not converged"},
 		{Name: "force", Type: "bool", Description: "Replace conflicting symlinks or back up and replace regular files/directories"},
@@ -27,13 +31,17 @@ func setupParameters() []oden.Parameter {
 
 func setupOptionsFromParsed(p oden.Parsed) setup.Options {
 	return setup.Options{
-		Home:      p.String("home"),
-		Source:    p.String("source"),
-		SkillsSrc: p.Strings("skills-src"),
-		HookCmd:   p.String("hook-cmd"),
-		DryRun:    p.Bool("dry-run"),
-		Check:     p.Bool("check"),
-		Force:     p.Bool("force"),
+		Home:          p.String("home"),
+		Source:        p.String("source"),
+		SkillsSrc:     p.Strings("skills-src"),
+		AllSkills:     p.Bool("all-skills"),
+		HookCmd:       p.String("hook-cmd"),
+		OLaneHookCmd:  p.String("olane-hook-cmd"),
+		SkipOLaneHook: p.Bool("no-olane-hook"),
+		MCPCmd:        p.String("mcp-cmd"),
+		DryRun:        p.Bool("dry-run"),
+		Check:         p.Bool("check"),
+		Force:         p.Bool("force"),
 	}
 }
 
@@ -64,6 +72,8 @@ func mtmSetupCommand() oden.Command {
 				rep, err = setup.RunSkills(opts)
 			case "hooks":
 				rep, err = setup.RunHooks(opts)
+			case "mcp":
+				rep, err = setup.RunMCP(opts)
 			case "check":
 				rep, err = setup.CheckMachine(opts)
 			default:
@@ -84,17 +94,17 @@ func mtmSetupCommand() oden.Command {
 
 	return oden.Command{
 		Name:       "setup",
-		Summary:    "configure agent instructions, shared skills, and Claude Code hooks",
+		Summary:    "configure agent instructions, OFAM skills, Claude Code hooks, and MCP",
 		Category:   "Configuration",
-		Usage:      "[machine|agents|skills|hooks|check] [--home DIR] [--dry-run] [--check] [--force] [--json]",
+		Usage:      "[machine|agents|skills|hooks|mcp|check] [--home DIR] [--dry-run] [--check] [--force] [--json]",
 		Parameters: params,
 		Handle: func(c *oden.Ctx) error {
 			sub := c.Sub()
 			sub.Add(
 				oden.Command{
 					Name:       "machine",
-					Summary:    "configure agent instruction files, shared skills, and Claude Code hooks",
-					Usage:      "[--home DIR] [--source FILE] [--skills-src DIR ...] [--hook-cmd CMD] [--dry-run] [--check] [--force] [--json]",
+					Summary:    "configure agent instruction files, OFAM skills, Claude Code hooks, and MCP",
+					Usage:      "[--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--dry-run] [--check] [--force] [--json]",
 					Parameters: params,
 					Handle:     runTarget("machine", false, false),
 				},
@@ -107,22 +117,29 @@ func mtmSetupCommand() oden.Command {
 				},
 				oden.Command{
 					Name:       "skills",
-					Summary:    "seed embedded skills and sync skill directories across harnesses",
-					Usage:      "[--home DIR] [--skills-src DIR ...] [--dry-run] [--check] [--force] [--json]",
+					Summary:    "seed embedded skills and sync OFAM skill directories across harnesses",
+					Usage:      "[--home DIR] [--skills-src DIR ...] [--all-skills] [--dry-run] [--check] [--force] [--json]",
 					Parameters: params,
 					Handle:     runTarget("skills", false, false),
 				},
 				oden.Command{
 					Name:       "hooks",
-					Summary:    "merge mtm-hook lifecycle hooks into Claude Code settings.json",
-					Usage:      "[--home DIR] [--hook-cmd CMD] [--dry-run] [--check] [--force] [--json]",
+					Summary:    "merge mtm-hook and o-lane lifecycle hooks into Claude Code settings.json",
+					Usage:      "[--home DIR] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--dry-run] [--check] [--force] [--json]",
 					Parameters: params,
 					Handle:     runTarget("hooks", false, false),
 				},
 				oden.Command{
+					Name:       "mcp",
+					Summary:    "configure mtm mcp serve across Claude Code, Codex, and Antigravity",
+					Usage:      "[--home DIR] [--mcp-cmd CMD] [--dry-run] [--check] [--force] [--json]",
+					Parameters: params,
+					Handle:     runTarget("mcp", false, false),
+				},
+				oden.Command{
 					Name:       "check",
-					Summary:    "read-only drift check across agents, skills, and hooks (exits non-zero on drift)",
-					Usage:      "[--home DIR] [--source FILE] [--skills-src DIR ...] [--hook-cmd CMD] [--json]",
+					Summary:    "read-only drift check across agents, skills, hooks, and MCP (exits non-zero on drift)",
+					Usage:      "[--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--json]",
 					Parameters: params,
 					Handle:     runTarget("check", true, true),
 				},

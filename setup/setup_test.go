@@ -274,10 +274,49 @@ func TestConfigureAgents_MalformedMarkersRefused(t *testing.T) {
 }
 
 func TestSyncSkills_IdempotentSharedDirAndRealDirProtection(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want bool
+	}{
+		{"ofam-wave-release", true},
+		{"ofam-custom", true},
+		{"mtm-triage", true},
+		{"matomeru-ops", true},
+		{"ochazuke-ui", true},
+		{"oden-cli", true},
+		{"o-lane", true},
+		{"o-lane-extra", true},
+		{"o-df", true},
+		{"o-cmds", true},
+		{"o-questions", true},
+		{"o-md", true},
+		{"o-git", true},
+		{"o-json", true},
+		{"o-ai", true},
+		{"japanese-tutor", false},
+		{"custom-skill", false},
+		{"", false},
+	} {
+		if got := IsOFAMSkill(tc.name); got != tc.want {
+			t.Errorf("IsOFAMSkill(%q) = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+
 	home := t.TempDir()
 	hubDir := filepath.Join(home, ".agents", "skills")
 	if err := os.MkdirAll(hubDir, 0o755); err != nil {
 		t.Fatal(err)
+	}
+
+	// Pre-existing OFAM skill and unrelated personal skill in ~/.agents/skills.
+	for _, s := range []string{"o-lane", "japanese-tutor"} {
+		dir := filepath.Join(hubDir, s)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: "+s+"\n---\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	// Antigravity shares the canonical hub directory via symlink.
@@ -348,6 +387,22 @@ func TestSyncSkills_IdempotentSharedDirAndRealDirProtection(t *testing.T) {
 	if got := byTarget["claude/ofam-wave-release"]; got.Status != StatusLinked {
 		t.Errorf("claude/ofam-wave-release = %+v, want linked", got)
 	}
+	if got := byTarget["claude/o-lane"]; got.Status != StatusLinked {
+		t.Errorf("claude/o-lane = %+v, want linked", got)
+	}
+	if got := byTarget["codex/o-lane"]; got.Status != StatusLinked {
+		t.Errorf("codex/o-lane = %+v, want linked", got)
+	}
+	// Unrelated personal skill in ~/.agents/skills MUST be ignored by default.
+	if _, leaked := byTarget["claude/japanese-tutor"]; leaked {
+		t.Errorf("personal skill japanese-tutor should not be synced by default")
+	}
+	if _, err := os.Lstat(filepath.Join(home, ".claude", "skills", "japanese-tutor")); !os.IsNotExist(err) {
+		t.Errorf("personal skill symlink should not exist in .claude/skills: err=%v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(home, ".codex", "skills", "japanese-tutor")); !os.IsNotExist(err) {
+		t.Errorf("personal skill symlink should not exist in .codex/skills: err=%v", err)
+	}
 	if got := byTarget["claude/custom-skill"]; got.Status != StatusSkipped {
 		t.Errorf("claude/custom-skill real dir = %+v, want skipped", got)
 	}
@@ -381,6 +436,24 @@ func TestSyncSkills_IdempotentSharedDirAndRealDirProtection(t *testing.T) {
 				t.Errorf("second run %s = %q, want unchanged", a.Target, a.Status)
 			}
 		}
+	}
+
+	// With --all-skills: unrelated personal skill in ~/.agents/skills IS synced.
+	allOpts := opts
+	allOpts.AllSkills = true
+	allActs, err := SyncSkills(allOpts)
+	if err != nil {
+		t.Fatalf("SyncSkills --all-skills: %v", err)
+	}
+	allByTarget := map[string]Action{}
+	for _, a := range allActs {
+		allByTarget[a.Target] = a
+	}
+	if got := allByTarget["claude/japanese-tutor"]; got.Status != StatusLinked {
+		t.Errorf("--all-skills claude/japanese-tutor = %+v, want linked", got)
+	}
+	if got := allByTarget["codex/japanese-tutor"]; got.Status != StatusLinked {
+		t.Errorf("--all-skills codex/japanese-tutor = %+v, want linked", got)
 	}
 
 	// With --force: real dir is backed up before linking, mismatched symlink is relinked.
@@ -440,6 +513,11 @@ func TestConfigureClaudeHooks_MergePreservesUserSettingsAndIdempotent(t *testing
       {
         "hooks": [{"type": "command", "command": "/usr/local/bin/mtm-hook claude-code --integration 3", "timeout": 5}]
       }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [{"type": "command", "command": "/Users/me/bin/o-lane agent-hook claude-code", "timeout": 5}]
+      }
     ]
   }
 }`
@@ -452,8 +530,8 @@ func TestConfigureClaudeHooks_MergePreservesUserSettingsAndIdempotent(t *testing
 	if err != nil {
 		t.Fatalf("ConfigureClaudeHooks: %v", err)
 	}
-	if len(actions) != 14 {
-		t.Fatalf("got %d hook actions, want 14", len(actions))
+	if len(actions) != len(ClaudeHookEvents)+len(OLaneClaudeHookEvents) {
+		t.Fatalf("got %d hook actions, want %d", len(actions), len(ClaudeHookEvents)+len(OLaneClaudeHookEvents))
 	}
 
 	byEvent := map[string]Action{}
@@ -465,6 +543,12 @@ func TestConfigureClaudeHooks_MergePreservesUserSettingsAndIdempotent(t *testing
 	}
 	if byEvent["claude/PermissionRequest"].Status != StatusUpdated || byEvent["claude/PermissionRequest"].Backup == "" {
 		t.Errorf("PermissionRequest = %+v, want updated with backup", byEvent["claude/PermissionRequest"])
+	}
+	if byEvent["claude/o-lane/SubagentStart"].Status != StatusUpdated {
+		t.Errorf("o-lane SubagentStart = %+v, want updated", byEvent["claude/o-lane/SubagentStart"])
+	}
+	if byEvent["claude/o-lane/SubagentStop"].Status != StatusUnchanged {
+		t.Errorf("existing o-lane SubagentStop should be unchanged, got %+v", byEvent["claude/o-lane/SubagentStop"])
 	}
 
 	// Verify file permissions are 0600.
@@ -514,6 +598,32 @@ func TestConfigureClaudeHooks_MergePreservesUserSettingsAndIdempotent(t *testing
 		t.Fatalf("Stop was duplicated: %d groups", len(stopGroups))
 	}
 
+	// SubagentStart and SubagentStop must each have exactly 1 mtm-hook and 1 o-lane entry.
+	for _, ev := range []string{"SubagentStart", "SubagentStop"} {
+		groups, _ := hooks[ev].([]any)
+		mtmCount, olaneCount := 0, 0
+		for _, g := range groups {
+			gm, _ := g.(map[string]any)
+			hl, _ := gm["hooks"].([]any)
+			for _, h := range hl {
+				hm, _ := h.(map[string]any)
+				cmd, _ := hm["command"].(string)
+				if isMTMClaudeHookCommand(cmd, DefaultClaudeHookCmd) {
+					mtmCount++
+				}
+				if isOLaneHookCommand(cmd, DefaultOLaneHookCmd) {
+					olaneCount++
+					if got, ok := numberToInt(hm["timeout"]); !ok || got != 5 {
+						t.Errorf("%s o-lane timeout = %v, want 5", ev, hm["timeout"])
+					}
+				}
+			}
+		}
+		if mtmCount != 1 || olaneCount != 1 {
+			t.Errorf("%s counts: mtm=%d olane=%d, want 1 and 1", ev, mtmCount, olaneCount)
+		}
+	}
+
 	// Verify timeouts for all 14 events.
 	for _, spec := range ClaudeHookEvents {
 		groups, ok := hooks[spec.Event].([]any)
@@ -554,6 +664,16 @@ func TestConfigureClaudeHooks_MergePreservesUserSettingsAndIdempotent(t *testing
 		}
 	}
 
+	// SkipOLaneHook omits o-lane entries cleanly.
+	skipHome := t.TempDir()
+	skipActs, err := ConfigureClaudeHooks(Options{Home: skipHome, SkipOLaneHook: true, Now: fixedClock()})
+	if err != nil {
+		t.Fatalf("ConfigureClaudeHooks SkipOLaneHook: %v", err)
+	}
+	if len(skipActs) != len(ClaudeHookEvents) {
+		t.Fatalf("SkipOLaneHook actions = %d, want %d", len(skipActs), len(ClaudeHookEvents))
+	}
+
 	// Invalid JSON must fail cleanly without touching the file.
 	badHome := t.TempDir()
 	badPath := filepath.Join(badHome, ".claude", "settings.json")
@@ -568,6 +688,219 @@ func TestConfigureClaudeHooks_MergePreservesUserSettingsAndIdempotent(t *testing
 	}
 	if after, _ := os.ReadFile(badPath); string(after) != "{not valid json" {
 		t.Fatalf("invalid JSON file was modified")
+	}
+}
+
+func TestConfigureMCP_ClaudeCodexAntigravityIdempotent(t *testing.T) {
+	home := t.TempDir()
+	claudePath := filepath.Join(home, ".claude.json")
+	codexPath := filepath.Join(home, ".codex", "config.toml")
+	geminiPath := filepath.Join(home, ".gemini", "settings.json")
+
+	if err := os.MkdirAll(filepath.Dir(codexPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(geminiPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	initialClaude := `{
+  "theme": "dark",
+  "mcpServers": {
+    "other": {"type": "stdio", "command": "other-mcp", "args": ["serve"]}
+  }
+}
+`
+	initialCodex := `# Personal Codex settings
+model = "o3"
+# [mcp_servers.mtm]
+
+[mcp_servers.other]
+command = "other-mcp"
+args = ["serve"]
+`
+	initialGemini := `{
+  "selectedAuthType": "oauth",
+  "mcpServers": {
+    "sibling": {"command": "sibling-mcp", "args": ["--stdio"]}
+  }
+}
+`
+	if err := os.WriteFile(claudePath, []byte(initialClaude), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(codexPath, []byte(initialCodex), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(geminiPath, []byte(initialGemini), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Check mode detects missing mtm MCP server without writing.
+	chk, err := ConfigureMCP(Options{Home: home, Check: true, Now: fixedClock()})
+	if err != nil {
+		t.Fatalf("ConfigureMCP check: %v", err)
+	}
+	if len(chk) != 3 {
+		t.Fatalf("got %d actions, want 3", len(chk))
+	}
+	for _, a := range chk {
+		if a.Status != StatusMissing {
+			t.Errorf("check %s = %q, want missing", a.Target, a.Status)
+		}
+	}
+
+	// 2. Dry-run previews updates without modifying files.
+	dry, err := ConfigureMCP(Options{Home: home, DryRun: true, Now: fixedClock()})
+	if err != nil {
+		t.Fatalf("ConfigureMCP dry-run: %v", err)
+	}
+	for _, a := range dry {
+		if a.Status != StatusWouldUpdate {
+			t.Errorf("dry-run %s = %q, want would_update", a.Target, a.Status)
+		}
+	}
+	if got, _ := os.ReadFile(codexPath); string(got) != initialCodex {
+		t.Fatalf("dry-run modified config.toml")
+	}
+
+	// 3. Apply writes all 3 atomically with .bak-YYYYMMDD backup (mode 0600).
+	applied, err := ConfigureMCP(Options{Home: home, Now: fixedClock()})
+	if err != nil {
+		t.Fatalf("ConfigureMCP apply: %v", err)
+	}
+	for _, a := range applied {
+		if a.Status != StatusUpdated {
+			t.Errorf("apply %s = %+v, want updated", a.Target, a)
+		}
+		if !strings.HasSuffix(a.Backup, ".bak-20261123") {
+			t.Errorf("apply %s backup = %q, want .bak-20261123 suffix", a.Target, a.Backup)
+		}
+		fi, serr := os.Stat(a.Path)
+		if serr != nil {
+			t.Fatalf("stat %s: %v", a.Path, serr)
+		}
+		if fi.Mode().Perm() != 0o600 {
+			t.Errorf("%s mode = %o, want 0600", a.Path, fi.Mode().Perm())
+		}
+	}
+
+	// Inspect Claude Code .claude.json.
+	var claudeObj map[string]any
+	if raw, err := os.ReadFile(claudePath); err != nil || json.Unmarshal(raw, &claudeObj) != nil {
+		t.Fatalf("parse .claude.json: err=%v", err)
+	}
+	if claudeObj["theme"] != "dark" {
+		t.Errorf(".claude.json lost top-level theme: %v", claudeObj["theme"])
+	}
+	cServers, _ := claudeObj["mcpServers"].(map[string]any)
+	if _, ok := cServers["other"]; !ok {
+		t.Errorf(".claude.json lost sibling mcpServers.other")
+	}
+	if !equalMCPServerEntry(cServers["mtm"], "stdio", "mtm", []string{"mcp", "serve"}) {
+		t.Errorf(".claude.json mcpServers.mtm = %#v", cServers["mtm"])
+	}
+
+	// Inspect Codex config.toml: original bytes preserved verbatim + new section appended.
+	codexRaw, err := os.ReadFile(codexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCodex := initialCodex + "\n[mcp_servers.mtm]\ncommand = \"mtm\"\nargs = [\"mcp\", \"serve\"]\n"
+	if string(codexRaw) != wantCodex {
+		t.Fatalf("config.toml mismatch:\ngot:\n%s\nwant:\n%s", string(codexRaw), wantCodex)
+	}
+
+	// Inspect Antigravity/Gemini .gemini/settings.json.
+	var geminiObj map[string]any
+	if raw, err := os.ReadFile(geminiPath); err != nil || json.Unmarshal(raw, &geminiObj) != nil {
+		t.Fatalf("parse .gemini/settings.json: err=%v", err)
+	}
+	if geminiObj["selectedAuthType"] != "oauth" {
+		t.Errorf(".gemini/settings.json lost selectedAuthType: %v", geminiObj["selectedAuthType"])
+	}
+	gServers, _ := geminiObj["mcpServers"].(map[string]any)
+	if _, ok := gServers["sibling"]; !ok {
+		t.Errorf(".gemini/settings.json lost sibling mcpServers.sibling")
+	}
+	if !equalMCPServerEntry(gServers["mtm"], "", "mtm", []string{"mcp", "serve"}) {
+		t.Errorf(".gemini/settings.json mcpServers.mtm = %#v", gServers["mtm"])
+	}
+
+	// 4. Re-run is 100% idempotent with zero writes and zero backups.
+	again, err := ConfigureMCP(Options{Home: home, Now: fixedClock()})
+	if err != nil {
+		t.Fatalf("ConfigureMCP second run: %v", err)
+	}
+	for _, a := range again {
+		if a.Status != StatusUnchanged || a.Backup != "" {
+			t.Errorf("second run %s = %+v, want unchanged with no backup", a.Target, a)
+		}
+	}
+
+	// 5. Different MCPCmd without --force leaves existing entries untouched.
+	noForce, err := ConfigureMCP(Options{Home: home, MCPCmd: "/opt/bin/mtm", Now: fixedClock()})
+	if err != nil {
+		t.Fatalf("ConfigureMCP no-force custom cmd: %v", err)
+	}
+	for _, a := range noForce {
+		if a.Status != StatusUnchanged {
+			t.Errorf("no-force custom cmd %s = %+v, want unchanged", a.Target, a)
+		}
+	}
+
+	// Append a trailing TOML section after [mcp_servers.mtm] to verify --force replaces ONLY [mcp_servers.mtm].
+	trailing := "\n[mcp_servers.after]\ncommand = \"after-mcp\"\nargs = [\"run\"]\n"
+	if err := os.WriteFile(codexPath, append(codexRaw, []byte(trailing)...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// 6. --force updates all 3 entries while preserving sibling/trailing sections.
+	forced, err := ConfigureMCP(Options{Home: home, MCPCmd: "/opt/bin/mtm", Force: true, Now: fixedClock()})
+	if err != nil {
+		t.Fatalf("ConfigureMCP --force: %v", err)
+	}
+	for _, a := range forced {
+		if a.Status != StatusUpdated || a.Backup == "" {
+			t.Errorf("--force %s = %+v, want updated with backup", a.Target, a)
+		}
+	}
+	codexAfterForce, err := os.ReadFile(codexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCodexForce := initialCodex + "\n[mcp_servers.mtm]\ncommand = \"/opt/bin/mtm\"\nargs = [\"mcp\", \"serve\"]\n" + trailing
+	if string(codexAfterForce) != wantCodexForce {
+		t.Fatalf("config.toml after --force mismatch:\ngot:\n%s\nwant:\n%s", string(codexAfterForce), wantCodexForce)
+	}
+
+	// Re-running --force with the same MCPCmd is idempotent (unchanged).
+	forcedAgain, err := ConfigureMCP(Options{Home: home, MCPCmd: "/opt/bin/mtm", Force: true, Now: fixedClock()})
+	if err != nil {
+		t.Fatalf("ConfigureMCP --force idempotent: %v", err)
+	}
+	for _, a := range forcedAgain {
+		if a.Status != StatusUnchanged || a.Backup != "" {
+			t.Errorf("--force second run %s = %+v, want unchanged with no backup", a.Target, a)
+		}
+	}
+
+	// 7. Invalid JSON in .claude.json or .gemini/settings.json fails cleanly without writing.
+	for _, rel := range []string{".claude.json", filepath.Join(".gemini", "settings.json")} {
+		badHome := t.TempDir()
+		badPath := filepath.Join(badHome, rel)
+		if err := os.MkdirAll(filepath.Dir(badPath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(badPath, []byte("{bad json"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ConfigureMCP(Options{Home: badHome, Now: fixedClock()}); err == nil {
+			t.Errorf("expected error for invalid JSON in %s, got nil", rel)
+		}
+		if after, _ := os.ReadFile(badPath); string(after) != "{bad json" {
+			t.Errorf("invalid JSON file %s was modified", rel)
+		}
 	}
 }
 

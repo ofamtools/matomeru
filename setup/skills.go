@@ -30,9 +30,45 @@ var embeddedSkills = []embeddedSkill{
 	{name: "ofam-wave-release", embedPath: "assets/skills/ofam-wave-release/SKILL.md"},
 }
 
+var ofamSkillPrefixes = []string{
+	"ofam-",
+	"mtm-",
+	"matomeru-",
+	"ochazuke-",
+	"oden-",
+	"o-lane",
+	"o-df",
+	"o-cmds",
+	"o-questions",
+	"o-md",
+	"o-git",
+	"o-json",
+	"o-ai",
+}
+
+// IsOFAMSkill reports whether name belongs to the OFAM / Matomeru skill family.
+func IsOFAMSkill(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	for _, es := range embeddedSkills {
+		if name == es.name {
+			return true
+		}
+	}
+	for _, prefix := range ofamSkillPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // SyncSkills seeds embedded skills into <home>/.agents/skills and symlinks valid
-// skill directories from the canonical hub (and any opts.SkillsSrc) into each
-// harness's skills directory.
+// skill directories from the canonical hub (filtered to OFAM/Matomeru skills
+// unless opts.AllSkills is true) and any explicit opts.SkillsSrc directories
+// into each harness's skills directory.
 func SyncSkills(opts Options) ([]Action, error) {
 	home, err := resolveHome(opts.Home)
 	if err != nil {
@@ -54,34 +90,41 @@ func SyncSkills(opts Options) ([]Action, error) {
 	for _, es := range embeddedSkills {
 		skills[es.name] = filepath.Join(hubDir, es.name)
 	}
-	srcDirs := make([]string, 0, 1+len(opts.SkillsSrc))
-	srcDirs = append(srcDirs, hubDir)
+	type skillSource struct {
+		dir        string
+		filterOFAM bool
+	}
+	sources := make([]skillSource, 0, 1+len(opts.SkillsSrc))
+	sources = append(sources, skillSource{dir: hubDir, filterOFAM: !opts.AllSkills})
 	for _, s := range opts.SkillsSrc {
 		if trimmed := strings.TrimSpace(s); trimmed != "" {
+			dir := filepath.Clean(trimmed)
 			if abs, aerr := filepath.Abs(trimmed); aerr == nil {
-				srcDirs = append(srcDirs, abs)
-			} else {
-				srcDirs = append(srcDirs, filepath.Clean(trimmed))
+				dir = abs
 			}
+			sources = append(sources, skillSource{dir: dir, filterOFAM: false})
 		}
 	}
-	for _, dir := range srcDirs {
-		entries, rerr := os.ReadDir(dir)
+	for _, src := range sources {
+		entries, rerr := os.ReadDir(src.dir)
 		if rerr != nil {
 			if os.IsNotExist(rerr) {
 				continue
 			}
-			return actions, fmt.Errorf("read skills source %s: %w", dir, rerr)
+			return actions, fmt.Errorf("read skills source %s: %w", src.dir, rerr)
 		}
 		for _, ent := range entries {
 			name := ent.Name()
 			if strings.HasPrefix(name, ".") {
 				continue
 			}
+			if src.filterOFAM && !IsOFAMSkill(name) {
+				continue
+			}
 			if _, exists := skills[name]; exists {
 				continue
 			}
-			cand := filepath.Join(dir, name)
+			cand := filepath.Join(src.dir, name)
 			if isValidSkillDir(cand) {
 				skills[name] = cand
 			}

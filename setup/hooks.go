@@ -12,6 +12,9 @@ import (
 // DefaultClaudeHookCmd is the default hook command configured in Claude Code settings.json.
 const DefaultClaudeHookCmd = "mtm-hook claude-code"
 
+// DefaultOLaneHookCmd is the default o-lane hook command wired on Claude Code subagent events.
+const DefaultOLaneHookCmd = "o-lane agent-hook claude-code"
+
 // ClaudeHookEventSpec defines one Claude Code lifecycle hook event and its timeout.
 type ClaudeHookEventSpec struct {
 	Event   string
@@ -32,6 +35,12 @@ var ClaudeHookEvents = []ClaudeHookEventSpec{
 	{Event: "Stop", Timeout: 5},
 	{Event: "StopFailure", Timeout: 5},
 	{Event: "SessionEnd", Timeout: 5},
+	{Event: "SubagentStart", Timeout: 5},
+	{Event: "SubagentStop", Timeout: 5},
+}
+
+// OLaneClaudeHookEvents lists the Claude Code subagent events wired to o-lane agent-hook.
+var OLaneClaudeHookEvents = []ClaudeHookEventSpec{
 	{Event: "SubagentStart", Timeout: 5},
 	{Event: "SubagentStop", Timeout: 5},
 }
@@ -66,7 +75,7 @@ func ConfigureClaudeHooks(opts Options) ([]Action, error) {
 		return nil, fmt.Errorf("read %s: %w", settingsPath, rerr)
 	}
 
-	out, changed, eventActions, err := MergeClaudeSettingsJSON(raw, opts.HookCmd, opts.Force)
+	out, changed, eventActions, err := mergeClaudeSettingsJSON(raw, opts.HookCmd, opts.OLaneHookCmd, opts.SkipOLaneHook, opts.Force)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", settingsPath, err)
 	}
@@ -112,14 +121,22 @@ func ConfigureClaudeHooks(opts Options) ([]Action, error) {
 	return eventActions, nil
 }
 
-// MergeClaudeSettingsJSON merges the 14 mtm-hook lifecycle entries into raw
-// Claude Code settings.json content. It preserves all unrelated keys, hook
-// events, sibling matcher groups, and sibling hooks, and avoids duplicates by
-// recognizing existing mtm-hook Claude invocations.
+// MergeClaudeSettingsJSON merges the 14 mtm-hook lifecycle entries and the 2
+// o-lane subagent entries into raw Claude Code settings.json content. It
+// preserves all unrelated keys, hook events, sibling matcher groups, and
+// sibling hooks, and avoids duplicates by recognizing existing invocations.
 func MergeClaudeSettingsJSON(raw []byte, hookCmd string, force bool) (out []byte, changed bool, eventActions []Action, err error) {
+	return mergeClaudeSettingsJSON(raw, hookCmd, DefaultOLaneHookCmd, false, force)
+}
+
+func mergeClaudeSettingsJSON(raw []byte, hookCmd, olaneHookCmd string, skipOLane, force bool) (out []byte, changed bool, eventActions []Action, err error) {
 	cmd := strings.TrimSpace(hookCmd)
 	if cmd == "" {
 		cmd = DefaultClaudeHookCmd
+	}
+	olaneCmd := strings.TrimSpace(olaneHookCmd)
+	if olaneCmd == "" {
+		olaneCmd = DefaultOLaneHookCmd
 	}
 
 	root := map[string]any{}
@@ -141,78 +158,34 @@ func MergeClaudeSettingsJSON(raw []byte, hookCmd string, force bool) (out []byte
 		hooksMap = m
 	}
 
-	eventActions = make([]Action, 0, len(ClaudeHookEvents))
+	capHint := len(ClaudeHookEvents)
+	if !skipOLane {
+		capHint += len(OLaneClaudeHookEvents)
+	}
+	eventActions = make([]Action, 0, capHint)
+
 	for _, spec := range ClaudeHookEvents {
-		var groups []any
-		if rawGroups, ok := hooksMap[spec.Event]; ok && rawGroups != nil {
-			list, isList := rawGroups.([]any)
-			if !isList {
-				return nil, false, nil, fmt.Errorf("invalid hooks.%s: expected JSON array", spec.Event)
-			}
-			groups = list
+		act, didChange, err := upsertClaudeHookEvent(hooksMap, spec, "claude/"+spec.Event, cmd, isMTMClaudeHookCommand, force)
+		if err != nil {
+			return nil, false, nil, err
 		}
-
-		found := false
-		updated := false
-		for _, g := range groups {
-			gm, ok := g.(map[string]any)
-			if !ok {
-				continue
-			}
-			hookList, ok := gm["hooks"].([]any)
-			if !ok {
-				continue
-			}
-			for _, h := range hookList {
-				hm, ok := h.(map[string]any)
-				if !ok {
-					continue
-				}
-				curCmd, _ := hm["command"].(string)
-				if !isMTMClaudeHookCommand(curCmd, cmd) {
-					continue
-				}
-				found = true
-				if force {
-					curType, _ := hm["type"].(string)
-					curTimeout, hasTimeout := numberToInt(hm["timeout"])
-					if curType != "command" || curCmd != cmd || !hasTimeout || curTimeout != spec.Timeout {
-						hm["type"] = "command"
-						hm["command"] = cmd
-						hm["timeout"] = spec.Timeout
-						updated = true
-						changed = true
-					}
-				}
-			}
-		}
-
-		act := Action{
-			Component: "hooks",
-			Target:    "claude/" + spec.Event,
-		}
-		switch {
-		case !found:
-			groups = append(groups, map[string]any{
-				"hooks": []any{
-					map[string]any{
-						"type":    "command",
-						"command": cmd,
-						"timeout": spec.Timeout,
-					},
-				},
-			})
-			hooksMap[spec.Event] = groups
+		if didChange {
 			changed = true
-			act.Status = StatusCreated
-			act.Detail = fmt.Sprintf("%s (timeout %ds)", cmd, spec.Timeout)
-		case updated:
-			act.Status = StatusUpdated
-			act.Detail = fmt.Sprintf("%s (timeout %ds)", cmd, spec.Timeout)
-		default:
-			act.Status = StatusUnchanged
 		}
 		eventActions = append(eventActions, act)
+	}
+
+	if !skipOLane {
+		for _, spec := range OLaneClaudeHookEvents {
+			act, didChange, err := upsertClaudeHookEvent(hooksMap, spec, "claude/o-lane/"+spec.Event, olaneCmd, isOLaneHookCommand, force)
+			if err != nil {
+				return nil, false, nil, err
+			}
+			if didChange {
+				changed = true
+			}
+			eventActions = append(eventActions, act)
+		}
 	}
 
 	if !changed {
@@ -228,19 +201,88 @@ func MergeClaudeSettingsJSON(raw []byte, hookCmd string, force bool) (out []byte
 	return encoded, true, eventActions, nil
 }
 
-func isMTMClaudeHookCommand(existingCmd, desiredCmd string) bool {
-	existingCmd = strings.TrimSpace(existingCmd)
-	if existingCmd == "" {
-		return false
+func upsertClaudeHookEvent(
+	hooksMap map[string]any,
+	spec ClaudeHookEventSpec,
+	targetName string,
+	cmd string,
+	matchFn func(existingCmd, desiredCmd string) bool,
+	force bool,
+) (Action, bool, error) {
+	var groups []any
+	if rawGroups, ok := hooksMap[spec.Event]; ok && rawGroups != nil {
+		list, isList := rawGroups.([]any)
+		if !isList {
+			return Action{}, false, fmt.Errorf("invalid hooks.%s: expected JSON array", spec.Event)
+		}
+		groups = list
 	}
-	if existingCmd == strings.TrimSpace(desiredCmd) {
-		return true
+
+	found := false
+	updated := false
+	for _, g := range groups {
+		gm, ok := g.(map[string]any)
+		if !ok {
+			continue
+		}
+		hookList, ok := gm["hooks"].([]any)
+		if !ok {
+			continue
+		}
+		for _, h := range hookList {
+			hm, ok := h.(map[string]any)
+			if !ok {
+				continue
+			}
+			curCmd, _ := hm["command"].(string)
+			if !matchFn(curCmd, cmd) {
+				continue
+			}
+			found = true
+			if force {
+				curType, _ := hm["type"].(string)
+				curTimeout, hasTimeout := numberToInt(hm["timeout"])
+				if curType != "command" || curCmd != cmd || !hasTimeout || curTimeout != spec.Timeout {
+					hm["type"] = "command"
+					hm["command"] = cmd
+					hm["timeout"] = spec.Timeout
+					updated = true
+				}
+			}
+		}
 	}
-	fields := strings.Fields(existingCmd)
-	if len(fields) == 0 {
-		return false
+
+	act := Action{
+		Component: "hooks",
+		Target:    targetName,
 	}
-	// Skip leading env / KEY=VAL / exec wrappers.
+	switch {
+	case !found:
+		groups = append(groups, map[string]any{
+			"hooks": []any{
+				map[string]any{
+					"type":    "command",
+					"command": cmd,
+					"timeout": spec.Timeout,
+				},
+			},
+		})
+		hooksMap[spec.Event] = groups
+		act.Status = StatusCreated
+		act.Detail = fmt.Sprintf("%s (timeout %ds)", cmd, spec.Timeout)
+		return act, true, nil
+	case updated:
+		act.Status = StatusUpdated
+		act.Detail = fmt.Sprintf("%s (timeout %ds)", cmd, spec.Timeout)
+		return act, true, nil
+	default:
+		act.Status = StatusUnchanged
+		return act, false, nil
+	}
+}
+
+func commandTokensAfterWrappers(cmd string) []string {
+	fields := strings.Fields(strings.TrimSpace(cmd))
 	idx := 0
 	for idx < len(fields) {
 		tok := fields[idx]
@@ -251,14 +293,29 @@ func isMTMClaudeHookCommand(existingCmd, desiredCmd string) bool {
 		break
 	}
 	if idx >= len(fields) {
+		return nil
+	}
+	return fields[idx:]
+}
+
+func isMTMClaudeHookCommand(existingCmd, desiredCmd string) bool {
+	existingCmd = strings.TrimSpace(existingCmd)
+	if existingCmd == "" {
 		return false
 	}
-	bin := filepath.Base(strings.Trim(fields[idx], `"'`))
+	if existingCmd == strings.TrimSpace(desiredCmd) {
+		return true
+	}
+	tokens := commandTokensAfterWrappers(existingCmd)
+	if len(tokens) == 0 {
+		return false
+	}
+	bin := filepath.Base(strings.Trim(tokens[0], `"'`))
 	if bin != "mtm-hook" {
 		return false
 	}
 	// Look for claude / claude-code / claudecode harness arg (ignoring flags).
-	for _, arg := range fields[idx+1:] {
+	for _, arg := range tokens[1:] {
 		if strings.HasPrefix(arg, "-") {
 			continue
 		}
@@ -267,6 +324,30 @@ func isMTMClaudeHookCommand(existingCmd, desiredCmd string) bool {
 			return true
 		}
 		return false
+	}
+	return false
+}
+
+func isOLaneHookCommand(existingCmd, desiredCmd string) bool {
+	existingCmd = strings.TrimSpace(existingCmd)
+	if existingCmd == "" {
+		return false
+	}
+	if existingCmd == strings.TrimSpace(desiredCmd) {
+		return true
+	}
+	tokens := commandTokensAfterWrappers(existingCmd)
+	if len(tokens) == 0 {
+		return false
+	}
+	bin := filepath.Base(strings.Trim(tokens[0], `"'`))
+	if bin != "o-lane" {
+		return false
+	}
+	for _, arg := range tokens[1:] {
+		if strings.Trim(arg, `"'`) == "agent-hook" {
+			return true
+		}
 	}
 	return false
 }
