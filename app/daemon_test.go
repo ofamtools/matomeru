@@ -260,7 +260,7 @@ func TestWave2HarnessDiscoveryFormChoicesAndLaunch(t *testing.T) {
 	for _, e := range a.Harnesses() {
 		gotIDs = append(gotIDs, e.ID)
 	}
-	wantIDs := []string{"myagent", "claude", "codex", "zsh"}
+	wantIDs := []string{"myagent", "zsh", "claude", "codex"}
 	if !slices.Equal(gotIDs, wantIDs) {
 		t.Fatalf("merged harnesses = %v, want %v", gotIDs, wantIDs)
 	}
@@ -387,13 +387,15 @@ func TestWave2LiveTelemetryAndBlockingApprovals(t *testing.T) {
 		t.Fatalf("hook telemetry reordered pane list: got %v, want [%s %s]", got, p1.ID, p2.ID)
 	}
 
-	// Select p2 and verify live hook state, active tool, and subagent count render in row & header strip.
+	// Select p2 and verify minimal hook indicator (hook fired + which hook, NO verbose tool/summary dump)
+	// plus rail metadata renders cleanly.
 	d.Keys("1", "j")
 	frame := d.Frame()
-	for _, want := range []string{"Hook: running", "tool: Bash", "2 subagents", "[Bash +2]"} {
-		if !strings.Contains(frame, want) {
-			t.Fatalf("1 Panes missing %q:\n%s", want, frame)
-		}
+	if !strings.Contains(frame, "Hook: ") || !strings.Contains(frame, "[Bash +2]") {
+		t.Fatalf("1 Panes missing minimal hook indicator or rail metadata:\n%s", frame)
+	}
+	if strings.Contains(frame, "tool: Bash") || strings.Contains(frame, "2 subagents") {
+		t.Fatalf("minimal hook indicator should strip verbose tool/subagent dumps by default:\n%s", frame)
 	}
 
 	// Select p1 and trigger a real blocking PermissionRequest approval call on the test daemon.

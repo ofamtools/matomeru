@@ -229,6 +229,7 @@ func Modes() []core.Mode {
 		{Name: ModeComposer},
 		{Name: ModeConfirm},
 		{Name: ModeAbout},
+		{Name: ModePage},
 	}
 }
 
@@ -709,6 +710,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, macroBindings()...)
 	out = append(out, viewCycleBindings()...)
 	out = append(out, uxNotesBindings()...)
+	out = append(out, pageModeBindings()...)
 	out = append(out, fdSearchBindings()...)
 	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {
 		out = appendReadlineBindings(out, mode, all)

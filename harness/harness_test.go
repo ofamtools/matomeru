@@ -166,11 +166,16 @@ func TestMergeInstalledAndBuildLaunchCommand(t *testing.T) {
 		byID[e.ID] = e
 	}
 
-	// omp promoted to default first, claude installed, local-llm custom, zsh shell;
+	// omp promoted to default first, then zsh shell, claude installed, local-llm custom;
 	// gemini (uninstalled) and codex (disabled) excluded.
-	wantIDs := []string{"omp", "claude", "local-llm", "zsh"}
+	wantIDs := []string{"omp", "zsh", "claude", "local-llm"}
 	if !slices.Equal(ids, wantIDs) {
 		t.Fatalf("merged ids = %v, want %v", ids, wantIDs)
+	}
+	// With no explicit cfg.Default, plain shell (zsh) leads as the default option.
+	noDef := harness.MergeInstalled(installed, harness.FileConfig{})
+	if len(noDef) == 0 || noDef[0].ID != "zsh" {
+		t.Fatalf("default harness without cfg.Default = %+v, want zsh first", noDef)
 	}
 	if !byID["local-llm"].Custom || byID["local-llm"].Source != harness.SourceCustom {
 		t.Errorf("local-llm should be marked custom: %+v", byID["local-llm"])

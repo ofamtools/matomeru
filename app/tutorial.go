@@ -233,8 +233,8 @@ func RunTutorialSmoke(out io.Writer) error {
 	defer a.Store.Close()
 	k := &smoke{Driver: NewDriver(a, 120, 40), out: out}
 	k.section("tutorial")
-	k.check("starts on Panes with the guide pane, its lane bar and an unread question",
-		a.Space() == SpacePanes && k.has("guide: start here", "Lane: Tutorial lane", "3/6 done", "1 running (editing-worker)", "Questions", "Start here"))
+	k.check("starts on Panes with the guide pane, its lane in TOC and an unread question",
+		a.Space() == SpacePanes && k.has("guide: start here", "◈ 3/6 Tutorial", "Questions", "Start here") && !k.has2("Lane: Tutorial lane"))
 	k.Keys("W")
 	k.check("W goes to the open question", a.Space() == SpacePanes && a.Focus() == "q-first" && k.has("Which part do you want to try first?"))
 	k.Keys("a", "space", "ctrl+s")

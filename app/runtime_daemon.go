@@ -500,10 +500,37 @@ func (a *App) decorateRailRow(row *table.Row, pane data.Record) {
 	}
 }
 
+func hookEventLabel(state string, pt *daemon.PaneTelemetry) string {
+	if pt != nil && pt.Payload != nil {
+		for _, k := range []string{"hook_event_name", "hookEventName", "event", "type"} {
+			if raw, ok := pt.Payload[k]; ok {
+				if name := strings.TrimSpace(fmt.Sprint(raw)); name != "" && name != "<nil>" {
+					return name
+				}
+			}
+		}
+	}
+	if pt != nil && pt.LastKind != "" {
+		if state != "" {
+			return pt.LastKind + " (" + state + ")"
+		}
+		return pt.LastKind
+	}
+	if state != "" {
+		return state
+	}
+	return "active"
+}
+
 func (a *App) paneHeaderStrip(pane data.Record) (ui.ViewNode, bool) {
 	state, pt, pending := a.effectiveHookState(pane.ID)
 	if state == "" && pt == nil && len(pending) == 0 {
 		return ui.ViewNode{}, false
+	}
+	_, _, tone, _ := views.StatusIndicator(a.schema(data.KindPane), "runStatus", state)
+	verbose := a.cfg != nil && a.cfg.Settings != nil && a.cfg.Settings.Bool(SetVerboseHookBar, false)
+	if !verbose {
+		return line("site.telemetry", " ● Hook: "+hookEventLabel(state, pt), tone), true
 	}
 	var parts []string
 	if state != "" {
@@ -524,7 +551,6 @@ func (a *App) paneHeaderStrip(pane data.Record) (ui.ViewNode, bool) {
 	if pt != nil && pt.Summary != "" {
 		parts = append(parts, pt.Summary)
 	}
-	_, _, tone, _ := views.StatusIndicator(a.schema(data.KindPane), "runStatus", state)
 	return line("site.telemetry", " "+strings.Join(parts, " · "), tone), true
 }
 

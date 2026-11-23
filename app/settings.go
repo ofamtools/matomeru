@@ -137,6 +137,12 @@ const (
 	SetToolsFDBinary           = "tools.fdBinary"
 	SetSearchFDMaxResults      = "search.fdMaxResults"
 	SetSessionUXNotes          = "session.uxNotes"
+	SetPageLockScroll          = "panes.pageLockScroll"
+	SetEdgeFocusSpill          = "nav.edgeFocusSpill"
+	SetVerboseHookBar          = "panes.verboseHookBar"
+	SetLaneInTOC               = "panes.laneInTOC"
+	SetCompactTOC              = "panes.compactTOC"
+	SetTOCGrouped              = "panes.tocGrouped"
 	PickerDefaultModeNormal    = "normal"
 	PickerDefaultModeAllNormal = "all-normal"
 	PickerDefaultModeFilter    = "filter"
@@ -190,7 +196,7 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetMatchMode, string(table.MatchSubstring), "how a new filter matches", string(table.MatchSubstring), string(table.MatchFuzzy), string(table.MatchRegex)),
 		flag(SetEditUniversal, true, "Edit forms offer star, archive and snooze"),
 		flag(SetEditExtra, true, "Edit forms offer fields the schema does not declare"),
-		flag(SetLaneBar, true, "the lane progress bar above a pane's site"),
+		flag(SetLaneBar, false, "the lane progress bar above a pane's site (opt-in; lane appears in TOC by default)"),
 		flag(SetRailAutoWiden, false, "the pane rail widens while it has the focus"),
 		flag(SetShowTOC, true, "the pane's Pages table of contents rail"),
 		enum(SetPanesGroup, PanesGroupProjectPane, "how panes are grouped in the rail", PanesGroupProjectPane, PanesGroupFlat),
@@ -213,6 +219,12 @@ func SettingSpecs() []core.ParamSpec {
 		{Name: SetToolsFDBinary, Type: core.ParamString, Default: "", Description: "path or command name for fd/fdfind file search binary (empty auto-detects fd then fdfind)"},
 		{Name: SetSearchFDMaxResults, Type: core.ParamInt, Default: defaultFDMaxResults, Description: "default maximum results returned by fd file search (0 = unlimited)"},
 		flag(SetSessionUXNotes, true, "enable zero-interruption in-context UX note capture (alt+n) and session note replay"),
+		flag(SetPageLockScroll, true, "lock reading and scrolling inside a ui.page until explicit detach (esc/q/ctrl+a d)"),
+		flag(SetEdgeFocusSpill, false, "allow j/k at list or pane edges to silently spill focus to adjacent panes"),
+		flag(SetVerboseHookBar, false, "show verbose tool, subagent, and summary text in the pane hook indicator"),
+		flag(SetLaneInTOC, true, "show the pane's active lane and progress counter inside the pane TOC"),
+		flag(SetCompactTOC, true, "render pane TOC entries as compact 1-line scannable rows"),
+		flag(SetTOCGrouped, true, "group pane TOC entries into collapsible Pinned / Active / Pages sections"),
 	}
 }
 

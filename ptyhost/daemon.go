@@ -231,14 +231,15 @@ type capture struct {
 		Y      int  `json:"y"`
 		Hidden bool `json:"hidden"`
 	} `json:"cursor"`
-	Cols          int    `json:"cols"`
-	Rows          int    `json:"rows"`
-	PID           int    `json:"pid"`
-	Exited        bool   `json:"exited"`
-	ExitCode      int    `json:"exitCode"`
-	Title         string `json:"title"`
-	AltScreen     bool   `json:"altScreen"`
-	AppCursorKeys bool   `json:"appCursorKeys"`
+	Cols           int    `json:"cols"`
+	Rows           int    `json:"rows"`
+	PID            int    `json:"pid"`
+	Exited         bool   `json:"exited"`
+	ExitCode       int    `json:"exitCode"`
+	Title          string `json:"title"`
+	AltScreen      bool   `json:"altScreen"`
+	AppCursorKeys  bool   `json:"appCursorKeys"`
+	BracketedPaste bool   `json:"bracketedPaste"`
 }
 
 func trimRows(rows []string) []string {
@@ -269,7 +270,7 @@ func decodeCapture(id string, out []byte) Frame {
 			}
 		}
 		f.Cols, f.Rows, f.PID, f.Exited, f.ExitCode = c.Cols, c.Rows, c.PID, c.Exited, c.ExitCode
-		f.Title, f.AltScreen, f.AppCursorKeys = c.Title, c.AltScreen, c.AppCursorKeys
+		f.Title, f.AltScreen, f.AppCursorKeys, f.BracketedPaste = c.Title, c.AltScreen, c.AppCursorKeys, c.BracketedPaste
 		return f
 	}
 	text := strings.TrimRight(string(out), "\n")

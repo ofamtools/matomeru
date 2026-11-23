@@ -555,10 +555,10 @@ func MergeInstalled(installed []InstalledHarness, cfg FileConfig) []Entry {
 	slices.SortFunc(customEntries, sortByID)
 	slices.SortFunc(shellEntries, sortByID)
 
-	out := make([]Entry, 0, len(installedEntries)+len(customEntries)+len(shellEntries))
+	out := make([]Entry, 0, len(shellEntries)+len(installedEntries)+len(customEntries))
+	out = append(out, shellEntries...)
 	out = append(out, installedEntries...)
 	out = append(out, customEntries...)
-	out = append(out, shellEntries...)
 
 	// Promote configured default harness to the top when present.
 	if defID := normalizeID(cfg.Default); defID != "" {

@@ -484,12 +484,19 @@ func (a *App) register() {
 		if a.Modal() == "scratch" {
 			return a.handleModal(s, c)
 		}
+		if s.ActiveFrame().Mode == ModePage {
+			return a.pageLeave(s, c)
+		}
 		if s.ActiveFrame().Mode == ModeTerminal {
 			a.say("left the pane")
 			s = withMode(s, ModeNormal)
 		}
 		return core.Next(s)
 	})
+	a.handle(CmdPageLeave, a.pageLeave)
+	a.handle(CmdPageItemNext, a.pageStepItem(1))
+	a.handle(CmdPageItemPrev, a.pageStepItem(-1))
+	a.handle(CmdTOCGroupToggle, a.tocGroupToggle)
 	a.handle(CmdTermInput, a.termInput)
 
 	a.handle(CmdOutlineOpen, func(s core.State, c core.Command) core.StepResult {

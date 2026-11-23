@@ -10,6 +10,7 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/mcpui"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/table"
@@ -136,8 +137,8 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.section("1. the four spaces")
 	k.check("starts on Panes with the tab bar", a.Space() == SpacePanes && k.has("1 Panes", "2 Work", "3 Runs", "4 Extensions"))
 	k.check("panes: rail, table of contents and the Screen page", k.has("claude: wave 5B", "nvim: core/keymap.go", "Pages", "Screen", "Questions", "Architecture"))
-	k.check("the pane's lane shows as one line above its pages, not among them",
-		k.has("Lane: Matomeru v2 Step 2  [███▓░░] 3/6 done · 1 running (settings-worker)") && !k.has2("│ Lane"))
+	k.check("the pane's lane shows compactly inside the TOC, not the top bar by default",
+		k.has("◈ 3/6 Matomeru") && !k.has2("Lane: Matomeru v2 Step 2"))
 	k.keep("Panes")
 	k.Keys("2")
 	if a.workTasksLayout() == WorkTasksLayoutTree {
@@ -160,13 +161,13 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.section("2. the pane's site: an unread question, answered")
 	sel, _ := a.SelectedPane()
 	k.check("the rail leads with the pane the owner prompted last", sel != nil && sel.ID == pane.ID)
-	k.check("the pane has an unread dot and an unread Questions page", k.has("● claude: wave 5B", "Unread") && pages()["questions"].Unread && a.attention(pane.ID))
+	k.check("the pane has an unread dot and an unread Questions page", k.has("● claude: wave 5B", "● ? Questions") && pages()["questions"].Unread && a.attention(pane.ID))
 	k.check("the other pane, whose pages are read, has no dot", !a.attention(other.ID))
 	k.Keys("enter")
 	k.check("enter goes from the rail to the pane's pages", a.Focus() == tocPrefix+"screen")
-	k.Keys("j", "enter")
+	k.Keys("j", "j", "enter")
 	questions := pages()["questions"]
-	k.check("opening Questions marks the page viewed", !questions.Unread && a.Focus() == "q-live-terminal" && k.has("Attach live terminals in this wave?"))
+	k.check("opening Questions marks the page viewed and enters pane-locked reading mode", !questions.Unread && a.Mode() == ModePage && a.Focus() == "q-live-terminal" && k.has("Attach live terminals in this wave?"))
 	k.check("the question is still open, so the pane keeps its dot", a.attention(pane.ID) && len(questions.Questions) == 1 && !questions.Questions[0].Answered)
 	k.Keys("a")
 	k.check("a opens the answer form", a.Modal() == "answer" && a.Mode() == ModeForm && k.has("later", "now", "send answer"))
@@ -175,12 +176,12 @@ func RunSmoke(out io.Writer, dump bool) error {
 	answered := len(questions.Questions) == 1 && questions.Questions[0].Answered && questions.Questions[0].Answer["choice"] == "later"
 	k.check("space picks a choice, ctrl+s sends the answer", a.Modal() == "" && answered && !questions.Unread && k.has("answered"))
 	k.keep("Questions, answered")
-	k.Keys("h", "j", "enter")
-	k.check("the response page opens and renders its cards", !pages()["architecture"].Unread && a.Focus() == "arch.opt.thin" && k.has("Thin app, generated views", "Where the four spaces live"))
+	k.Keys("esc", "j", "enter")
+	k.check("the response page opens at the top in reading mode and renders its cards", !pages()["architecture"].Unread && a.Mode() == ModePage && a.Focus() == views.PageScrollID && k.has("Thin app, generated views", "Where the four spaces live"))
 	k.check("with everything read and answered the dot is gone", !a.attention(pane.ID) && !k.has2("● claude: wave 5B"))
 
 	k.section("3. the terminal: passthrough and the leader")
-	k.Keys("h", "g", "g")
+	k.Keys("esc", "g", "g")
 	k.check("g g goes to the top of the pages: Screen", a.Focus() == tocPrefix+"screen")
 	k.Keys("enter")
 	k.check("enter on Screen goes into the terminal", a.Mode() == ModeTerminal && a.Focus() == siteScreen)
@@ -449,7 +450,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 		k.Keys("j")
 	}
 	k.Keys("space", "esc")
-	k.check("panes.laneProgressBar off hides the bar", !a.cfg.Settings.Bool(SetLaneBar, true) && !k.has2("Lane: Matomeru v2 Step 2"))
+	k.check("panes.laneProgressBar on reveals the opt-in top bar", a.cfg.Settings.Bool(SetLaneBar, false) && k.has("Lane: Matomeru v2 Step 2"))
 	k.Keys("S")
 	for range 9 {
 		k.Keys("j")

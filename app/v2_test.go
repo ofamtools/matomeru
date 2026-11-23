@@ -54,14 +54,16 @@ func TestTutorial(t *testing.T) {
 // once, is saved to settings.json, and is there on the next start.
 func TestSettingsApplyAndPersist(t *testing.T) {
 	want := map[string]any{SetTheme: "ochazuke-dark", SetDensity: "balanced", SetBorderStyle: "rounded", SetShowMetadata: true, SetShowEmpty: true,
-		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: true, SetRailAutoWiden: false, SetShowTOC: true,
+		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: false, SetRailAutoWiden: false, SetShowTOC: true,
 		SetPanesGroup: PanesGroupProjectPane, SetToast: true, SetTreeGuides: true, SetRowSemanticStyling: true, SetStatusIcons: true, SetTreeTopLevelGap: true,
 		SetConfirmQuit: true, SetConfirmDaemonReset: true, SetWorkTasksLayout: WorkTasksLayoutTree, SetWorkHierarchyLayout: WorkHierarchyLayoutAuto,
 		SetAutoArchiveExited: true, SetScrollOff: 5, SetPickerDefaultMode: PickerDefaultModeNormal,
 		SetViewCycle: true, SetFormReactiveFields: true,
 		SetSessionRecord: true, SetSessionPromptSaveOnExit: false,
 		SetToolsFDBinary: "", SetSearchFDMaxResults: 200,
-		SetSessionUXNotes: true}
+		SetSessionUXNotes: true,
+		SetPageLockScroll: true, SetEdgeFocusSpill: false, SetVerboseHookBar: false,
+		SetLaneInTOC: true, SetCompactTOC: true, SetTOCGrouped: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

@@ -8,6 +8,7 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ptyhost"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 )
 
@@ -24,6 +25,8 @@ type PaneController struct {
 	Term            *ptyhost.Controller
 	term            map[string]*termBuf
 	activePage      map[string]string
+	pageScroll      map[string]int
+	tocCollapsed    map[string]bool
 	zoom            bool
 	escapes         int
 	railCacheKey    string
@@ -49,8 +52,10 @@ type PaneController struct {
 
 func newPaneController() *PaneController {
 	return &PaneController{
-		term:       map[string]*termBuf{},
-		activePage: map[string]string{},
+		term:         map[string]*termBuf{},
+		activePage:   map[string]string{},
+		pageScroll:   map[string]int{},
+		tocCollapsed: map[string]bool{},
 	}
 }
 
@@ -92,7 +97,13 @@ func (a *App) openPage(s core.State, paneID string, page data.Record) core.State
 }
 
 func (a *App) sitePageOpen(s core.State, c core.Command) core.StepResult {
+	if strings.HasPrefix(s.ActiveFrame().FocusID, views.TOCGroupPrefix) {
+		return a.tocGroupToggle(s, c)
+	}
 	ref, ok := a.subject(s, c)
+	if ok && ref.Kind == data.KindLane {
+		return core.Next(a.show(s, ref))
+	}
 	pane, hasPane := a.SelectedPane()
 	if !ok || !hasPane || ref.Kind != data.KindPage {
 		a.say("no page here to open")
@@ -105,13 +116,27 @@ func (a *App) sitePageOpen(s core.State, c core.Command) core.StepResult {
 		return core.Next(a.enterScreen(withFocus(s, siteScreen), *pane))
 	}
 	s = a.openPage(s, pane.ID, *page)
+	a.setPageScrollOffset(page.ID, 0)
 	a.viewMemo.gen++
+	if a.cfg.Settings != nil && a.cfg.Settings.Bool(SetPageLockScroll, true) {
+		focus := views.PageScrollID
+		if page.Text("pageKind") == "questions" {
+			for _, n := range a.focusables(s) {
+				if n.region == "site.content" && n.id != views.PageScrollID {
+					focus = n.id
+					break
+				}
+			}
+		}
+		a.say("%s · j/k/ctrl+d/ctrl+u scroll · tab/n/p controls · esc leaves", page.Text("title"))
+		return core.Next(withMode(withFocus(s, focus), ModePage))
+	}
 	for _, n := range a.focusables(s) {
-		if n.region == "site.content" {
+		if n.region == "site.content" && n.id != views.PageScrollID {
 			return core.Next(withFocus(s, n.id))
 		}
 	}
-	return core.Next(s)
+	return core.Next(withFocus(s, views.PageScrollID))
 }
 
 func (a *App) siteFocus(s core.State, _ core.Command) core.StepResult {
@@ -195,11 +220,16 @@ func (a *App) termInput(s core.State, c core.Command) core.StepResult {
 	if f := a.rt.live.frames[pane.ID]; f.Exited && key == "enter" {
 		return core.Next(a.enterScreen(s, *pane)) // the program ended: start it again
 	}
-	action := a.panes.Term.Key(pane.ID, key)
-	if _, unknown := action.(ptyhost.ActionUnhandled); unknown && text != "" {
-		action = ptyhost.ActionSent{Data: []byte(text)}
-		if err := a.panes.Host.Write(pane.ID, []byte(text)); err != nil {
-			action = ptyhost.ActionError{Err: err}
+	var action ptyhost.Action
+	if key == core.PasteKey {
+		action = a.panes.Term.Paste(pane.ID, text)
+	} else {
+		action = a.panes.Term.Key(pane.ID, key)
+		if _, unknown := action.(ptyhost.ActionUnhandled); unknown && text != "" {
+			action = ptyhost.ActionSent{Data: []byte(text)}
+			if err := a.panes.Host.Write(pane.ID, []byte(text)); err != nil {
+				action = ptyhost.ActionError{Err: err}
+			}
 		}
 	}
 	next, effects, sent := a.act(s, *pane, action)

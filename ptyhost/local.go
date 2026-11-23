@@ -276,18 +276,19 @@ func (h *LocalHost) Snapshot(id string) (Frame, bool) {
 	e := s.emu
 	w, ht := e.Width(), e.Height()
 	f := Frame{
-		ID:            id,
-		Lines:         strings.Split(e.Render(), "\n"),
-		Plain:         make([]string, ht),
-		Scrollback:    s.history(),
-		Cols:          w,
-		Rows:          ht,
-		Exited:        s.exited,
-		ExitCode:      s.code,
-		Title:         e.Titles().Title,
-		AltScreen:     e.IsAltScreen(),
-		AppCursorKeys: e.ApplicationCursorKeys(),
-		Revision:      s.rev,
+		ID:             id,
+		Lines:          strings.Split(e.Render(), "\n"),
+		Plain:          make([]string, ht),
+		Scrollback:     s.history(),
+		Cols:           w,
+		Rows:           ht,
+		Exited:         s.exited,
+		ExitCode:       s.code,
+		Title:          e.Titles().Title,
+		AltScreen:      e.IsAltScreen(),
+		AppCursorKeys:  e.ApplicationCursorKeys(),
+		BracketedPaste: e.BracketedPasteEnabled(),
+		Revision:       s.rev,
 	}
 	if s.pid > 0 {
 		f.PID = s.pid

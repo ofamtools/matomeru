@@ -74,6 +74,7 @@ func uxNotesBindings() []core.Binding {
 		ModeComposer,
 		ModeConfirm,
 		ModeAbout,
+		ModePage,
 	}
 	out := make([]core.Binding, 0, len(modes)+5)
 	for _, m := range modes {

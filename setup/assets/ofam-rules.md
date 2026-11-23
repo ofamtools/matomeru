@@ -10,7 +10,7 @@
 
 ### 2. Mandatory `o-lane` & Markdown Dossier Tracking
 - Track all agent work in `o-lane` through Matomeru (`mtm lane ...` or the `mtm` MCP gateway), never by creating or editing owner `mtm` tasks unless explicitly asked.
-- Every lane belongs to an `mtm` project, has a linked Markdown dossier (`mtm md doc new` / `md.doc new`), and keeps its status (`planned`, `running`, `review`, `merged`, `done`, `parked`, `cancelled`), reason, and pane association (`mtm lane associate --pane`) continuously updated.
+- Every lane has a linked Markdown dossier (`mtm document create` + `mtm lane relate <LANE_ID> plan document:<DOC_ID>`), keeps its `laneStatus` (`planned`, `running`, `review`, `merged`, `done`, `parked`, `cancelled`) and `summary` updated (`mtm lane edit <ID> --field laneStatus=...`), and **claims the active Matomeru pane whenever `$MTM_PANE_ID` is set** (`mtm lane relate <LANE_ID> claim pane:$MTM_PANE_ID` or MCP `lane.start` with `pane: "$MTM_PANE_ID"`) so the pane's lane progress bar and `ctrl+a L` stay live.
 - Apply the 3-minute triage rule: work over ~3 minutes or touching multiple files gets its own child lane; group small unrelated fixes under a `Small Fixes` parent lane. Reorganize lanes freely as clearer groupings emerge.
 
 ### 3. File-Ownership Matrix & Worker Discipline
@@ -28,8 +28,8 @@
 - Run local Go builds, `vet`, and tests serially through `~/bin/heavy` with `GOWORK=off GOFLAGS=-trimpath`.
 
 ### 6. Single MCP Gateway, Startup, Restarts & Releases
-- `mtm mcp serve` is the family's single MCP gateway (`catalog`, `describe`, `run` across `mtm` and all registered `o-*` extensions); prefer it over per-tool MCP servers.
-- At session start, inspect `MTM_ENV` (or `TUIOS_ENV`), `MTM_SESSION`, and `MTM_PANE_ID`; when `MTM_ENV=1` and both IDs are set, run `mtm mcp instructions` (and `mtm agent guide` when driving panes) before working.
-- After installing a new `mtm` binary, post a restart request (`mtm restart-request post "installed <version>: <summary>" --version "$(mtm --version)"`) instead of restarting or quitting the app yourself.
+- `mtm mcp serve` (and the daemon HTTP endpoint `$MTM_MCP_URL`) is the family's single MCP gateway; prefer it over per-tool MCP servers.
+- At session start, inspect `MTM_PANE_ID` / `MTM_SOCKET` / `MTM_MCP_URL` (and `TUIOS_ENV` if set). Whenever `$MTM_PANE_ID` is non-empty, claim it on your root and active child lane immediately (`mtm lane relate <LANE_ID> claim pane:$MTM_PANE_ID`).
+- After installing a new `mtm` binary, run `mtm daemon upgrade --json` to re-exec the daemon in place without killing live panes (never quit the user's TUI yourself).
 - Follow the `ofam-wave-release` skill runbook when closing waves, tagging releases, Developer ID signing, and atomically installing binaries into `~/bin/`.
 <!-- ofam:end -->

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/commandline"
@@ -170,7 +171,13 @@ func (a *App) column(s core.State, delta int) core.State {
 	}
 	target := a.nav.lastFocus[regions[to]]
 	if !slices.ContainsFunc(nodes, func(n fnode) bool { return n.id == target && n.region == regions[to] }) {
-		target = nodes[slices.IndexFunc(nodes, func(n fnode) bool { return n.region == regions[to] })].id
+		idx := slices.IndexFunc(nodes, func(n fnode) bool {
+			return n.region == regions[to] && (regions[to] != "site.content" || n.id != views.PageScrollID)
+		})
+		if idx < 0 {
+			idx = slices.IndexFunc(nodes, func(n fnode) bool { return n.region == regions[to] })
+		}
+		target = nodes[idx].id
 	}
 	return withFocus(s, target)
 }
@@ -191,10 +198,72 @@ func (a *App) edge(s core.State, last bool) core.State {
 	return withFocus(s, target)
 }
 
+func (a *App) edgeFocusSpillEnabled() bool {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return false
+	}
+	return a.cfg.Settings.Bool(SetEdgeFocusSpill, false)
+}
+
+func samePaneRegion(a, b string) bool {
+	if a == b {
+		return true
+	}
+	// On Work Show pages, showHeader / show.props / show.related form one vertical document.
+	isShow := func(r string) bool {
+		return r == showHeader || r == "show.props" || r == "show.related"
+	}
+	return isShow(a) && isShow(b)
+}
+
+func (a *App) stepBounded(s core.State, delta int, allowSpill bool) core.State {
+	if allowSpill {
+		return a.step(s, delta)
+	}
+	nodes := a.focusables(s)
+	if len(nodes) == 0 {
+		return s
+	}
+	cur := slices.IndexFunc(nodes, func(n fnode) bool { return n.id == s.ActiveFrame().FocusID })
+	if cur < 0 {
+		return a.step(s, delta)
+	}
+	curRegion := nodes[cur].region
+	var scoped []fnode
+	curScoped := -1
+	for _, n := range nodes {
+		if samePaneRegion(n.region, curRegion) {
+			if n.id == nodes[cur].id {
+				curScoped = len(scoped)
+			}
+			scoped = append(scoped, n)
+		}
+	}
+	if len(scoped) == 0 || curScoped < 0 {
+		return s
+	}
+	to := min(max(curScoped+delta, 0), len(scoped)-1)
+	if to == curScoped {
+		return s
+	}
+	if tbl := a.nav.tables[scoped[to].id]; tbl != nil {
+		tbl.SelectedIdx, tbl.Offset = 0, 0
+		if delta < 0 {
+			tbl.SelectedIdx = len(tbl.Items()) - 1
+		}
+		tbl.Focused()
+	}
+	return withFocus(s, scoped[to].id)
+}
+
 func (a *App) motion(s core.State, c core.Command) core.StepResult {
 	if a.Modal() != "" {
 		return a.handleModal(s, c)
 	}
+	if a.Engine.Mode(s) == ModePage {
+		return a.pageScrollMotion(s, c)
+	}
+	spill := a.edgeFocusSpillEnabled()
 	focus := s.ActiveFrame().FocusID
 	if focus == workTable && a.inWorkTree(s) && c.ID != "motion.left" && c.ID != "motion.right" {
 		a.workTreeMove(c)
@@ -203,24 +272,24 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 	if tbl := a.nav.tables[focus]; tbl != nil && c.ID != "motion.left" && c.ID != "motion.right" {
 		before := tbl.SelectedIdx
 		tbl.HandleCommand(c)
-		if tbl.SelectedIdx != before || (c.ID != "motion.down" && c.ID != "motion.up") {
+		if tbl.SelectedIdx != before || (c.ID != "motion.down" && c.ID != "motion.up") || !spill {
 			return core.Next(s)
 		}
-		// At the list's edge the motion spills into the next thing drawn.
+		// At the list's edge with nav.edgeFocusSpill=true, spill into the next thing drawn.
 	}
 	switch c.ID {
 	case "motion.down":
-		s = a.step(s, c.Times())
+		s = a.stepBounded(s, c.Times(), spill)
 	case "motion.up":
-		s = a.step(s, -c.Times())
+		s = a.stepBounded(s, -c.Times(), spill)
 	case "motion.half.down", "motion.block.next":
-		s = a.step(s, 5*c.Times())
+		s = a.stepBounded(s, 5*c.Times(), spill)
 	case "motion.half.up", "motion.block.prev":
-		s = a.step(s, -5*c.Times())
+		s = a.stepBounded(s, -5*c.Times(), spill)
 	case "motion.page.down":
-		s = a.step(s, 10*c.Times())
+		s = a.stepBounded(s, 10*c.Times(), spill)
 	case "motion.page.up":
-		s = a.step(s, -10*c.Times())
+		s = a.stepBounded(s, -10*c.Times(), spill)
 	case "motion.right":
 		s = a.column(s, 1)
 	case "motion.left":

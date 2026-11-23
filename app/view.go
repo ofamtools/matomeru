@@ -68,6 +68,14 @@ func (a *App) viewKey(s core.State) string {
 	if a.panes.hints != nil && a.panes.hints.session != nil && a.panes.hints.session.Active() {
 		fmt.Fprintf(&b, "|hints:%t:%s:%d", a.panes.hints.focusJump, a.panes.hints.session.Prefix(), len(a.panes.hints.session.Remaining()))
 	}
+	if s.ActivePage == SpacePanes {
+		if pageID := a.activeSitePageID(); pageID != "" {
+			fmt.Fprintf(&b, "|ps:%s:%d", pageID, a.pageScrollOffset(pageID))
+		}
+		if a.panes != nil && a.panes.tocCollapsed["pages"] {
+			b.WriteString("|toc:collapsed")
+		}
+	}
 	return b.String()
 }
 
@@ -319,11 +327,19 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		if err != nil {
 			a.fail("read pages", err)
 		}
+		activePageID := a.panes.activePage[pane.ID]
 		opts := views.SiteOptions{
-			Store:       a.Store,
-			ShowLaneBar: a.cfg.Settings.Bool(SetLaneBar, true),
-			HideTOC:     !a.cfg.Settings.Bool(SetShowTOC, true),
-			LaneHint:    laneBarHint,
+			Store:            a.Store,
+			ShowLaneBar:      a.cfg.Settings.Bool(SetLaneBar, false),
+			LaneInTOC:        a.cfg.Settings.Bool(SetLaneInTOC, true),
+			CompactTOC:       a.cfg.Settings.Bool(SetCompactTOC, true),
+			TOCGrouped:       a.cfg.Settings.Bool(SetTOCGrouped, true),
+			TOCCollapsed:     a.panes.tocCollapsed,
+			PageScrollOffset: a.pageScrollOffset(activePageID),
+			PageScrollLocked: s.Pages[SpacePanes].Mode == ModePage,
+			WrapPageScroll:   true,
+			HideTOC:          !a.cfg.Settings.Bool(SetShowTOC, true),
+			LaneHint:         laneBarHint,
 		}
 		if a.Shell != nil {
 			opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once

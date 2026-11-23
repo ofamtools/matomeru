@@ -53,6 +53,9 @@ type Frame struct {
 	// AppCursorKeys is set while the program asks for application cursor
 	// keys (arrows encode as ESC O x).
 	AppCursorKeys bool
+	// BracketedPaste is set while the program enables DEC mode 2004
+	// bracketed paste (\x1b[?2004h).
+	BracketedPaste bool `json:"bracketedPaste,omitempty"`
 	// Revision grows each time the session's output, size or state changes,
 	// so the app can redraw only when it differs from the last one drawn.
 	Revision uint64

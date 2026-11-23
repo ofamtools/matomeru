@@ -726,7 +726,7 @@ func (a *App) nextAttention(s core.State, _ core.Command) core.StepResult {
 			a.viewMemo.gen++
 			// On the question itself, ready to answer.
 			for _, n := range a.focusables(s) {
-				if n.region == "site.content" {
+				if n.region == "site.content" && n.id != views.PageScrollID {
 					return core.Next(withFocus(s, n.id))
 				}
 			}

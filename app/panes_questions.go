@@ -277,10 +277,17 @@ func (a *App) enhanceQuestionsSite(site *ui.ViewNode, pane data.Record, pages []
 	}
 
 	scrollBody := ui.ViewNode{
-		ID:       "question.batch.scroll",
-		Kind:     ui.KindScroll,
-		Box:      layout.Constraints{Flex: 1},
-		Children: content.Children,
+		ID:        views.PageScrollID,
+		Kind:      ui.KindScroll,
+		Scope:     data.KindPage,
+		Focusable: true,
+		Box:       layout.Constraints{Flex: 1},
+		Props:     map[string]any{"offset": a.pageScrollOffset(pageID)},
+		Children:  content.Children,
+	}
+	if len(content.Children) == 1 && content.Children[0].Kind == ui.KindScroll {
+		scrollBody = content.Children[0]
+		scrollBody.Box.Flex = 1
 	}
 	layoutKids := make([]ui.ViewNode, 0, len(headerNodes)+1+len(submitNodes))
 	layoutKids = append(layoutKids, headerNodes...)
@@ -321,11 +328,13 @@ func (a *App) questionStep(delta int) func(core.State, core.Command) core.StepRe
 			return core.Next(s)
 		}
 		cur := slices.Index(qNodes, s.ActiveFrame().FocusID)
-		if cur < 0 {
-			return core.Next(withFocus(s, qNodes[0]))
+		target := qNodes[0]
+		if cur >= 0 {
+			nextIdx := min(max(cur+delta, 0), len(qNodes)-1)
+			target = qNodes[nextIdx]
 		}
-		nextIdx := min(max(cur+delta, 0), len(qNodes)-1)
-		return core.Next(withFocus(s, qNodes[nextIdx]))
+		a.scrollPageReveal(s, a.activeSitePageID(), target)
+		return core.Next(withFocus(s, target))
 	}
 }
 
@@ -751,6 +760,30 @@ func (a *App) answerQuestion(s core.State, c core.Command) core.StepResult {
 		return false
 	}
 	walk(&root, nil)
+	if card == nil && a.Engine.Mode(s) == ModePage && focus == views.PageScrollID {
+		if content := root.Find("site.content"); content != nil {
+			var firstCard *ui.ViewNode
+			var findQ func(n *ui.ViewNode)
+			findQ = func(n *ui.ViewNode) {
+				if n.Scope == mcpui.ScopeQuestion && n.Kind == ui.KindCard && !strings.HasPrefix(n.ID, questionBatchSubmitPrefix) {
+					if firstCard == nil {
+						firstCard = n
+					}
+					if card == nil && !cardIsAnswered(n) {
+						card = n
+					}
+					return
+				}
+				for i := range n.Children {
+					findQ(&n.Children[i])
+				}
+			}
+			findQ(content)
+			if card == nil {
+				card = firstCard
+			}
+		}
+	}
 	pane, ok := a.SelectedPane()
 	if card == nil || !ok {
 		// Global KindQuestion record (e.g. in 2 Work -> Questions or Show page).

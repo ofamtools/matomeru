@@ -190,6 +190,35 @@ func (c *Controller) Key(id, key string) Action {
 	return c.send(id, key)
 }
 
+// Paste delivers pasted text to session id. When the child program has enabled
+// DEC mode 2004 bracketed paste (\x1b[?2004h), text is wrapped in
+// \x1b[200~...\x1b[201~ (stripping any embedded paste-end marker) so multi-line
+// pastes arrive atomically instead of as raw keystrokes. Paste bypasses any
+// pending prefix and is ignored in Copy Mode.
+func (c *Controller) Paste(id, text string) Action {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	in := c.in(id)
+	if in.mode == ModeCopy {
+		return ActionNone{}
+	}
+	if in.mode == ModePrefix {
+		in.mode = ModePassthrough
+	}
+	if text == "" {
+		return ActionNone{}
+	}
+	payload := []byte(text)
+	if f, ok := c.Host.Snapshot(id); ok && f.BracketedPaste {
+		safe := strings.ReplaceAll(text, "\x1b[201~", "")
+		payload = []byte("\x1b[200~" + safe + "\x1b[201~")
+	}
+	if err := c.Host.Write(id, payload); err != nil {
+		return ActionError{Err: err}
+	}
+	return ActionSent{Data: payload}
+}
+
 func (c *Controller) send(id, key string) Action {
 	app := false
 	if _, ok := cursorFinal[key]; ok {

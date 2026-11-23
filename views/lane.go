@@ -15,6 +15,9 @@ import (
 // LaneBarID is the node ID of the ambient lane progress bar above a pane's site.
 const LaneBarID = "site.lanebar"
 
+// LaneTOCPrefix prefixes the compact lane entry rendered inside a pane's TOC.
+const LaneTOCPrefix = "site.toc.lane."
+
 // Lane status groups of the progress bar.
 const (
 	laneDone    = "done"    // done, merged
@@ -227,6 +230,42 @@ func LaneBar(store *data.Store, pane data.Record, hint string, width int) (ui.Vi
 	return ui.ViewNode{ID: LaneBarID, Kind: ui.KindText, Tone: "accent", Ref: &ref, Box: layout.Constraints{FixedH: 1},
 		Props: map[string]any{"text": line},
 		Facts: map[string]any{"lane": ref.ID, "done": roll.Done, "running": roll.Active, "planned": roll.Planned, "trees": roll.OtherTrees + 1}}, true
+}
+
+// LaneTOCEntry renders the pane's active lane as a compact 1-line row inside
+// the pane's Pages TOC (e.g. "◈ 3/6 Lane Title"), putting progress before the
+// title so it remains visible even in narrow TOC rails.
+func LaneTOCEntry(store *data.Store, pane data.Record) (ui.ViewNode, string, bool) {
+	if store == nil {
+		return ui.ViewNode{}, "", false
+	}
+	roll, ok, err := ActiveLane(store, pane)
+	if err != nil || !ok {
+		return ui.ViewNode{}, "", false
+	}
+	ref := roll.Root.Ref()
+	title := Title(data.Schema{SummaryField: "title"}, roll.Root)
+	if rs := []rune(title); len(rs) > 22 {
+		title = string(rs[:21]) + "…"
+	}
+	label := fmt.Sprintf("◈ %d/%d %s", roll.Done, roll.Total(), title)
+	return ui.ViewNode{
+		ID:        LaneTOCPrefix + ref.ID,
+		Kind:      ui.KindText,
+		Scope:     ScopeTOC,
+		Ref:       &ref,
+		Focusable: true,
+		Tone:      "accent",
+		Box:       layout.Constraints{FixedH: 1},
+		Props:     map[string]any{"text": label},
+		Facts: map[string]any{
+			"isLane":  true,
+			"lane":    ref.ID,
+			"done":    roll.Done,
+			"running": roll.Active,
+			"planned": roll.Planned,
+		},
+	}, ref.ID, true
 }
 
 // --- timeline ---------------------------------------------------------------------

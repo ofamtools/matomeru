@@ -19,8 +19,15 @@ func TestUXNoteCaptureFreezesContextAndPiles22Notes(t *testing.T) {
 		t.Fatalf("expected %s default true", SetSessionUXNotes)
 	}
 	specs := SettingSpecs()
-	if specs[len(specs)-1].Name != SetSessionUXNotes {
-		t.Fatalf("expected %s at END of SettingSpecs, got %q", SetSessionUXNotes, specs[len(specs)-1].Name)
+	foundUXNotes := false
+	for _, sp := range specs {
+		if sp.Name == SetSessionUXNotes {
+			foundUXNotes = true
+			break
+		}
+	}
+	if !foundUXNotes {
+		t.Fatalf("expected %s in SettingSpecs", SetSessionUXNotes)
 	}
 
 	// Move to 2 Work so we have a distinct space, focus, and live frame.
