@@ -165,8 +165,8 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 	}
 	// A reference field opens a picker over the records it may point at.
 	d.Keys("k", "enter")
-	if a.Modal() != modalRef || a.refField != "parent" {
-		t.Fatalf("enter on parent: modal %q, field %q", a.Modal(), a.refField)
+	if pm := a.activePicker(modalRef); a.Modal() != modalRef || pm == nil || pm.Model().Title != "Pick Parent" {
+		t.Fatalf("enter on parent: modal %q, picker %v", a.Modal(), pm)
 	}
 	d.Type("matomeru-v2")
 	d.Keys("enter")
@@ -209,7 +209,7 @@ func TestListsWorkOnAnyField(t *testing.T) {
 			t.Fatalf("%v did not open the field picker (modal %q)", keys, a.Modal())
 		}
 		var offered []string
-		for _, it := range a.pickers[modalField].Items {
+		for _, it := range a.activePicker(modalField).Model().Items {
 			offered = append(offered, it.ID)
 		}
 		for _, field := range every {

@@ -43,8 +43,8 @@ func mkRec(t *testing.T, a *App, kind string, fields map[string]any) data.Record
 
 func pickerIDs(a *App, modal string) []string {
 	var ids []string
-	if pm := a.pickers[modal]; pm != nil {
-		for _, it := range pm.Items {
+	if pm := a.activePicker(modal); pm != nil {
+		for _, it := range pm.Model().Items {
 			ids = append(ids, it.ID)
 		}
 	}
@@ -85,7 +85,7 @@ func TestYankPicker(t *testing.T) {
 		t.Fatalf("the picker does not show what it copies:\n%s", frame)
 	}
 	d.Type("repo")
-	if it, ok := a.pickers[modalYank].Focused(); !ok || it.ID != "repo" {
+	if it, ok := a.activePicker(modalYank).Model().Focused(); !ok || it.ID != "repo" {
 		t.Fatalf("typing repo focuses %+v", it)
 	}
 	// The preview is exactly the text that is copied.
@@ -644,7 +644,8 @@ func TestInspectActionsAndModes(t *testing.T) {
 	d.Keys("2", ":")
 	d.Type("inspect actions")
 	d.Keys("enter")
-	if a.Modal() != modalInspect || a.Mode() != ModeInspect || a.inspecting != InspectActions {
+	inspectMod := a.activePicker(modalInspect)
+	if a.Modal() != modalInspect || a.Mode() != ModeInspect || inspectMod == nil || inspectMod.View(0, 0).Facts["inspecting"] != InspectActions {
 		t.Fatalf(": inspect actions: modal %q, mode %q", a.Modal(), a.Mode())
 	}
 	if frame := d.Frame(); !strings.Contains(frame, "Inspect actions") || !strings.Contains(frame, unboundBadge) {
@@ -653,12 +654,12 @@ func TestInspectActionsAndModes(t *testing.T) {
 	if a.Register(core.RegCommand) != "inspect actions" {
 		t.Fatalf("\": = %q", a.Register(core.RegCommand))
 	}
-	pm := a.pickers[modalInspect]
+	pm := inspectMod.Model()
 	if len(pm.Items) != len(ActionsOf(a.bindings, a.specs)) {
 		t.Fatalf("%d rows for %d actions", len(pm.Items), len(ActionsOf(a.bindings, a.specs)))
 	}
 	item := func(id string) (found bool, unbound bool, keys string) {
-		for _, it := range a.pickers[modalInspect].Items {
+		for _, it := range a.activePicker(modalInspect).Model().Items {
 			if it.ID == id {
 				return true, it.Badges[0].Text == unboundBadge, it.Badges[0].Text
 			}
@@ -706,8 +707,9 @@ func TestInspectActionsAndModes(t *testing.T) {
 	d.Keys("g", "n")
 	d.Type("modes")
 	d.Keys("enter")
-	if a.Modal() != modalInspect || a.inspecting != InspectModes || len(a.pickers[modalInspect].Items) != len(Modes()) {
-		t.Fatalf("g n modes: modal %q, inspecting %q", a.Modal(), a.inspecting)
+	inspectMod = a.activePicker(modalInspect)
+	if a.Modal() != modalInspect || inspectMod == nil || inspectMod.View(0, 0).Facts["inspecting"] != InspectModes || len(inspectMod.Model().Items) != len(Modes()) {
+		t.Fatalf("g n modes: modal %q", a.Modal())
 	}
 	if frame := d.Frame(); !strings.Contains(frame, "Inspect modes") || !strings.Contains(frame, "passthrough") || !strings.Contains(frame, "base normal") {
 		t.Fatalf("the modes inspector:\n%s", frame)
@@ -720,8 +722,9 @@ func TestInspectActionsAndModes(t *testing.T) {
 	d.Keys("g", "n")
 	d.Type("actions")
 	d.Keys("enter")
-	if a.Modal() != modalInspect || a.inspecting != InspectActions {
-		t.Fatalf("g n actions: modal %q, inspecting %q", a.Modal(), a.inspecting)
+	inspectMod = a.activePicker(modalInspect)
+	if a.Modal() != modalInspect || inspectMod == nil || inspectMod.View(0, 0).Facts["inspecting"] != InspectActions {
+		t.Fatalf("g n actions: modal %q", a.Modal())
 	}
 
 	modes := ModesOf(Modes(), DefaultBindings())
@@ -913,12 +916,16 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 	d.Keys(":")
 	d.Type("record edit")
 	d.Keys("ctrl+w")
-	if got := a.pickers[modalPalette].Query; got != "record " {
+	pal := a.activePalette()
+	if pal == nil {
+		t.Fatal("palette modal not open")
+	}
+	if got := pal.Model().Picker.Query; got != "record " {
 		t.Fatalf("picker ctrl+w -> %q", got)
 	}
-	beforeSel := a.pickers[modalPalette].SelectedIdx
+	beforeSel := pal.Model().Picker.SelectedIdx
 	d.Keys("ctrl+n")
-	if a.pickers[modalPalette].SelectedIdx == beforeSel {
+	if pal.Model().Picker.SelectedIdx == beforeSel {
 		t.Fatal("ctrl+n did not move selection in picker")
 	}
 	d.Keys("esc")

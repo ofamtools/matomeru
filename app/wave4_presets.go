@@ -7,6 +7,7 @@ import (
 
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/table"
 	"ofam.dev/ochazuke/widgets/toast"
@@ -73,9 +74,13 @@ func (a *App) focusedTableForPreset(s core.State, c core.Command) (*table.Model,
 			return tbl, id
 		}
 	}
-	if topModal(s) == modalPresets && a.presetTable != "" {
-		if tbl := a.ensureTable(a.presetTable); tbl != nil {
-			return tbl, a.presetTable
+	if topModal(s) == modalPresets {
+		if pm := a.activePicker(modalPresets); pm != nil {
+			if id, _ := pm.View(0, 0).Facts["table"].(string); id != "" {
+				if tbl := a.ensureTable(id); tbl != nil {
+					return tbl, id
+				}
+			}
 		}
 	}
 	focus := s.ActiveFrame().FocusID
@@ -169,7 +174,7 @@ func (a *App) presetPickerItems(tableID string) []picker.Item {
 }
 
 func (a *App) refreshPresetPicker(tableID string) {
-	if pm := a.pickers[modalPresets]; pm != nil {
+	if pm := a.activePicker(modalPresets); pm != nil {
 		pm.SetItems(a.presetPickerItems(tableID))
 	}
 }
@@ -180,16 +185,54 @@ func (a *App) tablePresetPick(s core.State, c core.Command) core.StepResult {
 		a.say("no table is focused")
 		return core.Next(s)
 	}
-	a.presetTable = id
-	items := a.presetPickerItems(id)
-	pm := picker.New("Presets · "+id, items)
+	tableID := id
+	items := a.presetPickerItems(tableID)
+	pm := picker.New("Presets · "+tableID, items)
 	if len(items) == 0 {
 		pm.Placeholder = "no presets yet · s saves current filter/sort/group"
 	} else {
 		pm.Placeholder = "enter applies · s saves · d default · x deletes"
 	}
-	a.say("presets for %s · enter applies · s saves · d sets default · x deletes", id)
-	return core.Next(a.openPicker(s, modalPresets, pm))
+	var m *modal.PickerModal
+	m = modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       modalPresets,
+		PageSize: 10,
+		Facts: func(*picker.Model) map[string]any {
+			return map[string]any{"table": tableID}
+		},
+		OnConfirm: func(picked picker.Item) modal.Result {
+			a.applyTablePreset(tableID, picked.ID)
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+		OnCommand: func(p *picker.Model, cmd core.Command) (modal.Result, bool) {
+			switch cmd.ID {
+			case CmdPresetPickerSave:
+				a.afterModal(func(st core.State) core.State {
+					return a.openPresetSaveForm(st, tableID)
+				})
+				return modal.Result{Handled: true}, true
+			case CmdPresetPickerDefault:
+				it, ok := p.Focused()
+				if !ok {
+					return modal.Result{Handled: true, Status: "no preset selected", SetStatus: true}, true
+				}
+				a.setDefaultTablePreset(tableID, it.ID)
+				m.SetItems(a.presetPickerItems(tableID))
+				return modal.Result{Handled: true}, true
+			case CmdPresetPickerDelete:
+				it, ok := p.Focused()
+				if !ok {
+					return modal.Result{Handled: true, Status: "no preset selected", SetStatus: true}, true
+				}
+				a.deleteTablePreset(tableID, it.ID)
+				m.SetItems(a.presetPickerItems(tableID))
+				return modal.Result{Handled: true}, true
+			}
+			return modal.Result{}, false
+		},
+	})
+	a.say("presets for %s · enter applies · s saves · d sets default · x deletes", tableID)
+	return core.Next(a.pushModal(s, m))
 }
 
 func (a *App) openPresetSaveForm(s core.State, tableID string) core.State {
@@ -310,49 +353,6 @@ func (a *App) deleteTablePreset(tableID, name string) bool {
 	}
 	a.pushToast(fmt.Sprintf("Deleted preset %q (%s)", name, tableID), toast.Warn)
 	return true
-}
-
-func (a *App) presetPickerSave(s core.State, _ core.Command) core.StepResult {
-	if topModal(s) != modalPresets || a.presetTable == "" {
-		return core.Next(s)
-	}
-	return core.Next(a.openPresetSaveForm(s, a.presetTable))
-}
-
-func (a *App) presetPickerDefault(s core.State, _ core.Command) core.StepResult {
-	if topModal(s) != modalPresets || a.presetTable == "" {
-		return core.Next(s)
-	}
-	pm := a.pickers[modalPresets]
-	if pm == nil {
-		return core.Next(s)
-	}
-	it, ok := pm.Focused()
-	if !ok {
-		a.say("no preset selected")
-		return core.Next(s)
-	}
-	a.setDefaultTablePreset(a.presetTable, it.ID)
-	a.refreshPresetPicker(a.presetTable)
-	return core.Next(s)
-}
-
-func (a *App) presetPickerDelete(s core.State, _ core.Command) core.StepResult {
-	if topModal(s) != modalPresets || a.presetTable == "" {
-		return core.Next(s)
-	}
-	pm := a.pickers[modalPresets]
-	if pm == nil {
-		return core.Next(s)
-	}
-	it, ok := pm.Focused()
-	if !ok {
-		a.say("no preset selected")
-		return core.Next(s)
-	}
-	a.deleteTablePreset(a.presetTable, it.ID)
-	a.refreshPresetPicker(a.presetTable)
-	return core.Next(s)
 }
 
 func (a *App) tablePresetSave(s core.State, c core.Command) core.StepResult {

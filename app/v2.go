@@ -15,6 +15,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/bindings"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/table"
 )
@@ -89,7 +90,31 @@ func (a *App) nounsPick(s core.State, _ core.Command) core.StepResult {
 	}
 	pm := picker.New("Nouns", items)
 	pm.Placeholder = "any noun: its index opens in Work"
-	return core.Next(a.openPicker(s, modalNouns, pm))
+	m := modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       modalNouns,
+		PageSize: 10,
+		OnConfirm: func(picked picker.Item) modal.Result {
+			if what, ok := strings.CutPrefix(picked.ID, inspectPrefix); ok {
+				return modal.Result{
+					Handled:     true,
+					Close:       true,
+					CloseReason: modal.CloseSubmit,
+					Emit: []core.Command{{
+						ID:     CmdInspectOpen,
+						Args:   map[string]any{"what": what},
+						Source: "nouns",
+						Actor:  User,
+					}},
+				}
+			}
+			kind := picked.ID
+			a.afterModal(func(st core.State) core.State {
+				return a.browse(st, kind)
+			})
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }
 
 // browse opens the index of a noun in the Work space.
@@ -194,17 +219,25 @@ func (a *App) fieldPick(what string) func(core.State, core.Command) core.StepRes
 		}
 		pm := picker.New(strings.ToUpper(what[:1])+what[1:]+" by", items)
 		pm.Placeholder = "any field of these rows"
-		a.fieldWhat, a.fieldTable = what, id
-		return core.Next(a.openPicker(s, modalField, pm))
+		tableID := id
+		m := modal.NewPickerModal(pm, modal.PickerOptions{
+			ID:       modalField,
+			PageSize: 10,
+			OnConfirm: func(picked picker.Item) modal.Result {
+				a.fieldPicked(what, tableID, picked.ID)
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+			},
+		})
+		return core.Next(a.pushModal(s, m))
 	}
 }
 
-func (a *App) fieldPicked(key string) {
-	tbl := a.tables[a.fieldTable]
+func (a *App) fieldPicked(what, tableID, key string) {
+	tbl := a.tables[tableID]
 	if tbl == nil {
 		return
 	}
-	switch a.fieldWhat {
+	switch what {
 	case "filter":
 		tbl.FilterField = key
 		if key == views.AnyField {
@@ -221,7 +254,7 @@ func (a *App) fieldPicked(key string) {
 	case "group":
 		tbl.GroupField, tbl.Collapsed = key, nil
 		tbl.SelectedIdx, tbl.Offset = 0, 0
-		if a.fieldTable == railTable {
+		if tableID == railTable {
 			a.railGroupSet = true
 			a.railCustomGroup = key
 		}
@@ -293,27 +326,34 @@ func (a *App) assign(s core.State, c core.Command) core.StepResult {
 	walk(nodes, "", false)
 	pm := picker.New("Move "+a.title(ref)+" to", items)
 	pm.Placeholder = "a task (or type a new task title)"
-	a.assignRef, a.assignTo = &ref, field
-	a.enablePickerCreate(modalAssign, data.KindTask, pm)
-	return core.Next(a.openPicker(s, modalAssign, pm))
+	targetRef := ref
+	m := modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       modalAssign,
+		PageSize: 10,
+		Create: a.pickerCreateHook(data.KindTask, func(rec data.Record) modal.Result {
+			r := rec.Ref()
+			a.assigned(targetRef, field, &r)
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		}),
+		OnConfirm: func(picked picker.Item) modal.Result {
+			a.assigned(targetRef, field, picked.Ref)
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }
 
-func (a *App) assigned(picked *picker.Item) {
-	if a.assignRef == nil {
-		return
-	}
-	ref, field := *a.assignRef, a.assignTo
-	a.assignRef = nil
+func (a *App) assigned(ref core.Ref, field string, target *core.Ref) {
 	var value any
 	where := "the root"
-	if picked.Ref != nil {
-		value, where = *picked.Ref, a.title(*picked.Ref)
+	if target != nil {
+		value, where = *target, a.title(*target)
 	} else if ref.Kind != data.KindTask {
 		where = "no task"
 	}
 	_, cs, err := a.Store.Patch(data.PatchInput{Ref: ref, Fields: map[string]any{field: value}}, User)
-	if err == nil && ref.Kind == data.KindPane && picked.Ref != nil && picked.Ref.Kind == data.KindTask {
-		if linked, berr := data.BackfillPaneTask(a.Store, ref.ID, picked.Ref.ID, User); berr == nil && linked > 0 {
+	if err == nil && ref.Kind == data.KindPane && target != nil && target.Kind == data.KindTask {
+		if linked, berr := data.BackfillPaneTask(a.Store, ref.ID, target.ID, User); berr == nil && linked > 0 {
 			a.updatePaneContextProject(ref.ID)
 			a.say("moved %s to %s · %d record(s) linked · u undoes", a.title(ref), where, linked)
 			return

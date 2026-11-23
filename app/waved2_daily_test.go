@@ -47,10 +47,11 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 	if ea.Modal() != modalPages || ea.Mode() != ModePicker {
 		t.Fatalf("' did not open modalPages on empty store: modal=%q mode=%q", ea.Modal(), ea.Mode())
 	}
-	pm := ea.pickers[modalPages]
-	if pm == nil || len(pm.Items) == 0 {
+	mod := ea.activePicker(modalPages)
+	if mod == nil || len(mod.Model().Items) == 0 {
 		t.Fatal("unified pages picker must never be empty")
 	}
+	pm := mod.Model()
 	var ids []string
 	for _, it := range pm.Items {
 		ids = append(ids, it.ID)
@@ -90,7 +91,7 @@ func TestWaveD2UnifiedPagesPickerNeverEmptyAndNavigatesAllGroups(t *testing.T) {
 	}
 
 	d.Keys("'")
-	pm = a.pickers[modalPages]
+	pm = a.activePicker(modalPages).Model()
 	var hasApp, hasPane, hasScreen, hasNoun, hasExt bool
 	for _, it := range pm.Items {
 		if strings.HasPrefix(it.ID, pagePickAppPrefix) {

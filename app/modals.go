@@ -8,10 +8,13 @@ import (
 	"strings"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/pathpicker"
+	"ofam.dev/ochazuke/widgets/picker"
 )
 
 // --- modal stack plumbing -------------------------------------------------------
@@ -133,6 +136,87 @@ func (a *App) activeCommandLine() *modal.CommandLineModal {
 	}
 	m, _ := a.modals.Get(modalCommandLine).(*modal.CommandLineModal)
 	return m
+}
+
+func (a *App) activePicker(id string) *modal.PickerModal {
+	if a.modals == nil {
+		return nil
+	}
+	m, _ := a.modals.Get(id).(*modal.PickerModal)
+	return m
+}
+
+func (a *App) topPicker() *modal.PickerModal {
+	if a.modals == nil {
+		return nil
+	}
+	m, _ := a.modals.Top().(*modal.PickerModal)
+	return m
+}
+
+// --- record reference picker modal ----------------------------------------------
+
+func (a *App) pickerCreateHook(kind string, onCreated func(rec data.Record) modal.Result) *modal.PickerCreateHook {
+	schema := a.schema(kind)
+	label := schema.Title
+	if label == "" {
+		label = kind
+	}
+	return &modal.PickerCreateHook{
+		Kind:  kind,
+		Label: label,
+		OnCreate: func(query string) modal.Result {
+			rec, err := a.createPickedRecord(kind, query)
+			if err != nil {
+				return modal.Result{Handled: true}
+			}
+			if onCreated != nil {
+				return onCreated(rec)
+			}
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	}
+}
+
+func (a *App) newRefPickerModal(req form.RefRequest, onPick func(core.Ref)) *modal.PickerModal {
+	kinds := req.RefKinds
+	if len(kinds) == 0 {
+		for _, sc := range a.Store.Registry().List() {
+			kinds = append(kinds, sc.Kind)
+		}
+	}
+	var recs []data.Record
+	for _, kind := range kinds {
+		res, err := a.Store.Query(data.Query{Kind: kind})
+		if err != nil {
+			a.fail("read "+kind, err)
+			continue
+		}
+		recs = append(recs, res.Items...)
+	}
+	pm := views.PickerFromRecordsWith(a.Store.Registry(), "Pick "+views.Label(req.Field), recs, a.styleOptions())
+	var createHook *modal.PickerCreateHook
+	if len(kinds) == 1 {
+		if _, known := a.Store.Registry().Get(kinds[0]); known {
+			createHook = a.pickerCreateHook(kinds[0], func(rec data.Record) modal.Result {
+				if onPick != nil {
+					onPick(rec.Ref())
+				}
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+			})
+		}
+	}
+	return modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       modalRef,
+		PageSize: 10,
+		Create:   createHook,
+		OnConfirm: func(picked picker.Item) modal.Result {
+			if picked.Ref != nil && onPick != nil {
+				onPick(*picked.Ref)
+			}
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
 }
 
 // --- confirmation modal ---------------------------------------------------------

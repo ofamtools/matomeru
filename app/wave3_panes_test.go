@@ -380,7 +380,7 @@ func TestWave3ContextHarvestingAndPicker(t *testing.T) {
 		t.Fatalf("g c did not open context picker: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	// Test y (yank when query empty).
-	topItem := a.pickers[modalContext].Items[0].Title
+	topItem := a.activePicker(modalContext).Model().Items[0].Title
 	d.Keys("y")
 	if a.Modal() != "" || a.Register(core.RegUnnamed) != topItem {
 		t.Fatalf("y in context picker: modal=%q reg=%q want=%q", a.Modal(), a.Register(core.RegUnnamed), topItem)

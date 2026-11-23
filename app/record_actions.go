@@ -12,6 +12,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/expr"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/picker"
 )
 
@@ -46,9 +47,32 @@ func (a *App) recordActionsOpen(s core.State, c core.Command) core.StepResult {
 	schema := a.schema(ref.Kind)
 	pm := picker.New("Actions · "+a.title(ref), items)
 	pm.Placeholder = "action for this " + strings.ToLower(schema.Title)
-	r := ref
-	a.actionRef = &r
-	return core.Next(a.openPicker(s, modalRecordActions, pm))
+	targetRef := ref
+	m := modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       modalRecordActions,
+		PageSize: 10,
+		OnConfirm: func(picked picker.Item) modal.Result {
+			r := targetRef
+			var args map[string]any
+			if p, ok := picked.Data.(recordActionPayload); ok {
+				args = p.args
+			}
+			a.Registers.SetSpecial(core.RegCommand, picked.Title)
+			return modal.Result{
+				Handled:     true,
+				Close:       true,
+				CloseReason: modal.CloseSubmit,
+				Emit: []core.Command{{
+					ID:     picked.ID,
+					Target: &r,
+					Args:   args,
+					Source: "record.actions",
+					Actor:  User,
+				}},
+			}
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }
 
 func (a *App) recordFacts(s core.State, ref core.Ref) map[string]any {

@@ -14,6 +14,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	otea "ofam.dev/ochazuke/tea"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/picker"
 )
 
@@ -210,20 +211,40 @@ func (a *App) yankPick(s core.State, c core.Command) core.StepResult {
 		text, _ := it.Data.(string)
 		return &ui.ViewNode{ID: modalYank + ".preview.text", Kind: ui.KindText, Props: map[string]any{"text": text}}
 	}
-	a.yankRef = &ref
-	return core.Next(a.openPicker(s, modalYank, pm))
+	yankTarget := ref
+	m := modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       modalYank,
+		PageSize: 10,
+		OnConfirm: func(picked picker.Item) modal.Result {
+			text, _ := picked.Data.(string)
+			a.yank(text, picked.ID)
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+		OnCommand: func(_ *picker.Model, cmd core.Command) (modal.Result, bool) {
+			if cmd.ID != CmdYankPrimary {
+				return modal.Result{}, false
+			}
+			rec, err := a.Store.Get(yankTarget)
+			if err != nil {
+				a.fail("yank", err)
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}, true
+			}
+			v := PrimaryYank(a.schema(yankTarget.Kind), *rec)
+			a.yank(v.Text, v.Name)
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}, true
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }
 
 // yankPrimary copies the primary value of the record the yank picker is
 // open on, or of the focused record, without a picker.
 func (a *App) yankPrimary(s core.State, c core.Command) core.StepResult {
-	var ref core.Ref
-	if topModal(s) == modalYank && a.yankRef != nil {
-		ref = *a.yankRef
-		s = closeModal(s, modalYank)
-	} else if r, ok := a.subject(s, c); ok {
-		ref = r
-	} else {
+	if topModal(s) == modalYank {
+		return a.handleModal(s, c)
+	}
+	ref, ok := a.subject(s, c)
+	if !ok {
 		a.say("nothing here to yank")
 		return core.Next(s)
 	}

@@ -12,6 +12,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/bindings"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/picker"
 )
 
@@ -362,43 +363,68 @@ func (a *App) inspectOpen(s core.State, c core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	pm := picker.New(strings.ToUpper(what[:1])+what[1:], a.inspectItems(what))
-	pm.PageSize = 12
-	a.pickers[modalInspect] = pm
-	a.inspecting = what
+	var m *modal.PickerModal
+	m = modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:        modalInspect,
+		Scope:     "inspect",
+		Mode:      ModeInspect,
+		Title:     "Inspect " + what,
+		WidthPct:  80,
+		HeightPct: 80,
+		PageSize:  12,
+		Facts: func(*picker.Model) map[string]any {
+			return map[string]any{"inspecting": what}
+		},
+		Badges: func(p *picker.Model) []ui.Badge {
+			badges := []ui.Badge{{Text: fmt.Sprintf("%d of %d", len(p.Filtered()), len(p.Items))}}
+			if p.Query != "" {
+				badges = append(badges, ui.Badge{Text: "/" + p.Query, Tone: "accent"})
+			}
+			return badges
+		},
+		OnCommand: func(p *picker.Model, cmd core.Command) (modal.Result, bool) {
+			switch cmd.ID {
+			case CmdInspectFilter:
+				m.SetMode(ModePicker)
+				return modal.Result{
+					Handled:   true,
+					Mode:      ModePicker,
+					Status:    "type to filter · enter keeps · esc closes",
+					SetStatus: true,
+				}, true
+			case picker.CmdConfirm:
+				// The inspector lists; enter only ends the typing of its filter.
+				m.SetMode(ModeInspect)
+				return modal.Result{
+					Handled:   true,
+					Mode:      ModeInspect,
+					Status:    "",
+					SetStatus: true,
+				}, true
+			case CmdInspectBind:
+				item, ok := p.Focused()
+				switch {
+				case what != InspectActions:
+					return modal.Result{Handled: true, Status: "only an action can be bound to a key", SetStatus: true}, true
+				case !ok:
+					return modal.Result{Handled: true, Status: "no action here to bind", SetStatus: true}, true
+				default:
+					a.bindAction(item.ID)
+					selected := p.SelectedIdx
+					m.SetItems(a.inspectItems(InspectActions))
+					p.SelectedIdx = selected
+					return modal.Result{Handled: true}, true
+				}
+			}
+			return modal.Result{}, false
+		},
+	})
 	if what == InspectActions {
 		a.say("/ filters (try unbound) · a binds the action to a free key · esc closes")
 	} else {
 		a.say("/ filters · esc closes")
 	}
-	return core.Next(openModal(a.dropModals(s), modalInspect, ModeInspect, modalInspect+".list"))
-}
-
-// inspectCommand runs the inspector's keys: the filter, and binding the
-// focused action to a key nothing else is on.
-func (a *App) inspectCommand(s core.State, c core.Command) core.StepResult {
-	pm := a.pickers[modalInspect]
-	if pm == nil || topModal(s) != modalInspect {
-		return core.Next(s)
-	}
-	switch c.ID {
-	case CmdInspectFilter:
-		a.say("type to filter · enter keeps · esc closes")
-		return core.Next(withMode(s, ModePicker))
-	case CmdInspectBind:
-		item, ok := pm.Focused()
-		switch {
-		case a.inspecting != InspectActions:
-			a.say("only an action can be bound to a key")
-		case !ok:
-			a.say("no action here to bind")
-		default:
-			a.bindAction(item.ID)
-			selected := pm.SelectedIdx
-			pm.SetItems(a.inspectItems(InspectActions))
-			pm.SelectedIdx = selected
-		}
-	}
-	return core.Next(s)
+	return core.Next(a.pushModal(a.dropModals(s), m))
 }
 
 // bindAction puts an action on the first key sequence nothing else uses in

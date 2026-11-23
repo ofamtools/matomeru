@@ -17,6 +17,7 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/picker"
 )
 
@@ -747,8 +748,6 @@ func (a *App) contextPick(s core.State, c core.Command) core.StepResult {
 		r := pane.Ref()
 		target = &r
 	}
-	a.contextTarget = target
-
 	if len(all) == 0 {
 		a.say("no context items collected yet")
 		return core.Next(s)
@@ -783,46 +782,52 @@ func (a *App) contextPick(s core.State, c core.Command) core.StepResult {
 	}
 	pm := picker.New("Context Items", items)
 	pm.Placeholder = "search URLs, files, PRs · enter open · y yank · a attach"
-	return core.Next(a.openPicker(s, modalContext, pm))
-}
-
-func (a *App) contextPickerAction(s core.State, action string) core.StepResult {
-	if topModal(s) != modalContext {
-		return core.Next(s)
-	}
-	pm := a.pickers[modalContext]
-	if pm == nil {
-		return core.Next(s)
-	}
-	picked, ok := pm.Focused()
-	if !ok {
-		a.say("no context item matches")
-		return core.Next(s)
-	}
-	it, ok := picked.Data.(CollectedContextItem)
-	if !ok {
-		return core.Next(s)
-	}
-	s = closeModal(s, modalContext)
-	target := a.contextTarget
-	a.contextTarget = nil
-	switch action {
-	case "yank":
-		a.yank(it.Value, it.Kind)
-		return core.Next(s)
-	case "attach":
-		if target == nil && it.PaneID != "" {
-			r := core.Ref{Kind: data.KindPane, ID: it.PaneID}
-			target = &r
-		}
-		return core.Next(a.attachContextItem(s, it, target))
-	default: // open
-		var pane *data.Record
-		if it.PaneID != "" {
-			if rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: it.PaneID}); err == nil {
-				pane = rec
+	m := modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       modalContext,
+		PageSize: 10,
+		OnConfirm: func(picked picker.Item) modal.Result {
+			if it, ok := picked.Data.(CollectedContextItem); ok {
+				var pane *data.Record
+				if it.PaneID != "" {
+					if rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: it.PaneID}); err == nil {
+						pane = rec
+					}
+				}
+				a.afterModal(func(st core.State) core.State {
+					return a.openContextValue(st, it.Kind, it.Value, pane).State
+				})
 			}
-		}
-		return a.openContextValue(s, it.Kind, it.Value, pane)
-	}
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+		OnCommand: func(p *picker.Model, cmd core.Command) (modal.Result, bool) {
+			if cmd.ID != CmdContextYank && cmd.ID != CmdContextAttach {
+				return modal.Result{}, false
+			}
+			picked, ok := p.Focused()
+			if !ok {
+				return modal.Result{Handled: true, Status: "no context item matches", SetStatus: true}, true
+			}
+			it, ok := picked.Data.(CollectedContextItem)
+			if !ok {
+				return modal.Result{Handled: true}, true
+			}
+			switch cmd.ID {
+			case CmdContextYank:
+				a.yank(it.Value, it.Kind)
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}, true
+			case CmdContextAttach:
+				tgt := target
+				if tgt == nil && it.PaneID != "" {
+					r := core.Ref{Kind: data.KindPane, ID: it.PaneID}
+					tgt = &r
+				}
+				a.afterModal(func(st core.State) core.State {
+					return a.attachContextItem(st, it, tgt)
+				})
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}, true
+			}
+			return modal.Result{}, false
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }

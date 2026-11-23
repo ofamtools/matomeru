@@ -158,10 +158,11 @@ func TestGlobalRecentsPicker(t *testing.T) {
 	if a.Modal() != modalRecents {
 		t.Fatalf("modal = %q, want %q", a.Modal(), modalRecents)
 	}
-	pm := a.pickers[modalRecents]
-	if pm == nil || len(pm.Items) < 3 {
-		t.Fatalf("recents items = %v", pm)
+	mod := a.activePicker(modalRecents)
+	if mod == nil || len(mod.Model().Items) < 3 {
+		t.Fatalf("recents items = %v", mod)
 	}
+	pm := mod.Model()
 	if pm.Items[0].Ref == nil || *pm.Items[0].Ref != task.Ref() {
 		t.Fatalf("first recent = %+v, want %v", pm.Items[0], task.Ref())
 	}

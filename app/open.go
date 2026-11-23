@@ -168,26 +168,26 @@ func (a *App) openWith(s core.State, c core.Command) core.StepResult {
 	}
 	pm := picker.New("Open "+what+" with", items)
 	pm.Placeholder = "a handler"
-	a.opening = &t
-	return core.Next(a.openPicker(s, modalOpenWith, pm))
-}
-
-// openWithPicked carries out the row picked in "open with".
-func (a *App) openWithPicked(s core.State, picked *picker.Item) core.State {
-	t := a.opening
-	a.opening = nil
-	if t == nil {
-		return s
-	}
-	if picked.ID == copyPathID {
-		a.yank(t.path, "path")
-		return s
-	}
-	var i int
-	if _, err := fmt.Sscan(picked.ID, &i); err != nil || i < 0 || i >= len(t.rules) {
-		return s
-	}
-	return a.runHandler(s, t.rules[i], *t)
+	target := t
+	m := modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       modalOpenWith,
+		PageSize: 10,
+		OnConfirm: func(picked picker.Item) modal.Result {
+			if picked.ID == copyPathID {
+				a.yank(target.path, "path")
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+			}
+			var i int
+			if _, err := fmt.Sscan(picked.ID, &i); err == nil && i >= 0 && i < len(target.rules) {
+				rule := target.rules[i]
+				a.afterModal(func(st core.State) core.State {
+					return a.runHandler(st, rule, target)
+				})
+			}
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }
 
 func editorCommand() string {

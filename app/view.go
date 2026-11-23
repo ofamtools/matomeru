@@ -566,23 +566,6 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 			break
 		}
 		return a.composerModal()
-	case modalPages:
-		if pm := a.pickers[m.ID]; pm != nil {
-			return overlay(m.ID, pm.Title, 76, 80, pm.View(m.ID+".list"))
-		}
-	case modalInspect:
-		pm := a.pickers[m.ID]
-		if pm == nil {
-			break
-		}
-		ov := overlay(m.ID, "Inspect "+a.inspecting, 80, 80, pm.View(m.ID+".list"))
-		ov.Scope = "inspect"
-		ov.Facts = map[string]any{"inspecting": a.inspecting}
-		ov.Badges = []ui.Badge{{Text: fmt.Sprintf("%d of %d", len(pm.Filtered()), len(pm.Items))}}
-		if pm.Query != "" {
-			ov.Badges = append(ov.Badges, ui.Badge{Text: "/" + pm.Query, Tone: "accent"})
-		}
-		return ov
 	case modalLaunch:
 		if a.launch == nil {
 			break
@@ -606,10 +589,6 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 			}}, ov.Badges...)
 		}
 		return ov
-	default:
-		if pm := a.pickers[m.ID]; pm != nil {
-			return overlay(m.ID, pm.Title, 64, 70, pm.View(m.ID+".list"))
-		}
 	}
 	return overlay(m.ID, m.ID, 40, 0, text("", "nothing to show", "muted"))
 }

@@ -273,7 +273,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 		t.Fatalf("g n: modal %q", a.Modal())
 	}
 	var kinds []string
-	for _, it := range a.pickers[modalNouns].Items {
+	for _, it := range a.activePicker(modalNouns).Model().Items {
 		kinds = append(kinds, it.ID)
 	}
 	for _, s := range a.Store.Registry().List() {
@@ -383,7 +383,7 @@ func TestAssign(t *testing.T) {
 		t.Fatalf("m: modal %q, status %q", a.Modal(), a.Status())
 	}
 	var offered []string
-	for _, it := range a.pickers[modalAssign].Items {
+	for _, it := range a.activePicker(modalAssign).Model().Items {
 		offered = append(offered, strings.TrimSpace(it.Title))
 	}
 	if offered[0] != "(None / root)" || slices.Contains(offered, "Tier 1: core, ui, tea") || slices.Contains(offered, "Leader layer falls through to normal") ||
@@ -412,8 +412,8 @@ func TestAssign(t *testing.T) {
 		d.Keys("g", "n")
 		d.Type(kind)
 		d.Keys("enter", "m")
-		if a.Modal() != modalAssign || a.assignTo != "task" {
-			t.Fatalf("m on a %s: modal %q field %q", kind, a.Modal(), a.assignTo)
+		if pm := a.activePicker(modalAssign); a.Modal() != modalAssign || pm == nil || len(pm.Model().Items) == 0 || pm.Model().Items[0].Subtitle != "no task" {
+			t.Fatalf("m on a %s: modal %q picker %v", kind, a.Modal(), pm)
 		}
 		d.Keys("esc")
 	}

@@ -15,6 +15,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/toast"
 )
@@ -187,7 +188,20 @@ func (a *App) pagesPick(s core.State, _ core.Command) core.StepResult {
 
 	pm := picker.New("Pages", items)
 	pm.Placeholder = "search [app], [pane], and [noun] pages"
-	return core.Next(a.openPicker(s, modalPages, pm))
+	m := modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:        modalPages,
+		WidthPct:  76,
+		HeightPct: 80,
+		PageSize:  10,
+		OnConfirm: func(picked picker.Item) modal.Result {
+			id := picked.ID
+			a.afterModal(func(st core.State) core.State {
+				return a.jumpToUnifiedPage(st, id)
+			})
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }
 
 func (a *App) jumpToUnifiedPage(s core.State, pickedID string) core.State {
@@ -522,21 +536,29 @@ func (a *App) paneAssociate(s core.State, c core.Command) core.StepResult {
 	}
 	walk(nodes, "")
 	paneRef := pane.Ref()
-	a.associatePaneRef = &paneRef
 	pm := picker.New("Associate "+a.title(paneRef)+" with task", items)
 	pm.Placeholder = "pick an existing task or type a new task title"
-	a.enablePickerCreate(modalPaneAssociate, data.KindTask, pm)
-	return core.Next(a.openPicker(s, modalPaneAssociate, pm))
+	m := modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       modalPaneAssociate,
+		PageSize: 10,
+		Create: a.pickerCreateHook(data.KindTask, func(rec data.Record) modal.Result {
+			a.associatePaneWithTask(paneRef, rec.Ref())
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		}),
+		OnConfirm: func(picked picker.Item) modal.Result {
+			if picked.Ref != nil {
+				a.associatePaneWithTask(paneRef, *picked.Ref)
+			} else {
+				a.say("no task selected")
+			}
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }
 
-func (a *App) paneAssociatePicked(picked *picker.Item) {
-	if a.associatePaneRef == nil {
-		return
-	}
-	paneRef := *a.associatePaneRef
-	a.associatePaneRef = nil
-	taskRef, ok := a.resolveOrCreatePick(picked)
-	if !ok || taskRef.Kind != data.KindTask || taskRef.ID == "" {
+func (a *App) associatePaneWithTask(paneRef, taskRef core.Ref) {
+	if taskRef.Kind != data.KindTask || taskRef.ID == "" {
 		a.say("no task selected")
 		return
 	}
@@ -678,97 +700,26 @@ func (a *App) extSetup(s core.State, c core.Command) core.StepResult {
 	return core.Next(s)
 }
 
-// --- 8. Dynamic "+ Create new <Title>: <Q>" across ALL record-reference pickers ---
-
-const createRecordItemID = "__create_new_record__"
-
-type refCreateSpec struct {
-	kind      string
-	baseItems []picker.Item
-}
-
-type createRecordPick struct {
-	kind  string
-	value string
-}
-
-func (a *App) enablePickerCreate(modalID, kind string, pm *picker.Model) {
-	if modalID == "" || kind == "" || pm == nil {
-		return
+// createPickedRecord creates a new record of kind with title as its summary field
+// for PickerCreateHook callbacks and reports a toast on success.
+func (a *App) createPickedRecord(kind, title string) (data.Record, error) {
+	schema := a.schema(kind)
+	field := schema.SummaryField
+	if field == "" {
+		field = "title"
 	}
-	if a.pickerCreate == nil {
-		a.pickerCreate = map[string]refCreateSpec{}
+	rec, _, err := a.Store.Create(data.CreateInput{
+		Kind:   kind,
+		Fields: map[string]any{field: title},
+	}, User)
+	if err != nil {
+		a.fail("create "+kind, err)
+		return data.Record{}, err
 	}
-	a.pickerCreate[modalID] = refCreateSpec{
-		kind:      kind,
-		baseItems: slices.Clone(pm.Items),
+	nounTitle := schema.Title
+	if nounTitle == "" {
+		nounTitle = kind
 	}
-}
-
-func (a *App) syncPickerCreateItem(modalID string, pm *picker.Model) {
-	if pm == nil || a.pickerCreate == nil {
-		return
-	}
-	spec, ok := a.pickerCreate[modalID]
-	if !ok || spec.kind == "" {
-		return
-	}
-	q := strings.TrimSpace(pm.Query)
-	items := slices.Clone(spec.baseItems)
-	if q != "" {
-		exactMatch := false
-		for _, it := range spec.baseItems {
-			if strings.EqualFold(strings.TrimSpace(it.Title), q) {
-				exactMatch = true
-				break
-			}
-		}
-		if !exactMatch {
-			schema := a.schema(spec.kind)
-			nounTitle := schema.Title
-			if nounTitle == "" {
-				nounTitle = spec.kind
-			}
-			items = append(items, picker.Item{
-				ID:       createRecordItemID,
-				Title:    fmt.Sprintf("+ Create new %s: %q", nounTitle, q),
-				Subtitle: "create " + strings.ToLower(nounTitle) + " and select it",
-				Badges:   []ui.Badge{{Text: "new", Tone: "accent"}},
-				Keywords: []string{q, nounTitle, spec.kind, "create", "new"},
-				Data:     createRecordPick{kind: spec.kind, value: q},
-			})
-		}
-	}
-	pm.SetItems(items)
-}
-
-func (a *App) resolveOrCreatePick(picked *picker.Item) (core.Ref, bool) {
-	if picked == nil {
-		return core.Ref{}, false
-	}
-	if cp, ok := picked.Data.(createRecordPick); ok {
-		schema := a.schema(cp.kind)
-		field := schema.SummaryField
-		if field == "" {
-			field = "title"
-		}
-		rec, _, err := a.Store.Create(data.CreateInput{
-			Kind:   cp.kind,
-			Fields: map[string]any{field: cp.value},
-		}, User)
-		if err != nil {
-			a.fail("create "+cp.kind, err)
-			return core.Ref{}, false
-		}
-		nounTitle := schema.Title
-		if nounTitle == "" {
-			nounTitle = cp.kind
-		}
-		a.pushToast(fmt.Sprintf("Created %s %q", strings.ToLower(nounTitle), cp.value), toast.Ok)
-		return rec.Ref(), true
-	}
-	if picked.Ref != nil {
-		return *picked.Ref, true
-	}
-	return core.Ref{}, false
+	a.pushToast(fmt.Sprintf("Created %s %q", strings.ToLower(nounTitle), title), toast.Ok)
+	return *rec, nil
 }

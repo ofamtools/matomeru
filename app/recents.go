@@ -9,6 +9,7 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/picker"
 )
 
@@ -72,5 +73,18 @@ func (a *App) recentsPick(s core.State, _ core.Command) core.StepResult {
 	}
 	pm := picker.New("Recents", items)
 	pm.Placeholder = "recently updated records across all nouns"
-	return core.Next(a.openPicker(s, modalRecents, pm))
+	m := modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       modalRecents,
+		PageSize: 10,
+		OnConfirm: func(picked picker.Item) modal.Result {
+			if picked.Ref != nil {
+				ref := *picked.Ref
+				a.afterModal(func(st core.State) core.State {
+					return a.show(st, ref)
+				})
+			}
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }
