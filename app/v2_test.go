@@ -60,7 +60,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetAutoArchiveExited: true, SetScrollOff: 5, SetPickerDefaultMode: PickerDefaultModeNormal,
 		SetViewCycle: true, SetFormReactiveFields: true,
 		SetSessionRecord: true, SetSessionPromptSaveOnExit: false,
-		SetToolsFDBinary: "", SetSearchFDMaxResults: 200}
+		SetToolsFDBinary: "", SetSearchFDMaxResults: 200,
+		SetSessionUXNotes: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

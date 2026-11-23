@@ -28,14 +28,16 @@ import (
 // RuntimeController owns live execution runtime state: command runner, daemon
 // client, watcher/live frames, harness discovery, toasts, and reload flag.
 type RuntimeController struct {
-	Runner         *runs.Runner
-	Daemon         *daemon.Client
-	live           liveState
-	harnessMu      sync.RWMutex
-	harnessCfg     harness.FileConfig
-	harnessEntries []harness.Entry
-	toasts         *toast.Model
-	wantReload     bool
+	Runner            *runs.Runner
+	Daemon            *daemon.Client
+	live              liveState
+	harnessMu         sync.RWMutex
+	harnessCfg        harness.FileConfig
+	harnessEntries    []harness.Entry
+	toasts            *toast.Model
+	wantReload        bool
+	uxNoteSessionPath string
+	uxNoteCount       int
 }
 
 func newRuntimeController() *RuntimeController {

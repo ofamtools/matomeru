@@ -134,6 +134,8 @@ func (a *App) sessionRecordClear(s core.State, _ core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	a.Shell.Recorder.Clear()
+	a.rt.uxNoteSessionPath = ""
+	a.rt.uxNoteCount = 0
 	msg := "cleared session recording buffer"
 	a.say("%s", msg)
 	a.pushToast(msg, toast.Info)

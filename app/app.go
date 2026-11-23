@@ -634,6 +634,9 @@ func (a *App) register() {
 	a.handle(CmdSessionRecordToggle, a.sessionRecordToggle)
 	a.handle(CmdSessionRecordClear, a.sessionRecordClear)
 	a.handle(CmdSessionRecordStatus, a.sessionRecordStatus)
+	a.handle(CmdSessionNoteCapture, a.sessionNoteCapture)
+	a.handle(CmdSessionNoteList, a.sessionNoteList)
+	a.handle(CmdSessionSandboxOpen, a.sessionSandboxOpen)
 	a.handle(CmdFDSearch, a.fdSearch)
 	a.handle(CmdFDSearchAgain, a.fdSearchAgain)
 	for _, id := range []string{CmdFDResultYank, CmdFDResultOpenWith, CmdFDResultAttach, CmdFDResultRefine} {

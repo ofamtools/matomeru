@@ -266,7 +266,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(tree.CmdFoldOpenAll, "Unfold every node in the focused tree"),
 		spec(tree.CmdFoldCloseAll, "Fold every parent node in the focused tree"),
 		spec(CmdWorkLayoutToggle, "Toggle 2 Work between tree and table layout for hierarchical nouns"),
-	}...), append(sessionRecorderSpecs(), fdSearchSpecs()...)...)
+	}...), append(append(sessionRecorderSpecs(), uxNotesSpecs()...), fdSearchSpecs()...)...)
 }
 
 // readerSpecs are the Markdown widget's own commands. They only make sense

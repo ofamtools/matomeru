@@ -136,6 +136,7 @@ const (
 	SetSessionPromptSaveOnExit = "session.promptSaveOnExit"
 	SetToolsFDBinary           = "tools.fdBinary"
 	SetSearchFDMaxResults      = "search.fdMaxResults"
+	SetSessionUXNotes          = "session.uxNotes"
 	PickerDefaultModeNormal    = "normal"
 	PickerDefaultModeAllNormal = "all-normal"
 	PickerDefaultModeFilter    = "filter"
@@ -211,6 +212,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetSessionPromptSaveOnExit, false, "prompt to save the session recording before quitting"),
 		{Name: SetToolsFDBinary, Type: core.ParamString, Default: "", Description: "path or command name for fd/fdfind file search binary (empty auto-detects fd then fdfind)"},
 		{Name: SetSearchFDMaxResults, Type: core.ParamInt, Default: defaultFDMaxResults, Description: "default maximum results returned by fd file search (0 = unlimited)"},
+		flag(SetSessionUXNotes, true, "enable zero-interruption in-context UX note capture (alt+n) and session note replay"),
 	}
 }
 
