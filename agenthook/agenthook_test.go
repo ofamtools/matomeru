@@ -503,3 +503,63 @@ func TestRunManualStateCommand(t *testing.T) {
 		t.Fatalf("expected exit 2 for invalid state, got %d", code)
 	}
 }
+
+func TestTranslateStructuredFieldsExtraction(t *testing.T) {
+	// PostToolUse Write extracts Files.
+	res := agenthook.Translate("claude", "", []byte(`{
+		"hook_event_name": "PostToolUse",
+		"tool_name": "Write",
+		"tool_input": {"file_path": "/proj/matomeru/docs/design.md", "content": "# Design"}
+	}`))
+	if res.SkipReason != "" || len(res.Event.Files) != 1 || res.Event.Files[0] != "/proj/matomeru/docs/design.md" {
+		t.Fatalf("PostToolUse Write files = %+v (skip=%q)", res.Event.Files, res.SkipReason)
+	}
+
+	// PostToolUse write_file (Gemini/OMP) extracts path.
+	res = agenthook.Translate("gemini", "", []byte(`{
+		"hook_event_name": "AfterTool",
+		"tool_name": "write_file",
+		"tool_input": {"path": "/proj/matomeru/notes.md"}
+	}`))
+	if res.SkipReason != "" || len(res.Event.Files) != 1 || res.Event.Files[0] != "/proj/matomeru/notes.md" {
+		t.Fatalf("AfterTool write_file files = %+v (skip=%q)", res.Event.Files, res.SkipReason)
+	}
+
+	// PostToolUse non-write tool (Bash/Read) does not populate Files.
+	res = agenthook.Translate("claude", "", []byte(`{
+		"hook_event_name": "PostToolUse",
+		"tool_name": "Read",
+		"tool_input": {"file_path": "/proj/matomeru/README.md"}
+	}`))
+	if len(res.Event.Files) != 0 {
+		t.Fatalf("Read should not populate Files: %+v", res.Event.Files)
+	}
+
+	// UserPromptSubmit extracts full Prompt (redacting secrets) while preserving URLs/PR refs.
+	res = agenthook.Translate("claude", "", []byte(`{
+		"hook_event_name": "UserPromptSubmit",
+		"prompt": "Review https://github.com/ofam/matomeru/pull/42 with TOKEN=supersecret\nand check ofam/ochazuke#9"
+	}`))
+	if !strings.Contains(res.Event.Prompt, "https://github.com/ofam/matomeru/pull/42") ||
+		!strings.Contains(res.Event.Prompt, "ofam/ochazuke#9") ||
+		strings.Contains(res.Event.Prompt, "supersecret") {
+		t.Fatalf("UserPromptSubmit prompt = %q", res.Event.Prompt)
+	}
+
+	// Stop extracts full Response across harnesses.
+	res = agenthook.Translate("claude", "", []byte(`{
+		"hook_event_name": "Stop",
+		"last_assistant_message": "Opened PR https://github.com/ofam/matomeru/pull/99\nAll tests pass."
+	}`))
+	if !strings.Contains(res.Event.Response, "https://github.com/ofam/matomeru/pull/99") {
+		t.Fatalf("Stop response = %q", res.Event.Response)
+	}
+	res = agenthook.Translate("codex", "", []byte(`{
+		"type": "agent-turn-complete",
+		"thread-id": "th-2",
+		"last-assistant-message": "See ofam/matomeru#101 for details."
+	}`))
+	if !strings.Contains(res.Event.Response, "ofam/matomeru#101") {
+		t.Fatalf("codex response = %q", res.Event.Response)
+	}
+}

@@ -93,6 +93,9 @@ type Request struct {
 	State          string         `json:"state,omitempty"`
 	Tool           string         `json:"tool,omitempty"`
 	Summary        string         `json:"summary,omitempty"`
+	Files          []string       `json:"files,omitempty"`
+	Prompt         string         `json:"prompt,omitempty"`
+	Response       string         `json:"response,omitempty"`
 	SubagentID     string         `json:"subagentId,omitempty"`
 	SubagentAction string         `json:"subagentAction,omitempty"`
 	RequestID      string         `json:"requestId,omitempty"`
@@ -175,6 +178,9 @@ type HookEvent struct {
 	State          string         `json:"state,omitempty"`
 	Tool           string         `json:"tool,omitempty"`
 	Summary        string         `json:"summary,omitempty"`
+	Files          []string       `json:"files,omitempty"`
+	Prompt         string         `json:"prompt,omitempty"`
+	Response       string         `json:"response,omitempty"`
 	SubagentID     string         `json:"subagentId,omitempty"`
 	SubagentAction string         `json:"subagentAction,omitempty"`
 	RequestID      string         `json:"requestId,omitempty"`

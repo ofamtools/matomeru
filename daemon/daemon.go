@@ -425,6 +425,9 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 			State:          req.State,
 			Tool:           req.Tool,
 			Summary:        req.Summary,
+			Files:          req.Files,
+			Prompt:         req.Prompt,
+			Response:       req.Response,
 			SubagentID:     req.SubagentID,
 			SubagentAction: req.SubagentAction,
 			RequestID:      req.RequestID,
@@ -447,6 +450,9 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 			}, false
 		}
 		s.telemetry.recordEvent(ev, s.clock())
+		if s.cfg.Store != nil {
+			s.indexHookEvent(ev)
+		}
 		return Response{OK: true}, false
 
 	case OpResolveApproval:

@@ -52,7 +52,7 @@ func TestDefaultSchemas(t *testing.T) {
 	for _, s := range reg.List() {
 		kinds = append(kinds, s.Kind)
 	}
-	if want := []string{"task", "lane", "pane", "ui.page", "document", "note", "schedule", "schedule.occurrence", "run", "extension", "signal", "triage.rule"}; !reflect.DeepEqual(kinds, want) {
+	if want := []string{"task", "lane", "pane", "ui.page", "document", "note", "schedule", "schedule.occurrence", "run", "extension", "signal", "triage.rule", "question", "command", "context"}; !reflect.DeepEqual(kinds, want) {
 		t.Fatalf("kinds = %v, want %v (there is no project noun)", kinds, want)
 	}
 	task, _ := reg.Get(KindTask)
@@ -729,5 +729,81 @@ func TestLatestChangeSetNumber(t *testing.T) {
 	rec := create(t, s, KindTask, map[string]any{"title": "b"})
 	if n, err := s.LatestChangeSetNumber(); err != nil || n != rec.ChangeSetNumber {
 		t.Fatalf("after two writes: %d, %v; want %d", n, err, rec.ChangeSetNumber)
+	}
+}
+
+func TestDailySchemasAndBackfillPaneTask(t *testing.T) {
+	s := openTest(t)
+	task := create(t, s, KindTask, map[string]any{"title": "Daily workflow"})
+	otherTask := create(t, s, KindTask, map[string]any{"title": "Other task"})
+	pane := create(t, s, KindPane, map[string]any{"title": "claude"})
+
+	// Defaults apply to the three new nouns.
+	q := create(t, s, KindQuestion, map[string]any{"prompt": "Ship it?", "cardId": "q-1", "pane": pane.Ref()})
+	if q.Text("status") != "open" || q.Text("questionKind") != "qa" {
+		t.Fatalf("question defaults = status %q, questionKind %q; want open, qa", q.Text("status"), q.Text("questionKind"))
+	}
+	cmd := create(t, s, KindCommand, map[string]any{"title": "Run tests", "command": "go test ./...", "pane": pane.Ref()})
+	if cmd.Text("status") != "pending" {
+		t.Fatalf("command default status = %q, want pending", cmd.Text("status"))
+	}
+	ctxRec := create(t, s, KindContext, map[string]any{"title": "PR #42", "value": "https://github.com/ofam/matomeru/pull/42", "line": 12, "col": 4, "pane": pane.Ref()})
+	if ctxRec.Text("contextKind") != "url" || ctxRec.Text("source") != "response" {
+		t.Fatalf("context defaults = %q / %q", ctxRec.Text("contextKind"), ctxRec.Text("source"))
+	}
+	if ctxRec.Fields["line"] != int64(12) || ctxRec.Fields["col"] != int64(4) {
+		t.Fatalf("context line/col = %#v / %#v, want int64", ctxRec.Fields["line"], ctxRec.Fields["col"])
+	}
+
+	// Document linked via RelCreated from pane, plus an unlinked ui.page.
+	doc := create(t, s, KindDocument, map[string]any{"title": "Design", "filePath": "/tmp/design.md"})
+	if _, _, err := s.Relate(RelateInput{From: pane.Ref(), Kind: RelCreated, To: doc.Ref()}, agent); err != nil {
+		t.Fatal(err)
+	}
+	page := create(t, s, KindPage, map[string]any{"title": "Questions", "slug": "questions", "pane": pane.Ref()})
+
+	// Already-linked question and archived command must stay untouched.
+	alreadyLinked := create(t, s, KindQuestion, map[string]any{"prompt": "Pinned?", "pane": pane.Ref(), "task": otherTask.Ref()})
+	archivedCmd := create(t, s, KindCommand, map[string]any{"title": "Old", "command": "true", "pane": pane.Ref()})
+	if _, _, err := s.Archive(archivedCmd.Ref(), owner); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := BackfillPaneTask(s, pane.ID, task.ID, owner)
+	if err != nil {
+		t.Fatalf("BackfillPaneTask: %v", err)
+	}
+	if n != 5 {
+		t.Fatalf("BackfillPaneTask updated %d records, want 5", n)
+	}
+
+	// All 5 unlinked records now point to task.
+	for _, ref := range []core.Ref{q.Ref(), cmd.Ref(), ctxRec.Ref(), doc.Ref(), page.Ref()} {
+		got, err := s.Get(ref)
+		if err != nil {
+			t.Fatalf("Get %v: %v", ref, err)
+		}
+		if tr, ok := got.RefField("task"); !ok || tr != task.Ref() {
+			t.Errorf("%v task = %v (%v), want %v", ref, tr, ok, task.Ref())
+		}
+	}
+	// Already-linked kept otherTask; archived stayed empty.
+	if got, _ := s.Get(alreadyLinked.Ref()); func() core.Ref { r, _ := got.RefField("task"); return r }() != otherTask.Ref() {
+		t.Fatalf("already-linked task changed: %v", got.Fields)
+	}
+	if got, _ := s.Get(archivedCmd.Ref()); func() bool { _, ok := got.RefField("task"); return ok }() {
+		t.Fatalf("archived command was backfilled: %v", got.Fields)
+	}
+	// Task relations were added for page and context.
+	if rels, _ := s.Related(task.Ref(), RelPage, Outgoing); len(rels) != 1 || rels[0].To != page.Ref() {
+		t.Fatalf("task RelPage = %+v", rels)
+	}
+	if rels, _ := s.Related(task.Ref(), RelContext, Outgoing); len(rels) != 1 || rels[0].To != ctxRec.Ref() {
+		t.Fatalf("task RelContext = %+v", rels)
+	}
+
+	// Running backfill again is idempotent (0 updates).
+	if n2, err := BackfillPaneTask(s, pane.ID, task.ID, owner); err != nil || n2 != 0 {
+		t.Fatalf("second BackfillPaneTask = %d, %v; want 0, nil", n2, err)
 	}
 }

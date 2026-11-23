@@ -125,11 +125,13 @@ func translateClaude(evName string, payload map[string]any) Result {
 		})
 
 	case "UserPromptSubmit":
+		prompt := strField(payload, "prompt")
 		return okResult(HookEvent{
 			Harness: "claude",
 			Kind:    KindState,
 			State:   StateRunning,
-			Summary: cleanSummary(strField(payload, "prompt")),
+			Summary: cleanSummary(prompt),
+			Prompt:  sanitizeHookText(prompt),
 			Payload: sanitizePayload(payload),
 		})
 
@@ -150,11 +152,13 @@ func translateClaude(evName string, payload map[string]any) Result {
 
 	case "PostToolUse":
 		tool := strField(payload, "tool_name")
+		input := mapField(payload, "tool_input")
 		ev := HookEvent{
 			Harness:    "claude",
 			Kind:       KindActivity,
 			Tool:       tool,
-			Summary:    toolSummary(tool, mapField(payload, "tool_input")),
+			Summary:    toolSummary(tool, input),
+			Files:      extractWrittenFiles(tool, input),
 			SubagentID: validSubagentID(agentID),
 			Payload:    sanitizePayload(payload),
 		}
@@ -205,12 +209,14 @@ func translateClaude(evName string, payload map[string]any) Result {
 		return translateNotification("claude", payload)
 
 	case "Stop":
+		resp := firstNonEmpty(strField(payload, "last_assistant_message"), strField(payload, "response"), strField(payload, "message"))
 		return okResult(HookEvent{
-			Harness: "claude",
-			Kind:    KindState,
-			State:   StateDone,
-			Summary: cleanSummary(strField(payload, "last_assistant_message")),
-			Payload: sanitizePayload(payload),
+			Harness:  "claude",
+			Kind:     KindState,
+			State:    StateDone,
+			Summary:  cleanSummary(resp),
+			Response: sanitizeHookText(resp),
+			Payload:  sanitizePayload(payload),
 		})
 
 	case "StopFailure":
@@ -272,12 +278,14 @@ func translateClaude(evName string, payload map[string]any) Result {
 func translateCodex(evName string, payload map[string]any) Result {
 	switch evName {
 	case "agent-turn-complete":
+		resp := firstNonEmpty(strField(payload, "last-assistant-message"), strField(payload, "last_assistant_message"), strField(payload, "response"))
 		return okResult(HookEvent{
-			Harness: "codex",
-			Kind:    KindState,
-			State:   StateDone,
-			Summary: cleanSummary(strField(payload, "last-assistant-message")),
-			Payload: sanitizePayload(payload),
+			Harness:  "codex",
+			Kind:     KindState,
+			State:    StateDone,
+			Summary:  cleanSummary(resp),
+			Response: sanitizeHookText(resp),
+			Payload:  sanitizePayload(payload),
 		})
 
 	case "SessionStart":
@@ -290,11 +298,13 @@ func translateCodex(evName string, payload map[string]any) Result {
 		})
 
 	case "UserPromptSubmit":
+		prompt := strField(payload, "prompt")
 		return okResult(HookEvent{
 			Harness: "codex",
 			Kind:    KindState,
 			State:   StateRunning,
-			Summary: cleanSummary(strField(payload, "prompt")),
+			Summary: cleanSummary(prompt),
+			Prompt:  sanitizeHookText(prompt),
 			Payload: sanitizePayload(payload),
 		})
 
@@ -311,12 +321,14 @@ func translateCodex(evName string, payload map[string]any) Result {
 
 	case "PostToolUse":
 		tool := strField(payload, "tool_name")
+		input := mapField(payload, "tool_input")
 		return okResult(HookEvent{
 			Harness: "codex",
 			Kind:    KindActivity,
 			State:   StateRunning,
 			Tool:    tool,
-			Summary: toolSummary(tool, mapField(payload, "tool_input")),
+			Summary: toolSummary(tool, input),
+			Files:   extractWrittenFiles(tool, input),
 			Payload: sanitizePayload(payload),
 		})
 
@@ -346,12 +358,14 @@ func translateCodex(evName string, payload map[string]any) Result {
 		return translateNotification("codex", payload)
 
 	case "Stop":
+		resp := firstNonEmpty(strField(payload, "last_assistant_message"), strField(payload, "last-assistant-message"), strField(payload, "response"))
 		return okResult(HookEvent{
-			Harness: "codex",
-			Kind:    KindState,
-			State:   StateDone,
-			Summary: cleanSummary(strField(payload, "last_assistant_message")),
-			Payload: sanitizePayload(payload),
+			Harness:  "codex",
+			Kind:     KindState,
+			State:    StateDone,
+			Summary:  cleanSummary(resp),
+			Response: sanitizeHookText(resp),
+			Payload:  sanitizePayload(payload),
 		})
 
 	case "StopFailure":
@@ -425,21 +439,25 @@ func translateOMP(evName string, payload map[string]any) Result {
 		})
 
 	case "agent_start", "UserPromptSubmit":
+		prompt := strField(payload, "prompt")
 		return okResult(HookEvent{
 			Harness: "omp",
 			Kind:    KindState,
 			State:   StateRunning,
-			Summary: cleanSummary(strField(payload, "prompt")),
+			Summary: cleanSummary(prompt),
+			Prompt:  sanitizeHookText(prompt),
 			Payload: sanitizePayload(payload),
 		})
 
 	case "agent_end", "Stop", "StopFailure":
+		resp := firstNonEmpty(strField(payload, "last_assistant_message"), strField(payload, "response"), strField(payload, "summary"))
 		return okResult(HookEvent{
-			Harness: "omp",
-			Kind:    KindState,
-			State:   StateDone,
-			Summary: cleanSummary(firstNonEmpty(strField(payload, "summary"), strField(payload, "last_assistant_message"))),
-			Payload: sanitizePayload(payload),
+			Harness:  "omp",
+			Kind:     KindState,
+			State:    StateDone,
+			Summary:  cleanSummary(firstNonEmpty(strField(payload, "summary"), strField(payload, "last_assistant_message"), strField(payload, "response"))),
+			Response: sanitizeHookText(resp),
+			Payload:  sanitizePayload(payload),
 		})
 
 	case "session_end", "SessionEnd":
@@ -463,12 +481,14 @@ func translateOMP(evName string, payload map[string]any) Result {
 
 	case "tool_end", "PostToolUse":
 		tool := strField(payload, "tool_name")
+		input := mapField(payload, "tool_input")
 		return okResult(HookEvent{
 			Harness: "omp",
 			Kind:    KindActivity,
 			State:   StateRunning,
 			Tool:    tool,
-			Summary: toolSummary(tool, mapField(payload, "tool_input")),
+			Summary: toolSummary(tool, input),
+			Files:   extractWrittenFiles(tool, input),
 			Payload: sanitizePayload(payload),
 		})
 
@@ -547,11 +567,13 @@ func translateGemini(harness, evName string, payload map[string]any) Result {
 		})
 
 	case "BeforeAgent", "PreInvocation", "UserPromptSubmit":
+		prompt := strField(payload, "prompt")
 		return okResult(HookEvent{
 			Harness: harness,
 			Kind:    KindState,
 			State:   StateRunning,
-			Summary: cleanSummary(strField(payload, "prompt")),
+			Summary: cleanSummary(prompt),
+			Prompt:  sanitizeHookText(prompt),
 			Payload: sanitizePayload(payload),
 		})
 
@@ -568,12 +590,14 @@ func translateGemini(harness, evName string, payload map[string]any) Result {
 
 	case "AfterTool", "PostToolUse":
 		tool := strField(payload, "tool_name")
+		input := mapField(payload, "tool_input")
 		return okResult(HookEvent{
 			Harness: harness,
 			Kind:    KindActivity,
 			State:   StateRunning,
 			Tool:    tool,
-			Summary: toolSummary(tool, mapField(payload, "tool_input")),
+			Summary: toolSummary(tool, input),
+			Files:   extractWrittenFiles(tool, input),
 			Payload: sanitizePayload(payload),
 		})
 
@@ -618,12 +642,14 @@ func translateGemini(harness, evName string, payload map[string]any) Result {
 		return translateNotification(harness, payload)
 
 	case "AfterAgent", "PostInvocation", "Stop", "StopFailure":
+		resp := firstNonEmpty(strField(payload, "prompt_response"), strField(payload, "last_assistant_message"), strField(payload, "response"))
 		return okResult(HookEvent{
-			Harness: harness,
-			Kind:    KindState,
-			State:   StateDone,
-			Summary: cleanSummary(firstNonEmpty(strField(payload, "prompt_response"), strField(payload, "last_assistant_message"))),
-			Payload: sanitizePayload(payload),
+			Harness:  harness,
+			Kind:     KindState,
+			State:    StateDone,
+			Summary:  cleanSummary(resp),
+			Response: sanitizeHookText(resp),
+			Payload:  sanitizePayload(payload),
 		})
 
 	case "SessionEnd":
@@ -675,15 +701,17 @@ func translateGeneric(harness, evName string, payload map[string]any) Result {
 	norm := strings.ToLower(strings.TrimSpace(evName))
 	switch norm {
 	case "userpromptsubmit", "beforeagent", "agent_start", "running", "working", "preinvocation":
+		prompt := strField(payload, "prompt")
 		return okResult(HookEvent{
 			Harness: harness,
 			Kind:    KindState,
 			State:   StateRunning,
-			Summary: cleanSummary(firstNonEmpty(strField(payload, "prompt"), strField(payload, "summary"), strField(payload, "message"))),
+			Summary: cleanSummary(firstNonEmpty(prompt, strField(payload, "summary"), strField(payload, "message"))),
+			Prompt:  sanitizeHookText(prompt),
 			Payload: sanitizePayload(payload),
 		})
 
-	case "pretooluse", "beforetool", "tool_start", "posttooluse", "aftertool", "tool_end":
+	case "pretooluse", "beforetool", "tool_start":
 		tool := firstNonEmpty(strField(payload, "tool_name"), strField(payload, "tool"))
 		return okResult(HookEvent{
 			Harness: harness,
@@ -691,6 +719,19 @@ func translateGeneric(harness, evName string, payload map[string]any) Result {
 			State:   StateRunning,
 			Tool:    tool,
 			Summary: toolSummary(tool, mapField(payload, "tool_input")),
+			Payload: sanitizePayload(payload),
+		})
+
+	case "posttooluse", "aftertool", "tool_end":
+		tool := firstNonEmpty(strField(payload, "tool_name"), strField(payload, "tool"))
+		input := mapField(payload, "tool_input")
+		return okResult(HookEvent{
+			Harness: harness,
+			Kind:    KindActivity,
+			State:   StateRunning,
+			Tool:    tool,
+			Summary: toolSummary(tool, input),
+			Files:   extractWrittenFiles(tool, input),
 			Payload: sanitizePayload(payload),
 		})
 
@@ -729,12 +770,14 @@ func translateGeneric(harness, evName string, payload map[string]any) Result {
 		})
 
 	case "stop", "stopfailure", "afteragent", "postinvocation", "agent_end", "done":
+		resp := firstNonEmpty(strField(payload, "last_assistant_message"), strField(payload, "prompt_response"), strField(payload, "response"), strField(payload, "summary"), strField(payload, "message"))
 		return okResult(HookEvent{
-			Harness: harness,
-			Kind:    KindState,
-			State:   StateDone,
-			Summary: cleanSummary(firstNonEmpty(strField(payload, "last_assistant_message"), strField(payload, "summary"), strField(payload, "message"))),
-			Payload: sanitizePayload(payload),
+			Harness:  harness,
+			Kind:     KindState,
+			State:    StateDone,
+			Summary:  cleanSummary(resp),
+			Response: sanitizeHookText(resp),
+			Payload:  sanitizePayload(payload),
 		})
 
 	case "sessionstart", "session_start", "sessionend", "session_end", "interrupt", "idle":
@@ -782,42 +825,47 @@ func translateGeneric(harness, evName string, payload map[string]any) Result {
 func translateNotification(harness string, payload map[string]any) Result {
 	ntype := strings.ToLower(strings.TrimSpace(strField(payload, "notification_type")))
 	msg := strField(payload, "message")
+	resp := sanitizeHookText(firstNonEmpty(strField(payload, "response"), strField(payload, "last_assistant_message"), msg))
 
 	switch ntype {
 	case "permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input", "toolpermission", "input":
 		return okResult(HookEvent{
-			Harness: harness,
-			Kind:    KindState,
-			State:   StateNeedsYou,
-			Summary: cleanSummary(msg),
-			Payload: sanitizePayload(payload),
+			Harness:  harness,
+			Kind:     KindState,
+			State:    StateNeedsYou,
+			Summary:  cleanSummary(msg),
+			Response: resp,
+			Payload:  sanitizePayload(payload),
 		})
 	case "idle_prompt":
 		return okResult(HookEvent{
-			Harness: harness,
-			Kind:    KindState,
-			State:   StateIdle,
-			Summary: cleanSummary(msg),
-			Payload: sanitizePayload(payload),
+			Harness:  harness,
+			Kind:     KindState,
+			State:    StateIdle,
+			Summary:  cleanSummary(msg),
+			Response: resp,
+			Payload:  sanitizePayload(payload),
 		})
 	case "":
 		lower := strings.ToLower(msg)
 		switch {
 		case strings.Contains(lower, "needs your permission"), strings.Contains(lower, "needs input"), strings.Contains(lower, "permission to"):
 			return okResult(HookEvent{
-				Harness: harness,
-				Kind:    KindState,
-				State:   StateNeedsYou,
-				Summary: cleanSummary(msg),
-				Payload: sanitizePayload(payload),
+				Harness:  harness,
+				Kind:     KindState,
+				State:    StateNeedsYou,
+				Summary:  cleanSummary(msg),
+				Response: resp,
+				Payload:  sanitizePayload(payload),
 			})
 		case strings.Contains(lower, "waiting for your input"):
 			return okResult(HookEvent{
-				Harness: harness,
-				Kind:    KindState,
-				State:   StateIdle,
-				Summary: cleanSummary(msg),
-				Payload: sanitizePayload(payload),
+				Harness:  harness,
+				Kind:     KindState,
+				State:    StateIdle,
+				Summary:  cleanSummary(msg),
+				Response: resp,
+				Payload:  sanitizePayload(payload),
 			})
 		default:
 			return Result{SkipReason: "untyped notification ignored"}
@@ -908,7 +956,61 @@ func toolTarget(input map[string]any) string {
 	)
 }
 
-var secretAssignRe = regexp.MustCompile(`\b([A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|AUTH|CREDENTIAL)[A-Z0-9_]*)=([^\s'"]+)`)
+var secretAssignRe = regexp.MustCompile(`\b((?:[A-Z][A-Z0-9_]*)?(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|AUTH|CREDENTIAL)[A-Z0-9_]*)=([^\s'"]+)`)
+
+const maxHookTextBytes = 16 * 1024
+
+func sanitizeHookText(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	s = secretAssignRe.ReplaceAllString(s, "${1}=***")
+	if len(s) > maxHookTextBytes {
+		s = strings.TrimSpace(s[:maxHookTextBytes])
+	}
+	return s
+}
+
+func isWriteTool(tool string) bool {
+	switch strings.ToLower(strings.TrimSpace(tool)) {
+	case "write", "edit", "multiedit", "notebookedit",
+		"write_file", "edit_file", "write_to_file",
+		"replace_file_content", "multi_replace_file_content":
+		return true
+	default:
+		return false
+	}
+}
+
+func extractWrittenFiles(tool string, input map[string]any) []string {
+	if !isWriteTool(tool) || len(input) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	add := func(p string) {
+		p = strings.TrimSpace(p)
+		if p == "" || seen[p] {
+			return
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	for _, k := range []string{"file_path", "path", "notebook_path", "target_file", "TargetFile"} {
+		add(strField(input, k))
+	}
+	if edits, ok := input["edits"].([]any); ok {
+		for _, e := range edits {
+			if em, ok := e.(map[string]any); ok {
+				for _, k := range []string{"file_path", "path"} {
+					add(strField(em, k))
+				}
+			}
+		}
+	}
+	return out
+}
 
 func cleanSummary(s string) string {
 	s = strings.TrimSpace(s)

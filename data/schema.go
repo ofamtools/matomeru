@@ -69,6 +69,11 @@ const (
 	// result) waiting to be triaged; KindTriageRule is a rule that triages them.
 	KindSignal     = "signal"
 	KindTriageRule = "triage.rule"
+	// First-class daily workflow nouns: questions asked by agents, suggested
+	// commands to run, and harvested/explicit context items (URLs, PRs, files).
+	KindQuestion = "question"
+	KindCommand  = "command"
+	KindContext  = "context"
 )
 
 // Pane roles. A pane with no role is a normal one.
@@ -334,6 +339,18 @@ func DefaultSchemas() *Registry {
 		{Name: TriageDone, Label: "Done", Tone: "state.done", Position: 3, Ends: true},
 	}}
 
+	questionStatus := StatusColumn{Name: "status", Title: "Status", Default: "open", Values: []StatusValue{
+		{Name: "open", Label: "Open", Tone: "warning", Position: 0, Starts: true, Open: true},
+		{Name: "answered", Label: "Answered", Tone: "state.done", Position: 1, Ends: true},
+		{Name: "dismissed", Label: "Dismissed", Tone: "muted", Position: 2, Ends: true},
+	}}
+
+	commandStatus := StatusColumn{Name: "status", Title: "Status", Default: "pending", Values: []StatusValue{
+		{Name: "pending", Label: "Pending", Tone: "warning", Position: 0, Starts: true, Open: true},
+		{Name: "ran", Label: "Ran", Tone: "state.done", Position: 1, Ends: true},
+		{Name: "dismissed", Label: "Dismissed", Tone: "muted", Position: 2, Ends: true},
+	}}
+
 	r := NewRegistry()
 	r.Register(
 		Schema{
@@ -362,6 +379,8 @@ func DefaultSchemas() *Registry {
 			Kind: KindLane, Title: "Lane", Plural: "Lanes", SummaryField: "title",
 			Fields: []core.ParamSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the lane is for"},
+				str("ownerWords", "the owner's own wording of what this lane is for and why it matters"),
+				str("description", "detailed context, scope, and motivation"),
 				statusField(laneStatus, "where the work stands"),
 				str("summary", "what happened so far"),
 				refTo("task", KindTask, "task the lane works on"),
@@ -379,7 +398,7 @@ func DefaultSchemas() *Registry {
 			Relations: universalRelations(
 				RelationSpec{Kind: RelClaim, Title: "Claimed by", TargetKinds: []string{KindPane}, Direction: DirectionOutgoing},
 				RelationSpec{Kind: RelPlan, Title: "Plan", TargetKinds: []string{KindDocument}, Direction: DirectionOutgoing},
-				RelationSpec{Kind: RelCreated, Title: "Created", TargetKinds: []string{KindDocument, KindPage}, Direction: DirectionOutgoing},
+				RelationSpec{Kind: RelCreated, Title: "Created", TargetKinds: []string{KindDocument, KindPage, KindQuestion, KindCommand, KindContext}, Direction: DirectionOutgoing},
 				RelationSpec{Kind: RelRun, Title: "Runs", TargetKinds: []string{KindRun}, Direction: DirectionOutgoing},
 			),
 		},
@@ -543,6 +562,61 @@ func DefaultSchemas() *Registry {
 				{Name: "enabled", Type: core.ParamBool, Default: true, Description: "a rule that is off is kept and never runs"},
 			},
 			DefaultColumns: []string{"title", "when", "action", "actionValue", "priority", "enabled"},
+			Relations:      universalRelations(),
+		},
+		Schema{
+			// A question asked by an agent (decision) or a Q&A logged for the owner (qa).
+			Kind: KindQuestion, Title: "Question", Plural: "Questions", SummaryField: "prompt",
+			Fields: []core.ParamSpec{
+				{Name: "prompt", Type: core.ParamString, Required: true, Description: "the question"},
+				{Name: "questionKind", Type: core.ParamString, Enum: []string{"qa", "decision"}, Default: "qa", Description: "qa (owner asked agent, answered) or decision (agent asked owner to decide)"},
+				str("details", "context shown under the question"),
+				{Name: "choices", Type: core.ParamList, Description: "pick-one options (list or JSON)"},
+				str("answer", "recorded answer"),
+				statusField(questionStatus, "whether the question is open, answered or dismissed"),
+				str("answeredAt", "when the question was answered (RFC 3339)"),
+				str("cardId", "ID of the linked ui.page question card"),
+				refTo("pane", KindPane, "pane that asked the question"),
+				refTo("task", KindTask, "task the question belongs to"),
+				refTo("page", KindPage, "ui.page holding the question card"),
+			},
+			StatusColumns:  []StatusColumn{questionStatus},
+			DefaultColumns: []string{"prompt", "questionKind", "status", "answer", "pane", "task"},
+			Relations:      universalRelations(),
+		},
+		Schema{
+			// A suggested shell command or script invocation to run.
+			Kind: KindCommand, Title: "Command", Plural: "Commands", SummaryField: "title",
+			Fields: []core.ParamSpec{
+				{Name: "title", Type: core.ParamString, Required: true, Description: "what the command does"},
+				{Name: "command", Type: core.ParamString, Required: true, Description: "literal shell command or script invocation"},
+				{Name: "scriptPath", Type: core.ParamPath, Description: "optional script file path"},
+				{Name: "cwd", Type: core.ParamPath, Description: "working directory"},
+				str("notes", "details or caveats"),
+				statusField(commandStatus, "whether the command is pending, ran or dismissed"),
+				refTo("lastRun", KindRun, "most recent run of the command"),
+				refTo("pane", KindPane, "pane that suggested the command"),
+				refTo("task", KindTask, "task the command belongs to"),
+			},
+			StatusColumns:  []StatusColumn{commandStatus},
+			DefaultColumns: []string{"title", "command", "status", "pane", "task"},
+			Relations:      universalRelations(),
+		},
+		Schema{
+			// A URL, PR reference, file or document linked as context to a pane/task.
+			Kind: KindContext, Title: "Context", Plural: "Context", SummaryField: "title",
+			Fields: []core.ParamSpec{
+				{Name: "title", Type: core.ParamString, Required: true, Description: "display label"},
+				{Name: "value", Type: core.ParamString, Required: true, Description: "URL, PR reference, or file path"},
+				{Name: "contextKind", Type: core.ParamString, Enum: []string{"url", "pr", "file", "doc"}, Default: "url", Description: "kind of context item"},
+				{Name: "source", Type: core.ParamString, Enum: []string{"prompt", "response", "screen", "tool"}, Default: "response", Description: "where the context item came from"},
+				{Name: "line", Type: core.ParamInt, Description: "optional 1-based line number"},
+				{Name: "col", Type: core.ParamInt, Description: "optional 1-based column number"},
+				str("canonKey", "canonical deduplication key"),
+				refTo("pane", KindPane, "pane where the context item appeared"),
+				refTo("task", KindTask, "task the context item belongs to"),
+			},
+			DefaultColumns: []string{"title", "contextKind", "value", "pane", "task"},
 			Relations:      universalRelations(),
 		},
 	)

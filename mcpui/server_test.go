@@ -155,7 +155,7 @@ func TestServeStdioSession(t *testing.T) {
 		names = append(names, spec["name"].(string))
 	}
 	want := []string{ToolCreatePage, ToolUpdatePage, ToolAsk, ToolListPages, ToolLaneStart, ToolLaneUpdate, ToolLaneLog, ToolLaneAttach, ToolSchemas, ToolQuery, ToolGet, ToolRelated,
-		ToolTaskTree, ToolHistory, ToolCreateNote, ToolRecordAgentInput, ToolTriageIngest, ToolTriageEvaluate}
+		ToolTaskTree, ToolHistory, ToolCreateNote, ToolRecordAgentInput, ToolSuggestCommand, ToolCreateDocument, ToolAddContext, ToolLogQA, ToolCreate, ToolUpdate, ToolTriageIngest, ToolTriageEvaluate}
 	if !slices.Equal(names, want) {
 		t.Fatalf("tools %v, want %v", names, want)
 	}
@@ -270,6 +270,8 @@ func TestDataToolSpecsMatchRealParams(t *testing.T) {
 	args := map[string]any{
 		ToolSchemas: SchemasArgs{}, ToolQuery: QueryArgs{}, ToolGet: GetArgs{}, ToolRelated: RelatedArgs{},
 		ToolTaskTree: TaskTreeArgs{}, ToolHistory: HistoryArgs{}, ToolCreateNote: CreateNoteArgs{}, ToolRecordAgentInput: RecordAgentInputArgs{},
+		ToolSuggestCommand: SuggestCommandArgs{}, ToolCreateDocument: CreateDocumentArgs{}, ToolAddContext: AddContextArgs{},
+		ToolLogQA: LogQAArgs{}, ToolCreate: CreateRecordArgs{}, ToolUpdate: UpdateRecordArgs{},
 	}
 	specs := NewDataTools(nil).ToolSpecs()
 	if len(specs) != len(args) {

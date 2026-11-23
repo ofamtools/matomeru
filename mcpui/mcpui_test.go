@@ -406,3 +406,250 @@ func TestListPagesScopedAndGlobal(t *testing.T) {
 		t.Fatalf("archived filter: %d and %d pages", len(scoped.Pages), len(withArchived.Pages))
 	}
 }
+
+func TestAskAndQuestionBidirectionalSync(t *testing.T) {
+	f := setup(t)
+
+	// 1. Single ui.ask creates a synchronized KindQuestion record inheriting pane's task.
+	var single PageResult
+	f.call(ToolAsk, map[string]any{
+		"pane":    "w12",
+		"id":      "q-single",
+		"title":   "Use WAL mode?",
+		"details": "SQLite journal mode for local DB.",
+		"choices": []any{
+			map[string]any{"id": "yes", "label": "Yes"},
+			map[string]any{"id": "no", "label": "No"},
+		},
+	}, &single)
+
+	qRes, err := f.store.Query(data.Query{Kind: data.KindQuestion})
+	if err != nil || len(qRes.Items) != 1 {
+		t.Fatalf("questions after single ui.ask = %+v, %v", qRes, err)
+	}
+	q1 := qRes.Items[0]
+	if q1.Text("prompt") != "Use WAL mode?" || q1.Text("details") != "SQLite journal mode for local DB." ||
+		q1.Text("questionKind") != "decision" || q1.Text("status") != "open" || q1.Text("cardId") != "q-single" {
+		t.Fatalf("question record fields = %+v", q1.Fields)
+	}
+	if p, _ := q1.RefField("pane"); p != f.pane.Ref() {
+		t.Fatalf("question pane = %v, want %v", p, f.pane.Ref())
+	}
+	if tr, _ := q1.RefField("task"); tr != f.task.Ref() {
+		t.Fatalf("question task = %v, want %v", tr, f.task.Ref())
+	}
+	if pg, _ := q1.RefField("page"); pg != single.Ref {
+		t.Fatalf("question page = %v, want %v", pg, single.Ref)
+	}
+	if _, hasChoices := q1.Value("choices"); !hasChoices {
+		t.Fatalf("question choices missing: %+v", q1.Fields)
+	}
+
+	// Answering on ui.page via SubmitAnswer syncs back to KindQuestion.
+	if _, err := f.r.SubmitAnswer(single.ID, "q-single", map[string]any{"choice": "yes", "notes": "fast"}, owner); err != nil {
+		t.Fatalf("SubmitAnswer: %v", err)
+	}
+	q1After, err := f.store.Get(q1.Ref())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q1After.Text("status") != "answered" || q1After.Text("answer") != "yes (fast)" || q1After.Text("answeredAt") == "" {
+		t.Fatalf("synced question after SubmitAnswer = %+v", q1After.Fields)
+	}
+
+	// 2. Batched ui.ask creates one KindQuestion per card, and AnswerQuestion syncs back to ui.page!
+	var batch PageResult
+	f.call(ToolAsk, map[string]any{
+		"pane": "w12",
+		"id":   "b1",
+		"questions": []any{
+			map[string]any{"id": "q-a", "title": "Pick database", "choices": []any{map[string]any{"id": "sqlite"}, map[string]any{"id": "pg"}}},
+			map[string]any{"id": "q-b", "title": "Pick port", "form": map[string]any{"fields": []any{map[string]any{"name": "port", "type": "string", "required": true}}}},
+		},
+	}, &batch)
+
+	qRes, err = f.store.Query(data.Query{Kind: data.KindQuestion})
+	if err != nil || len(qRes.Items) != 3 {
+		t.Fatalf("questions after batch ui.ask = %d, %v", len(qRes.Items), err)
+	}
+	var qa, qb data.Record
+	for _, rec := range qRes.Items {
+		switch rec.Text("cardId") {
+		case "q-a":
+			qa = rec
+		case "q-b":
+			qb = rec
+		}
+	}
+	if qa.ID == "" || qb.ID == "" {
+		t.Fatalf("missing batch question records: %+v", qRes.Items)
+	}
+
+	// Answer q-a via Router.AnswerQuestion -> must update both KindQuestion and ui.page card!
+	answeredQA, err := f.r.AnswerQuestion(qa.ID, "sqlite", owner)
+	if err != nil {
+		t.Fatalf("AnswerQuestion: %v", err)
+	}
+	if answeredQA.Text("status") != "answered" || answeredQA.Text("answer") != "sqlite" || answeredQA.Text("answeredAt") == "" {
+		t.Fatalf("AnswerQuestion record = %+v", answeredQA.Fields)
+	}
+	_, root := f.page(batch.ID)
+	cardA := root.Find("q-a")
+	if cardA == nil || cardA.Unread || cardA.Facts["answered"] != true {
+		t.Fatalf("ui.page card q-a not synced: %+v", cardA)
+	}
+	if !reflect.DeepEqual(cardA.Props[propAnswer], map[string]any{"choice": "sqlite"}) {
+		t.Fatalf("ui.page card q-a answer = %#v", cardA.Props[propAnswer])
+	}
+	// q-b remains open until SubmitAnswers answers it.
+	if cardB := root.Find("q-b"); cardB == nil || cardB.Facts["answered"] != false {
+		t.Fatalf("ui.page card q-b changed unexpectedly: %+v", cardB)
+	}
+	if _, err := f.r.SubmitAnswers(batch.ID, map[string]map[string]any{"q-b": {"port": "8080"}}, owner); err != nil {
+		t.Fatalf("SubmitAnswers: %v", err)
+	}
+	qbAfter, _ := f.store.Get(qb.Ref())
+	if qbAfter.Text("status") != "answered" || !strings.Contains(qbAfter.Text("answer"), "8080") {
+		t.Fatalf("qb after SubmitAnswers = %+v", qbAfter.Fields)
+	}
+}
+
+func TestDailyDataTools(t *testing.T) {
+	f := setup(t)
+	box := NewToolbox(f.store, f.r)
+	ctx := WithPaneID(context.Background(), "w12")
+
+	// 1. data.suggest_command auto-binds pane from context and inherits task from pane.
+	rawCmd, err := box.Call(ctx, agent, ToolSuggestCommand, json.RawMessage(`{
+		"title": "Run unit tests",
+		"command": "go test -race ./...",
+		"cwd": "/proj/matomeru",
+		"notes": "Verify race detector passes"
+	}`))
+	if err != nil {
+		t.Fatalf("suggest_command: %v", err)
+	}
+	cmdRes := rawCmd.(*SuggestCommandResult)
+	if cmdRes.Command == nil || cmdRes.Command.Kind != data.KindCommand || cmdRes.Command.Text("status") != "pending" ||
+		cmdRes.Command.Text("command") != "go test -race ./..." {
+		t.Fatalf("suggest_command result = %+v", cmdRes)
+	}
+	if p, _ := cmdRes.Command.RefField("pane"); p != f.pane.Ref() {
+		t.Fatalf("command pane = %v, want %v", p, f.pane.Ref())
+	}
+	if tr, _ := cmdRes.Command.RefField("task"); tr != f.task.Ref() {
+		t.Fatalf("command task = %v, want %v", tr, f.task.Ref())
+	}
+
+	// 2. data.create_document auto-binds pane via RelCreated and inherits task.
+	rawDoc, err := box.Call(ctx, agent, ToolCreateDocument, json.RawMessage(`{
+		"title": "Architecture Plan",
+		"filePath": "/proj/matomeru/docs/plan.md",
+		"summary": "Daily workflow schema design"
+	}`))
+	if err != nil {
+		t.Fatalf("create_document: %v", err)
+	}
+	docRes := rawDoc.(*CreateDocumentResult)
+	if docRes.Document == nil || docRes.Document.Kind != data.KindDocument || docRes.Document.Text("filePath") != "/proj/matomeru/docs/plan.md" {
+		t.Fatalf("create_document result = %+v", docRes)
+	}
+	if tr, _ := docRes.Document.RefField("task"); tr != f.task.Ref() {
+		t.Fatalf("document task = %v, want %v", tr, f.task.Ref())
+	}
+	if docRes.Relation == nil || docRes.Relation.Kind != data.RelCreated || docRes.Relation.From != f.pane.Ref() || docRes.Relation.To != docRes.Document.Ref() {
+		t.Fatalf("document relation = %+v", docRes.Relation)
+	}
+
+	// 3. data.add_context creates & dedupes KindContext + links RelContext on pane & task.
+	rawCtx1, err := box.Call(ctx, agent, ToolAddContext, json.RawMessage(`{
+		"value": "https://github.com/ofam/matomeru/pull/77"
+	}`))
+	if err != nil {
+		t.Fatalf("add_context 1: %v", err)
+	}
+	ctxRes1 := rawCtx1.(*AddContextResult)
+	if ctxRes1.Deduplicated || ctxRes1.Context.Kind != data.KindContext || ctxRes1.Context.Text("contextKind") != "pr" ||
+		ctxRes1.Context.Text("title") != "ofam/matomeru#77" || ctxRes1.Context.Text("source") != "tool" {
+		t.Fatalf("add_context 1 = %+v (fields=%+v)", ctxRes1, ctxRes1.Context.Fields)
+	}
+	if p, _ := ctxRes1.Context.RefField("pane"); p != f.pane.Ref() {
+		t.Fatalf("context pane = %v", p)
+	}
+	if tr, _ := ctxRes1.Context.RefField("task"); tr != f.task.Ref() {
+		t.Fatalf("context task = %v", tr)
+	}
+	for _, from := range []core.Ref{f.pane.Ref(), f.task.Ref()} {
+		rels, err := f.store.Related(from, data.RelContext, data.Outgoing)
+		if err != nil || len(rels) != 1 || rels[0].To != ctxRes1.Context.Ref() {
+			t.Fatalf("RelContext from %v = %+v, %v", from, rels, err)
+		}
+	}
+
+	// Deduplicating the same PR by shorthand "ofam/matomeru#77" reuses the existing record.
+	rawCtx2, err := box.Call(ctx, agent, ToolAddContext, json.RawMessage(`{
+		"value": "ofam/matomeru#77"
+	}`))
+	if err != nil {
+		t.Fatalf("add_context 2: %v", err)
+	}
+	ctxRes2 := rawCtx2.(*AddContextResult)
+	if !ctxRes2.Deduplicated || ctxRes2.Context.ID != ctxRes1.Context.ID {
+		t.Fatalf("add_context 2 did not dedupe: %+v vs %+v", ctxRes2, ctxRes1)
+	}
+
+	// 4. data.log_qa logs answered Q&A without unread nagging.
+	rawQA, err := box.Call(ctx, agent, ToolLogQA, json.RawMessage(`{
+		"prompt": "Why does Matomeru use WAL mode?",
+		"answer": "WAL allows concurrent readers alongside a single writer.",
+		"page": "qa"
+	}`))
+	if err != nil {
+		t.Fatalf("log_qa: %v", err)
+	}
+	qaRes := rawQA.(*LogQAResult)
+	if qaRes.Question == nil || qaRes.Question.Text("questionKind") != "qa" || qaRes.Question.Text("status") != "answered" {
+		t.Fatalf("log_qa question = %+v", qaRes.Question)
+	}
+	if tr, _ := qaRes.Question.RefField("task"); tr != f.task.Ref() {
+		t.Fatalf("log_qa task = %v, want %v", tr, f.task.Ref())
+	}
+	if qaRes.Page == nil || qaRes.Page.IsUnread() || qaRes.CardID == "" {
+		t.Fatalf("log_qa page should be read (not unread): %+v cardId=%q", qaRes.Page, qaRes.CardID)
+	}
+
+	// 5. Generic schema-driven data.create and data.update auto-bind pane & inherit task.
+	rawCreated, err := box.Call(ctx, agent, ToolCreate, json.RawMessage(`{
+		"kind": "command",
+		"fields": {
+			"title": "Build binary",
+			"command": "go build ./cmd/mtm"
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("data.create: %v", err)
+	}
+	created := rawCreated.(*data.Record)
+	if created.Kind != data.KindCommand || created.Text("status") != "pending" {
+		t.Fatalf("data.create record = %+v", created)
+	}
+	if p, _ := created.RefField("pane"); p != f.pane.Ref() {
+		t.Fatalf("data.create pane = %v, want %v", p, f.pane.Ref())
+	}
+	if tr, _ := created.RefField("task"); tr != f.task.Ref() {
+		t.Fatalf("data.create task = %v, want %v", tr, f.task.Ref())
+	}
+
+	rawUpdated, err := box.Call(ctx, agent, ToolUpdate, json.RawMessage(`{
+		"kind": "command",
+		"id": "`+created.ID+`",
+		"fields": {"status": "ran", "notes": "succeeded"}
+	}`))
+	if err != nil {
+		t.Fatalf("data.update: %v", err)
+	}
+	updated := rawUpdated.(*data.Record)
+	if updated.Text("status") != "ran" || updated.Text("notes") != "succeeded" {
+		t.Fatalf("data.update record = %+v", updated.Fields)
+	}
+}

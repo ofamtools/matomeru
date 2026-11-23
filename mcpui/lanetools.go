@@ -37,6 +37,9 @@ var LogKinds = []string{"milestone", "decision", "blocker", "verification", "not
 var attachRelations = map[string]string{
 	data.KindDocument: data.RelCreated,
 	data.KindPage:     data.RelCreated,
+	data.KindQuestion: data.RelCreated,
+	data.KindCommand:  data.RelCreated,
+	data.KindContext:  data.RelContext,
 	data.KindRun:      data.RelRun,
 	data.KindPane:     data.RelClaim,
 }
@@ -61,40 +64,44 @@ func (l *LaneTools) env(name string) string {
 
 // LaneStartArgs are the arguments of lane.start.
 type LaneStartArgs struct {
-	ID         string `json:"id,omitempty"`
-	Title      string `json:"title"`
-	Status     string `json:"status,omitempty"`
-	Summary    string `json:"summary,omitempty"`
-	Task       string `json:"task,omitempty"`
-	ParentLane string `json:"parentLane,omitempty"`
-	Pane       string `json:"pane,omitempty"`
-	Repo       string `json:"repo,omitempty"`
-	Branch     string `json:"branch,omitempty"`
-	Worktree   string `json:"worktree,omitempty"`
-	BaseCommit string `json:"baseCommit,omitempty"`
-	HeadCommit string `json:"headCommit,omitempty"`
-	Harness    string `json:"harness,omitempty"`
-	AgentModel string `json:"agentModel,omitempty"`
-	By         string `json:"by,omitempty"`
+	ID          string `json:"id,omitempty"`
+	Title       string `json:"title"`
+	OwnerWords  string `json:"ownerWords,omitempty"`
+	Description string `json:"description,omitempty"`
+	Status      string `json:"status,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+	Task        string `json:"task,omitempty"`
+	ParentLane  string `json:"parentLane,omitempty"`
+	Pane        string `json:"pane,omitempty"`
+	Repo        string `json:"repo,omitempty"`
+	Branch      string `json:"branch,omitempty"`
+	Worktree    string `json:"worktree,omitempty"`
+	BaseCommit  string `json:"baseCommit,omitempty"`
+	HeadCommit  string `json:"headCommit,omitempty"`
+	Harness     string `json:"harness,omitempty"`
+	AgentModel  string `json:"agentModel,omitempty"`
+	By          string `json:"by,omitempty"`
 }
 
 // LaneUpdateArgs are the arguments of lane.update. Only the fields given are
 // written.
 type LaneUpdateArgs struct {
-	Lane       string  `json:"lane"`
-	Title      *string `json:"title,omitempty"`
-	Status     *string `json:"status,omitempty"`
-	Summary    *string `json:"summary,omitempty"`
-	Task       *string `json:"task,omitempty"`
-	ParentLane *string `json:"parentLane,omitempty"`
-	Repo       *string `json:"repo,omitempty"`
-	Branch     *string `json:"branch,omitempty"`
-	Worktree   *string `json:"worktree,omitempty"`
-	BaseCommit *string `json:"baseCommit,omitempty"`
-	HeadCommit *string `json:"headCommit,omitempty"`
-	Harness    *string `json:"harness,omitempty"`
-	AgentModel *string `json:"agentModel,omitempty"`
-	By         string  `json:"by,omitempty"`
+	Lane        string  `json:"lane"`
+	Title       *string `json:"title,omitempty"`
+	OwnerWords  *string `json:"ownerWords,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Status      *string `json:"status,omitempty"`
+	Summary     *string `json:"summary,omitempty"`
+	Task        *string `json:"task,omitempty"`
+	ParentLane  *string `json:"parentLane,omitempty"`
+	Repo        *string `json:"repo,omitempty"`
+	Branch      *string `json:"branch,omitempty"`
+	Worktree    *string `json:"worktree,omitempty"`
+	BaseCommit  *string `json:"baseCommit,omitempty"`
+	HeadCommit  *string `json:"headCommit,omitempty"`
+	Harness     *string `json:"harness,omitempty"`
+	AgentModel  *string `json:"agentModel,omitempty"`
+	By          string  `json:"by,omitempty"`
 }
 
 // LaneLogArgs are the arguments of lane.log.
@@ -151,7 +158,9 @@ func (l *LaneTools) ToolSpecs() []ToolSpec {
 	status := oneOf("where the work stands", l.statuses())
 	fields := func(extra props) props {
 		out := props{
-			"title": text("what the lane is for"), "status": status, "summary": text("what happened so far"),
+			"title": text("what the lane is for"), "ownerWords": text("the owner's own wording of what this lane is for and why it matters"),
+			"description": text("detailed dossier context, scope, and motivation"),
+			"status":      status, "summary": text("what happened so far"),
 			"task": text("task ID the lane works on"), "parentLane": text("lane ID this lane is a part of"),
 			"repo": text("repository"), "branch": text("branch the work is on"), "worktree": text("worktree directory"),
 			"baseCommit": text("commit the work started from"), "headCommit": text("newest commit of the work"),
@@ -165,7 +174,7 @@ func (l *LaneTools) ToolSpecs() []ToolSpec {
 	return []ToolSpec{
 		{
 			Name: ToolLaneStart,
-			Description: "Start a lane: a record of one piece of work. task defaults to $" + EnvTaskID + " and the lane is claimed by pane (default $" + EnvPaneID +
+			Description: "Start a lane: a dossier record of one piece of work. Populate ownerWords (the owner's wording) and description (scope and motivation), not just a bare title. task defaults to $" + EnvTaskID + " and the lane is claimed by pane (default $" + EnvPaneID +
 				"), so the pane shows the lane's progress. Returns {lane, claim}.",
 			InputSchema: object([]string{"title"}, fields(props{
 				"id":   text("lane ID; generated when omitted"),
@@ -174,7 +183,7 @@ func (l *LaneTools) ToolSpecs() []ToolSpec {
 		},
 		{
 			Name:        ToolLaneUpdate,
-			Description: "Update a lane: its status, summary, head commit or any other field. Only the fields given are written. Prefer archive over delete (or set status to parked/cancelled) when retiring lanes. Returns {lane}.",
+			Description: "Update a lane dossier: its ownerWords, description, status, summary, head commit or any other field. Keep dossier context and owner wording filled out, not just a bare title. Only the fields given are written. Prefer archive over delete (or set status to parked/cancelled) when retiring lanes. Returns {lane}.",
 			InputSchema: object([]string{"lane"}, fields(props{"lane": text("lane ID")})),
 		},
 		{
@@ -267,7 +276,8 @@ func (l *LaneTools) Start(actor core.Actor, args LaneStartArgs) (*LaneResult, er
 		}
 	}
 	fields := map[string]any{"title": args.Title}
-	for name, v := range map[string]string{"laneStatus": args.Status, "summary": args.Summary, "repo": args.Repo, "branch": args.Branch,
+	for name, v := range map[string]string{"ownerWords": args.OwnerWords, "description": args.Description,
+		"laneStatus": args.Status, "summary": args.Summary, "repo": args.Repo, "branch": args.Branch,
 		"worktree": args.Worktree, "baseCommit": args.BaseCommit, "headCommit": args.HeadCommit, "harness": args.Harness, "agentModel": args.AgentModel} {
 		if v != "" {
 			fields[name] = v
@@ -302,7 +312,8 @@ func (l *LaneTools) Update(actor core.Actor, args LaneUpdateArgs) (*LaneResult, 
 		return nil, err
 	}
 	fields := map[string]any{}
-	for name, v := range map[string]*string{"title": args.Title, "laneStatus": args.Status, "summary": args.Summary, "repo": args.Repo,
+	for name, v := range map[string]*string{"title": args.Title, "ownerWords": args.OwnerWords, "description": args.Description,
+		"laneStatus": args.Status, "summary": args.Summary, "repo": args.Repo,
 		"branch": args.Branch, "worktree": args.Worktree, "baseCommit": args.BaseCommit, "headCommit": args.HeadCommit,
 		"harness": args.Harness, "agentModel": args.AgentModel} {
 		switch {

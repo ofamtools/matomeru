@@ -48,9 +48,16 @@ func TestLaneTools(t *testing.T) {
 	store, box, env := laneStore(t)
 	env[EnvPaneID], env[EnvTaskID] = "w7", "t1"
 
-	started := callAs[LaneResult](t, box, ToolLaneStart, map[string]any{"title": "Wave 3", "branch": "wave-3", "agentModel": "opus"})
+	started := callAs[LaneResult](t, box, ToolLaneStart, map[string]any{
+		"title":       "Wave 3",
+		"ownerWords":  "make daily workflow effortless",
+		"description": "schema, MCP tools, and hook indexing",
+		"branch":      "wave-3",
+		"agentModel":  "opus",
+	})
 	lane := started.Lane
-	if task, _ := lane.RefField("task"); lane.Text("laneStatus") != "planned" || task != taskRef("t1") || lane.Text("branch") != "wave-3" {
+	if task, _ := lane.RefField("task"); lane.Text("laneStatus") != "planned" || task != taskRef("t1") || lane.Text("branch") != "wave-3" ||
+		lane.Text("ownerWords") != "make daily workflow effortless" || lane.Text("description") != "schema, MCP tools, and hook indexing" {
 		t.Fatalf("lane = %+v", lane.Fields)
 	}
 	if started.Claim == nil || started.Claim.Kind != data.RelClaim || started.Claim.To != paneRef("w7") {
@@ -79,7 +86,15 @@ func TestLaneTools(t *testing.T) {
 		t.Fatalf("log relation = %+v", rel)
 	}
 
-	for kind, want := range map[string]string{data.KindDocument: data.RelCreated, data.KindPage: data.RelCreated, data.KindRun: data.RelRun, data.KindPane: data.RelClaim} {
+	for kind, want := range map[string]string{
+		data.KindDocument: data.RelCreated,
+		data.KindPage:     data.RelCreated,
+		data.KindQuestion: data.RelCreated,
+		data.KindCommand:  data.RelCreated,
+		data.KindContext:  data.RelContext,
+		data.KindRun:      data.RelRun,
+		data.KindPane:     data.RelClaim,
+	} {
 		att := callAs[LaneAttachResult](t, box, ToolLaneAttach, map[string]any{"lane": lane.ID, "kind": kind, "id": "x1"})
 		if att.Relation == nil || att.Relation.Kind != want || att.Relation.From != lane.Ref() {
 			t.Errorf("attach %s = %+v, want relation %s", kind, att.Relation, want)

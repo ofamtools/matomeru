@@ -145,7 +145,7 @@ func (b *Toolbox) envFunc(ctx context.Context) func(string) string {
 func (b *Toolbox) envDefaults(getenv func(string) string, name string, raw json.RawMessage) json.RawMessage {
 	var keys []string
 	switch name {
-	case ToolCreatePage, ToolAsk:
+	case ToolCreatePage, ToolAsk, ToolSuggestCommand, ToolCreateDocument, ToolAddContext, ToolLogQA:
 		keys = []string{"pane", "task"}
 	case ToolUpdatePage, ToolRecordAgentInput:
 		keys = []string{"pane"}
@@ -200,7 +200,9 @@ func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw j
 	}
 	switch {
 	case b.Data.HasTool(name):
-		return b.Data.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
+		dataTools := *b.Data
+		dataTools.Getenv = getenv
+		return dataTools.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
 	case lanes.HasTool(name):
 		return lanes.Call(ctx, actor, name, raw)
 	case b.Triage != nil && b.Triage.HasTool(name):

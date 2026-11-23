@@ -627,11 +627,18 @@ func questionCard(args AskArgs) (ui.ViewNode, error) {
 
 // Ask is ui.ask: it finds or creates the pane's persistent questions page
 // (slug "questions", pinned) and prepends either one unread question card or a
-// batch of unread question cards (when Questions is non-empty) to it.
-// Answers are read back with ui.list_pages.
+// batch of unread question cards (when Questions is non-empty) to it. It also
+// creates a synchronized KindQuestion record for each card.
+// Answers are read back with ui.list_pages or by querying KindQuestion.
 func (r *Router) Ask(actor core.Actor, args AskArgs) (*PageResult, error) {
+	type askedItem struct {
+		card    ui.ViewNode
+		prompt  string
+		details string
+		choices []Choice
+	}
 	var (
-		cards   []ui.ViewNode
+		items   []askedItem
 		batchID string
 	)
 	if len(args.Questions) > 0 {
@@ -643,7 +650,7 @@ func (r *Router) Ask(actor core.Actor, args AskArgs) (*PageResult, error) {
 			batchID = "batch-" + fmt.Sprintf("%x", time.Now().UnixNano())
 		}
 		seen := map[string]bool{}
-		cards = make([]ui.ViewNode, 0, len(args.Questions))
+		items = make([]askedItem, 0, len(args.Questions))
 		for i, q := range args.Questions {
 			itemArgs := AskArgs{
 				ID:      q.ID,
@@ -681,14 +688,24 @@ func (r *Router) Ask(actor core.Actor, args AskArgs) (*PageResult, error) {
 			card.Facts["batchId"] = batchID
 			card.Facts["batchIndex"] = i
 			card.Facts["batchTotal"] = len(args.Questions)
-			cards = append(cards, card)
+			items = append(items, askedItem{
+				card:    card,
+				prompt:  questionPrompt(card, q.Title),
+				details: questionDetails(card, q.Details),
+				choices: q.Choices,
+			})
 		}
 	} else {
 		card, err := questionCard(args)
 		if err != nil {
 			return nil, err
 		}
-		cards = []ui.ViewNode{card}
+		items = []askedItem{{
+			card:    card,
+			prompt:  questionPrompt(card, args.Title),
+			details: questionDetails(card, args.Details),
+			choices: args.Choices,
+		}}
 	}
 
 	slug := args.Page
@@ -722,15 +739,15 @@ func (r *Router) Ask(actor core.Actor, args AskArgs) (*PageResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, card := range cards {
-		if root.Find(card.ID) != nil {
-			return nil, fmt.Errorf("the page already has a card with id %q", card.ID)
+	for _, it := range items {
+		if root.Find(it.card.ID) != nil {
+			return nil, fmt.Errorf("the page already has a card with id %q", it.card.ID)
 		}
 	}
 	// Prepend in reverse order so questions[0] lands at the very top, followed
 	// by questions[1..N-1], keeping natural top-to-bottom reading order.
-	for i := len(cards) - 1; i >= 0; i-- {
-		if err := insert(&root, cards[i], ModePrepend, ""); err != nil {
+	for i := len(items) - 1; i >= 0; i-- {
+		if err := insert(&root, items[i].card, ModePrepend, ""); err != nil {
 			return nil, err
 		}
 	}
@@ -738,16 +755,84 @@ func (r *Router) Ask(actor core.Actor, args AskArgs) (*PageResult, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Inherit pane & task for synchronized KindQuestion records.
+	paneID := args.Pane
+	if paneID == "" {
+		if p, ok := saved.RefField("pane"); ok {
+			paneID = p.ID
+		}
+	}
+	taskID := args.Task
+	if taskID == "" {
+		if t, ok := saved.RefField("task"); ok {
+			taskID = t.ID
+		}
+	}
+	if taskID == "" && paneID != "" {
+		if pane, err := r.store.Get(paneRef(paneID)); err == nil {
+			if t, ok := pane.RefField("task"); ok {
+				taskID = t.ID
+			}
+		}
+	}
+	for _, it := range items {
+		qFields := map[string]any{
+			"prompt":       it.prompt,
+			"questionKind": "decision",
+			"status":       badgeOpen,
+			"cardId":       it.card.ID,
+			"page":         saved.Ref(),
+		}
+		if it.details != "" {
+			qFields["details"] = it.details
+		}
+		if len(it.choices) > 0 {
+			qFields["choices"] = it.choices
+		}
+		if paneID != "" {
+			qFields["pane"] = paneRef(paneID)
+		}
+		if taskID != "" {
+			qFields["task"] = taskRef(taskID)
+		}
+		if _, _, err := r.store.Create(data.CreateInput{Kind: data.KindQuestion, Fields: qFields}, actor); err != nil {
+			return nil, err
+		}
+	}
+
 	res := result(saved)
-	res.CardID = cards[0].ID
+	res.CardID = items[0].card.ID
 	if batchID != "" {
 		res.BatchID = batchID
-		res.CardIDs = make([]string, len(cards))
-		for i, c := range cards {
-			res.CardIDs[i] = c.ID
+		res.CardIDs = make([]string, len(items))
+		for i, it := range items {
+			res.CardIDs[i] = it.card.ID
 		}
 	}
 	return res, nil
+}
+
+func questionPrompt(card ui.ViewNode, fallback string) string {
+	if s := strings.TrimSpace(card.Title); s != "" {
+		return s
+	}
+	if s := strings.TrimSpace(fallback); s != "" {
+		return s
+	}
+	return card.ID
+}
+
+func questionDetails(card ui.ViewNode, fallback string) string {
+	if s := strings.TrimSpace(fallback); s != "" {
+		return s
+	}
+	if card.Props != nil {
+		if s, ok := card.Props["summary"].(string); ok {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
 }
 
 // questions lists the question cards of a page, in page order.
@@ -832,16 +917,120 @@ func (r *Router) MarkViewed(pageID string, actor core.Actor) (*data.Record, erro
 	return r.savePage(page, root, map[string]any{"viewedAt": data.WriteTime{}}, actor)
 }
 
+func applyCardAnswer(card *ui.ViewNode, values map[string]any, now string, actor core.Actor) {
+	if values == nil {
+		values = map[string]any{}
+	}
+	card.Unread, card.Tone = false, "success"
+	card.Badges = slices.DeleteFunc(card.Badges, func(b ui.Badge) bool { return b.Text == badgeOpen || b.Text == badgeAnswered })
+	card.Badges = append(card.Badges, ui.Badge{Text: badgeAnswered, Tone: "success"})
+	if card.Facts == nil {
+		card.Facts = map[string]any{}
+	}
+	card.Facts["answered"] = true
+	if card.Props == nil {
+		card.Props = map[string]any{}
+	}
+	card.Props[propAnswer] = values
+	card.Props[propAnsweredAt] = now
+	card.Props[propAnsweredBy] = actor
+	walkNodes(card, func(n *ui.ViewNode) {
+		if n.Kind == ui.KindForm {
+			if n.Props == nil {
+				n.Props = map[string]any{}
+			}
+			n.Props["values"] = values
+		}
+	})
+}
+
+func formatAnswerText(values map[string]any) string {
+	if len(values) == 0 {
+		return ""
+	}
+	if choice, ok := values["choice"]; ok {
+		choiceText := strings.TrimSpace(data.Text(choice))
+		if choiceText != "" {
+			notes := strings.TrimSpace(data.Text(values["notes"]))
+			extraKeys := 0
+			for k := range values {
+				if k != "choice" && k != "notes" {
+					extraKeys++
+				}
+			}
+			if extraKeys == 0 {
+				if notes != "" {
+					return choiceText + " (" + notes + ")"
+				}
+				return choiceText
+			}
+		}
+	}
+	if len(values) == 1 {
+		for k, v := range values {
+			if k == "answer" || k == "choice" || k == "value" {
+				return data.Text(v)
+			}
+		}
+	}
+	b, err := json.Marshal(values)
+	if err != nil {
+		return data.Text(values)
+	}
+	return string(b)
+}
+
+func cardAnswerValues(card *ui.ViewNode, answer string) map[string]any {
+	trimmed := strings.TrimSpace(answer)
+	if strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}") {
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(trimmed), &parsed); err == nil && len(parsed) > 0 {
+			return parsed
+		}
+	}
+	var fieldNames []string
+	walkNodes(card, func(n *ui.ViewNode) {
+		if n.Kind != ui.KindForm || len(fieldNames) > 0 || n.Props == nil {
+			return
+		}
+		rawFields, ok := n.Props["fields"]
+		if !ok || rawFields == nil {
+			return
+		}
+		b, err := json.Marshal(rawFields)
+		if err != nil {
+			return
+		}
+		var specs []core.ParamSpec
+		if err := json.Unmarshal(b, &specs); err != nil {
+			return
+		}
+		for _, sp := range specs {
+			if sp.Name != "" {
+				fieldNames = append(fieldNames, sp.Name)
+			}
+		}
+	})
+	if slices.Contains(fieldNames, "choice") {
+		return map[string]any{"choice": answer}
+	}
+	if len(fieldNames) == 1 {
+		return map[string]any{fieldNames[0]: answer}
+	}
+	return map[string]any{"answer": answer}
+}
+
 // SubmitAnswer stores the owner's structured answer on a question card: the
 // card stops being unread, gets an "answered" badge and tone, and keeps the
 // values, which ui.list_pages hands back to the agent. Answering again
-// replaces the earlier answer.
+// replaces the earlier answer. Matching KindQuestion records are synchronized.
 func (r *Router) SubmitAnswer(pageID, cardID string, values map[string]any, actor core.Actor) (*data.Record, error) {
 	return r.SubmitAnswers(pageID, map[string]map[string]any{cardID: values}, actor)
 }
 
 // SubmitAnswers stores structured answers for one or more question cards on a
-// page in a single write (supporting "Submit All" for batched ui.ask pages).
+// page in a single write (supporting "Submit All" for batched ui.ask pages) and
+// synchronizes matching KindQuestion records.
 func (r *Router) SubmitAnswers(pageID string, answers map[string]map[string]any, actor core.Actor) (*data.Record, error) {
 	if len(answers) == 0 {
 		return nil, errors.New("at least one answer is required")
@@ -860,31 +1049,82 @@ func (r *Router) SubmitAnswers(pageID string, answers map[string]map[string]any,
 		if card == nil {
 			return nil, fmt.Errorf("%w: no card with id %q on page %s", data.ErrNotFound, cardID, pageID)
 		}
-		if values == nil {
-			values = map[string]any{}
-		}
-		card.Unread, card.Tone = false, "success"
-		card.Badges = slices.DeleteFunc(card.Badges, func(b ui.Badge) bool { return b.Text == badgeOpen || b.Text == badgeAnswered })
-		card.Badges = append(card.Badges, ui.Badge{Text: badgeAnswered, Tone: "success"})
-		if card.Facts == nil {
-			card.Facts = map[string]any{}
-		}
-		card.Facts["answered"] = true
-		if card.Props == nil {
-			card.Props = map[string]any{}
-		}
-		card.Props[propAnswer] = values
-		card.Props[propAnsweredAt] = now
-		card.Props[propAnsweredBy] = actor
-		walkNodes(card, func(n *ui.ViewNode) {
-			if n.Kind == ui.KindForm {
-				if n.Props == nil {
-					n.Props = map[string]any{}
-				}
-				n.Props["values"] = values
-			}
-		})
+		applyCardAnswer(card, values, now, actor)
 	}
 	// The owner is looking at the page while answering it.
-	return r.savePage(page, root, map[string]any{"viewedAt": data.WriteTime{}}, actor)
+	saved, err := r.savePage(page, root, map[string]any{"viewedAt": data.WriteTime{}}, actor)
+	if err != nil {
+		return nil, err
+	}
+	pRef := saved.Ref()
+	qRes, err := r.store.Query(data.Query{
+		Kind:            data.KindQuestion,
+		Parent:          &pRef,
+		ParentField:     "page",
+		IncludeArchived: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, q := range qRes.Items {
+		cid := q.Text("cardId")
+		values, ok := answers[cid]
+		if !ok {
+			continue
+		}
+		if _, _, err := r.store.Patch(data.PatchInput{
+			Ref: q.Ref(),
+			Fields: map[string]any{
+				"status":     badgeAnswered,
+				"answer":     formatAnswerText(values),
+				"answeredAt": now,
+			},
+			Summary: "sync answer from ui.page",
+		}, actor); err != nil {
+			return nil, err
+		}
+	}
+	return saved, nil
+}
+
+// AnswerQuestion records an answer on a KindQuestion record and synchronizes
+// the linked question card on its ui.page (if present), keeping both surfaces
+// backed by one source of truth.
+func (r *Router) AnswerQuestion(questionID, answer string, actor core.Actor) (*data.Record, error) {
+	if strings.TrimSpace(questionID) == "" {
+		return nil, errors.New("question id is required")
+	}
+	qRef := core.Ref{Kind: data.KindQuestion, ID: questionID}
+	qRec, err := r.store.Get(qRef)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC().Format(data.TimeFormat)
+	updated, _, err := r.store.Patch(data.PatchInput{
+		Ref: qRef,
+		Fields: map[string]any{
+			"status":     badgeAnswered,
+			"answer":     answer,
+			"answeredAt": now,
+		},
+		Summary: "answer question",
+	}, actor)
+	if err != nil {
+		return nil, err
+	}
+	if pRef, hasPage := qRec.RefField("page"); hasPage {
+		if cardID := qRec.Text("cardId"); cardID != "" {
+			if page, err := r.store.Get(pRef); err == nil {
+				if root, err := PageRoot(*page); err == nil {
+					if card := root.Find(cardID); card != nil {
+						applyCardAnswer(card, cardAnswerValues(card, answer), now, actor)
+						if _, err := r.savePage(page, root, map[string]any{"viewedAt": data.WriteTime{}}, actor); err != nil {
+							return nil, err
+						}
+					}
+				}
+			}
+		}
+	}
+	return updated, nil
 }

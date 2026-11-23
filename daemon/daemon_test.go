@@ -391,3 +391,128 @@ func TestEnsureRunningAndShutdown(t *testing.T) {
 		time.Sleep(15 * time.Millisecond)
 	}
 }
+
+func TestDaemonHookAutoIndexing(t *testing.T) {
+	store, err := data.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	owner := core.Actor{Kind: "user", ID: "owner"}
+	task, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{"title": "Daily Workspace"}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pane, _, err := store.Create(data.CreateInput{Kind: data.KindPane, ID: "p-idx", Fields: map[string]any{"title": "claude", "task": task.Ref()}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, client := startTestServer(t, Config{Store: store, DisableMCP: true})
+	ctx := context.Background()
+
+	// 1. PostToolUse Write of a Markdown file creates a KindDocument linked to the pane's task + RelCreated from pane.
+	mdPath := filepath.Join(t.TempDir(), "architecture.md")
+	if err := os.WriteFile(mdPath, []byte("# Daily Architecture\n\nDetails here.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.HookEvent(ctx, HookEvent{
+		PaneID:  pane.ID,
+		Harness: "claude",
+		Kind:    HookKindActivity,
+		State:   StateRunning,
+		Tool:    "Write",
+		Files:   []string{mdPath, "/proj/matomeru/daemon/index.go"},
+	}); err != nil {
+		t.Fatalf("PostToolUse HookEvent: %v", err)
+	}
+
+	// Re-writing the same markdown file deduplicates instead of creating a duplicate KindDocument.
+	if _, err := client.HookEvent(ctx, HookEvent{
+		PaneID:  pane.ID,
+		Harness: "claude",
+		Kind:    HookKindActivity,
+		State:   StateRunning,
+		Tool:    "Edit",
+		Files:   []string{mdPath},
+	}); err != nil {
+		t.Fatalf("second PostToolUse HookEvent: %v", err)
+	}
+
+	docs, err := store.Query(data.Query{Kind: data.KindDocument})
+	if err != nil || len(docs.Items) != 1 {
+		t.Fatalf("documents = %+v, err=%v; want 1", docs.Items, err)
+	}
+	doc := docs.Items[0]
+	if doc.Text("title") != "Daily Architecture" || doc.Text("filePath") != mdPath {
+		t.Fatalf("document fields = %+v", doc.Fields)
+	}
+	if tr, ok := doc.RefField("task"); !ok || tr != task.Ref() {
+		t.Fatalf("document task = %v (%v), want %v", tr, ok, task.Ref())
+	}
+	if rels, err := store.Related(pane.Ref(), data.RelCreated, data.Outgoing); err != nil || len(rels) != 1 || rels[0].To != doc.Ref() {
+		t.Fatalf("pane RelCreated = %+v, err=%v", rels, err)
+	}
+
+	// 2. UserPromptSubmit + Stop with GitHub PR URL, shorthand PR ref, and docs URL creates/dedupes KindContext linked to BOTH pane and task (+ RelContext).
+	if _, err := client.HookEvent(ctx, HookEvent{
+		PaneID:  pane.ID,
+		Harness: "claude",
+		Kind:    HookKindState,
+		State:   StateRunning,
+		Prompt:  "Please review https://github.com/ofam/matomeru/pull/42 and check ofam/ochazuke#17.",
+	}); err != nil {
+		t.Fatalf("UserPromptSubmit HookEvent: %v", err)
+	}
+	if _, err := client.HookEvent(ctx, HookEvent{
+		PaneID:   pane.ID,
+		Harness:  "claude",
+		Kind:     HookKindState,
+		State:    StateDone,
+		Response: "Reviewed ofam/matomeru#42 and updated https://docs.example.com/guide.",
+	}); err != nil {
+		t.Fatalf("Stop HookEvent: %v", err)
+	}
+
+	ctxs, err := store.Query(data.Query{Kind: data.KindContext})
+	if err != nil {
+		t.Fatalf("query context: %v", err)
+	}
+	// Expect 4 unique context items: index.go (file), matomeru#42 (pr, deduped across prompt & response), ochazuke#17 (pr), docs.example.com/guide (url).
+	if len(ctxs.Items) != 4 {
+		t.Fatalf("got %d context items, want 4: %+v", len(ctxs.Items), ctxs.Items)
+	}
+
+	byTitle := map[string]data.Record{}
+	for _, rec := range ctxs.Items {
+		byTitle[rec.Text("title")] = rec
+		if pr, ok := rec.RefField("pane"); !ok || pr != pane.Ref() {
+			t.Errorf("context %q pane = %v (%v), want %v", rec.Text("title"), pr, ok, pane.Ref())
+		}
+		if tr, ok := rec.RefField("task"); !ok || tr != task.Ref() {
+			t.Errorf("context %q task = %v (%v), want %v", rec.Text("title"), tr, ok, task.Ref())
+		}
+	}
+	prRec, ok := byTitle["ofam/matomeru#42"]
+	if !ok || prRec.Text("contextKind") != "pr" || prRec.Text("value") != "https://github.com/ofam/matomeru/pull/42" {
+		t.Fatalf("PR context record = %+v (ok=%v)", prRec.Fields, ok)
+	}
+	if _, ok := byTitle["index.go"]; !ok {
+		t.Fatalf("missing non-md file context record: %+v", byTitle)
+	}
+	if _, ok := byTitle["ofam/ochazuke#17"]; !ok {
+		t.Fatalf("missing shorthand PR context record: %+v", byTitle)
+	}
+	if _, ok := byTitle["https://docs.example.com/guide"]; !ok {
+		t.Fatalf("missing URL context record: %+v", byTitle)
+	}
+
+	// Verify RelContext relations exist from BOTH pane and task to all 4 context records.
+	if rels, err := store.Related(task.Ref(), data.RelContext, data.Outgoing); err != nil || len(rels) != 4 {
+		t.Fatalf("task RelContext count = %d, err=%v; want 4", len(rels), err)
+	}
+	if rels, err := store.Related(pane.Ref(), data.RelContext, data.Outgoing); err != nil || len(rels) != 4 {
+		t.Fatalf("pane RelContext count = %d, err=%v; want 4", len(rels), err)
+	}
+}
