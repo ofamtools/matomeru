@@ -9,10 +9,11 @@ Snapshot date: 2026-11-23. Audited against local source trees:
 ## How to groom this document
 
 - Features already at `Parity` or `Improved in v2` are summarized in tables at the top of each section.
-- Every `Partial` or `Missing in v2` item is listed below as a groomable checklist with three options:
+- Every `Partial` or `Missing in v2` item is listed below as a groomable checklist with four options:
   - **Keep (bring to v2)**: must reach parity before or right after cutover.
   - **Drop (intentionally leave behind)**: intentionally retired in v2 (do not port).
   - **Later (post-cutover backlog)**: nice-to-have; defer to post-cutover backlog.
+  - **Discuss (review details before deciding)**: need more context, tradeoffs, or a walkthrough before deciding.
 
 ---
 
@@ -40,39 +41,46 @@ Snapshot date: 2026-11-23. Audited against local source trees:
 ### Groomable items (Ochazuke v2)
 
 - **Input reference triggers (`@file`, `$skill`, `/command`)** (`Missing in v2`): v1 `internal/compose` provided inline completion popups inside prompt boxes for files, skills, and commands; not yet implemented in `widgets/input` or Matomeru v2 prompt inputs.
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Configurable dot-repeat tag set** (`Partial`): v1 `.` repeated the last editing command with tag filtering; basic edit repeat exists in `widgets/input`, but the global `core` repeatable-tag set is not yet wired.
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **CLI bridge (`ochazuke/cli` + `oden` v2)** (`Partial`): `ochazuke-next/cli/` bridges `oden` v2 (`AppInfo`, `binding check`, `capabilities`, TTY `PickerFunc`), but does not include v1's Unix-socket host proxy (`host_serve`/`host_proxy`) or generic `cli/mcp` auto-wrapper.
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **Tree guide lines (`├─`, `└─`, `│`)** (`Missing in v2`): indentation works in `ui.KindTree` and Outline, but box-drawing connector lines are not yet rendered.
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Optional widgets (`kanban`, `timeline`, `toast`, `jsontree`, `grid`)** (`Missing in v2`): v1 had `grid/`, `jsontree/`, `sysstat/`, and a toast/notice strip; deferred in v2 (`o-json2` handles JSON tree flattening; `widgets/kanban`, `widgets/timeline`, `widgets/toast` are not built yet).
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **Focus jump hints over `FocusOrder`** (`Missing in v2`): `tab`/`shift+tab` cycle focus; visual jump-label hints over `layout.Solved.FocusOrder` are not yet built.
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Static architecture/rule checkers (`rulecheck`, `namecheck`, `lexiconcheck`, `offercheck`, `refusecheck`, `docgen`, `o-story`)** (`Missing in v2`): v1 had 10+ lint/audit packages and `cmd/docgen`, `cmd/o-story`; replaced in v2 by lean `deps_test.go` layer checks, `binding check`, and `--smoke` scripted verification.
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 ---
 
@@ -99,49 +107,58 @@ Snapshot date: 2026-11-23. Audited against local source trees:
 ### Groomable items (Matomeru spaces and navigation)
 
 - **Pane rail grouping and sorting (by project, status, `promptedAt`)** (`Partial`): human-only `promptedAt` ordering and `W` attention jump are implemented; v1's multi-mode rail grouping (`panes_group.go`, `panes_tree.go`, `rail_triage.go`) and custom rail icons are simplified in v2.
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **Built-in prompt composer box (`prompt_box.go`, `prompt_attach.go`, `prompt_drafts.go`)** (`Missing in v2`): v1 had a dedicated Matomeru prompt box with `@file`/`$skill`/`/cmd` autocomplete, attachments, and draft queue before sending to an agent pane; in v2 you attach directly to the live terminal (`enter`/`i`) and type into the harness (form drafts exist for record forms only).
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Saved filters / views per noun (`saved.go`, `saved_store.go`)** (`Missing in v2`): v1 persisted named filter/sort/group presets per noun; multi-condition filter syntax (`!=`, `a|b`) works in `widgets/table`, but saving/reloading named filter views is not yet wired in Matomeru v2.
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Context items harvesting (`internal/contextitems`, `context_extract.go`, `context_follow.go`)** (`Missing in v2`): v1 auto-extracted URLs, file paths, PRs, OSC-8 hyperlinks, and commands from pane scrollback to attach to tasks; `RelContext` relation exists in v2 schema, but automatic scrollback harvesting/scraping and `context_picker` are not built yet.
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Link/path hints overlay (`internal/hints`)** (`Missing in v2`): v1 showed visual hint labels over URLs/paths visible in the pane terminal to jump/copy/open; not yet implemented in v2 terminal view.
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Reviews noun and workflow (`reviews.go`, `review_store.go`)** (`Missing in v2`): v1 had dedicated Review records for PR/code review tracking; not a built-in schema in v2 (can be modeled via `signal`, `task`, or `o-gh2` catalog).
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Reminders / schedule firing and desktop notifications (`internal/reminders`, `internal/schedules`, `internal/notify`)** (`Partial`): `schedule` and `schedule.occurrence` schemas exist in v2 `data/` and v1 reminders/schedules migrate into them, but no background cron evaluator or macOS desktop notification daemon runs yet.
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Privacy mode / redaction (`privacy.go`, `internal/work/privacy.go`)** (`Missing in v2`): v1 had a toggleable privacy filter to hide private projects/tasks/panes during demos or screen sharing; not implemented in v2.
   - [ ] Keep (bring to v2)
-  - [ ] Drop (intentionally leave behind)
+  - [x] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Separate `vim` noun (`vim.go`, `vim_store.go`)** (`Missing in v2`): v1 had a dedicated `vim` record kind for Neovim instances; intentionally retired by locked v2 schema decision #3 (covered by `pane` with `role: scratch-vim` / `side-vim`).
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 ---
 
@@ -158,39 +175,46 @@ Snapshot date: 2026-11-23. Audited against local source trees:
 ### Groomable items (agent integration, hooks, and telemetry)
 
 - **Multi-agent MCP transport (socket / HTTP)** (`Partial`): v1 had stdio MCP plus a Unix-socket host proxy; `mato mcp serve` currently supports stdio JSON-RPC 2.0 only (shared Unix socket / HTTP transport not yet built).
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Grouped multi-question decision forms in pane rail** (`Partial`): v1 used `o-questions` batched decision cards; `ui.ask` supports single question cards with multi-field forms, and a grouped multi-question decision wizard UI in the pane rail is still planned.
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **`mtm agent hook` and `mtm-hook` binary (`internal/agenthook`, `cmd/mtm-hook`)** (`Missing in v2`): v1 had a dedicated fast `mtm-hook` binary and 7 harness adapters (`claude`, `codex`, `copilot`, `cursor`, `gemini`, `opencode`, `qwen`) capturing turn lifecycle, tool activity, approvals, usage, and statusline; not in `matomeru-next` yet (`runStatus` is currently inferred locally/from daemon only).
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Harness registry and launch flags (`internal/harness`, `harnesses.json`)** (`Missing in v2`): v1 had built-in harness definitions, `harnesses.json` overrides, automatic hook file installation (`internal/setup/hooks.go`), session resume flags, and a launch driver; v2 `pane` schema has `harness` and `command` string fields, but no harness registry, launch-flag builder, or auto-hook installer.
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **Structured prompt, activity, and final-response capture (`internal/turns`, `turn_cards.go`, `claude_session.go`)** (`Missing in v2`): v1 parsed Claude/OMP/shell JSONL transcripts in real time into Turn cards, subagent trees, tool activity timelines, and final responses; in v2 agents can push structured pages via `ui.create_page` / `lane.log`, but passive transcript tailing and automatic Turn/Activity/Response extraction are not implemented.
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **Daemon panes (`mtmd` / `tuios`) (`ptyhost/daemon.go`)** (`Partial`): v1 had a full Unix-socket `internal/daemon` server/client, streaming events, multi-host qualification (`hosts.go`), state import, self-pinning, and pane survival across restarts; `ptyhost/daemon.go` implements CLI-based `DaemonHost` (opt-in via `"terminal.daemon": true`, unit-tested with fake `ExecFunc`), not yet live-verified against real `mtmd`/`tuios`, with no streaming socket transport or multi-host/remote daemon management.
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Agent rights checks on destructive actions** (`Partial`): v1 had `ochazuke/agent_rights.go` allow/refuse checks for agent mutations; v2 MCP tools follow open-reads / safe-additive-writes (no destructive MCP tools exposed yet), and an explicit destructive-only rights policy check is not wired yet.
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 ---
 
@@ -213,26 +237,31 @@ Snapshot date: 2026-11-23. Audited against local source trees:
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **Unify `cmd/mtm` CLI onto `oden` v2 + `ochazuke/cli`** (`Partial`): v1 used Oden dispatch with shell completions; `matomeru-next/cmd/mtm` currently uses a hand-rolled flag parser (Wave F will unify it onto `oden` v2 + `ochazuke/cli` for consistent help, flags, and shell completions).
   - [ ] Keep (bring to v2)
-  - [ ] Drop (intentionally leave behind)
+  - [x] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **Shell integration (`cmd/mtm/shellinit/`, `shell_init.go`, `internal/setup/`)** (`Missing in v2`): v1 `mtm shell-init` emitted zsh/bash functions and completions, and `mtm setup` installed hooks/config; not yet ported to `matomeru-next`.
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **User-defined `actions.json` and `harnesses.json` config loading** (`Partial`): v2 reads `~/.config/matomeru-next/{settings,bindings,themes,handlers}.json` (JSONC) with live-applying `S` Settings and `B` Bindings editors and `config export [--jsonl]`, but `actions.json` user-defined shell verbs and `harnesses.json` are not yet loaded in v2.
-  - [ ] Keep (bring to v2)
+  - [x] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **Config file hot-reload on external edits (`config_reload.go`)** (`Missing in v2`): v1 watched config files on disk and reloaded without restarting the TUI; in v2 in-app `S`/`B` edits apply live and save, while external file edits require a restart.
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
-  - [ ] Later (post-cutover backlog)
+  - [x] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 ---
 
@@ -261,45 +290,54 @@ All 14 migrated tools below live in sibling `*-next` worktrees on Ochazuke v2 (p
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **`o-ai` -> `o-ai2` (`~/proj/o-ai-next`)** (`Partial`): AI MCPs, skills, agents, hooks, and harnesses manager (v1 12.1k LOC); Wave D2 active now onto Ochazuke v2 + `oden` v2 + `ochazuke/cli`.
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **`o-mermaid` -> `o-mermaid2` (`~/proj/o-mermaid-next`)** (`Partial`): Mermaid diagram & theme previewer (v1 1.7k LOC); Wave E active now onto Ochazuke v2 + `oden` v2 + `ochazuke/cli`.
   - [ ] Keep (bring to v2)
-  - [ ] Drop (intentionally leave behind)
+  - [x] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **`o-services` -> `o-services2` (`~/proj/o-services-next`)** (`Partial`): local/remote service monitor (v1 3.6k LOC); Wave E active now onto Ochazuke v2 + `oden` v2 + `ochazuke/cli`.
   - [ ] Keep (bring to v2)
-  - [ ] Drop (intentionally leave behind)
-  - [ ] Later (post-cutover backlog)
+  - [x] Drop (intentionally leave behind)
+  - [x] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 ### Skipped v1 tools (5 tools, kept on v1 unless promoted)
 
 - **`o-koe` (`~/proj/o-koe`, 4.5k LOC)** (`Missing in v2`): cloned-voice TTS CLI/TUI calling remote VoxCPM2 over SSH; skipped for v2 migration (v1 binary continues working standalone).
   - [ ] Keep (bring to v2)
-  - [ ] Drop (intentionally leave behind)
+  - [x] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **`o-qbt` (`~/proj/o-qbt`, 5.0k LOC)** (`Missing in v2`): qBittorrent Web API v2 TUI/CLI with transfer limits and free-space guard; skipped for v2 migration (v1 binary continues working standalone).
   - [ ] Keep (bring to v2)
-  - [ ] Drop (intentionally leave behind)
+  - [x] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **`o-slack` (`~/proj/o-slack`, 5.8k LOC)** (`Missing in v2`): Slack browser/client on Ochazuke v1 (`v0.133.0`); skipped for full TUI port (candidate to wire later as a stateless connector feeding Matomeru v2 `signal` + `triage.rule`).
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
-  - [ ] Later (post-cutover backlog)
+  - [x] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
 
 - **`o-mcp` (`~/proj/o-mcp`, 8.7k LOC)** (`Missing in v2`): MCP server registry/inspector on older Ochazuke v1 (`v0.105.0`); skipped for v2 migration (overlaps partially with `o-ai2`).
   - [ ] Keep (bring to v2)
   - [ ] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [x] Discuss (review details before deciding)
 
 - **`o-inventory` (`~/proj/o-inventory`, 6.9k LOC)** (`Missing in v2`): home/hardware inventory manager on Ochazuke v1 (`v0.144.1`); skipped for v2 migration (v1 binary continues working standalone).
   - [ ] Keep (bring to v2)
-  - [ ] Drop (intentionally leave behind)
+  - [x] Drop (intentionally leave behind)
   - [ ] Later (post-cutover backlog)
+  - [ ] Discuss (review details before deciding)
