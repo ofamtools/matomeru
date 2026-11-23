@@ -7,6 +7,7 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/widgets/tree"
 )
 
 func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
@@ -69,40 +70,41 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 	// 3. Viewport scrolloff (default 5): jump to bottom with G, then move up with k.
 	// Cursor MUST move freely upward without dragging the viewport until it enters the 5-row top padding zone.
 	d.Keys("G")
-	offAtBottom := a.outlineOffset
+	om := a.trees.outlineModel()
+	offAtBottom := om.Offset
 	if offAtBottom <= 0 {
-		t.Fatalf("expected positive outlineOffset at bottom of 25-item list, got %d", offAtBottom)
+		t.Fatalf("expected positive outline Offset at bottom of 25-item list, got %d", offAtBottom)
 	}
 	d.Keys("k")
-	if a.outlineSel != roots[23].ID {
-		t.Fatalf("after G then k, outlineSel = %q, want %q", a.outlineSel, roots[23].ID)
+	if om.SelectedID != roots[23].ID {
+		t.Fatalf("after G then k, outline SelectedID = %q, want %q", om.SelectedID, roots[23].ID)
 	}
-	if a.outlineOffset != offAtBottom {
-		t.Fatalf("cursor glued to bottom! after G then k, outlineOffset changed from %d to %d", offAtBottom, a.outlineOffset)
+	if om.Offset != offAtBottom {
+		t.Fatalf("cursor glued to bottom! after G then k, outline Offset changed from %d to %d", offAtBottom, om.Offset)
 	}
 	// Moving up repeatedly eventually scrolls upward and releases cleanly to hit offset 0 at top.
 	for range 24 {
 		d.Keys("k")
 	}
-	if a.outlineSel != roots[0].ID || a.outlineOffset != 0 {
-		t.Fatalf("at top: sel=%q (want %q), offset=%d (want 0)", a.outlineSel, roots[0].ID, a.outlineOffset)
+	if om.SelectedID != roots[0].ID || om.Offset != 0 {
+		t.Fatalf("at top: sel=%q (want %q), offset=%d (want 0)", om.SelectedID, roots[0].ID, om.Offset)
 	}
 
 	// 4. ctrl+e / ctrl+y scroll the viewport line by line.
 	d.Keys("ctrl+e", "ctrl+e")
-	if a.outlineOffset != 2 {
-		t.Fatalf("after 2x ctrl+e, outlineOffset = %d, want 2", a.outlineOffset)
+	if om.Offset != 2 {
+		t.Fatalf("after 2x ctrl+e, outline Offset = %d, want 2", om.Offset)
 	}
 	d.Keys("ctrl+y")
-	if a.outlineOffset != 1 {
-		t.Fatalf("after ctrl+y, outlineOffset = %d, want 1", a.outlineOffset)
+	if om.Offset != 1 {
+		t.Fatalf("after ctrl+y, outline Offset = %d, want 1", om.Offset)
 	}
 	d.Keys("g", "g")
 
 	// 5. `i` places cursor at beginning (0); `a` places cursor at end (len).
 	d.Keys("i")
-	if a.Mode() != ModeOutlineEdit || a.outlineEdit == nil || a.outlineEdit.line.Cursor != 0 {
-		t.Fatalf("i: mode=%q edit=%+v, want cursor 0", a.Mode(), a.outlineEdit)
+	if ed := a.trees.activeEdit(); a.Mode() != ModeOutlineEdit || ed == nil || ed.Cursor() != 0 {
+		t.Fatalf("i: mode=%q edit=%+v, want cursor 0", a.Mode(), ed)
 	}
 	d.Type("Pre ")
 	d.Keys("enter")
@@ -111,8 +113,8 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 	}
 
 	d.Keys("a")
-	if a.Mode() != ModeOutlineEdit || a.outlineEdit == nil || a.outlineEdit.line.Cursor != len([]rune("Pre Root 01")) {
-		t.Fatalf("a: mode=%q edit=%+v, want cursor at end", a.Mode(), a.outlineEdit)
+	if ed := a.trees.activeEdit(); a.Mode() != ModeOutlineEdit || ed == nil || ed.Cursor() != len([]rune("Pre Root 01")) {
+		t.Fatalf("a: mode=%q edit=%+v, want cursor at end", a.Mode(), ed)
 	}
 	d.Type(" Post")
 	d.Keys("enter")
@@ -122,8 +124,8 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 
 	// 6. `o` inserts below at SAME indent level (root sibling, NOT child).
 	d.Keys("o")
-	if a.Mode() != ModeOutlineEdit || a.outlineEdit == nil || a.outlineEdit.parentRef != nil {
-		t.Fatalf("o on root: mode=%q parent=%v, want nil parent", a.Mode(), a.outlineEdit)
+	if ed := a.trees.activeEdit(); a.Mode() != ModeOutlineEdit || ed == nil || ed.ParentID != "" {
+		t.Fatalf("o on root: mode=%q edit=%+v, want empty ParentID", a.Mode(), ed)
 	}
 	d.Type("Sibling Below")
 	d.Keys("enter")
@@ -137,12 +139,12 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 
 	// 7. `o` then `Tab` indents under the focused item; `Shift+Tab` outdents back to root; `Tab` indents again.
 	d.Keys("o", "tab")
-	if a.outlineEdit == nil || a.outlineEdit.parentRef == nil || *a.outlineEdit.parentRef != sibBelow.Ref() {
-		t.Fatalf("o+tab parent = %v, want %v", a.outlineEdit, sibBelow.Ref())
+	if ed := a.trees.activeEdit(); ed == nil || ed.ParentID != sibBelow.ID {
+		t.Fatalf("o+tab edit = %+v, want ParentID %q", ed, sibBelow.ID)
 	}
 	d.Keys("shift+tab")
-	if a.outlineEdit.parentRef != nil {
-		t.Fatalf("o+tab+shift+tab parent = %v, want nil", a.outlineEdit.parentRef)
+	if ed := a.trees.activeEdit(); ed == nil || ed.ParentID != "" {
+		t.Fatalf("o+tab+shift+tab edit = %+v, want empty ParentID", ed)
 	}
 	d.Keys("tab")
 	d.Type("Child Via Tab")
@@ -157,8 +159,8 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 
 	// 8. `O` on a child inserts ABOVE at the SAME child indent level (under sibBelow).
 	d.Keys("O")
-	if a.outlineEdit == nil || a.outlineEdit.kind != "above" || a.outlineEdit.parentRef == nil || *a.outlineEdit.parentRef != sibBelow.Ref() {
-		t.Fatalf("O on child: edit=%+v, want above under %v", a.outlineEdit, sibBelow.Ref())
+	if ed := a.trees.activeEdit(); ed == nil || ed.Kind != tree.EditAddAbove || ed.ParentID != sibBelow.ID {
+		t.Fatalf("O on child: edit=%+v, want add_above under %q", ed, sibBelow.ID)
 	}
 	d.Type("Child Above")
 	d.Keys("enter")

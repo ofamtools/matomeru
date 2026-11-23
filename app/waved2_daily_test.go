@@ -16,6 +16,7 @@ import (
 	"ofam.dev/matomeru/ptyhost"
 	"ofam.dev/matomeru/runs"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/widgets/tree"
 )
 
 func TestWaveD2CheckBindingsZeroErrors(t *testing.T) {
@@ -648,15 +649,14 @@ func TestWaveD2WorkTasksTreeLayoutAndOutlineAddFold(t *testing.T) {
 	// `o` opens an inline row below at the SAME indent level (root sibling); pressing Tab indents it under ochazuke-v2.
 	ochazuke := titled(t, a, data.KindTask, "ochazuke-v2")
 	d.Keys("o")
-	if a.Mode() != ModeOutlineEdit || a.outlineEdit == nil || a.Modal() != "" {
+	if ed := a.trees.activeEdit(); a.Mode() != ModeOutlineEdit || ed == nil || a.Modal() != "" {
 		t.Fatalf("o did not enter inline outline edit: modal=%q mode=%q", a.Modal(), a.Mode())
-	}
-	if a.outlineEdit.parentRef != nil {
-		t.Fatalf("o on root task should start at same top-level indent, got parent=%v", a.outlineEdit.parentRef)
+	} else if ed.ParentID != "" {
+		t.Fatalf("o on root task should start at same top-level indent, got ParentID=%q", ed.ParentID)
 	}
 	d.Keys("tab")
-	if a.outlineEdit.parentRef == nil || *a.outlineEdit.parentRef != ochazuke.Ref() {
-		t.Fatalf("tab during inline o should indent under %v, got %v", ochazuke.Ref(), a.outlineEdit.parentRef)
+	if ed := a.trees.activeEdit(); ed == nil || ed.ParentID != ochazuke.ID {
+		t.Fatalf("tab during inline o should indent under %q, got %+v", ochazuke.ID, ed)
 	}
 	d.Type("Tree Child Task")
 	d.Keys("enter")
@@ -667,16 +667,15 @@ func TestWaveD2WorkTasksTreeLayoutAndOutlineAddFold(t *testing.T) {
 
 	// `o` on a subtask creates a sibling under the SAME parent (NOT a grandchild).
 	d.Keys("o")
-	if a.Mode() != ModeOutlineEdit || a.outlineEdit == nil {
+	if ed := a.trees.activeEdit(); a.Mode() != ModeOutlineEdit || ed == nil {
 		t.Fatalf("o on subtask did not enter inline edit: mode=%q", a.Mode())
-	}
-	if a.outlineEdit.parentRef == nil || *a.outlineEdit.parentRef != ochazuke.Ref() {
-		t.Fatalf("o sibling task parent = %v, want %v", a.outlineEdit.parentRef, ochazuke.Ref())
+	} else if ed.ParentID != ochazuke.ID {
+		t.Fatalf("o sibling task ParentID = %q, want %q", ed.ParentID, ochazuke.ID)
 	}
 	d.Keys("esc")
 
 	// `space` cycles status on focused task in Work tree.
-	curID := a.workTreeSel
+	curID := a.trees.workModel(data.KindTask).SelectedID
 	beforeRec, _ := a.Store.Get(core.Ref{Kind: data.KindTask, ID: curID})
 	d.Keys("space")
 	afterRec, _ := a.Store.Get(core.Ref{Kind: data.KindTask, ID: curID})
@@ -686,12 +685,12 @@ func TestWaveD2WorkTasksTreeLayoutAndOutlineAddFold(t *testing.T) {
 
 	// Wire o, O, and z a in T Outline too!
 	d.Keys("T", "g", "g", "z", "a")
-	if !a.taskFolded[ochazuke.ID] {
+	if !a.trees.folded[data.KindTask][ochazuke.ID] {
 		t.Fatal("z a in T Outline did not fold ochazuke-v2")
 	}
 	d.Keys("z", "a", "O")
-	if a.Mode() != ModeOutlineEdit || a.outlineEdit == nil || a.outlineEdit.kind != "above" {
-		t.Fatalf("O in T Outline did not start inline above row: mode=%q edit=%+v", a.Mode(), a.outlineEdit)
+	if ed := a.trees.activeEdit(); a.Mode() != ModeOutlineEdit || ed == nil || ed.Kind != tree.EditAddAbove {
+		t.Fatalf("O in T Outline did not start inline above row: mode=%q edit=%+v", a.Mode(), ed)
 	}
 	d.Keys("esc", "esc")
 

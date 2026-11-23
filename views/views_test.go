@@ -434,11 +434,11 @@ func TestOutlineView(t *testing.T) {
 	root := OutlineView(nodes, "leaf", "outline")
 	out := frame(t, root, "outline.tree", 90, 14)
 	wantText(t, out, "Outline", "2 projects", "5 tasks",
-		"▶ Matomeru v2", "project · active P0 ★",
-		"├─ ", "✓ Data layer", "done P1",
+		"▶ Matomeru v2", "project", "active", "P0", "★",
+		"├─ ", "✓ Data layer", "done", "P1",
 		"└─ ", "! Show pages", "blocked",
 		"○ Link cards", "todo",
-		"○ Ochazuke v2", "project · todo")
+		"○ Ochazuke v2")
 	if strings.Index(out, "Show pages") > strings.Index(out, "Link cards") || strings.Index(out, "Link cards") > strings.Index(out, "Ochazuke v2") {
 		t.Fatalf("outline is not in tree order:\n%s", out)
 	}

@@ -298,7 +298,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("s stars", starred())
 	k.Keys("s")
 	k.check("s unstars", !starred())
-	if a.inWorkTaskTree(a.State()) {
+	if a.inWorkTree(a.State()) {
 		k.Keys("d")
 	} else {
 		k.Keys("a")
@@ -322,9 +322,9 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("picking one groups the list: status", a.Modal() == "" && a.tables[workTable].GroupField == "workStatus" && k.has("▾ active", "▾ done"))
 	k.Keys("g", "b", "enter")
 	k.check("g b enter ungroups", a.tables[workTable].GroupField == "")
-	if a.inWorkTaskTree(a.State()) {
+	if a.inWorkTree(a.State()) {
 		k.Keys("o")
-		k.check("o in task tree opens inline sibling row in place", a.Mode() == ModeOutlineEdit && a.outlineEdit != nil && a.Modal() == "")
+		k.check("o in task tree opens inline sibling row in place", a.Mode() == ModeOutlineEdit && a.trees.editing() && a.Modal() == "")
 		k.Keys("esc", "g", "s")
 		k.Type("title")
 		k.Keys("enter")
@@ -399,8 +399,12 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("g n lists every noun with its count", a.Modal() == modalNouns && k.has("Nouns", "Tasks", "Lanes", "Panes", "Pages", "Notes", "Documents", "Schedules", "Occurrences", "Runs", "Extensions"))
 	k.Type("lanes")
 	k.Keys("enter")
-	k.check("picking Lanes opens their index in Work", a.Modal() == "" && a.Space() == SpaceWork && a.browseKind == data.KindLane && a.Focus() == workTable && k.has("Lanes", "settings-worker", "binding-editor", "Status"))
+	k.check("picking Lanes opens their tree in Work by default", a.Modal() == "" && a.Space() == SpaceWork && a.browseKind == data.KindLane && a.Focus() == workTable && a.inWorkTree(a.State()) && k.has("Lanes", "Matomeru v2 Step 2", "settings-worker", "binding-editor", "tree", "└─"))
 	k.keep("Lanes index")
+	k.Keys("g", "t")
+	k.check("g t toggles Lanes to table view", !a.inWorkTree(a.State()) && k.has("Lanes", "Status", "settings-worker", "binding-editor"))
+	k.Keys("g", "t")
+	k.check("g t toggles Lanes back to tree view", a.inWorkTree(a.State()) && k.has("Lanes", "tree", "└─"))
 	k.Keys("n")
 	k.check("n makes a record of that noun", a.Modal() == modalForm && k.has("New lane", "laneStatus", "worktree"))
 	k.Keys("esc", "e")
@@ -474,8 +478,8 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("y y yanks the title into the registers and the clipboard", a.Modal() == "" && a.Register(core.RegUnnamed) == topTitle && a.Register(core.RegClipboard) == topTitle && a.live.clipboard == topTitle)
 	k.check("\"% is the focused record", a.Register(core.RegPath) == top.ID)
 	workPos := func() int {
-		if a.inWorkTaskTree(a.State()) {
-			return slices.Index(a.visibleTaskIDs(), a.workTreeSel)
+		if a.inWorkTree(a.State()) {
+			return a.trees.workFocusedIndex(a.workKind())
 		}
 		return a.tables[workTable].SelectedIdx
 	}

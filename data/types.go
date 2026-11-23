@@ -313,16 +313,22 @@ type ChangeTarget struct {
 	Ref       core.Ref `json:"ref"`
 }
 
-// TaskNode is one task in the recursive task tree. A node at depth 0 is a
-// root task, which displays as a project.
-type TaskNode struct {
+// TreeNode is one record in a recursive hierarchy tree. A node at depth 0 is a
+// root record (for example, a root task displays as a project).
+type TreeNode struct {
 	Record   Record     `json:"record"`
 	Depth    int        `json:"depth"`
-	Children []TaskNode `json:"children,omitempty"`
+	Children []TreeNode `json:"children,omitempty"`
 }
 
+// IsRoot reports whether the node is at the top level of the tree.
+func (n TreeNode) IsRoot() bool { return n.Depth == 0 }
+
 // IsProject reports whether the node is a root task.
-func (n TaskNode) IsProject() bool { return n.Depth == 0 }
+func (n TreeNode) IsProject() bool { return n.IsRoot() }
+
+// TaskNode is an alias for TreeNode kept for existing callers.
+type TaskNode = TreeNode
 
 // decodeAs converts v to T by type assertion or a JSON round trip, so values
 // built in Go and values read back from the store behave the same.

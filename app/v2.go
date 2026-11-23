@@ -101,6 +101,9 @@ func (a *App) browse(s core.State, kind string) core.State {
 	if kind != a.browseKind {
 		a.browseKind = kind
 		delete(a.tables, workTable) // another noun: its own filter, sort and group
+		if a.trees != nil {
+			delete(a.trees.workTableRowID, a.workKind())
+		}
 		a.indexFocus = workTable
 	}
 	if a.histPos >= 0 {

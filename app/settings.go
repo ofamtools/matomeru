@@ -329,6 +329,9 @@ func (a *App) commitSetting() {
 		a.railCustomGroup = ""
 		a.rail()
 	}
+	if (name == SetWorkHierarchyLayout || name == SetWorkTasksLayout) && a.trees != nil {
+		clear(a.trees.layoutOverride)
+	}
 	saved, err := a.writeConfig(settingsFileName, a.userSettings)
 	switch {
 	case err != nil:

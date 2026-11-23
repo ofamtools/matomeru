@@ -406,8 +406,8 @@ func (a *App) workSpace(s core.State) ui.ViewNode {
 	ref, showing := a.Showing()
 	kind := a.workKind()
 	if !showing {
-		if a.inWorkTaskTree(s) {
-			return a.workTaskTreeView()
+		if a.inWorkTree(s) {
+			return a.workTreeView()
 		}
 		return views.IndexView(a.schema(kind), a.records(workTable, kind), SpaceWork)
 	}

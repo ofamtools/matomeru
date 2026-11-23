@@ -14,6 +14,7 @@ import (
 	"ofam.dev/ochazuke/widgets/palette"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
+	"ofam.dev/ochazuke/widgets/tree"
 )
 
 // Modes.
@@ -191,14 +192,15 @@ const (
 	CmdPresetPickerDelete  = "table.preset.picker.delete"
 	CmdFocusHints          = "focus.hints"
 
-	CmdAppAbout       = "app.about"
-	CmdPaneAssociate  = "pane.associate"
-	CmdCommandRun     = "command.run"
-	CmdCommandEditRun = "command.edit_run"
-	CmdExtSetup       = "extension.setup"
-	CmdTaskAddSibling = "task.add.sibling"
-	CmdTaskAddChild   = "task.add.child"
-	CmdTaskFoldToggle = "task.fold.toggle"
+	CmdAppAbout         = "app.about"
+	CmdPaneAssociate    = "pane.associate"
+	CmdCommandRun       = "command.run"
+	CmdCommandEditRun   = "command.edit_run"
+	CmdExtSetup         = "extension.setup"
+	CmdTaskAddSibling   = "task.add.sibling"
+	CmdTaskAddChild     = "task.add.child"
+	CmdTaskFoldToggle   = "task.fold.toggle"
+	CmdWorkLayoutToggle = "work.layout.toggle"
 )
 
 var leader = core.Layer{Name: "leader", Modes: []string{ModeTerminalLeader, ModeNormal}, ExcludeTags: []string{"motion", "editing"}}
@@ -288,18 +290,25 @@ func DefaultBindings() []core.Binding {
 		bind(n, data.KindCommand, "enter", CmdCommandRun, "run command"),
 		bind(n, data.KindCommand, "r", CmdCommandRun, "run command"),
 		bind(n, data.KindCommand, "e", CmdCommandEditRun, "edit & run command"),
-		hidden(when(bind(n, data.KindTask, "i", CmdOutlineEditStart, "edit inline at start"), "facts.tasksTree")),
-		hidden(when(bind(n, data.KindTask, "a", CmdOutlineEditEnd, "edit inline at end"), "facts.tasksTree")),
-		hidden(when(bind(n, data.KindTask, "o", CmdOutlineAddBelow, "new task below"), "facts.tasksTree")),
-		hidden(when(bind(n, data.KindTask, "O", CmdOutlineAddAbove, "new task above"), "facts.tasksTree")),
-		hidden(when(bind(n, data.KindTask, "d", views.CmdArchive, "archive"), "facts.tasksTree && facts.archiveStatus != \"archived\"")),
-		hidden(when(bind(n, data.KindTask, "d", views.CmdRestore, "restore"), "facts.tasksTree && facts.archiveStatus == \"archived\"")),
-		hidden(when(bind(n, data.KindTask, "tab", CmdOutlineIndent, "indent"), "facts.tasksTree")),
-		hidden(when(bind(n, data.KindTask, "shift+tab", CmdOutlineOutdent, "outdent"), "facts.tasksTree")),
-		hidden(when(bind(n, data.KindTask, "z a", CmdTaskFoldToggle, "fold/unfold subtree"), "facts.tasksTree")),
-		hidden(when(bind(n, data.KindTask, "space", CmdOutlineStatusCycle, "cycle status"), "facts.tasksTree")),
-		hidden(when(bind(n, data.KindTask, ">", CmdOutlineIndent, "indent"), "facts.tasksTree")),
-		hidden(when(bind(n, data.KindTask, "<", CmdOutlineOutdent, "outdent"), "facts.tasksTree")),
+		hidden(when(bind(n, views.ScopeIndex, "i", CmdOutlineEditStart, "edit inline at start"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "a", CmdOutlineEditEnd, "edit inline at end"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "o", CmdOutlineAddBelow, "new item below"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "O", CmdOutlineAddAbove, "new item above"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "d", views.CmdArchive, "archive"), "facts.isTree && facts.archiveStatus != \"archived\"")),
+		hidden(when(bind(n, views.ScopeIndex, "d", views.CmdRestore, "restore"), "facts.isTree && facts.archiveStatus == \"archived\"")),
+		hidden(when(bind(n, views.ScopeIndex, "tab", CmdOutlineIndent, "indent"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "shift+tab", CmdOutlineOutdent, "outdent"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, ">", CmdOutlineIndent, "indent"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "<", CmdOutlineOutdent, "outdent"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "J", CmdOutlineMoveDown, "move down"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "K", CmdOutlineMoveUp, "move up"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "space", CmdOutlineStatusCycle, "cycle status"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "z a", tree.CmdFoldToggle, "fold/unfold subtree"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "z o", tree.CmdFoldOpen, "unfold subtree"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "z c", tree.CmdFoldClose, "fold subtree"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "z R", tree.CmdFoldOpenAll, "unfold all"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "z M", tree.CmdFoldCloseAll, "fold all"), "facts.isTree")),
+		hidden(bind(n, SpaceWork, "g t", CmdWorkLayoutToggle, "toggle tree/table")),
 		bind(n, ScopeProjectContext, "enter", CmdProjectContextOpen, "open context item"),
 		bind(n, ScopeProjectContext, "y", CmdProjectContextYank, "yank context item"),
 		bind(n, ScopeProjectContext, "s", CmdProjectContextStar, "star context item"),
@@ -578,7 +587,11 @@ func DefaultBindings() []core.Binding {
 		bind(ModeOutline, all, "O", CmdOutlineAddAbove, "new item above"),
 		when(bind(ModeOutline, all, "d", views.CmdArchive, "archive"), "facts.archiveStatus != \"archived\""),
 		when(bind(ModeOutline, all, "d", views.CmdRestore, "restore"), "facts.archiveStatus == \"archived\""),
-		bind(ModeOutline, all, "z a", CmdTaskFoldToggle, "fold/unfold subtree"),
+		bind(ModeOutline, all, "z a", tree.CmdFoldToggle, "fold/unfold subtree"),
+		bind(ModeOutline, all, "z o", tree.CmdFoldOpen, "unfold subtree"),
+		bind(ModeOutline, all, "z c", tree.CmdFoldClose, "fold subtree"),
+		bind(ModeOutline, all, "z R", tree.CmdFoldOpenAll, "unfold all"),
+		bind(ModeOutline, all, "z M", tree.CmdFoldCloseAll, "fold all"),
 		bind(ModeOutline, all, "esc", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "q", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "T", CmdModalCancel, "close"),
@@ -898,6 +911,12 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdTaskAddSibling, "Add a sibling task beside the focused task", "editing"),
 		spec(CmdTaskAddChild, "Add a child subtask under the focused task", "editing"),
 		spec(CmdTaskFoldToggle, "Fold or unfold the focused task subtree"),
+		spec(tree.CmdFoldToggle, "Fold or unfold the focused tree subtree"),
+		spec(tree.CmdFoldOpen, "Unfold the focused tree subtree"),
+		spec(tree.CmdFoldClose, "Fold the focused tree subtree"),
+		spec(tree.CmdFoldOpenAll, "Unfold every node in the focused tree"),
+		spec(tree.CmdFoldCloseAll, "Fold every parent node in the focused tree"),
+		spec(CmdWorkLayoutToggle, "Toggle 2 Work between tree and table layout for hierarchical nouns"),
 	}...)
 }
 

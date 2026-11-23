@@ -46,6 +46,7 @@ import (
 	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/table"
 	"ofam.dev/ochazuke/widgets/toast"
+	"ofam.dev/ochazuke/widgets/tree"
 )
 
 // The four spaces, in tab order.
@@ -244,7 +245,7 @@ type App struct {
 	term         map[string]*termBuf
 	status       string
 
-	outlineSel  string
+	trees       *treeController
 	pickers     map[string]*picker.Model
 	palette     *palette.Model
 	path        *pathpicker.Model
@@ -336,16 +337,10 @@ type App struct {
 	recordActions map[string]actions.RecordActionSpec
 	toasts        *toast.Model
 
-	// Wave D2: About overlay, indented Work Tasks Tree, pane associate, and dynamic ref-picker create.
-	aboutMD            *markdown.Model
-	workTreeSel        string
-	workTreeOffset     int
-	workTreeTableRowID string
-	outlineOffset      int
-	outlineEdit        *outlineInlineEdit
-	taskFolded         map[string]bool
-	associatePaneRef   *core.Ref
-	pickerCreate       map[string]refCreateSpec
+	// Wave D2: About overlay, pane associate, and dynamic ref-picker create.
+	aboutMD          *markdown.Model
+	associatePaneRef *core.Ref
+	pickerCreate     map[string]refCreateSpec
 
 	gen          uint64
 	memoKey      string
@@ -366,6 +361,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a := &App{
 		Store: store, Router: mcpui.New(store), opts: opts,
 		tables: map[string]*table.Model{}, activePage: map[string]string{}, term: map[string]*termBuf{},
+		trees:   newTreeController(),
 		pickers: map[string]*picker.Model{}, lastFocus: map[string]string{}, histPos: -1, indexFocus: workTable,
 		userSettings: map[string]any{}, readCache: data.NewReadCache(),
 		extCatalogs: map[string]string{}, extFetching: map[string]bool{},
@@ -1004,7 +1000,7 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 		return core.Next(a.modalMotion(s, id, c))
 	}
 	focus := s.ActiveFrame().FocusID
-	if focus == workTable && a.inWorkTaskTree(s) && c.ID != "motion.left" && c.ID != "motion.right" {
+	if focus == workTable && a.inWorkTree(s) && c.ID != "motion.left" && c.ID != "motion.right" {
 		a.workTreeMove(c)
 		return core.Next(s)
 	}
@@ -1044,7 +1040,7 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 func (a *App) modalMotion(s core.State, id string, c core.Command) core.State {
 	switch id {
 	case modalOutline:
-		a.outlineMove(c)
+		a.outlineTreeMove(c)
 	case modalPath:
 		if a.path != nil {
 			a.path.HandleCommand(c)
@@ -1088,7 +1084,7 @@ func (a *App) dropModals(s core.State) core.State {
 	a.contextTarget, a.composer, a.hints = nil, nil, nil
 	a.confirm, a.presetTable = nil, ""
 	a.aboutMD, a.associatePaneRef, a.pickerCreate = nil, nil, nil
-	a.outlineEdit = nil
+	a.trees.clearEdit()
 	return s
 }
 
@@ -2078,23 +2074,6 @@ func (a *App) paletteResult(s core.State, res palette.Result) core.StepResult {
 	return core.Next(s)
 }
 
-// --- outline --------------------------------------------------------------------
-
-func flatten(nodes []data.TaskNode, out *[]string) {
-	for _, n := range nodes {
-		*out = append(*out, n.Record.ID)
-		flatten(n.Children, out)
-	}
-}
-
-func (a *App) outlineIDs() []string {
-	return a.visibleTaskIDs()
-}
-
-func (a *App) outlineMove(c core.Command) {
-	a.moveTreeViewport(modalOutline+".tree", &a.outlineSel, &a.outlineOffset, c)
-}
-
 // --- filter ---------------------------------------------------------------------
 
 // filterTable is the table the filter keys act on: the one being filtered,
@@ -2156,8 +2135,8 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 	case ModeComposer:
 		return a.composerCommand(s, c)
 	case ModeOutlineEdit:
-		if a.outlineEdit != nil {
-			a.outlineEdit.line.HandleCommand(c)
+		if tm, _, ok := a.activeEditTree(); ok {
+			tm.HandleEditCommand(c)
 		}
 		return core.Next(s)
 	}
@@ -2602,19 +2581,22 @@ func (a *App) register() {
 	a.handle(CmdTermInput, a.termInput)
 
 	a.handle(CmdOutlineOpen, func(s core.State, c core.Command) core.StepResult {
+		tm := a.trees.outlineModel()
+		a.syncTreeModel(tm, data.KindTask, modalOutline+".tree")
 		if ref, ok := a.subject(s, c); ok && ref.Kind == data.KindTask {
-			a.outlineSel = ref.ID
-		}
-		if ids := a.outlineIDs(); !slices.Contains(ids, a.outlineSel) && len(ids) > 0 {
-			a.outlineSel = ids[0]
+			tm.Reveal(ref.ID)
+			a.trees.folded[data.KindTask] = tm.Folded
 		}
 		return core.Next(openModal(s, modalOutline, ModeOutline, modalOutline+".tree"))
 	})
 	a.handle(CmdOutlineJump, func(s core.State, _ core.Command) core.StepResult {
-		if a.outlineSel == "" {
+		tm := a.trees.outlineModel()
+		a.syncTreeModel(tm, data.KindTask, modalOutline+".tree")
+		row, ok := tm.Focused()
+		if !ok || row.Draft || row.ID == "" {
 			return core.Next(closeModal(s, modalOutline))
 		}
-		return core.Next(a.show(s, core.Ref{Kind: data.KindTask, ID: a.outlineSel}))
+		return core.Next(a.show(s, core.Ref{Kind: data.KindTask, ID: row.ID}))
 	})
 	a.handle(CmdOutlineMoveDown, a.outlineMoveSibling(1))
 	a.handle(CmdOutlineMoveUp, a.outlineMoveSibling(-1))
@@ -2770,7 +2752,11 @@ func (a *App) register() {
 	a.handle(CmdExtSetup, a.extSetup)
 	a.handle(CmdTaskAddSibling, a.taskAddRelative(false))
 	a.handle(CmdTaskAddChild, a.taskAddRelative(true))
-	a.handle(CmdTaskFoldToggle, a.taskFoldToggle)
+	a.handle(CmdTaskFoldToggle, a.treeFoldCommand(tree.CmdFoldToggle))
+	for _, id := range []string{tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll} {
+		a.handle(id, a.treeFoldCommand(id))
+	}
+	a.handle(CmdWorkLayoutToggle, a.workLayoutToggle)
 	for id, spec := range a.recordActions {
 		a.handle(id, a.runRecordAction(spec))
 	}

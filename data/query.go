@@ -302,12 +302,16 @@ func (s *Store) Query(q Query) (QueryResult, error) {
 	return res, nil
 }
 
-// sortTaskSiblings orders tasks by their integer "order" field ascending when
-// set, falling back to creation order (preserved by stable sort).
-func sortTaskSiblings(recs []Record) {
+// sortTreeSiblings orders sibling records by their numeric orderField ascending
+// when orderField is non-empty and set, falling back to creation order
+// (preserved by stable sort). When orderField is empty it is a no-op.
+func sortTreeSiblings(recs []Record, orderField string) {
+	if orderField == "" {
+		return
+	}
 	slices.SortStableFunc(recs, func(a, b Record) int {
-		av, aok := a.Value("order")
-		bv, bok := b.Value("order")
+		av, aok := a.Value(orderField)
+		bv, bok := b.Value(orderField)
 		an, aNum := number(av)
 		bn, bNum := number(bv)
 		aHas := aok && aNum
@@ -331,66 +335,88 @@ func sortTaskSiblings(recs []Record) {
 	})
 }
 
-// TaskTree returns the recursive task tree for the outline: root tasks
-// (projects) at depth 0, each with its subtasks, ordered by sibling "order"
-// ascending when set and falling back to creation order. Without
-// includeArchived an archived task is left out together with its subtree;
-// its subtasks are still found by Get. A task whose parent does not exist is
-// shown as a root, so nothing is lost.
-func (s *Store) TaskTree(includeArchived bool) ([]TaskNode, error) {
-	res, err := s.Query(Query{Kind: KindTask, IncludeArchived: true})
-	if err != nil {
-		return nil, err
+// BuildTree arranges recs into a recursive tree using parentField (a
+// single-valued Ref field) and optional numeric orderField for sibling
+// ordering. Records are keyed by core.Ref; self-loops, missing parents, and
+// cycles are surfaced as roots so no record is lost. When includeArchived is
+// false, an archived record is omitted together with its entire subtree.
+func BuildTree(recs []Record, parentField, orderField string, includeArchived bool) []TreeNode {
+	known := make(map[core.Ref]bool, len(recs))
+	for _, rec := range recs {
+		known[rec.Ref()] = true
 	}
-	known := make(map[string]bool, len(res.Items))
-	for _, rec := range res.Items {
-		known[rec.ID] = true
-	}
-	children := map[string][]Record{}
+	children := map[core.Ref][]Record{}
 	var roots []Record
-	for _, rec := range res.Items {
-		if parent, ok := rec.RefField("parent"); ok && parent.Kind == KindTask && known[parent.ID] && parent.ID != rec.ID {
-			children[parent.ID] = append(children[parent.ID], rec)
-		} else {
-			roots = append(roots, rec)
+	for _, rec := range recs {
+		if parentField != "" {
+			if parent, ok := rec.RefField(parentField); ok && known[parent] && parent != rec.Ref() {
+				children[parent] = append(children[parent], rec)
+				continue
+			}
 		}
+		roots = append(roots, rec)
 	}
-	sortTaskSiblings(roots)
-	for id := range children {
-		sortTaskSiblings(children[id])
+	sortTreeSiblings(roots, orderField)
+	for ref := range children {
+		sortTreeSiblings(children[ref], orderField)
 	}
-	placed := map[string]bool{}
-	var build func(recs []Record, depth int) []TaskNode
-	build = func(recs []Record, depth int) []TaskNode {
-		var out []TaskNode
-		for _, rec := range recs {
-			if placed[rec.ID] {
+	placed := map[core.Ref]bool{}
+	var build func(list []Record, depth int) []TreeNode
+	build = func(list []Record, depth int) []TreeNode {
+		var out []TreeNode
+		for _, rec := range list {
+			ref := rec.Ref()
+			if placed[ref] {
 				continue
 			}
-			placed[rec.ID] = true
+			placed[ref] = true
 			if rec.IsArchived() && !includeArchived {
-				markSubtree(rec.ID, children, placed)
+				markTreeSubtree(ref, children, placed)
 				continue
 			}
-			out = append(out, TaskNode{Record: rec, Depth: depth, Children: build(children[rec.ID], depth+1)})
+			out = append(out, TreeNode{Record: rec, Depth: depth, Children: build(children[ref], depth+1)})
 		}
 		return out
 	}
 	tree := build(roots, 0)
-	// Tasks whose parents form a loop are reachable from no root: show them as roots.
-	for _, rec := range res.Items {
-		if !placed[rec.ID] {
+	// Records whose parents form a loop are reachable from no root: surface them as roots.
+	for _, rec := range recs {
+		if !placed[rec.Ref()] {
 			tree = append(tree, build([]Record{rec}, 0)...)
 		}
 	}
-	return tree, nil
+	return tree
 }
 
-func markSubtree(id string, children map[string][]Record, placed map[string]bool) {
-	for _, child := range children[id] {
-		if !placed[child.ID] {
-			placed[child.ID] = true
-			markSubtree(child.ID, children, placed)
+func markTreeSubtree(ref core.Ref, children map[core.Ref][]Record, placed map[core.Ref]bool) {
+	for _, child := range children[ref] {
+		cref := child.Ref()
+		if !placed[cref] {
+			placed[cref] = true
+			markTreeSubtree(cref, children, placed)
 		}
 	}
+}
+
+// RecordTree returns the recursive hierarchy tree for any kind using its
+// schema's EffectiveHierarchy (parentField and optional orderField).
+func (s *Store) RecordTree(kind string, includeArchived bool) ([]TreeNode, error) {
+	res, err := s.Query(Query{Kind: kind, IncludeArchived: true})
+	if err != nil {
+		return nil, err
+	}
+	parentField, orderField := "", ""
+	if schema, ok := s.reg.Get(kind); ok {
+		if h := schema.EffectiveHierarchy(); h != nil {
+			parentField, orderField = h.ParentField, h.OrderField
+		}
+	}
+	return BuildTree(res.Items, parentField, orderField, includeArchived), nil
+}
+
+// TaskTree returns the recursive task tree for the outline: root tasks
+// (projects) at depth 0, each with its subtasks, ordered by sibling "order"
+// ascending when set and falling back to creation order.
+func (s *Store) TaskTree(includeArchived bool) ([]TaskNode, error) {
+	return s.RecordTree(KindTask, includeArchived)
 }

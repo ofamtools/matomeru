@@ -49,8 +49,8 @@ func TestOutlineReorderIndentOutdentStatusAndUndo(t *testing.T) {
 
 	// Open outline: First is selected.
 	d.Keys("T")
-	if a.Modal() != modalOutline || a.outlineSel != t1.ID {
-		t.Fatalf("modal=%q sel=%q, want outline/%s", a.Modal(), a.outlineSel, t1.ID)
+	if om := a.trees.outlineModel(); a.Modal() != modalOutline || om.SelectedID != t1.ID {
+		t.Fatalf("modal=%q sel=%q, want outline/%s", a.Modal(), om.SelectedID, t1.ID)
 	}
 
 	// 2J moves First down 2 spots -> [Second, Third, First].
@@ -116,11 +116,12 @@ func TestOutlineReorderIndentOutdentStatusAndUndo(t *testing.T) {
 
 	// i enters in-place inline edit at the start of the title (no modal form).
 	d.Keys("i")
-	if a.Modal() != modalOutline || a.Mode() != ModeOutlineEdit || a.outlineEdit == nil {
-		t.Fatalf("after i: modal=%q mode=%q edit=%v, want outline/outline-edit", a.Modal(), a.Mode(), a.outlineEdit != nil)
+	ed := a.trees.activeEdit()
+	if a.Modal() != modalOutline || a.Mode() != ModeOutlineEdit || ed == nil {
+		t.Fatalf("after i: modal=%q mode=%q edit=%v, want outline/outline-edit", a.Modal(), a.Mode(), ed != nil)
 	}
-	if a.outlineEdit.line.Cursor != 0 {
-		t.Fatalf("cursor after i = %d, want 0", a.outlineEdit.line.Cursor)
+	if ed.Cursor() != 0 {
+		t.Fatalf("cursor after i = %d, want 0", ed.Cursor())
 	}
 	d.Keys("ctrl+k")
 	d.Type("Second Renamed")
