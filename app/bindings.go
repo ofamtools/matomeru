@@ -37,47 +37,54 @@ const (
 
 // Commands the app adds to core's built-ins and the widgets' own.
 const (
-	CmdHistoryBack    = "history.back"
-	CmdHistoryForward = "history.forward"
-	CmdUndo           = "store.undo"
-	CmdRedo           = "store.redo"
-	CmdSiteFocus      = "site.focus"
-	CmdSitePageOpen   = "site.page.open"
-	CmdAnswer         = "question.answer"
-	CmdTermAttach     = "terminal.attach"
-	CmdTermDetach     = "terminal.detach"
-	CmdTermInput      = "terminal.input"
-	CmdRunRerun       = "run.rerun"
-	CmdRunCancel      = "run.cancel"
-	CmdRunNew         = "run.new"
-	CmdExtRefresh     = "extension.refresh"
-	CmdExtRun         = "extension.run"
-	CmdTermPrefix     = "terminal.prefix"
-	CmdWake           = "app.wake"
-	CmdOutlineOpen    = "outline.open"
-	CmdOutlineJump    = "outline.jump"
-	CmdPagesPick      = "pages.pick"
-	CmdPaletteOpen    = "palette.open"
-	CmdHelpOpen       = "help.open"
-	CmdPathOpen       = "path.open"
-	CmdModalCancel    = "modal.cancel"
-	CmdFilterStart    = "filter.start"
-	CmdFilterInsert   = "filter.insert"
-	CmdFilterBack     = "filter.backspace"
-	CmdFilterAccept   = "filter.accept"
-	CmdFilterCancel   = "filter.cancel"
-	CmdFilterClear    = "filter.clear"
-	CmdFilterMode     = "filter.mode.cycle"
-	CmdFilterField    = "filter.field.cycle"
-	CmdSortCycle      = "table.sort.cycle"
-	CmdSortField      = "table.sort.field.cycle"
-	CmdGroupField     = "table.group.field.cycle"
-	CmdGroupToggle    = "table.group.toggle"
-	CmdMarkToggle     = "table.mark.toggle"
-	CmdArchivedToggle = "archived.toggle"
-	CmdPickerInsert   = "picker.insert"
-	CmdPickerBack     = "picker.backspace"
-	CmdFormActivate   = "form.activate"
+	CmdHistoryBack        = "history.back"
+	CmdHistoryForward     = "history.forward"
+	CmdUndo               = "store.undo"
+	CmdRedo               = "store.redo"
+	CmdSiteFocus          = "site.focus"
+	CmdSitePageOpen       = "site.page.open"
+	CmdAnswer             = "question.answer"
+	CmdTermAttach         = "terminal.attach"
+	CmdTermDetach         = "terminal.detach"
+	CmdTermInput          = "terminal.input"
+	CmdRunRerun           = "run.rerun"
+	CmdRunCancel          = "run.cancel"
+	CmdRunNew             = "run.new"
+	CmdExtRefresh         = "extension.refresh"
+	CmdExtRun             = "extension.run"
+	CmdTermPrefix         = "terminal.prefix"
+	CmdWake               = "app.wake"
+	CmdOutlineOpen        = "outline.open"
+	CmdOutlineJump        = "outline.jump"
+	CmdOutlineMoveDown    = "outline.move.down"
+	CmdOutlineMoveUp      = "outline.move.up"
+	CmdOutlineIndent      = "outline.indent"
+	CmdOutlineOutdent     = "outline.outdent"
+	CmdOutlineStatusCycle = "outline.status.cycle"
+	CmdOutlineRename      = "outline.rename"
+	CmdRecentsPick        = "recents.pick"
+	CmdPagesPick          = "pages.pick"
+	CmdPaletteOpen        = "palette.open"
+	CmdHelpOpen           = "help.open"
+	CmdPathOpen           = "path.open"
+	CmdModalCancel        = "modal.cancel"
+	CmdFilterStart        = "filter.start"
+	CmdFilterInsert       = "filter.insert"
+	CmdFilterBack         = "filter.backspace"
+	CmdFilterAccept       = "filter.accept"
+	CmdFilterCancel       = "filter.cancel"
+	CmdFilterClear        = "filter.clear"
+	CmdFilterMode         = "filter.mode.cycle"
+	CmdFilterField        = "filter.field.cycle"
+	CmdSortCycle          = "table.sort.cycle"
+	CmdSortField          = "table.sort.field.cycle"
+	CmdGroupField         = "table.group.field.cycle"
+	CmdGroupToggle        = "table.group.toggle"
+	CmdMarkToggle         = "table.mark.toggle"
+	CmdArchivedToggle     = "archived.toggle"
+	CmdPickerInsert       = "picker.insert"
+	CmdPickerBack         = "picker.backspace"
+	CmdFormActivate       = "form.activate"
 
 	CmdNewHere         = "record.new.here"
 	CmdAssign          = "record.assign"
@@ -236,6 +243,7 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, "g s", CmdSortFieldPick, "sort by any field"),
 		bind(n, all, "g b", CmdGroupFieldPick, "group by any field"),
 		bind(n, all, "g n", CmdNounsPick, "browse any noun"),
+		bind(n, all, "g r", CmdRecentsPick, "recents"),
 		when(bind(n, all, "space", CmdGroupToggle, "fold group"), "facts.isGroupHeader"),
 		bind(n, all, "x", CmdMarkToggle, "mark"),
 		bind(n, all, "A", CmdArchivedToggle, "show archived"),
@@ -397,7 +405,24 @@ func DefaultBindings() []core.Binding {
 		bind(ModeInspect, all, "q", CmdModalCancel, "close"),
 
 		// Outline: the normal keys work on the selected task.
+		// Explicit digit rows take precedence over ModeNormal's 1..4 space keys so counts like 2J/2K work.
+		with(hidden(bind(ModeOutline, all, "1", core.CmdCountPush, "count")), map[string]any{"digit": 1}),
+		with(hidden(bind(ModeOutline, all, "2", core.CmdCountPush, "count")), map[string]any{"digit": 2}),
+		with(hidden(bind(ModeOutline, all, "3", core.CmdCountPush, "count")), map[string]any{"digit": 3}),
+		with(hidden(bind(ModeOutline, all, "4", core.CmdCountPush, "count")), map[string]any{"digit": 4}),
+		with(hidden(bind(ModeOutline, all, "5", core.CmdCountPush, "count")), map[string]any{"digit": 5}),
+		with(hidden(bind(ModeOutline, all, "6", core.CmdCountPush, "count")), map[string]any{"digit": 6}),
+		with(hidden(bind(ModeOutline, all, "7", core.CmdCountPush, "count")), map[string]any{"digit": 7}),
+		with(hidden(bind(ModeOutline, all, "8", core.CmdCountPush, "count")), map[string]any{"digit": 8}),
+		with(hidden(bind(ModeOutline, all, "9", core.CmdCountPush, "count")), map[string]any{"digit": 9}),
+		when(with(hidden(bind(ModeOutline, all, "0", core.CmdCountPush, "count")), map[string]any{"digit": 0}), "count != null"),
 		bind(ModeOutline, all, "enter", CmdOutlineJump, "open task"),
+		bind(ModeOutline, all, "J", CmdOutlineMoveDown, "move down"),
+		bind(ModeOutline, all, "K", CmdOutlineMoveUp, "move up"),
+		bind(ModeOutline, all, ">", CmdOutlineIndent, "indent"),
+		bind(ModeOutline, all, "<", CmdOutlineOutdent, "outdent"),
+		bind(ModeOutline, all, "space", CmdOutlineStatusCycle, "cycle status"),
+		bind(ModeOutline, all, "i", CmdOutlineRename, "rename"),
 		bind(ModeOutline, all, "esc", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "q", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "T", CmdModalCancel, "close"),
@@ -479,6 +504,13 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: CmdWake, Description: "Look at what changed off the UI goroutine", Meta: map[string]any{"internal": true}},
 		spec(CmdOutlineOpen, "Open the outline of every task"),
 		spec(CmdOutlineJump, "Open the selected task"),
+		spec(CmdOutlineMoveDown, "Move the selected task down among its siblings", "editing"),
+		spec(CmdOutlineMoveUp, "Move the selected task up among its siblings", "editing"),
+		spec(CmdOutlineIndent, "Indent the selected task under its preceding sibling", "editing"),
+		spec(CmdOutlineOutdent, "Outdent the selected task to become a sibling of its parent", "editing"),
+		spec(CmdOutlineStatusCycle, "Cycle the selected task's workStatus", "editing"),
+		spec(CmdOutlineRename, "Rename the selected task", "editing"),
+		spec(CmdRecentsPick, "Pick from recently updated records across all nouns"),
 		spec(CmdPagesPick, "Pick a page of any pane"),
 		spec(CmdRecordActions, "Pick an action for the focused record"),
 		{ID: CmdShellOpen, Description: "Open the shell I/O bar (! run, | pipe focused record, r! capture note)",

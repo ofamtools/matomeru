@@ -196,7 +196,7 @@ func TestBindingEditor(t *testing.T) {
 	if frame := d.Frame(); !strings.Contains(frame, "same-key-diff-when") {
 		t.Fatalf("the conflict note of s is not shown:\n%s", frame)
 	}
-	filter("conflict:same-key-diff-when key:s", 2)
+	filter("conflict:same-key-diff-when key:s verb:record", 2)
 	filter("verb:record.star", 1)
 
 	// Rebind to a two-key sequence.

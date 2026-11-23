@@ -302,8 +302,38 @@ func (s *Store) Query(q Query) (QueryResult, error) {
 	return res, nil
 }
 
+// sortTaskSiblings orders tasks by their integer "order" field ascending when
+// set, falling back to creation order (preserved by stable sort).
+func sortTaskSiblings(recs []Record) {
+	slices.SortStableFunc(recs, func(a, b Record) int {
+		av, aok := a.Value("order")
+		bv, bok := b.Value("order")
+		an, aNum := number(av)
+		bn, bNum := number(bv)
+		aHas := aok && aNum
+		bHas := bok && bNum
+		switch {
+		case aHas && bHas:
+			if an < bn {
+				return -1
+			}
+			if an > bn {
+				return 1
+			}
+			return 0
+		case aHas:
+			return -1
+		case bHas:
+			return 1
+		default:
+			return 0
+		}
+	})
+}
+
 // TaskTree returns the recursive task tree for the outline: root tasks
-// (projects) at depth 0, each with its subtasks, in creation order. Without
+// (projects) at depth 0, each with its subtasks, ordered by sibling "order"
+// ascending when set and falling back to creation order. Without
 // includeArchived an archived task is left out together with its subtree;
 // its subtasks are still found by Get. A task whose parent does not exist is
 // shown as a root, so nothing is lost.
@@ -324,6 +354,10 @@ func (s *Store) TaskTree(includeArchived bool) ([]TaskNode, error) {
 		} else {
 			roots = append(roots, rec)
 		}
+	}
+	sortTaskSiblings(roots)
+	for id := range children {
+		sortTaskSiblings(children[id])
 	}
 	placed := map[string]bool{}
 	var build func(recs []Record, depth int) []TaskNode

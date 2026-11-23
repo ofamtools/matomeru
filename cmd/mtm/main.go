@@ -51,10 +51,18 @@ mtm config export [--jsonl]              print the settings and bindings in effe
 mtm inspect actions|bindings|modes|schemas [--json]
                                          the registries the app runs on, as a table or as JSON:
                                          every action with its keys, the keymap, the modes, the nouns
-mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--archived] [--starred]
+mtm binding list [--all] [--json]        list effective key bindings
+mtm binding check [--json]               validate bindings and report any errors
+mtm <noun> list|get|create|add|edit|set|patch|star|unstar|archive|restore|snooze|unsnooze|delete|relate|unrelate ...
+                                         nouns: task, pane, note, document (docs), lane, schedule,
+                                         run, signal, directory, extension, rule (plus plurals)
+mtm extension discover [--dir DIR]       discover installed o-* extensions
+mtm extension run <name> [args...]       run an extension command as a recorded run
+mtm undo | redo                          undo or redo the last CLI change
+mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--field k=v ...] [--archived] [--starred]
 mtm record get KIND ID
 mtm record create KIND --title "..." [--field k=v ...]
-mtm record undo
+mtm record undo | redo
 mtm mcp tools
 mtm mcp call TOOL 'JSON'
 mtm mcp serve                            MCP server on stdin/stdout (JSON-RPC 2.0, one message per line)
@@ -78,12 +86,16 @@ func main() {
 
 type options struct {
 	db, format, query, mode, title string
+	body                           string
+	bodySet                        bool
 	from                           string
 	seed, smoke, dump, help        bool
 	tutorial, jsonl, json          bool
 	dryRun, apply                  bool
 	archived, starred              bool
+	all, managed                   bool
 	fields                         []string
+	dirs                           []string
 	args                           []string
 }
 
@@ -91,12 +103,18 @@ type options struct {
 // subcommand and its arguments.
 func parse(argv []string) (options, error) {
 	o := options{format: "json"}
-	text := map[string]*string{"--db": &o.db, "--format": &o.format, "--query": &o.query, "--mode": &o.mode, "--title": &o.title, "--from": &o.from}
+	text := map[string]*string{"--db": &o.db, "--format": &o.format, "--query": &o.query, "--mode": &o.mode, "--title": &o.title, "--from": &o.from, "--body": &o.body}
 	flags := map[string]*bool{"--seed-demo": &o.seed, "--smoke": &o.smoke, "--dump": &o.dump, "--help": &o.help, "-h": &o.help,
 		"--archived": &o.archived, "--starred": &o.starred, "--dry-run": &o.dryRun, "--apply": &o.apply,
-		"--tutorial": &o.tutorial, "--jsonl": &o.jsonl, "--json": &o.json}
+		"--tutorial": &o.tutorial, "--jsonl": &o.jsonl, "--json": &o.json, "--all": &o.all, "--managed": &o.managed}
 	for i := 0; i < len(argv); i++ {
 		arg := argv[i]
+		// For `mtm extension run <name> [args...]`, pass everything after <name>
+		// verbatim to the extension binary so extension flags are not intercepted.
+		if len(o.args) >= 3 && (o.args[0] == "extension" || o.args[0] == "extensions") && o.args[1] == "run" {
+			o.args = append(o.args, argv[i:]...)
+			break
+		}
 		name, value, inline := strings.Cut(arg, "=")
 		switch {
 		case arg == "--":
@@ -104,7 +122,7 @@ func parse(argv []string) (options, error) {
 			return o, nil
 		case flags[arg] != nil:
 			*flags[arg] = true
-		case text[name] != nil || name == "--field":
+		case text[name] != nil || name == "--field" || name == "--dir":
 			if !inline {
 				if i+1 >= len(argv) {
 					return o, fmt.Errorf("%s needs a value", name)
@@ -112,9 +130,14 @@ func parse(argv []string) (options, error) {
 				i++
 				value = argv[i]
 			}
-			if name == "--field" {
+			switch name {
+			case "--field":
 				o.fields = append(o.fields, value)
-			} else {
+			case "--dir":
+				o.dirs = append(o.dirs, value)
+			case "--body":
+				o.body, o.bodySet = value, true
+			default:
 				*text[name] = value
 			}
 		case strings.HasPrefix(arg, "--"):
@@ -318,6 +341,8 @@ func dispatch(o options, stdin io.Reader, stdout io.Writer) error {
 		}
 		_, err = io.WriteString(stdout, app.InspectText(v))
 		return err
+	case len(o.args) > 0 && (o.args[0] == "binding" || o.args[0] == "bindings"):
+		return dispatchBinding(o, stdout)
 	case len(o.args) > 0 && o.args[0] == "migrate":
 		return runMigrate(ctx, o, stdout)
 	case o.from != "" || o.dryRun || o.apply:
@@ -337,6 +362,23 @@ func dispatch(o options, stdin io.Reader, stdout io.Writer) error {
 		cancel() // the TUI reads ctrl+c itself
 		return runTUI(store)
 	}
+	if len(o.args) == 1 && o.args[0] == "undo" {
+		cs, err := store.UndoLast(cliActor)
+		if err != nil {
+			return err
+		}
+		return printJSON(stdout, cs)
+	}
+	if len(o.args) == 1 && o.args[0] == "redo" {
+		cs, err := store.RedoLast(cliActor)
+		if err != nil {
+			return err
+		}
+		return printJSON(stdout, cs)
+	}
+	if kind, ok := resolveNoun(o.args[0]); ok {
+		return dispatchNoun(ctx, store, kind, o, stdin, stdout)
+	}
 	sub := strings.Join(o.args[:min(2, len(o.args))], " ")
 	rest := o.args[min(2, len(o.args)):]
 	switch sub {
@@ -348,6 +390,12 @@ func dispatch(o options, stdin io.Reader, stdout io.Writer) error {
 		return recordCreate(store, o, rest, stdout)
 	case "record undo":
 		cs, err := store.UndoLast(cliActor)
+		if err != nil {
+			return err
+		}
+		return printJSON(stdout, cs)
+	case "record redo":
+		cs, err := store.RedoLast(cliActor)
 		if err != nil {
 			return err
 		}
@@ -438,7 +486,11 @@ func recordList(store *data.Store, o options, rest []string, w io.Writer) error 
 	if res.FilterErr != "" {
 		return fmt.Errorf("--query is not a regular expression: %s", res.FilterErr)
 	}
-	return printRecords(w, store, rest[0], o.format, res.Items)
+	items, err := filterByFields(res.Items, o.fields)
+	if err != nil {
+		return err
+	}
+	return printRecords(w, store, rest[0], o.format, items)
 }
 
 func recordGet(store *data.Store, o options, rest []string, w io.Writer) error {

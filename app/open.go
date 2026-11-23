@@ -57,7 +57,7 @@ func (a *App) loadHandlers(dir string) {
 }
 
 // targetFields are the fields a record names something to open with.
-var targetFields = []string{"filePath", "url", "cwd"}
+var targetFields = []string{"filePath", "path", "url", "cwd"}
 
 // targetOf is what "open" opens for a record: the first of its file, URL
 // and directory, or, for a document or a note kept inline, its own text.

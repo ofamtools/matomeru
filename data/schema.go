@@ -347,6 +347,7 @@ func DefaultSchemas() *Registry {
 				{Name: "defaultDir", Type: core.ParamPath, Description: "default directory; empty uses the parent's"},
 				str("repo", "repository; empty uses the parent's"),
 				str("defaultHarness", "default agent harness; empty uses the parent's"),
+				{Name: "order", Type: core.ParamInt, Description: "sibling sort order in the task outline"},
 			},
 			StatusColumns:  []StatusColumn{work},
 			DefaultColumns: []string{"title", "workStatus", "priority", "parent"},

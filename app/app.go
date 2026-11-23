@@ -80,6 +80,7 @@ const (
 	tocPrefix  = "site.toc."
 
 	modalOutline = "outline"
+	modalRecents = "recents"
 	modalPages   = "pages"
 	modalPalette = "palette"
 	modalHelp    = "help"
@@ -1230,6 +1231,7 @@ func (a *App) commit() {
 		ref := rec.Ref()
 		fs.ref = &ref
 		fs.fm.Title = "Edit " + views.Title(schema, *rec)
+		a.syncManagedFile(rec)
 		if fs.about != nil {
 			if _, _, err := a.Store.Relate(data.RelateInput{From: ref, Kind: data.RelAbout, To: *fs.about}, User); err != nil {
 				a.fail("attach note", err)
@@ -1249,8 +1251,49 @@ func (a *App) commit() {
 	rec, cs, err := a.Store.Patch(data.PatchInput{Ref: *fs.ref, Fields: map[string]any{name: value}}, User)
 	if err == nil && cs != nil {
 		fs.fm.Title = "Edit " + views.Title(schema, *rec)
+		if name == "body" || name == "title" {
+			a.syncManagedFile(rec)
+		}
 	}
 	a.wrote(fmt.Sprintf("%s %s = %s", a.title(*fs.ref), name, data.Text(value)), cs, err)
+}
+
+// syncManagedFile writes a managed file for a document or note when it has a
+// body and no external user filePath, keeping filePath and path in sync.
+func (a *App) syncManagedFile(rec *data.Record) {
+	if rec == nil || (rec.Kind != data.KindDocument && rec.Kind != data.KindNote) {
+		return
+	}
+	root := a.Store.FilesRoot()
+	if root == "" {
+		return
+	}
+	body := rec.Text("body")
+	if body == "" {
+		return
+	}
+	existing := rec.Text("filePath")
+	if existing == "" {
+		existing = rec.Text("path")
+	}
+	if existing != "" && !data.IsManagedPath(root, existing) {
+		return // preserve external user path
+	}
+	cat := data.CategoryNotes
+	if rec.Kind == data.KindDocument {
+		cat = data.CategoryDocuments
+	}
+	p, err := data.WriteManagedFile(root, cat, rec.ID, rec.Text("title"), ".md", body)
+	if err != nil {
+		return
+	}
+	if rec.Text("filePath") != p || rec.Text("path") != p {
+		_, _, _ = a.Store.Patch(data.PatchInput{
+			Ref:     rec.Ref(),
+			Fields:  map[string]any{"filePath": p, "path": p},
+			Summary: "record managed file path",
+		}, core.Actor{Kind: "system", ID: "mtm.files", Label: "managed files"})
+	}
 }
 
 func (a *App) formCommand(s core.State, c core.Command) core.StepResult {
@@ -1524,6 +1567,10 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 		a.assigned(picked)
 	case modalPages:
 		return core.Next(a.jumpToPage(s, picked.ID))
+	case modalRecents:
+		if picked.Ref != nil {
+			return core.Next(a.show(s, *picked.Ref))
+		}
 	case modalRef:
 		if a.form != nil && picked.Ref != nil {
 			a.form.fm.SetValue(a.refField, *picked.Ref)
@@ -2166,6 +2213,13 @@ func (a *App) register() {
 		}
 		return core.Next(a.show(s, core.Ref{Kind: data.KindTask, ID: a.outlineSel}))
 	})
+	a.handle(CmdOutlineMoveDown, a.outlineMoveSibling(1))
+	a.handle(CmdOutlineMoveUp, a.outlineMoveSibling(-1))
+	a.handle(CmdOutlineIndent, a.outlineIndent)
+	a.handle(CmdOutlineOutdent, a.outlineOutdent)
+	a.handle(CmdOutlineStatusCycle, a.outlineStatusCycle)
+	a.handle(CmdOutlineRename, a.outlineRename)
+	a.handle(CmdRecentsPick, a.recentsPick)
 	a.handle(CmdPagesPick, func(s core.State, _ core.Command) core.StepResult {
 		res, err := a.Router.ListPages(mcpui.ListPagesArgs{})
 		if err != nil {

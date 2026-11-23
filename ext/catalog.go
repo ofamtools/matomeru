@@ -1,6 +1,7 @@
 package ext
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -99,13 +100,15 @@ func (m Manifest) Validate() error {
 	return errors.Join(errs...)
 }
 
+const maxCatalogOutput = 32 << 20
+
 // output runs one read-only invocation of an extension and returns its
-// standard output.
+// standard output (capped at maxCatalogOutput).
 func output(ctx context.Context, binary string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	var stdout limitedBuffer
+	var stdout bytes.Buffer
 	var stderr strings.Builder
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	cmd.Stdout, cmd.Stderr = &cappedBuffer{buf: &stdout, max: maxCatalogOutput}, &stderr
 	if err := cmd.Run(); err != nil {
 		if msg := firstLine([]byte(stderr.String())); msg != "" {
 			return nil, fmt.Errorf("ext: %s %s: %s", binary, strings.Join(args, " "), msg)
@@ -113,6 +116,18 @@ func output(ctx context.Context, binary string, args ...string) ([]byte, error) 
 		return nil, fmt.Errorf("ext: %s %s: %w", binary, strings.Join(args, " "), err)
 	}
 	return stdout.Bytes(), nil
+}
+
+type cappedBuffer struct {
+	buf *bytes.Buffer
+	max int
+}
+
+func (b *cappedBuffer) Write(p []byte) (int, error) {
+	if room := b.max - b.buf.Len(); room > 0 {
+		b.buf.Write(p[:min(len(p), room)])
+	}
+	return len(p), nil
 }
 
 // ParseManifest reads and checks a manifest document.

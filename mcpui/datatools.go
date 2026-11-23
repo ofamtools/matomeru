@@ -453,6 +453,19 @@ func (d *DataTools) CreateNote(actor core.Actor, args CreateNoteArgs) (*CreateNo
 	if err != nil {
 		return nil, err
 	}
+	if root := d.store.FilesRoot(); root != "" && args.Body != "" {
+		managedPath, werr := data.WriteManagedFile(root, data.CategoryNotes, note.ID, args.Title, ".md", args.Body)
+		if werr != nil {
+			return nil, werr
+		}
+		if updated, _, perr := d.store.Patch(data.PatchInput{
+			Ref:     note.Ref(),
+			Fields:  map[string]any{"filePath": managedPath, "path": managedPath},
+			Summary: "record managed file path",
+		}, actor); perr == nil && updated != nil {
+			note = updated
+		}
+	}
 	out := &CreateNoteResult{Note: note}
 	if args.About != nil && args.About.Kind != "" && args.About.ID != "" {
 		if out.Relation, _, err = d.store.Relate(data.RelateInput{From: note.Ref(), Kind: data.RelAbout, To: *args.About}, actor); err != nil {

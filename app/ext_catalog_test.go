@@ -95,3 +95,52 @@ esac
 		t.Fatalf("external Show page:\n%s", sf)
 	}
 }
+
+func TestLiveV2ExtensionCatalogs(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skipf("cannot resolve home dir: %v", err)
+	}
+	bins := []string{"o-df2", "o-md2", "o-cmds2", "o-lane2", "o-questions2"}
+	tested := 0
+	for _, name := range bins {
+		bin := filepath.Join(home, "bin", name)
+		info, statErr := os.Stat(bin)
+		if statErr != nil || info.IsDir() {
+			t.Logf("skipping %s: not installed at %s", name, bin)
+			continue
+		}
+		tested++
+		t.Run(name, func(t *testing.T) {
+			a, _ := demo(t)
+			m, err := ext.LoadCatalog(t.Context(), bin)
+			if err != nil {
+				t.Fatalf("LoadCatalog(%s): %v", bin, err)
+			}
+			if len(m.Schemas) == 0 {
+				t.Fatalf("%s manifest has no schemas", name)
+			}
+			if err := a.MountCatalog(bin, m); err != nil {
+				t.Fatalf("MountCatalog(%s): %v", name, err)
+			}
+			for _, sc := range m.Schemas {
+				if _, ok := a.Store.Registry().Get(sc.Kind); !ok {
+					t.Errorf("%s schema %q not registered after MountCatalog", name, sc.Kind)
+				}
+			}
+			res, err := ext.QueryExternal(t.Context(), bin, m.Schemas[0].Kind, a.Store)
+			if err != nil {
+				t.Fatalf("QueryExternal(%s, %s): %v", name, m.Schemas[0].Kind, err)
+			}
+			for i, rec := range res.Items {
+				if rec.Kind == "" || rec.ID == "" {
+					t.Fatalf("%s item %d missing kind/id: %+v", name, i, rec)
+				}
+			}
+			t.Logf("%s: mounted %d schema(s), queried %d %s record(s)", name, len(m.Schemas), len(res.Items), m.Schemas[0].Kind)
+		})
+	}
+	if tested == 0 {
+		t.Skip("no ~/bin/o-*2 binaries installed on this machine")
+	}
+}

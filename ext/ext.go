@@ -44,9 +44,18 @@ const (
 	StatusOffline = "offline"
 )
 
-// DefaultTools are the o-* tools Discover looks for.
+// DefaultTools are the o-* tools Discover looks for, including side-by-side v2
+// binaries (tools not found on PATH produce no record).
 var DefaultTools = []string{
-	"o-csv", "o-git", "o-lane", "o-json", "o-links", "o-md", "o-cmds", "o-questions", "o-df",
+	"o-csv", "o-csv2",
+	"o-git",
+	"o-lane", "o-lane2",
+	"o-json", "o-json2",
+	"o-links",
+	"o-md", "o-md2",
+	"o-cmds", "o-cmds2",
+	"o-questions", "o-questions2",
+	"o-df", "o-df2",
 }
 
 // Defaults for Options left zero.

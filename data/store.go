@@ -95,8 +95,10 @@ CREATE INDEX IF NOT EXISTS change_targets_ref ON change_targets (kind, id, chang
 // Store is the SQLite store behind the Data API. It is safe for concurrent
 // use; writes are serialized.
 type Store struct {
-	db  *sql.DB
-	reg *Registry
+	db        *sql.DB
+	reg       *Registry
+	dsn       string
+	filesRoot string
 
 	wmu  sync.Mutex
 	last time.Time
@@ -144,13 +146,27 @@ func Open(dsn string) (*Store, error) {
 			return nil, fmt.Errorf("data: add snoozed_until to %s: %w", dsn, err)
 		}
 	}
-	s := &Store{db: db, reg: DefaultSchemas()}
+	s := &Store{db: db, reg: DefaultSchemas(), dsn: dsn}
 	if err := s.ensureUniqueIndexes(); err != nil {
 		db.Close()
 		return nil, err
 	}
 	return s, nil
 }
+
+// DBPath returns the DSN or path the store was opened with.
+func (s *Store) DBPath() string { return s.dsn }
+
+// FilesRoot returns the canonical managed files directory for this store.
+func (s *Store) FilesRoot() string {
+	if s.filesRoot != "" {
+		return s.filesRoot
+	}
+	return FilesRoot(s.dsn)
+}
+
+// SetFilesRoot overrides the managed files directory for this store.
+func (s *Store) SetFilesRoot(dir string) { s.filesRoot = dir }
 
 // Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
@@ -866,6 +882,55 @@ func (s *Store) Patch(in PatchInput, actor core.Actor) (*Record, *ChangeSet, err
 	}
 	rec, err := s.Get(in.Ref)
 	return rec, cs, err
+}
+
+// PatchMany applies multiple record patches in one transaction and one
+// immutable change set, so a single Undo takes all of them back together.
+func (s *Store) PatchMany(patches []PatchInput, action, summary string, actor core.Actor) (*ChangeSet, error) {
+	if len(patches) == 0 {
+		return nil, nil
+	}
+	if action == "" {
+		action = "patch.batch"
+	}
+	if summary == "" {
+		summary = fmt.Sprintf("patch %d records", len(patches))
+	}
+	return s.write(actor, action, summary, 0, false, func(t *txn) error {
+		for _, in := range patches {
+			rec, err := s.loadRecord(t.tx, in.Ref)
+			if err != nil {
+				return err
+			}
+			keys := make([]string, 0, len(in.Fields))
+			for k := range in.Fields {
+				keys = append(keys, k)
+			}
+			slices.Sort(keys)
+			for _, k := range keys {
+				nv, err := t.value(in.Fields[k])
+				if err != nil {
+					return fmt.Errorf("field %q: %w", k, err)
+				}
+				ch := FieldChange{Ref: in.Ref, Op: OpField, Field: k, New: nv, HasNew: nv != nil}
+				switch {
+				case k == ColSnoozedUntil:
+					ch.Op = OpStatus
+				case k == ColArchiveStatus || k == ColStarStatus:
+					if nv == nil {
+						nv = map[string]any{ColArchiveStatus: ArchiveActive, ColStarStatus: StarUnstarred}[k]
+					}
+					ch.Op, ch.New = OpStatus, Text(nv)
+				case rec.ReadOnly[k]:
+					ch.Op = OpLocal
+				}
+				if err := t.apply(ch); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
 }
 
 // Delete removes a record, its local overrides and its relations in one
