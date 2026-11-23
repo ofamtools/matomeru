@@ -98,6 +98,11 @@ const (
 	CmdBindingsOpen    = "bindings.open"
 	CmdPaneZoom        = "pane.zoom"
 	CmdPaneAttention   = "pane.attention.next"
+	CmdPaneApprove     = "pane.approve"
+	CmdPaneDeny        = "pane.deny"
+	CmdDaemonReset     = "daemon.reset"
+	CmdSchedulePause   = "schedule.pause"
+	CmdScheduleResume  = "schedule.resume"
 	CmdLaneShow        = "lane.show"
 	CmdTermEscape      = "terminal.escape"
 
@@ -231,6 +236,11 @@ func DefaultBindings() []core.Binding {
 		bind(n, data.KindExtension, "r", CmdExtRun, "run"),
 		bind(n, SpaceExtensions, "R", CmdExtRefresh, "look for extensions"),
 		bind(n, data.KindSignal, "R", CmdTriageRule, "rule from this signal"),
+		when(bind(n, SpacePanes, "Y", CmdPaneApprove, "approve"), "facts.hasPendingApproval"),
+		when(bind(n, SpacePanes, "D", CmdPaneDeny, "deny"), "facts.hasPendingApproval"),
+		when(bind(n, data.KindSchedule, "p", CmdSchedulePause, "pause"), "!facts.paused"),
+		when(bind(n, data.KindSchedule, "p", CmdScheduleResume, "resume"), "facts.paused"),
+		bind(n, all, "g R", CmdDaemonReset, "reset daemon"),
 
 		// Yank: y lists every value of the record, y y copies its main one.
 		bind(n, all, "y", CmdYankPick, "yank"),
@@ -559,6 +569,11 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdBindingsOpen, "Browse, filter, rebind, unbind and reset the key bindings"),
 		spec(CmdPaneZoom, "Zoom the pane: hide the rail and the pages, or bring them back"),
 		spec(CmdPaneAttention, "Go to the next pane with an unread question or a waiting program"),
+		recordSpec(CmdPaneApprove, "Approve the selected pane's pending permission request", []string{data.KindPane}, "facts.hasPendingApproval"),
+		recordSpec(CmdPaneDeny, "Deny the selected pane's pending permission request", []string{data.KindPane}, "facts.hasPendingApproval"),
+		spec(CmdDaemonReset, "Reset the local daemon: close all live panes, clear telemetry and archive dropped panes"),
+		recordSpec(CmdSchedulePause, "Pause the focused schedule so the daemon stops firing it", []string{data.KindSchedule}, "!facts.paused", "editing"),
+		recordSpec(CmdScheduleResume, "Resume the focused schedule so the daemon fires it again", []string{data.KindSchedule}, "facts.paused", "editing"),
 		recordSpec(CmdLaneShow, "Open the Show page of the pane's active lane", []string{data.KindPane, data.KindLane}, ""),
 		{ID: CmdTermEscape, Description: "Send a literal escape to the pane", Meta: map[string]any{"internal": true}},
 		{ID: CmdBindingsFilter, Description: "Type the binding editor's filter", Meta: map[string]any{"internal": true}},

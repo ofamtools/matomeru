@@ -318,6 +318,10 @@ func (a *App) submitForm(s core.State, fs *formState, values map[string]any) cor
 		}
 		a.clearSubmittedDraft(fs)
 		a.form = nil
+		if fs.kind == data.KindPane && s.ActivePage == SpacePanes {
+			a.gen++
+			selectRow(a.rail(), data.RefText(ref))
+		}
 		a.wrote(fmt.Sprintf("created %s %q", strings.ToLower(schema.Title), views.Title(schema, *rec)), cs, nil)
 		return closeModal(s, modalForm)
 	}

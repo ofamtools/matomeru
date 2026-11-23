@@ -13,6 +13,10 @@
 //	mtm mcp tools
 //	mtm mcp call TOOL 'JSON'
 //	mtm mcp serve                            an MCP server (JSON-RPC 2.0) on stdin and stdout
+//	mtm agent hook [harness] [flags]         forward agent hook JSON to the local daemon (fast path)
+//	mtm agent state <state> [flags]          send a manual turn state update
+//	mtm daemon serve|status|reset|stop       manage the local self-hosted daemon
+//	mtm harness list [--json]                list available harnesses and configured launch commands
 //	mtm migrate --from V1_DB [--dry-run | --apply]
 //
 // Record commands print JSON; --format table prints records as a table.
@@ -34,6 +38,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"ofam.dev/matomeru/agenthook"
 	"ofam.dev/matomeru/app"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/mcpui"
@@ -68,12 +73,22 @@ mtm record undo | redo
 mtm mcp tools
 mtm mcp call TOOL 'JSON'
 mtm mcp serve                            MCP server on stdin/stdout (JSON-RPC 2.0, one message per line)
+mtm agent hook [harness] [flags]         forward agent hook JSON from stdin to the local daemon (fast path)
+mtm agent state <state> [flags]          send a manual turn state update (running|needs_you|idle|done)
+mtm daemon serve [--socket PATH] [--mcp-addr ADDR] [--db PATH]
+                                         run the local daemon (PTY host, HTTP MCP server, scheduler)
+mtm daemon status [--socket PATH] [--json]
+                                         show local daemon status
+mtm daemon reset [--socket PATH] [--json]
+                                         drop all live panes held by the daemon
+mtm daemon stop [--socket PATH] [--json] stop the local daemon
+mtm harness list [--json]                list available harnesses and configured launch commands
 mtm migrate --from V1_DB [--dry-run | --apply]
                                          import a v1 mtm.db; prints a JSON report. The v1
                                          file is only read. Nothing is written without --apply.
 
 --db PATH       the SQLite file (default: $MTM_DB, or the user data directory)
-config          settings.json, bindings.json, themes.json and handlers.json are read from
+config          settings.json, bindings.json, themes.json, harnesses.json and handlers.json are read from
                 $MTM_CONFIG_DIR, or ~/.config/matomeru. S and B in the TUI change and
                 save the first two; handlers.json says what opens which file (o and O).
 --format table  print records as a table instead of JSON`
@@ -235,6 +250,16 @@ func run(argv []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if g.tutorial && !isSmoke && (len(args) != 0 || g.db != "" || g.seed) {
 		return oden.Report(stderr, "mtm", errors.New("--tutorial opens its own workspace: it takes no command, --db or --seed-demo"))
 	}
+	// Fast-path agent hook/state before oden setup or opening SQLite so
+	// hook invocations stay under 20ms and never touch the database.
+	if len(args) >= 2 && args[0] == "agent" {
+		switch args[1] {
+		case "hook":
+			return agenthook.Run(args[2:], stdin, stdout, stderr)
+		case "state":
+			return agenthook.Run(args[1:], stdin, stdout, stderr)
+		}
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -273,13 +298,17 @@ func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.
 				cancel() // the TUI reads ctrl+c itself
 				return runTutorial()
 			}
+			dbPath := g.db
+			if dbPath == "" {
+				dbPath, _ = defaultDB()
+			}
 			store, err := openStoreWithSeed(g)
 			if err != nil {
 				return err
 			}
 			defer store.Close()
 			cancel() // the TUI reads ctrl+c itself
-			return runTUI(store)
+			return runTUI(store, dbPath, stderr)
 		},
 	}
 
@@ -296,6 +325,9 @@ func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.
 		mtmConfigCommand(),
 		mtmRecordCommand(g),
 		mtmMCPCommand(g),
+		mtmAgentCommand(),
+		mtmDaemonCommand(g),
+		mtmHarnessCommand(),
 		mtmMigrateCommand(g),
 		mtmUndoCommand(g),
 		mtmRedoCommand(g),
@@ -767,12 +799,17 @@ func runMigrate(ctx context.Context, g globalOpts, p oden.Parsed, stdout io.Writ
 }
 
 // runTUI opens the live app: commands run, extensions are found, panes have
-// real terminals and the store is watched for others' writes. Everything it
-// started is stopped when the program ends.
-func runTUI(store *data.Store) error {
-	a, err := app.New(store, app.Options{ConfigDir: configDir(), Live: true})
+// real terminals (backed by the local self-hosted daemon unless disabled) and
+// the store is watched for others' writes. Everything it started is stopped
+// when the program ends.
+func runTUI(store *data.Store, dbPath string, stderr io.Writer) error {
+	opts, warnings := buildTUIOptions(context.Background(), dbPath, configDir(), stderr, nil)
+	a, err := app.New(store, opts)
 	if err != nil {
 		return err
+	}
+	if len(warnings) > 0 {
+		a.Warnings = append(a.Warnings, warnings...)
 	}
 	return runApp(a)
 }

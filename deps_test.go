@@ -171,9 +171,9 @@ var policies = map[string]policy{
 			ochazuke + "/widgets/palette",
 		},
 	},
-	// The binary: oden + ochazuke/cli around app, data, mcpui, daemon, agenthook, harness and migrate.
+	// The binary: oden + ochazuke/cli around app, data, mcpui, daemon, agenthook, harness, ptyhost and migrate.
 	mod + "/cmd/mtm": {
-		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", ochazuke + "/core", ochazuke + "/cli", oden, bubbletea},
+		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", oden, bubbletea},
 	},
 }
 

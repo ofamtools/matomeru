@@ -74,6 +74,9 @@ func (a *App) build(s core.State) ui.ViewNode {
 		}
 		if sp.id == SpacePanes {
 			tab.Unread = slices.ContainsFunc(a.rail().Rows, func(r table.Row) bool { return r.Unread })
+			if pane, ok := a.SelectedPane(); ok && len(a.pendingApprovalsFor(pane.ID)) > 0 {
+				tab.Facts = map[string]any{"hasPendingApproval": true}
+			}
 		}
 		tabs.Children = append(tabs.Children, tab)
 	}
@@ -306,6 +309,20 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 			opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once
 		}
 		site = views.PaneSiteViewWith(*pane, res.Items, a.activePage[pane.ID], a.tocFilter, opts)
+		var extraTop []ui.ViewNode
+		if strip, ok := a.paneHeaderStrip(*pane); ok {
+			extraTop = append(extraTop, strip)
+		}
+		if banner, ok := a.paneApprovalBanner(*pane); ok {
+			extraTop = append(extraTop, banner)
+			if site.Facts == nil {
+				site.Facts = map[string]any{}
+			}
+			site.Facts["hasPendingApproval"] = true
+		}
+		if len(extraTop) > 0 {
+			site.Children = append(extraTop, site.Children...)
+		}
 		a.live.shown = ""
 		if screen := site.Find(siteScreen); screen != nil {
 			if lines, cursor, badges, ok := a.liveScreen(*pane, siteScreen); ok {
@@ -376,12 +393,21 @@ func (a *App) workSpace(s core.State) ui.ViewNode {
 	page, err := views.ShowViewWith(a.Store, ref, s.Pages[SpaceWork].FocusID, a.showOptions())
 	if header := page.Find(showHeader); err == nil && header != nil {
 		// The Show page's record opens with "o" as its row in a list does.
-		if rec, gerr := a.Store.Get(ref); gerr == nil && a.openable(*rec) {
+		if rec, gerr := a.Store.Get(ref); gerr == nil {
 			facts := maps.Clone(header.Facts)
 			if facts == nil {
 				facts = map[string]any{}
 			}
-			facts[factOpenable] = true
+			if a.openable(*rec) {
+				facts[factOpenable] = true
+			}
+			if rec.Kind == data.KindSchedule {
+				paused := rec.Bool("paused")
+				facts["paused"] = paused
+				if paused {
+					header.Badges = append(header.Badges, ui.Badge{Text: "paused", Tone: "warning"})
+				}
+			}
 			header.Facts = facts
 		}
 	}

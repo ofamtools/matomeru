@@ -13,6 +13,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
 	"ofam.dev/matomeru/mcpui"
@@ -65,6 +66,13 @@ type liveState struct {
 	frames    map[string]ptyhost.Frame // last snapshot of each pane's session
 	shown     string                   // the session the Screen shows
 	clipboard string                   // the last text yanked
+
+	telemetryMu    sync.RWMutex
+	telemetry      *daemon.TelemetryResult
+	telemetryFP    string
+	telemetrySeq   atomic.Uint64
+	telemetryDrawn uint64
+	mcpURL         string
 }
 
 func (a *App) setupLive(opts Options) {
@@ -72,7 +80,10 @@ func (a *App) setupLive(opts Options) {
 	l.wake = make(chan struct{}, 1)
 	l.frames = map[string]ptyhost.Frame{}
 	l.bgCtx, l.bgStop = context.WithCancel(context.Background())
-	a.Runner, a.Extensions, a.Host = opts.Runner, opts.Extensions, opts.Host
+	a.Runner, a.Extensions, a.Host, a.Daemon = opts.Runner, opts.Extensions, opts.Host, opts.Daemon
+	if a.Daemon != nil && a.Host == nil {
+		a.Host = daemon.NewHostAdapter(a.Daemon)
+	}
 	l.watch = opts.Watch
 	if opts.Live {
 		if a.Runner == nil {
@@ -94,6 +105,16 @@ func (a *App) setupLive(opts Options) {
 	if a.Host != nil {
 		a.Term = ptyhost.NewController(a.Host)
 	}
+	if a.Daemon != nil {
+		_ = a.daemonMCPBase()
+		if opts.Live {
+			a.reconcileDaemonPanes()
+		}
+		a.refreshTelemetry()
+	}
+	if opts.Live {
+		a.startHarnessDiscovery()
+	}
 	if a.tracking() {
 		if n, err := a.Store.LatestChangeSetNumber(); err == nil {
 			l.drawn = n
@@ -105,7 +126,7 @@ func (a *App) setupLive(opts Options) {
 // tracking reports whether the store can change under the app: someone else
 // writes to it (the watcher looks), or the app's own background work does.
 func (a *App) tracking() bool {
-	return a.live.watch > 0 || a.Runner != nil || a.Extensions != nil
+	return a.live.watch > 0 || a.Runner != nil || a.Extensions != nil || a.Daemon != nil
 }
 
 // Notify wakes the app: the next wake-up looks at what changed (posted
@@ -142,16 +163,21 @@ func (a *App) background(work func(ctx context.Context) func(core.State) core.St
 func (a *App) WaitBackground() { a.live.bg.Wait() }
 
 // WatchCheck is one look of the store watcher: it reports (and wakes the app)
-// only when the newest change set moved since the last look, so an idle store
-// costs one small query and no redraw.
+// only when the newest change set or daemon hook telemetry moved since the
+// last look, so an idle store and idle daemon cost no redraw.
 func (a *App) WatchCheck() bool {
-	n, err := a.Store.LatestChangeSetNumber()
-	if err != nil || n == a.live.seen.Load() {
-		return false
+	changed := false
+	if n, err := a.Store.LatestChangeSetNumber(); err == nil && n != a.live.seen.Load() {
+		a.live.seen.Store(n)
+		changed = true
 	}
-	a.live.seen.Store(n)
-	a.Notify()
-	return true
+	if a.Daemon != nil && a.pollTelemetry() {
+		changed = true
+	}
+	if changed {
+		a.Notify()
+	}
+	return changed
 }
 
 // markDrawn remembers the store as the view now shows it, so the app's own
@@ -190,6 +216,9 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 	}
 	if a.screenMoved() {
 		changed = true
+	}
+	if seq := l.telemetrySeq.Load(); seq != l.telemetryDrawn {
+		l.telemetryDrawn, changed = seq, true
 	}
 	if !changed {
 		return core.Next(s)
@@ -508,12 +537,13 @@ func (a *App) attachSized(pane data.Record, cols, rows int) error {
 		a.Term.Forget(pane.ID)
 		delete(a.live.frames, pane.ID)
 	}
-	cmd, cwd := pane.Text("command"), expandHome(pane.Text("cwd"))
+	cmd, env := a.buildPaneLaunch(pane)
+	cwd := expandHome(pane.Text("cwd"))
 	var err error
 	if host, ok := a.Host.(ptyhost.EnvOpener); ok {
 		// The program learns which pane it is in and which task it works on:
 		// the MCP tools read both as their defaults.
-		env := map[string]string{mcpui.EnvPaneID: pane.ID}
+		env[mcpui.EnvPaneID] = pane.ID
 		if task, has := pane.RefField("task"); has {
 			env[mcpui.EnvTaskID] = task.ID
 		}

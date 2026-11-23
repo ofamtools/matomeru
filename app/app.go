@@ -18,13 +18,16 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
 	"ofam.dev/matomeru/handlers"
+	"ofam.dev/matomeru/harness"
 	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/ptyhost"
 	"ofam.dev/matomeru/runs"
@@ -142,6 +145,9 @@ type Options struct {
 	Extensions *ext.Manager
 	// Host holds the panes' PTY sessions: the Screen, Copy Mode, side panes.
 	Host ptyhost.Host
+	// Daemon connects the app to the local self-hosted daemon for persistent
+	// panes, reset, hook telemetry, and blocking approval resolution.
+	Daemon *daemon.Client
 	// Watch is how often Start checks the store for others' writes; 0 does
 	// not check (Live uses DefaultWatch).
 	Watch time.Duration
@@ -201,9 +207,14 @@ type App struct {
 	Runner     *runs.Runner
 	Extensions *ext.Manager
 	Host       ptyhost.Host
+	Daemon     *daemon.Client
 	// Term reads the keys typed into a pane's session; nil without a Host.
 	Term *ptyhost.Controller
 	live liveState
+
+	harnessMu      sync.RWMutex
+	harnessCfg     harness.FileConfig
+	harnessEntries []harness.Entry
 
 	opts     Options
 	bindings []core.Binding
@@ -301,6 +312,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		a.loadDrafts(dir)
 	}
 	a.loadHandlers(opts.ConfigDir)
+	a.loadHarnesses(opts.ConfigDir)
 	theme := a.theme()
 	if err := a.rebuildKeymap(); err != nil {
 		if a.Keymap == nil {
@@ -636,6 +648,13 @@ func (a *App) records(id, kind string) *table.Model {
 		if a.openable(rec) {
 			fresh.Rows[i].Facts[factOpenable] = true // "o" opens it; a row without the fact sorts
 		}
+		if rec.Kind == data.KindSchedule {
+			paused := rec.Bool("paused")
+			fresh.Rows[i].Facts["paused"] = paused
+			if paused {
+				fresh.Rows[i].Badges = append(fresh.Rows[i].Badges, ui.Badge{Text: "paused", Tone: "warning"})
+			}
+		}
 	}
 	for _, sp := range spaces {
 		if sp.table == id && sp.columns != nil {
@@ -655,8 +674,12 @@ func (a *App) records(id, kind string) *table.Model {
 }
 
 // attention reports whether a pane has something for the owner: an unread
-// page, or a question still waiting for an answer.
+// page, a question still waiting for an answer, a needs_you hook state, or a
+// pending blocking permission request.
 func (a *App) attention(pane string) bool {
+	if a.paneHasAttention(pane) {
+		return true
+	}
 	res, err := a.Router.ListPages(mcpui.ListPagesArgs{Pane: pane})
 	if err != nil {
 		return false
@@ -687,6 +710,7 @@ func (a *App) rail() *table.Model {
 			mark, row.Unread = "● ", true
 		}
 		row.Cells["rail"] = mark + views.Title(a.schema(data.KindPane), panes[i])
+		a.decorateRailRow(row, panes[i])
 		if a.openable(panes[i]) {
 			row.Facts[factOpenable] = true
 		}
@@ -1126,6 +1150,7 @@ func (a *App) edit(s core.State, c core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	fs := &formState{kind: ref.Kind, ref: &ref, fm: views.FormForRecordWith(a.schema(ref.Kind), rec, a.editOptions())}
+	a.applyHarnessChoices(fs)
 	a.configureRecordForm(fs)
 	a.form = fs
 	a.say("ctrl+s saves · esc closes (saves draft)")
@@ -1161,6 +1186,7 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 			}
 		}
 		fs.fm.Dirty = false
+		a.applyHarnessChoices(fs)
 		a.configureRecordForm(fs)
 		a.form = fs
 		a.say("new %s · ctrl+s creates · esc closes", strings.ToLower(schema.Title))
@@ -1192,6 +1218,7 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 		}
 	}
 	fs.fm.Dirty = false
+	a.applyHarnessChoices(fs)
 	a.configureRecordForm(fs)
 	a.form = fs
 	a.say("new %s · ctrl+s creates · esc closes", strings.ToLower(schema.Title))
@@ -1210,6 +1237,7 @@ func (a *App) reloadForm() {
 	}
 	idx := fs.fm.ActiveIdx
 	fs.fm = views.FormForRecordWith(a.schema(fs.kind), rec, a.editOptions())
+	a.applyHarnessChoices(fs)
 	a.configureRecordForm(fs)
 	fs.fm.ActiveIdx = min(idx, max(len(fs.fm.Specs), 0))
 }
@@ -2327,6 +2355,11 @@ func (a *App) register() {
 	}
 	a.handle(CmdPaneZoom, a.paneZoom)
 	a.handle(CmdPaneAttention, a.nextAttention)
+	a.handle(CmdPaneApprove, a.paneResolveApproval(daemon.DecisionAllow))
+	a.handle(CmdPaneDeny, a.paneResolveApproval(daemon.DecisionDeny))
+	a.handle(CmdDaemonReset, a.daemonReset)
+	a.handle(CmdSchedulePause, a.schedulePause)
+	a.handle(CmdScheduleResume, a.scheduleResume)
 	a.handle(CmdLaneShow, a.laneShow)
 	a.handle(CmdTermEscape, a.termEscape)
 	a.handle(views.CmdStar, a.onRecord("star", a.Store.Star))

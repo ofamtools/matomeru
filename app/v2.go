@@ -531,9 +531,13 @@ func (a *App) openQuestion(pane string) (string, bool) {
 	return "", false
 }
 
-// waiting reports whether a pane waits for the owner: a question is open, or
-// its program is waiting. A page that is only unread does not count.
+// waiting reports whether a pane waits for the owner: a question is open,
+// a blocking permission request / needs_you hook state is active, or its
+// program is waiting. A page that is only unread does not count.
 func (a *App) waiting(pane data.Record) bool {
+	if a.paneHasAttention(pane.ID) {
+		return true
+	}
 	_, asked := a.openQuestion(pane.ID)
 	return asked || pane.Text("runStatus") == "waiting"
 }

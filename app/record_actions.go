@@ -58,6 +58,12 @@ func (a *App) recordFacts(s core.State, ref core.Ref) map[string]any {
 		}
 		facts["snoozed"] = rec.IsSnoozed(a.now())
 		facts[factOpenable] = a.openable(*rec)
+		if rec.Kind == data.KindSchedule {
+			facts["paused"] = rec.Bool("paused")
+		}
+		if rec.Kind == data.KindPane {
+			facts["hasPendingApproval"] = len(a.pendingApprovalsFor(rec.ID)) > 0
+		}
 	}
 	return facts
 }
