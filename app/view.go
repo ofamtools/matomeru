@@ -61,6 +61,12 @@ func (a *App) viewKey(s core.State) string {
 	if a.Shell != nil {
 		fmt.Fprintf(&b, "|%dx%d", a.Shell.W, a.Shell.H)
 	}
+	if tk := a.toastViewKey(); tk != "" {
+		b.WriteString("|toast:" + tk)
+	}
+	if a.hints != nil && a.hints.session != nil && a.hints.session.Active() {
+		fmt.Fprintf(&b, "|hints:%t:%s:%d", a.hints.focusJump, a.hints.session.Prefix(), len(a.hints.session.Remaining()))
+	}
 	return b.String()
 }
 
@@ -85,6 +91,12 @@ func (a *App) build(s core.State) ui.ViewNode {
 	for _, m := range s.Modals {
 		overlays = append(overlays, a.modal(m))
 	}
+	if a.hints != nil && a.hints.focusJump && a.hints.session != nil && a.hints.session.Active() {
+		overlays = append(overlays, a.hints.session.ViewOverlay("focus.hints.overlay"))
+	}
+	if toastOv, ok := a.toastOverlay(); ok {
+		overlays = append(overlays, toastOv)
+	}
 	root.Children = append(root.Children, overlays...)
 
 	// The footer reads the context chain of the tree above it.
@@ -98,6 +110,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 		line("hints", clip(a.hintLine(s, chain), w), "muted"),
 	}
 	root.Children = append(append([]ui.ViewNode{tabs}, footer...), overlays...)
+	applyTreeGuides(&root, a.Settings.Bool(SetTreeGuides, true))
 	return root
 }
 
@@ -570,6 +583,11 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 			break
 		}
 		return a.composerModal()
+	case modalConfirm:
+		if a.confirm == nil {
+			break
+		}
+		return a.confirmModal()
 	case modalInspect:
 		pm := a.pickers[m.ID]
 		if pm == nil {

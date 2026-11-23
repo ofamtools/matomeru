@@ -55,7 +55,7 @@ func TestTutorial(t *testing.T) {
 func TestSettingsApplyAndPersist(t *testing.T) {
 	want := map[string]any{SetTheme: "ochazuke-dark", SetDensity: "balanced", SetBorderStyle: "rounded", SetShowMetadata: true, SetShowEmpty: true,
 		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: true, SetRailAutoWiden: false, SetShowTOC: true,
-		SetPanesGroup: PanesGroupProjectPane}
+		SetPanesGroup: PanesGroupProjectPane, SetToast: true, SetTreeGuides: true, SetConfirmQuit: true, SetConfirmDaemonReset: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

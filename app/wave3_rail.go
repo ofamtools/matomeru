@@ -36,6 +36,7 @@ func (a *App) panesGroupToggle(s core.State, _ core.Command) core.StepResult {
 		nextMode = PanesGroupProjectPane
 	}
 	a.userSettings[SetPanesGroup] = nextMode
+	a.railGroupSet = false
 	a.railCustomGroup = ""
 	a.reloadSettings()
 	a.applySettings()
@@ -210,12 +211,16 @@ func (a *App) buildRail() *table.Model {
 
 	tbl := keep(old, fresh)
 	switch {
-	case a.railCustomGroup != "":
+	case a.railGroupSet:
 		tbl.GroupField = a.railCustomGroup
 	case a.panesGroupMode() == PanesGroupProjectPane:
 		tbl.GroupField = "project"
 	default:
 		tbl.GroupField = ""
+	}
+	if old == nil {
+		tbl.MatchMode = a.matchMode()
+		a.applyDefaultPreset(tbl, railTable)
 	}
 
 	switch {
@@ -418,6 +423,7 @@ func (a *App) projectContextTableModel(groupName string, projRef *core.Ref) *tab
 	tbl := keep(old, fresh)
 	if old == nil {
 		tbl.MatchMode = a.matchMode()
+		a.applyDefaultPreset(tbl, projectContextTable)
 	}
 	a.pageSize(tbl, projectContextTable)
 	a.tables[projectContextTable] = tbl

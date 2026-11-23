@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"ofam.dev/matomeru/actions"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
 	"ofam.dev/matomeru/runs"
@@ -51,6 +52,14 @@ func CheckBindings(configDir string) (BindingCheckReport, error) {
 	}
 
 	if configDir != "" {
+		if defs, aerr := actions.LoadFile(filepath.Join(configDir, actions.ActionsFile)); aerr != nil {
+			rep.Errors = append(rep.Errors, BindingIssue{
+				Severity: "error",
+				Message:  fmt.Sprintf("%s: %v", actions.ActionsFile, aerr),
+			})
+		} else if len(defs) > 0 {
+			specs = append(specs, actions.ToCommandSpecs(defs)...)
+		}
 		b, err := os.ReadFile(filepath.Join(configDir, bindingsFileName))
 		if err != nil && !os.IsNotExist(err) {
 			return rep, err

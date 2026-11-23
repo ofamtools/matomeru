@@ -13,13 +13,16 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/widgets/hints"
+	"ofam.dev/ochazuke/widgets/toast"
 )
 
 type hintsState struct {
 	session     *hints.Session
 	paneID      string
+	focusJump   bool
 	returnMode  string
 	returnFocus string
+	returnPage  string
 	inScratch   bool
 	lines       []string
 }
@@ -136,6 +139,16 @@ func (a *App) exitHints(s core.State) core.State {
 	if retMode == "" {
 		retMode = ModeNormal
 	}
+	if hs.focusJump {
+		if len(s.Modals) > 0 {
+			return withMode(s, retMode)
+		}
+		page := hs.returnPage
+		if page == "" {
+			page = s.ActivePage
+		}
+		return withPage(s, page, hs.returnFocus, retMode)
+	}
 	if hs.inScratch {
 		return withMode(s, retMode)
 	}
@@ -178,8 +191,14 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 	case hints.StatusMatched:
 		target := res.Target
 		paneID := a.hints.paneID
+		focusJump := a.hints.focusJump
 		s = a.exitHints(s)
 		if target == nil {
+			return core.Next(s)
+		}
+		if focusJump {
+			s = withFocus(s, target.ID)
+			a.say("focused %s", target.ID)
 			return core.Next(s)
 		}
 		var pane *data.Record
@@ -197,6 +216,7 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 		default:
 			// lowercase label copies the target to clipboard + registers.
 			a.yank(target.Value, target.Kind)
+			a.pushToast("Copied "+clip(target.Value, 40), toast.Ok)
 			return core.Next(s)
 		}
 	}

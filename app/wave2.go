@@ -21,6 +21,7 @@ import (
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/table"
+	"ofam.dev/ochazuke/widgets/toast"
 )
 
 const (
@@ -171,7 +172,8 @@ func (a *App) reconcileDaemonPanes() {
 	}
 }
 
-// daemonReset kills all panes on the local daemon, clears local frame and
+// daemonReset prompts via the shared confirmation modal when confirm.daemonReset
+// is enabled, then kills all panes on the local daemon, clears local frame and
 // telemetry caches, archives the dropped pane records in the store, and
 // reports a confirmation message.
 func (a *App) daemonReset(s core.State, _ core.Command) core.StepResult {
@@ -180,11 +182,43 @@ func (a *App) daemonReset(s core.State, _ core.Command) core.StepResult {
 		a.say("no local daemon is connected")
 		return core.Next(s)
 	}
+	if a.Settings.Bool(SetConfirmDaemonReset, true) {
+		liveCount := a.liveDaemonPaneCount(client)
+		return core.Next(a.openConfirm(s, confirmState{
+			title:        "Reset Daemon",
+			message:      fmt.Sprintf("Drop all %d live daemon panes and reset the daemon? This cannot be undone.", liveCount),
+			confirmLabel: "Confirm",
+			onConfirm: func(st core.State) core.State {
+				return a.execDaemonReset(st)
+			},
+		}))
+	}
+	return core.Next(a.execDaemonReset(s))
+}
+
+func (a *App) liveDaemonPaneCount(client *daemon.Client) int {
+	if client == nil {
+		return 0
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), daemonRPCTimeout)
+	defer cancel()
+	if panes, err := client.List(ctx); err == nil {
+		return len(panes)
+	}
+	return len(a.live.frames)
+}
+
+func (a *App) execDaemonReset(s core.State) core.State {
+	client := a.daemonClient()
+	if client == nil {
+		a.say("no local daemon is connected")
+		return s
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := client.Reset(ctx); err != nil {
 		a.fail("daemon reset", err)
-		return core.Next(s)
+		return s
 	}
 	if ha, ok := a.Host.(*daemon.HostAdapter); ok {
 		ha.CloseAll()
@@ -222,8 +256,10 @@ func (a *App) daemonReset(s core.State, _ core.Command) core.StepResult {
 	if topModal(s) == modalScratch {
 		s = closeModal(s, modalScratch)
 	}
-	a.say("daemon reset · %d pane(s) cleared", dropped)
-	return core.Next(s)
+	msg := fmt.Sprintf("daemon reset · %d pane(s) cleared", dropped)
+	a.say("%s", msg)
+	a.pushToast(msg, toast.Warn)
+	return s
 }
 
 // --- 2. Harness catalog + async o-ai discovery -----------------------------------
@@ -720,14 +756,16 @@ func (a *App) paneResolveApproval(decision string) func(core.State, core.Command
 			return core.Next(s)
 		}
 		a.refreshTelemetry()
-		verb := "approved"
+		verb, level := "approved", toast.Ok
 		if decision == daemon.DecisionDeny {
-			verb = "denied"
+			verb, level = "denied", toast.Warn
 		}
 		if appr != nil && appr.Tool != "" {
 			a.say("%s %s (%s)", verb, appr.Tool, reqID)
+			a.pushToast(fmt.Sprintf("%s %s", verb, appr.Tool), level)
 		} else {
 			a.say("%s approval %s", verb, reqID)
+			a.pushToast(fmt.Sprintf("%s approval", verb), level)
 		}
 		return core.Next(s)
 	}
@@ -756,6 +794,9 @@ func (a *App) schedulePause(s core.State, c core.Command) core.StepResult {
 		Summary: "pause schedule",
 	}, User)
 	a.wrote("paused "+a.title(ref), cs, err)
+	if err == nil {
+		a.pushToast("Paused "+a.title(ref), toast.Info)
+	}
 	return core.Next(s)
 }
 
@@ -788,5 +829,8 @@ func (a *App) scheduleResume(s core.State, c core.Command) core.StepResult {
 		Summary: "resume schedule",
 	}, User)
 	a.wrote("resumed "+a.title(ref), cs, err)
+	if err == nil {
+		a.pushToast("Resumed "+a.title(ref), toast.Ok)
+	}
 	return core.Next(s)
 }

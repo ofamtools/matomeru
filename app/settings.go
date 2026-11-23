@@ -32,6 +32,11 @@ const (
 	SetRailAutoWiden      = "panes.railAutoWiden"
 	SetShowTOC            = "panes.showTOC"
 	SetPanesGroup         = "panes.group"
+	SetToast              = "ui.toast"
+	SetTreeGuides         = "ui.treeGuides"
+	SetConfirmQuit        = "confirm.quit"
+	SetConfirmDaemonReset = "confirm.daemonReset"
+	SetTablePresets       = "table.presets"
 	PanesGroupProjectPane = "project-pane"
 	PanesGroupFlat        = "flat"
 	defaultThemeName      = "ochazuke-dark"
@@ -81,6 +86,10 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetRailAutoWiden, false, "the pane rail widens while it has the focus"),
 		flag(SetShowTOC, true, "the pane's Pages table of contents rail"),
 		enum(SetPanesGroup, PanesGroupProjectPane, "how panes are grouped in the rail", PanesGroupProjectPane, PanesGroupFlat),
+		flag(SetToast, true, "show transient toast notifications"),
+		flag(SetTreeGuides, true, "draw box-drawing guide lines in tree views"),
+		flag(SetConfirmQuit, true, "prompt before quitting Matomeru"),
+		flag(SetConfirmDaemonReset, true, "prompt before resetting the daemon and dropping all live panes"),
 	}
 }
 
@@ -125,6 +134,7 @@ func (a *App) reloadSettings() {
 	if err != nil {
 		a.warn("settings: %v", err)
 	}
+	a.syncToastSetting()
 }
 
 // theme builds the theme the settings ask for: the named preset, the
@@ -260,6 +270,7 @@ func (a *App) commitSetting() {
 		}
 	}
 	if name == SetPanesGroup {
+		a.railGroupSet = false
 		a.railCustomGroup = ""
 		a.rail()
 	}

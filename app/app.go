@@ -22,6 +22,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"ofam.dev/matomeru/actions"
 	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
@@ -44,6 +45,7 @@ import (
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/table"
+	"ofam.dev/ochazuke/widgets/toast"
 )
 
 // The four spaces, in tab order.
@@ -108,6 +110,8 @@ const (
 	modalCommandLine   = "commandline"
 	modalContext       = "context"
 	modalComposer      = "composer"
+	modalConfirm       = "confirm"
+	modalPresets       = "table.presets"
 
 	readerNode    = "reader.md"
 	scratchScreen = "scratch.screen"
@@ -294,6 +298,7 @@ type App struct {
 	railProjectRefs map[string]core.Ref
 	railGroupPanes  map[string][]data.Record
 	railCustomGroup string
+	railGroupSet    bool
 	projectCtxRows  map[string]CollectedContextItem
 	projectCtxGroup string
 	projectCtxRef   *core.Ref
@@ -316,6 +321,13 @@ type App struct {
 
 	stagedAnswers map[string]map[string]map[string]any
 
+	// Wave 4: confirmation modal, table presets, user actions, and toasts.
+	confirm     *confirmState
+	presets     *table.PresetStore
+	presetTable string
+	userActions map[string]actions.ActionDef
+	toasts      *toast.Model
+
 	gen     uint64
 	memoKey string
 	memo    ui.ViewNode
@@ -331,17 +343,21 @@ func New(store *data.Store, opts Options) (*App, error) {
 		pickers: map[string]*picker.Model{}, lastFocus: map[string]string{}, histPos: -1, indexFocus: workTable,
 		userSettings: map[string]any{}, readCache: data.NewReadCache(),
 		extCatalogs: map[string]string{}, extFetching: map[string]bool{},
-		drafts: form.NewDraftStore(),
-		ctxIdx: newContextIndex(),
+		drafts:      form.NewDraftStore(),
+		ctxIdx:      newContextIndex(),
+		userActions: map[string]actions.ActionDef{},
 	}
 	a.specs = CommandSpecs()
 	a.bindings = DefaultBindings()
 	a.Settings, _ = config.LoadSettings(nil, DefaultSettings())
 
 	if dir := opts.ConfigDir; dir != "" {
+		a.loadUserActions(dir)
 		a.loadConfig(dir)
 		a.loadDrafts(dir)
 	}
+	a.loadPresets()
+	a.initToasts()
 	a.loadHandlers(opts.ConfigDir)
 	a.loadHarnesses(opts.ConfigDir)
 	theme := a.theme()
@@ -612,7 +628,7 @@ func keep(old, fresh *table.Model) *table.Model {
 		selected = row.ID
 	}
 	fresh.Query, fresh.FilterField, fresh.MatchMode = old.Query, old.FilterField, old.MatchMode
-	fresh.SortField, fresh.SortDir = old.SortField, old.SortDir
+	fresh.SortField, fresh.SortDir, fresh.SortKeys = old.SortField, old.SortDir, slices.Clone(old.SortKeys)
 	fresh.GroupField, fresh.Collapsed, fresh.Marked = old.GroupField, old.Collapsed, old.Marked
 	fresh.SelectedIdx, fresh.Offset, fresh.PageSize = old.SelectedIdx, old.Offset, old.PageSize
 	selectRow(fresh, selected)
@@ -698,6 +714,7 @@ func (a *App) records(id, kind string) *table.Model {
 	tbl := keep(a.tables[id], fresh)
 	if a.tables[id] == nil {
 		tbl.MatchMode = a.matchMode()
+		a.applyDefaultPreset(tbl, id)
 	}
 	a.pageSize(tbl, id)
 	a.tables[id] = tbl
@@ -963,6 +980,7 @@ func (a *App) dropModals(s core.State) core.State {
 	a.settings, a.bindCapturing = nil, false // the binding editor keeps its undo history
 	a.reader, a.opening, a.yankRef, a.actionRef, a.cmdState, a.scratch = nil, nil, nil, nil, nil, ""
 	a.contextTarget, a.composer, a.hints = nil, nil, nil
+	a.confirm, a.presetTable = nil, ""
 	return s
 }
 
@@ -1607,6 +1625,12 @@ func (a *App) pickerCommand(s core.State, c core.Command) core.StepResult {
 		return core.Next(a.browse(s, picked.ID))
 	case modalField:
 		a.fieldPicked(picked.ID)
+	case modalPresets:
+		tableID := a.presetTable
+		a.presetTable = ""
+		if tableID != "" {
+			a.applyTablePreset(tableID, picked.ID)
+		}
 	case modalAssign:
 		a.assigned(picked)
 	case modalPages:
@@ -2207,6 +2231,7 @@ func (a *App) typed(pane data.Record, key, text string, echo bool) {
 // shows stale data and the focus never points at a node that is gone.
 func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResult) {
 	a.Engine.Handle(id, func(s core.State, c core.Command) core.StepResult {
+		a.tickToasts()
 		a.gen++
 		out := fn(s, c)
 		a.gen++
@@ -2285,6 +2310,10 @@ func (a *App) cancel(s core.State, _ core.Command) core.StepResult {
 	case modalPalette:
 		a.palette = nil
 		delete(a.pickers, modalPalette)
+	case modalConfirm:
+		a.confirm = nil
+	case modalPresets:
+		a.presetTable = ""
 	}
 	a.say("")
 	return core.Next(closeModal(s, id))
@@ -2605,4 +2634,21 @@ func (a *App) register() {
 	a.handle(CmdQuestionSubmitAll, a.questionSubmitAll)
 	a.handle(CmdAnswerBatchNext, a.answerBatchStep(1))
 	a.handle(CmdAnswerBatchPrev, a.answerBatchStep(-1))
+
+	// Wave 4: confirmation modal, table presets, user actions, and focus jump hints.
+	a.handle(core.CmdAppQuit, a.appQuit)
+	a.handle(CmdConfirmAccept, a.confirmAccept)
+	a.handle(CmdConfirmCancel, a.confirmCancel)
+	a.handle(CmdTablePresetPick, a.tablePresetPick)
+	a.handle(CmdTablePresetSave, a.tablePresetSave)
+	a.handle(CmdTablePresetApply, a.tablePresetApply)
+	a.handle(CmdTablePresetDefault, a.tablePresetDefault)
+	a.handle(CmdTablePresetDelete, a.tablePresetDelete)
+	a.handle(CmdPresetPickerSave, a.presetPickerSave)
+	a.handle(CmdPresetPickerDefault, a.presetPickerDefault)
+	a.handle(CmdPresetPickerDelete, a.presetPickerDelete)
+	a.handle(CmdFocusHints, a.focusHints)
+	for id, def := range a.userActions {
+		a.handle(id, a.runUserAction(def))
+	}
 }

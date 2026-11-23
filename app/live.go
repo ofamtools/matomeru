@@ -224,6 +224,9 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 			changed = true
 		}
 	}
+	if a.tickToasts() {
+		changed = true
+	}
 	if !changed {
 		return core.Next(s)
 	}

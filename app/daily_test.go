@@ -211,9 +211,35 @@ func TestRegistersAndMacros(t *testing.T) {
 	if a.Modal() != "" || len(a.State().Input.Prefix) != 0 {
 		t.Fatalf("q in the outline: modal %q, pending %v", a.Modal(), a.State().Input.Prefix)
 	}
-	// q is no longer quit: Q is.
+	// q is no longer quit: Q is. With confirm.quit=true (default) it prompts first.
 	if b := a.activeBindings(a.State()); !slices.ContainsFunc(b, func(x activeBinding) bool { return x.keys == "Q" && x.command == core.CmdAppQuit }) {
 		t.Fatal("Q does not quit")
+	}
+	hasQuit := func() bool {
+		return slices.ContainsFunc(a.Shell.LastEffects, func(e core.Effect) bool { _, ok := e.(core.QuitEffect); return ok })
+	}
+	d.Keys("Q")
+	if a.Modal() != modalConfirm || a.Mode() != ModeConfirm || hasQuit() {
+		t.Fatalf("Q with confirm.quit=true did not open confirm modal: modal=%q mode=%q quit=%v", a.Modal(), a.Mode(), hasQuit())
+	}
+	d.Keys("n")
+	if a.Modal() != "" || hasQuit() {
+		t.Fatalf("n did not cancel quit confirm: modal=%q quit=%v", a.Modal(), hasQuit())
+	}
+	d.Keys("Q", "esc")
+	if a.Modal() != "" || hasQuit() {
+		t.Fatalf("esc did not cancel quit confirm: modal=%q quit=%v", a.Modal(), hasQuit())
+	}
+	d.Keys("Q", "y")
+	if a.Modal() != "" || !hasQuit() {
+		t.Fatalf("Q y did not confirm quit: modal=%q quit=%v", a.Modal(), hasQuit())
+	}
+	// With confirm.quit=false, Q quits immediately without opening the confirm modal.
+	a.userSettings[SetConfirmQuit] = false
+	a.reloadSettings()
+	d.Keys("Q")
+	if a.Modal() != "" || !hasQuit() {
+		t.Fatalf("Q with confirm.quit=false did not quit immediately: modal=%q quit=%v", a.Modal(), hasQuit())
 	}
 }
 

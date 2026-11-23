@@ -219,6 +219,7 @@ func (a *App) fieldPicked(key string) {
 		tbl.GroupField, tbl.Collapsed = key, nil
 		tbl.SelectedIdx, tbl.Offset = 0, 0
 		if a.fieldTable == railTable {
+			a.railGroupSet = true
 			a.railCustomGroup = key
 		}
 		if key == "" {

@@ -145,8 +145,12 @@ func TestWave2DaemonResetAndStartupReconciliation(t *testing.T) {
 		t.Fatal("surviving daemon pane did not remain attached on restart")
 	}
 
-	// Run daemon.reset via default binding (g R).
+	// Run daemon.reset via default binding (g R) and confirm via y.
 	bd.Keys("1", "g", "R")
+	if b.Modal() != modalConfirm || b.Mode() != ModeConfirm {
+		t.Fatalf("g R did not open confirmation modal: modal=%q mode=%q status=%q", b.Modal(), b.Mode(), b.Status())
+	}
+	bd.Keys("y")
 	if !strings.Contains(b.Status(), "daemon reset") {
 		t.Fatalf("daemon.reset status = %q", b.Status())
 	}

@@ -2,9 +2,11 @@ package app
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
+	"ofam.dev/matomeru/actions"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
@@ -17,6 +19,14 @@ import (
 // focused-record actions picker.
 type recordActionPayload struct {
 	args map[string]any
+}
+
+type recordActionCandidate struct {
+	title    string
+	subtitle string
+	keywords []string
+	payload  recordActionPayload
+	keyHint  string
 }
 
 // recordActionsOpen opens a picker containing only the commands that can be
@@ -105,6 +115,35 @@ func (a *App) recordBindingKeys(cmdID, kind string, fixedArgs map[string]any) st
 	return ""
 }
 
+func kindMatchesAny(kind string, kinds []string) bool {
+	if len(kinds) == 0 {
+		return true
+	}
+	want := strings.ToLower(strings.TrimSpace(kind))
+	for _, k := range kinds {
+		nk := strings.ToLower(strings.TrimSpace(k))
+		if nk == want || nk == "*" {
+			return true
+		}
+		if strings.TrimSuffix(nk, "s") == want || strings.TrimSuffix(want, "s") == nk {
+			return true
+		}
+	}
+	return false
+}
+
+func specWithCandidate(sp core.CommandSpec, cand recordActionCandidate, overrideNoun string) core.CommandSpec {
+	cp := sp
+	meta := make(map[string]any, len(sp.Meta)+2)
+	maps.Copy(meta, sp.Meta)
+	if overrideNoun != "" {
+		meta[actions.MetaNoun] = overrideNoun
+	}
+	meta["_candidate"] = cand
+	cp.Meta = meta
+	return cp
+}
+
 func (a *App) recordActionItems(s core.State, ref core.Ref) []picker.Item {
 	facts := a.recordFacts(s, ref)
 	env := map[string]any{
@@ -116,7 +155,7 @@ func (a *App) recordActionItems(s core.State, ref core.Ref) []picker.Item {
 		"layer": nil,
 	}
 
-	var specific, universal []picker.Item
+	var candidates []core.CommandSpec
 
 	// If focused on an empty Show-page section, offer adding to that section first.
 	chain := ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, a.Shell.AppFacts(s))
@@ -132,17 +171,14 @@ func (a *App) recordActionItems(s core.State, ref core.Ref) []picker.Item {
 			} else if rel == data.RelDirectory {
 				label = "attach directory to this " + strings.ToLower(a.schema(ref.Kind).Title)
 			}
-			it := picker.Item{
-				ID:       CmdNewHere,
-				Title:    CmdNewHere,
-				Subtitle: label,
-				Keywords: []string{secKind, secTitle, "add", "new"},
-				Data:     recordActionPayload{},
+			cand := recordActionCandidate{
+				title:    CmdNewHere,
+				subtitle: label,
+				keywords: []string{secKind, secTitle, "add", "new"},
+				payload:  recordActionPayload{},
+				keyHint:  a.recordBindingKeys(CmdNewHere, SpaceWork, nil),
 			}
-			if k := a.recordBindingKeys(CmdNewHere, SpaceWork, nil); k != "" {
-				it.Badges = []ui.Badge{{Text: k, Tone: "accent"}}
-			}
-			specific = append(specific, it)
+			candidates = append(candidates, specWithCandidate(core.CommandSpec{ID: CmdNewHere, Description: label}, cand, ref.Kind))
 		}
 	}
 
@@ -158,7 +194,7 @@ func (a *App) recordActionItems(s core.State, ref core.Ref) []picker.Item {
 			continue
 		}
 		kinds, _ := sp.Meta["kinds"].([]string)
-		if len(kinds) > 0 && !slices.Contains(kinds, ref.Kind) {
+		if !kindMatchesAny(ref.Kind, kinds) {
 			continue
 		}
 		if condStr, _ := sp.Meta["when"].(string); condStr != "" {
@@ -166,47 +202,84 @@ func (a *App) recordActionItems(s core.State, ref core.Ref) []picker.Item {
 				continue
 			}
 		}
-		it := picker.Item{
-			ID:       sp.ID,
-			Title:    sp.ID,
-			Subtitle: sp.Description,
-			Keywords: append(slices.Clone(sp.Tags), ref.Kind),
-			Data:     recordActionPayload{},
+		cand := recordActionCandidate{
+			title:    sp.ID,
+			subtitle: sp.Description,
+			keywords: append(slices.Clone(sp.Tags), ref.Kind),
+			payload:  recordActionPayload{},
+			keyHint:  a.recordBindingKeys(sp.ID, ref.Kind, nil),
 		}
-		if k := a.recordBindingKeys(sp.ID, ref.Kind, nil); k != "" {
-			it.Badges = []ui.Badge{{Text: k}}
-		}
-		if len(kinds) > 0 {
-			specific = append(specific, it)
-		} else {
-			universal = append(universal, it)
-		}
+		candidates = append(candidates, specWithCandidate(sp, cand, ""))
 	}
 
 	// Contextual create actions attached to this record.
 	noteArgs := map[string]any{"kind": data.KindNote}
-	noteItem := picker.Item{
-		ID:       views.CmdNew,
-		Title:    views.CmdNew + " note",
-		Subtitle: "Create a note about this " + strings.ToLower(a.schema(ref.Kind).Title),
-		Keywords: []string{"note", "new", "comment"},
-		Data:     recordActionPayload{args: noteArgs},
-	}
-	if k := a.recordBindingKeys(views.CmdNew, ref.Kind, noteArgs); k != "" {
-		noteItem.Badges = []ui.Badge{{Text: k}}
-	}
-	universal = append(universal, noteItem)
+	noteSub := "Create a note about this " + strings.ToLower(a.schema(ref.Kind).Title)
+	candidates = append(candidates, specWithCandidate(
+		core.CommandSpec{ID: views.CmdNew, Description: noteSub},
+		recordActionCandidate{
+			title:    views.CmdNew + " note",
+			subtitle: noteSub,
+			keywords: []string{"note", "new", "comment"},
+			payload:  recordActionPayload{args: noteArgs},
+			keyHint:  a.recordBindingKeys(views.CmdNew, ref.Kind, noteArgs),
+		},
+		"record",
+	))
 
 	if ref.Kind == data.KindTask {
 		subArgs := map[string]any{"kind": data.KindTask}
-		universal = append(universal, picker.Item{
-			ID:       views.CmdNew,
-			Title:    views.CmdNew + " subtask",
-			Subtitle: "Create a subtask under this task",
-			Keywords: []string{"subtask", "task", "new", "child"},
-			Data:     recordActionPayload{args: subArgs},
-		})
+		subDesc := "Create a subtask under this task"
+		candidates = append(candidates, specWithCandidate(
+			core.CommandSpec{ID: views.CmdNew, Description: subDesc},
+			recordActionCandidate{
+				title:    views.CmdNew + " subtask",
+				subtitle: subDesc,
+				keywords: []string{"subtask", "task", "new", "child"},
+				payload:  recordActionPayload{args: subArgs},
+			},
+			"record",
+		))
 	}
 
-	return append(specific, universal...)
+	// Group and sort actions by namespace with exact focused-noun actions at the top.
+	grouped := actions.GroupForFocus(ref.Kind, candidates)
+	items := make([]picker.Item, 0, len(grouped))
+	for _, ga := range grouped {
+		cand, _ := ga.Spec.Meta["_candidate"].(recordActionCandidate)
+		title := cand.title
+		if title == "" {
+			title = ga.Spec.ID
+		}
+		subtitle := cand.subtitle
+		if subtitle == "" {
+			subtitle = ga.Spec.Description
+		}
+		groupLabel := ga.Group
+		if groupLabel == "" {
+			groupLabel = "actions"
+		}
+		displayTitle := "  " + title
+		if ga.FirstInGroup {
+			displayTitle = fmt.Sprintf("[%s] %s", groupLabel, title)
+		}
+		nsTone := "muted"
+		if ga.FocusedMatch {
+			nsTone = "accent"
+		}
+		badges := []ui.Badge{{Text: groupLabel, Tone: nsTone}}
+		if cand.keyHint != "" {
+			badges = append(badges, ui.Badge{Text: cand.keyHint, Tone: "accent"})
+		}
+		kw := append(slices.Clone(cand.keywords), ga.Group, ga.Namespace, ref.Kind)
+		items = append(items, picker.Item{
+			ID:       ga.Spec.ID,
+			Title:    displayTitle,
+			Subtitle: subtitle,
+			Badges:   badges,
+			Keywords: kw,
+			Data:     cand.payload,
+		})
+	}
+	return items
 }

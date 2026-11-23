@@ -36,6 +36,7 @@ const (
 	ModeCommandLine = "commandline" // shell I/O command bar (!, |, r!)
 	ModeHints       = "hints"       // live terminal link/path hint labels
 	ModeComposer    = "composer"    // multi-line prompt composer overlay
+	ModeConfirm     = "confirm"     // shared confirmation modal (y/enter confirm, n/esc cancel)
 )
 
 // Commands the app adds to core's built-ins and the widgets' own.
@@ -163,6 +164,18 @@ const (
 	CmdQuestionSubmitAll    = "question.submit_all"
 	CmdAnswerBatchNext      = "question.batch.next"
 	CmdAnswerBatchPrev      = "question.batch.prev"
+
+	CmdConfirmAccept       = "confirm.accept"
+	CmdConfirmCancel       = "confirm.cancel"
+	CmdTablePresetPick     = "table.preset.pick"
+	CmdTablePresetSave     = "table.preset.save"
+	CmdTablePresetApply    = "table.preset.apply"
+	CmdTablePresetDefault  = "table.preset.default"
+	CmdTablePresetDelete   = "table.preset.delete"
+	CmdPresetPickerSave    = "table.preset.picker.save"
+	CmdPresetPickerDefault = "table.preset.picker.default"
+	CmdPresetPickerDelete  = "table.preset.picker.delete"
+	CmdFocusHints          = "focus.hints"
 )
 
 var leader = core.Layer{Name: "leader", Modes: []string{ModeTerminalLeader, ModeNormal}, ExcludeTags: []string{"motion", "editing"}}
@@ -186,6 +199,7 @@ func Modes() []core.Mode {
 		{Name: ModeCommandLine},
 		{Name: ModeHints},
 		{Name: ModeComposer},
+		{Name: ModeConfirm},
 	}
 }
 
@@ -302,6 +316,8 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, "O", CmdSortField, "sort column"),
 		bind(n, all, "g s", CmdSortFieldPick, "sort by any field"),
 		bind(n, all, "g b", CmdGroupFieldPick, "group by any field"),
+		bind(n, all, "g v", CmdTablePresetPick, "table presets"),
+		bind(n, all, "g f", CmdFocusHints, "focus jump hints"),
 		bind(n, all, "g n", CmdNounsPick, "browse any noun"),
 		bind(n, all, "g r", CmdRecentsPick, "recents"),
 		when(bind(n, all, "space", CmdGroupToggle, "fold group"), "facts.isGroupHeader"),
@@ -356,6 +372,9 @@ func DefaultBindings() []core.Binding {
 		when(bind(ModePicker, all, "y", CmdYankPrimary, "yank the main value"), "modal.id == \"yank\" && facts.query == \"\""),
 		when(bind(ModePicker, all, "y", CmdContextYank, "yank context item"), "modal.id == \"context\" && facts.query == \"\""),
 		when(bind(ModePicker, all, "a", CmdContextAttach, "attach context item"), "modal.id == \"context\" && facts.query == \"\""),
+		when(bind(ModePicker, all, "s", CmdPresetPickerSave, "save current view as preset"), "modal.id == \"table.presets\" && facts.query == \"\""),
+		when(bind(ModePicker, all, "d", CmdPresetPickerDefault, "set default preset"), "modal.id == \"table.presets\" && facts.query == \"\""),
+		when(bind(ModePicker, all, "x", CmdPresetPickerDelete, "delete preset"), "modal.id == \"table.presets\" && facts.query == \"\""),
 		bind(ModePicker, all, "backspace", CmdPickerBack, "erase"),
 		bind(ModePicker, all, "enter", picker.CmdConfirm, "choose"),
 		bind(ModePicker, all, "esc", CmdModalCancel, "close"),
@@ -535,6 +554,14 @@ func DefaultBindings() []core.Binding {
 		bind(ModeComposer, all, "ctrl+p", CmdComposerDraftPrev, "previous draft / completion"),
 		bind(ModeComposer, all, "ctrl+n", CmdComposerDraftNext, "next draft / completion"),
 		bind(ModeComposer, all, "backspace", CmdComposerBackspace, "erase"),
+
+		// Shared confirmation modal.
+		bind(ModeConfirm, all, "y", CmdConfirmAccept, "confirm"),
+		bind(ModeConfirm, all, "enter", CmdConfirmAccept, "confirm"),
+		bind(ModeConfirm, all, "n", CmdConfirmCancel, "cancel"),
+		bind(ModeConfirm, all, "esc", CmdConfirmCancel, "cancel"),
+		hidden(bind(ModeConfirm, all, "q", CmdConfirmCancel, "cancel")),
+		hidden(bind(ModeConfirm, all, "ctrl+c", CmdConfirmCancel, "cancel")),
 	}
 	out = append(out, macroBindings()...)
 	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePicker, ModeBindingsFilter, ModeCommandLine, ModeComposer} {
@@ -735,6 +762,35 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdQuestionSubmitAll, "Submit all staged answers for the active question batch", "editing"),
 		{ID: CmdAnswerBatchNext, Description: "Stage current answer and move to the next question in the batch", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
 		{ID: CmdAnswerBatchPrev, Description: "Stage current answer and move to the previous question in the batch", Tags: []string{"editing"}, Meta: map[string]any{"internal": true}},
+
+		{ID: CmdConfirmAccept, Description: "Confirm the active confirmation dialog", Meta: map[string]any{"internal": true}},
+		{ID: CmdConfirmCancel, Description: "Cancel the active confirmation dialog", Meta: map[string]any{"internal": true}},
+		spec(CmdTablePresetPick, "Pick, save, set default, or delete saved view presets for the focused table"),
+		{ID: CmdTablePresetSave, Description: "Save the focused table's filter, sort, and group as a named preset",
+			Params: []core.ParamSpec{
+				{Name: "name", Type: core.ParamString, Required: true, Description: "preset name"},
+				{Name: "default", Type: core.ParamBool, Default: false, Description: "make default for this table"},
+				{Name: "table", Type: core.ParamString, Description: "target table ID (defaults to focused table)"},
+			}},
+		{ID: CmdTablePresetApply, Description: "Apply a saved preset to the focused table",
+			Params: []core.ParamSpec{
+				{Name: "name", Type: core.ParamString, Required: true, Description: "preset name"},
+				{Name: "table", Type: core.ParamString, Description: "target table ID (defaults to focused table)"},
+			}},
+		{ID: CmdTablePresetDefault, Description: "Set (or clear) the default preset for the focused table",
+			Params: []core.ParamSpec{
+				{Name: "name", Type: core.ParamString, Description: "preset name (empty clears default)"},
+				{Name: "table", Type: core.ParamString, Description: "target table ID (defaults to focused table)"},
+			}},
+		{ID: CmdTablePresetDelete, Description: "Delete a saved preset from the focused table",
+			Params: []core.ParamSpec{
+				{Name: "name", Type: core.ParamString, Required: true, Description: "preset name"},
+				{Name: "table", Type: core.ParamString, Description: "target table ID (defaults to focused table)"},
+			}},
+		{ID: CmdPresetPickerSave, Description: "Save the current table view as a preset from the presets picker", Meta: map[string]any{"internal": true}},
+		{ID: CmdPresetPickerDefault, Description: "Set the highlighted preset as default for this table", Meta: map[string]any{"internal": true}},
+		{ID: CmdPresetPickerDelete, Description: "Delete the highlighted preset from this table", Meta: map[string]any{"internal": true}},
+		spec(CmdFocusHints, "Show focus-jump hint labels over visible focusable regions"),
 	}...)
 }
 
@@ -792,6 +848,6 @@ func appendReadlineBindings(out []core.Binding, mode, scope string) []core.Bindi
 // into a filter, a picker's confirm), so the palette leaves it out.
 func internal(spec core.CommandSpec) bool {
 	on, _ := spec.Meta["internal"].(bool)
-	return on || strings.HasPrefix(spec.ID, "motion.") || strings.HasPrefix(spec.ID, "focus.") ||
+	return on || strings.HasPrefix(spec.ID, "motion.") || (strings.HasPrefix(spec.ID, "focus.") && spec.ID != CmdFocusHints) ||
 		slices.Contains([]string{core.CmdModeSet, core.CmdModalOpen, core.CmdModalClose, core.CmdLayerPush, core.CmdLayerPop, core.CmdCountPush, core.CmdPageOpen}, spec.ID)
 }
