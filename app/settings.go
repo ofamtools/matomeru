@@ -205,7 +205,7 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetWorkTasksLayout, WorkTasksLayoutTree, "how tasks are displayed in 2 Work (tree or table)", WorkTasksLayoutTree, WorkTasksLayoutTable),
 		enum(SetWorkHierarchyLayout, WorkHierarchyLayoutAuto, "how hierarchical nouns are displayed in 2 Work (auto, tree, or table)", WorkHierarchyLayoutAuto, WorkHierarchyLayoutTree, WorkHierarchyLayoutTable),
 		enum(SetPickerDefaultMode, PickerDefaultModeNormal, "initial mode when opening pickers (normal, all-normal, or filter)", PickerDefaultModeNormal, PickerDefaultModeAllNormal, PickerDefaultModeFilter),
-		flag(SetViewCycle, true, "cycle focused component views, layouts, density, and saved presets with g V"),
+		flag(SetViewCycle, true, "cycle focused component views, layouts, density, and saved presets with V (normal) / alt+v (insert)"),
 		flag(SetFormReactiveFields, true, "evaluate reactive VisibleWhen predicates in forms (false shows all fields)"),
 		flag(SetSessionRecord, true, "record session events into a bounded in-memory ring buffer"),
 		flag(SetSessionPromptSaveOnExit, false, "prompt to save the session recording before quitting"),

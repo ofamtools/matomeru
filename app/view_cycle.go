@@ -30,8 +30,12 @@ func viewCycleSpecs() []core.CommandSpec {
 
 func viewCycleBindings() []core.Binding {
 	return []core.Binding{
-		bind(ModeNormal, "", "g V", CmdViewCycle, "cycle view"),
-		bind(ModeForm, "", "g V", CmdViewCycle, "cycle form density"),
+		bind(ModeNormal, "", "V", CmdViewCycle, "cycle view"),
+		bind(ModeForm, "", "V", CmdViewCycle, "cycle form density"),
+		bind(ModePicker, "", "V", CmdViewCycle, "cycle view"),
+		bind(ModeFormEdit, "", "alt+v", CmdViewCycle, "cycle form density"),
+		bind(ModeFilter, "", "alt+v", CmdViewCycle, "cycle view"),
+		bind(ModePickerFilter, "", "alt+v", CmdViewCycle, "cycle view"),
 		when(bind(ModeForm, "", "+", form.CmdItemAdd, "add item"), "facts.repeatable"),
 		when(bind(ModeForm, "", "x", form.CmdItemRemove, "remove item"), "facts.repeatable && facts.itemIndex >= 0"),
 	}
