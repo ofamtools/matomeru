@@ -1,0 +1,197 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"text/tabwriter"
+
+	"ofam.dev/matomeru/setup"
+	"ofam.dev/oden"
+)
+
+const setupUsage = "usage: mtm setup [machine|agents|skills|hooks|check] [--home DIR] [--source FILE] [--skills-src DIR ...] [--hook-cmd CMD] [--dry-run] [--check] [--force] [--json]"
+
+func setupParameters() []oden.Parameter {
+	return []oden.Parameter{
+		{Name: "home", Type: "string", Description: "Override target home directory (default: current user home)"},
+		{Name: "source", Type: "string", Description: "Manage agent instruction targets as symlinks to FILE"},
+		{Name: "skills-src", Type: "string", Repeatable: true, Description: "Additional source directory of skill folders to sync (repeatable)"},
+		{Name: "hook-cmd", Type: "string", Description: "Command invoked by Claude Code hooks (default: mtm-hook claude-code)"},
+		{Name: "dry-run", Type: "bool", Description: "Preview planned changes without writing files"},
+		{Name: "check", Type: "bool", Description: "Read-only drift check; exit non-zero when not converged"},
+		{Name: "force", Type: "bool", Description: "Replace conflicting symlinks or back up and replace regular files/directories"},
+	}
+}
+
+func setupOptionsFromParsed(p oden.Parsed) setup.Options {
+	return setup.Options{
+		Home:      p.String("home"),
+		Source:    p.String("source"),
+		SkillsSrc: p.Strings("skills-src"),
+		HookCmd:   p.String("hook-cmd"),
+		DryRun:    p.Bool("dry-run"),
+		Check:     p.Bool("check"),
+		Force:     p.Bool("force"),
+	}
+}
+
+func mtmSetupCommand() oden.Command {
+	params := setupParameters()
+
+	runTarget := func(target string, forceCheck bool, exitOnDrift bool) func(*oden.Ctx) error {
+		return func(c *oden.Ctx) error {
+			p, err := c.Parse(params)
+			if err != nil {
+				return err
+			}
+			if len(p.Positional()) != 0 {
+				return errors.New(setupUsage)
+			}
+			opts := setupOptionsFromParsed(p)
+			if forceCheck {
+				opts.Check = true
+				opts.DryRun = false
+			}
+			var rep setup.Report
+			switch target {
+			case "machine":
+				rep, err = setup.RunMachine(opts)
+			case "agents":
+				rep, err = setup.RunAgents(opts)
+			case "skills":
+				rep, err = setup.RunSkills(opts)
+			case "hooks":
+				rep, err = setup.RunHooks(opts)
+			case "check":
+				rep, err = setup.CheckMachine(opts)
+			default:
+				return errors.New(setupUsage)
+			}
+			if err != nil {
+				return err
+			}
+			if err := writeSetupOutput(c.Stdout, p.Format(), rep); err != nil {
+				return err
+			}
+			if !rep.OK && (exitOnDrift || opts.Check || !opts.DryRun) {
+				return &oden.ExitError{Code: 1}
+			}
+			return nil
+		}
+	}
+
+	return oden.Command{
+		Name:       "setup",
+		Summary:    "configure agent instructions, shared skills, and Claude Code hooks",
+		Category:   "Configuration",
+		Usage:      "[machine|agents|skills|hooks|check] [--home DIR] [--dry-run] [--check] [--force] [--json]",
+		Parameters: params,
+		Handle: func(c *oden.Ctx) error {
+			sub := c.Sub()
+			sub.Add(
+				oden.Command{
+					Name:       "machine",
+					Summary:    "configure agent instruction files, shared skills, and Claude Code hooks",
+					Usage:      "[--home DIR] [--source FILE] [--skills-src DIR ...] [--hook-cmd CMD] [--dry-run] [--check] [--force] [--json]",
+					Parameters: params,
+					Handle:     runTarget("machine", false, false),
+				},
+				oden.Command{
+					Name:       "agents",
+					Summary:    "configure global AGENTS.md / GEMINI.md / CLAUDE.md instruction files",
+					Usage:      "[--home DIR] [--source FILE] [--dry-run] [--check] [--force] [--json]",
+					Parameters: params,
+					Handle:     runTarget("agents", false, false),
+				},
+				oden.Command{
+					Name:       "skills",
+					Summary:    "seed embedded skills and sync skill directories across harnesses",
+					Usage:      "[--home DIR] [--skills-src DIR ...] [--dry-run] [--check] [--force] [--json]",
+					Parameters: params,
+					Handle:     runTarget("skills", false, false),
+				},
+				oden.Command{
+					Name:       "hooks",
+					Summary:    "merge mtm-hook lifecycle hooks into Claude Code settings.json",
+					Usage:      "[--home DIR] [--hook-cmd CMD] [--dry-run] [--check] [--force] [--json]",
+					Parameters: params,
+					Handle:     runTarget("hooks", false, false),
+				},
+				oden.Command{
+					Name:       "check",
+					Summary:    "read-only drift check across agents, skills, and hooks (exits non-zero on drift)",
+					Usage:      "[--home DIR] [--source FILE] [--skills-src DIR ...] [--hook-cmd CMD] [--json]",
+					Parameters: params,
+					Handle:     runTarget("check", true, true),
+				},
+			)
+			if len(c.Args) == 1 && (c.Args[0] == "-h" || c.Args[0] == "--help") {
+				sub.Help(c.Stdout)
+				return nil
+			}
+			// Bare `mtm setup [flags]` runs a safe read-only status summary.
+			sub.Default = func(_ context.Context, subArgs []string) error {
+				p, err := oden.ParseFlags(subArgs, params)
+				if err != nil {
+					return err
+				}
+				if pos := p.Positional(); len(pos) != 0 {
+					return fmt.Errorf("setup %s: unknown subcommand\n%s", pos[0], setupUsage)
+				}
+				opts := setupOptionsFromParsed(p)
+				explicitCheck := opts.Check
+				rep, err := setup.CheckMachine(opts)
+				if err != nil {
+					return err
+				}
+				if err := writeSetupOutput(c.Stdout, p.Format(), rep); err != nil {
+					return err
+				}
+				if explicitCheck && !rep.OK {
+					return &oden.ExitError{Code: 1}
+				}
+				return nil
+			}
+			return sub.Run(c.Context)
+		},
+	}
+}
+
+func writeSetupOutput(w io.Writer, format string, rep setup.Report) error {
+	if format == "json" {
+		return printJSON(w, rep)
+	}
+	tw := tabwriter.NewWriter(w, 2, 8, 2, ' ', 0)
+	fmt.Fprintln(tw, "COMPONENT\tTARGET\tSTATUS\tPATH\tDETAIL")
+	for _, a := range rep.Actions {
+		detail := a.Detail
+		if a.Backup != "" {
+			if detail != "" {
+				detail += " "
+			}
+			detail += fmt.Sprintf("(backup: %s)", a.Backup)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", a.Component, a.Target, a.Status, a.Path, detail)
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	mode := "apply"
+	switch {
+	case rep.Check:
+		mode = "check"
+	case rep.DryRun:
+		mode = "dry-run"
+	}
+	status := "ok"
+	if !rep.OK {
+		status = "drift/conflict"
+		if rep.Check {
+			status = "drift detected (run: mtm setup machine)"
+		}
+	}
+	_, err := fmt.Fprintf(w, "\nsetup (%s): %s (%d actions)\n", mode, status, len(rep.Actions))
+	return err
+}

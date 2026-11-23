@@ -159,6 +159,10 @@ var policies = map[string]policy{
 	mod + "/contextitems": {
 		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke}, noUI...),
 	},
+	// New-machine setup and agent/skills/hooks configurator: pure stdlib.
+	mod + "/setup": {
+		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke}, noUI...),
+	},
 	// User-defined actions.json loader and namespace action grouping: core only, no UI.
 	mod + "/actions": {
 		allow:      []string{ochazuke + "/core"},
@@ -176,9 +180,9 @@ var policies = map[string]policy{
 			ochazuke + "/widgets/palette", ochazuke + "/widgets/toast", ochazuke + "/widgets/hints", ochazuke + "/widgets/modal",
 		},
 	},
-	// The binary: oden + ochazuke/cli around app, data, mcpui, daemon, agenthook, harness, ptyhost and migrate.
+	// The binary: oden + ochazuke/cli around app, data, mcpui, daemon, agenthook, harness, ptyhost, setup and migrate.
 	mod + "/cmd/mtm": {
-		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", oden, bubbletea},
+		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", mod + "/setup", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", oden, bubbletea},
 	},
 }
 
