@@ -258,11 +258,11 @@ func Inspect(what, configDir string) (any, error) {
 	defer a.Close()
 	switch what {
 	case InspectActions:
-		return ActionsOf(a.bindings, a.specs), nil
+		return ActionsOf(a.bind.bindings, a.bind.specs), nil
 	case InspectBindings:
-		return a.bindings, nil
+		return a.bind.bindings, nil
 	case InspectModes:
-		return ModesOf(Modes(), a.bindings), nil
+		return ModesOf(Modes(), a.bind.bindings), nil
 	}
 	return store.Registry().List(), nil
 }
@@ -325,7 +325,7 @@ func (a *App) inspectItems(what string) []picker.Item {
 	var items []picker.Item
 	switch what {
 	case InspectActions:
-		for _, info := range ActionsOf(a.bindings, a.specs) {
+		for _, info := range ActionsOf(a.bind.bindings, a.bind.specs) {
 			item := picker.Item{ID: info.ID, Title: info.ID, Subtitle: info.Description, Keywords: append(slices.Clone(info.Tags), info.Keys...)}
 			if info.Bound {
 				item.Badges = []ui.Badge{{Text: strings.Join(info.Keys, ", ")}}
@@ -339,7 +339,7 @@ func (a *App) inspectItems(what string) []picker.Item {
 			items = append(items, item)
 		}
 	case InspectModes:
-		for _, info := range ModesOf(Modes(), a.bindings) {
+		for _, info := range ModesOf(Modes(), a.bind.bindings) {
 			item := picker.Item{ID: info.Name, Title: info.Name, Subtitle: "its own keys only", Badges: []ui.Badge{{Text: fmt.Sprintf("%d bindings", info.Bindings)}}}
 			if info.Base != "" {
 				item.Subtitle = "base " + info.Base + ": its keys work here too"
@@ -430,24 +430,24 @@ func (a *App) inspectOpen(s core.State, c core.Command) core.StepResult {
 // bindAction puts an action on the first key sequence nothing else uses in
 // the normal mode, and saves it as one more row of bindings.json.
 func (a *App) bindAction(id string) {
-	keys, ok := bindings.FindFreeBinding(Modes(), a.bindings, "", ModeNormal, false, nil)
+	keys, ok := bindings.FindFreeBinding(Modes(), a.bind.bindings, "", ModeNormal, false, nil)
 	if !ok {
 		a.say("no free key was found for %s · B edits the bindings", id)
 		return
 	}
 	row := core.Binding{Mode: ModeNormal, Keys: keys, Command: id, Hint: id}
-	if d := config.CheckBindings(Modes(), []core.Binding{row}, a.specs...); slices.ContainsFunc(d, func(x config.BindingDiagnostic) bool { return x.Severity == config.SevError }) {
+	if d := config.CheckBindings(Modes(), []core.Binding{row}, a.bind.specs...); slices.ContainsFunc(d, func(x config.BindingDiagnostic) bool { return x.Severity == config.SevError }) {
 		a.say("%s cannot be bound: %s", id, d[0].Message)
 		return
 	}
-	a.userBindings = append(a.userBindings, row)
-	a.bindings = config.MergeBindings(a.baseBindings(), a.userBindings)
+	a.bind.userBindings = append(a.bind.userBindings, row)
+	a.bind.bindings = config.MergeBindings(a.baseBindings(), a.bind.userBindings)
 	what := fmt.Sprintf("bound %s to %s", id, strings.Join(keys, " "))
 	if err := a.rebuildKeymap(); err != nil {
 		what += " · " + err.Error()
 	}
-	a.bindEd = nil // the binding editor reads the rows again when it opens
-	saved, err := a.writeConfig(bindingsFileName, a.userBindings)
+	a.bind.bindEd = nil // the binding editor reads the rows again when it opens
+	saved, err := a.writeConfig(bindingsFileName, a.bind.userBindings)
 	switch {
 	case err != nil:
 		a.fail("save bindings", err)

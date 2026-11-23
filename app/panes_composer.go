@@ -101,27 +101,27 @@ func bracketedPasteBytes(text string) []byte {
 // SetComposerSkills sets cached skills/agents for composer $ and / completion
 // (useful for testing or external refresh without blocking the UI).
 func (a *App) SetComposerSkills(items []composerCompletion) {
-	a.aiSkillsMu.Lock()
-	a.aiSkills = slices.Clone(items)
-	a.aiSkillsLoaded = true
-	a.aiSkillsLoading = false
-	a.aiSkillsMu.Unlock()
+	a.panes.aiSkillsMu.Lock()
+	a.panes.aiSkills = slices.Clone(items)
+	a.panes.aiSkillsLoaded = true
+	a.panes.aiSkillsLoading = false
+	a.panes.aiSkillsMu.Unlock()
 	if cm := a.activeComposer(); cm != nil {
 		cm.updateCompletions()
 	}
-	a.gen++
+	a.viewMemo.gen++
 }
 
 func (a *App) queuedPromptCount(paneID string) int {
-	a.queuedMu.Lock()
-	defer a.queuedMu.Unlock()
-	return len(a.queuedPrompts[paneID])
+	a.panes.queuedMu.Lock()
+	defer a.panes.queuedMu.Unlock()
+	return len(a.panes.queuedPrompts[paneID])
 }
 
 func (a *App) queuedPromptsFor(paneID string) []string {
-	a.queuedMu.Lock()
-	defer a.queuedMu.Unlock()
-	return slices.Clone(a.queuedPrompts[paneID])
+	a.panes.queuedMu.Lock()
+	defer a.panes.queuedMu.Unlock()
+	return slices.Clone(a.panes.queuedPrompts[paneID])
 }
 
 // paneCompose opens the on-demand multi-line prompt composer overlay for the
@@ -201,8 +201,8 @@ func (m *composerModal) Handle(c core.Command) modal.Result {
 		}
 		mode := m.delivery
 		rawText := m.in.Value()
-		if m.draftIdx >= 0 && m.a.drafts != nil {
-			if m.a.drafts.Remove(m.draftKey, m.draftIdx) {
+		if m.draftIdx >= 0 && m.a.cfg.drafts != nil {
+			if m.a.cfg.drafts.Remove(m.draftKey, m.draftIdx) {
 				m.a.saveDrafts()
 			}
 		}
@@ -340,8 +340,8 @@ func (m *composerModal) View(_, _ int) ui.ViewNode {
 	if qn := m.a.queuedPromptCount(m.paneID); qn > 0 {
 		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d queued", qn), Tone: "warning"})
 	}
-	if m.a.drafts != nil {
-		if n := len(m.a.drafts.List(m.draftKey)); n > 0 {
+	if m.a.cfg.drafts != nil {
+		if n := len(m.a.cfg.drafts.List(m.draftKey)); n > 0 {
 			if m.draftIdx >= 0 {
 				badges = append(badges, ui.Badge{Text: fmt.Sprintf("draft %d/%d", m.draftIdx+1, n), Tone: "warning"})
 			} else {
@@ -370,11 +370,11 @@ func (a *App) saveComposerDraft(cm *composerModal) bool {
 	if val == "" {
 		return false
 	}
-	if a.drafts == nil {
-		a.drafts = form.NewDraftStore()
+	if a.cfg.drafts == nil {
+		a.cfg.drafts = form.NewDraftStore()
 	}
 	label := clip(strings.ReplaceAll(val, "\n", " "), 40)
-	if !a.drafts.Save(cm.draftKey, map[string]any{"prompt": cm.in.Value(), "mode": cm.delivery}, label, a.now()) {
+	if !a.cfg.drafts.Save(cm.draftKey, map[string]any{"prompt": cm.in.Value(), "mode": cm.delivery}, label, a.now()) {
 		return false
 	}
 	a.saveDrafts()
@@ -395,10 +395,10 @@ func setInputText(in *input.Model, value string) *input.Model {
 }
 
 func (m *composerModal) cycleDraft(delta int) {
-	if m.a.drafts == nil {
+	if m.a.cfg.drafts == nil {
 		return
 	}
-	drafts := m.a.drafts.List(m.draftKey)
+	drafts := m.a.cfg.drafts.List(m.draftKey)
 	if len(drafts) == 0 {
 		m.a.say("no saved drafts for this pane")
 		return
@@ -468,8 +468,8 @@ func (a *App) deliverComposerPrompt(pane data.Record, text, mode string) {
 }
 
 func (a *App) deliverPromptNow(pane data.Record, text, verb string) {
-	if a.Host != nil && a.hasSession(pane.ID) {
-		if err := a.Host.Write(pane.ID, bracketedPasteBytes(text)); err != nil {
+	if a.panes.Host != nil && a.hasSession(pane.ID) {
+		if err := a.panes.Host.Write(pane.ID, bracketedPasteBytes(text)); err != nil {
 			a.fail("send prompt", err)
 			return
 		}
@@ -488,13 +488,13 @@ func (a *App) deliverPromptNow(pane data.Record, text, verb string) {
 }
 
 func (a *App) enqueuePrompt(pane data.Record, text string) {
-	a.queuedMu.Lock()
-	if a.queuedPrompts == nil {
-		a.queuedPrompts = map[string][]string{}
+	a.panes.queuedMu.Lock()
+	if a.panes.queuedPrompts == nil {
+		a.panes.queuedPrompts = map[string][]string{}
 	}
-	a.queuedPrompts[pane.ID] = append(a.queuedPrompts[pane.ID], text)
-	count := len(a.queuedPrompts[pane.ID])
-	a.queuedMu.Unlock()
+	a.panes.queuedPrompts[pane.ID] = append(a.panes.queuedPrompts[pane.ID], text)
+	count := len(a.panes.queuedPrompts[pane.ID])
+	a.panes.queuedMu.Unlock()
 
 	if a.isPaneReadyForQueue(pane.ID) {
 		a.flushQueuedPrompts(pane.ID)
@@ -518,14 +518,14 @@ func (a *App) flushQueuedPrompts(paneID string) int {
 	if !a.isPaneReadyForQueue(paneID) {
 		return 0
 	}
-	a.queuedMu.Lock()
-	list := a.queuedPrompts[paneID]
+	a.panes.queuedMu.Lock()
+	list := a.panes.queuedPrompts[paneID]
 	if len(list) == 0 {
-		a.queuedMu.Unlock()
+		a.panes.queuedMu.Unlock()
 		return 0
 	}
-	delete(a.queuedPrompts, paneID)
-	a.queuedMu.Unlock()
+	delete(a.panes.queuedPrompts, paneID)
+	a.panes.queuedMu.Unlock()
 
 	pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID})
 	if err != nil {
@@ -538,14 +538,14 @@ func (a *App) flushQueuedPrompts(paneID string) int {
 }
 
 func (a *App) flushAllQueuedPrompts() int {
-	a.queuedMu.Lock()
-	ids := make([]string, 0, len(a.queuedPrompts))
-	for id, list := range a.queuedPrompts {
+	a.panes.queuedMu.Lock()
+	ids := make([]string, 0, len(a.panes.queuedPrompts))
+	for id, list := range a.panes.queuedPrompts {
 		if len(list) > 0 {
 			ids = append(ids, id)
 		}
 	}
-	a.queuedMu.Unlock()
+	a.panes.queuedMu.Unlock()
 	delivered := 0
 	for _, id := range ids {
 		delivered += a.flushQueuedPrompts(id)
@@ -554,13 +554,13 @@ func (a *App) flushAllQueuedPrompts() int {
 }
 
 func (a *App) deliverPromptInterrupt(pane data.Record, text string) {
-	a.escapes++
-	if a.Host != nil && a.hasSession(pane.ID) {
-		if err := a.Host.Write(pane.ID, []byte{0x1b}); err != nil {
+	a.panes.escapes++
+	if a.panes.Host != nil && a.hasSession(pane.ID) {
+		if err := a.panes.Host.Write(pane.ID, []byte{0x1b}); err != nil {
 			a.fail("interrupt pane", err)
 			return
 		}
-		delay := a.interruptDelay
+		delay := a.panes.interruptDelay
 		if delay <= 0 {
 			delay = defaultInterruptDelay
 		}
@@ -573,14 +573,14 @@ func (a *App) deliverPromptInterrupt(pane data.Record, text string) {
 				return nil
 			case <-timer.C:
 			}
-			_ = a.Host.Write(pane.ID, bracketedPasteBytes(text))
+			_ = a.panes.Host.Write(pane.ID, bracketedPasteBytes(text))
 			return func(s core.State) core.State {
 				if _, _, err := a.Store.RecordPaneInput(pane.Ref(), prompter); err != nil {
 					a.fail("record prompt", err)
 				}
 				a.harvestPrompt(pane, text)
 				a.say("interrupted and sent prompt to %s", views.Title(a.schema(data.KindPane), pane))
-				a.gen++
+				a.viewMemo.gen++
 				return s
 			}
 		})
@@ -682,9 +682,9 @@ func (m *composerModal) acceptCompletion() {
 }
 
 func (a *App) cachedFileCompletions(cwd string) []composerCompletion {
-	a.composerFilesMu.RLock()
-	entry := a.composerFiles[cwd]
-	a.composerFilesMu.RUnlock()
+	a.panes.composerFilesMu.RLock()
+	entry := a.panes.composerFiles[cwd]
+	a.panes.composerFilesMu.RUnlock()
 	out := make([]composerCompletion, len(entry.files))
 	for i, rel := range entry.files {
 		out[i] = composerCompletion{
@@ -703,28 +703,28 @@ func (a *App) ensureComposerFilesAsync(cwd string) {
 		return
 	}
 	now := a.now()
-	a.composerFilesMu.Lock()
-	if a.composerFiles == nil {
-		a.composerFiles = map[string]cachedFileList{}
+	a.panes.composerFilesMu.Lock()
+	if a.panes.composerFiles == nil {
+		a.panes.composerFiles = map[string]cachedFileList{}
 	}
-	entry := a.composerFiles[cwd]
+	entry := a.panes.composerFiles[cwd]
 	if entry.loading || (!entry.loadedAt.IsZero() && now.Sub(entry.loadedAt) < composerFileCacheTTL) {
-		a.composerFilesMu.Unlock()
+		a.panes.composerFilesMu.Unlock()
 		return
 	}
 	entry.loading = true
-	a.composerFiles[cwd] = entry
-	a.composerFilesMu.Unlock()
+	a.panes.composerFiles[cwd] = entry
+	a.panes.composerFilesMu.Unlock()
 
 	a.background(func(ctx context.Context) func(core.State) core.State {
 		files := scanComposerFiles(ctx, cwd, composerMaxFiles, composerMaxDepth)
 		return func(s core.State) core.State {
-			a.composerFilesMu.Lock()
-			a.composerFiles[cwd] = cachedFileList{files: files, loadedAt: a.now(), loading: false}
-			a.composerFilesMu.Unlock()
+			a.panes.composerFilesMu.Lock()
+			a.panes.composerFiles[cwd] = cachedFileList{files: files, loadedAt: a.now(), loading: false}
+			a.panes.composerFilesMu.Unlock()
 			if cm := a.activeComposer(); cm != nil && cm.cwd == cwd {
 				cm.updateCompletions()
-				a.gen++
+				a.viewMemo.gen++
 			}
 			return s
 		}
@@ -772,9 +772,9 @@ func scanComposerFiles(ctx context.Context, root string, maxFiles, maxDepth int)
 }
 
 func (a *App) cachedSkillCompletions(trigger string) []composerCompletion {
-	a.aiSkillsMu.RLock()
-	skills := slices.Clone(a.aiSkills)
-	a.aiSkillsMu.RUnlock()
+	a.panes.aiSkillsMu.RLock()
+	skills := slices.Clone(a.panes.aiSkills)
+	a.panes.aiSkillsMu.RUnlock()
 
 	var out []composerCompletion
 	seen := map[string]bool{}
@@ -808,15 +808,15 @@ func (a *App) cachedSkillCompletions(trigger string) []composerCompletion {
 }
 
 func (a *App) ensureAICatalogAsync() {
-	a.aiSkillsMu.Lock()
-	if a.aiSkillsLoaded || a.aiSkillsLoading {
-		a.aiSkillsMu.Unlock()
+	a.panes.aiSkillsMu.Lock()
+	if a.panes.aiSkillsLoaded || a.panes.aiSkillsLoading {
+		a.panes.aiSkillsMu.Unlock()
 		return
 	}
-	a.aiSkillsLoading = true
-	a.aiSkillsMu.Unlock()
+	a.panes.aiSkillsLoading = true
+	a.panes.aiSkillsMu.Unlock()
 
-	dirs := append(slices.Clone(a.opts.ExtensionDirs), a.Settings.Strings("extensionDirs", nil)...)
+	dirs := append(slices.Clone(a.opts.ExtensionDirs), a.cfg.Settings.Strings("extensionDirs", nil)...)
 	for i, d := range dirs {
 		dirs[i] = expandHome(d)
 	}
@@ -826,7 +826,7 @@ func (a *App) ensureAICatalogAsync() {
 			storeBinary = rec.Text("binary")
 		}
 	}
-	cache := a.readCache
+	cache := a.ext.readCache
 
 	a.background(func(ctx context.Context) func(core.State) core.State {
 		var discovered []composerCompletion
@@ -892,14 +892,14 @@ func (a *App) ensureAICatalogAsync() {
 		}
 
 		return func(s core.State) core.State {
-			a.aiSkillsMu.Lock()
-			a.aiSkills = discovered
-			a.aiSkillsLoaded = true
-			a.aiSkillsLoading = false
-			a.aiSkillsMu.Unlock()
+			a.panes.aiSkillsMu.Lock()
+			a.panes.aiSkills = discovered
+			a.panes.aiSkillsLoaded = true
+			a.panes.aiSkillsLoading = false
+			a.panes.aiSkillsMu.Unlock()
 			if cm := a.activeComposer(); cm != nil {
 				cm.updateCompletions()
-				a.gen++
+				a.viewMemo.gen++
 			}
 			return s
 		}

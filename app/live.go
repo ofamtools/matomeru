@@ -76,36 +76,36 @@ type liveState struct {
 }
 
 func (a *App) setupLive(opts Options) {
-	l := &a.live
+	l := &a.rt.live
 	l.wake = make(chan struct{}, 1)
 	l.frames = map[string]ptyhost.Frame{}
 	l.bgCtx, l.bgStop = context.WithCancel(context.Background())
-	a.Runner, a.Extensions, a.Host, a.Daemon = opts.Runner, opts.Extensions, opts.Host, opts.Daemon
-	if a.Daemon != nil && a.Host == nil {
-		a.Host = daemon.NewHostAdapter(a.Daemon)
+	a.rt.Runner, a.ext.Extensions, a.panes.Host, a.rt.Daemon = opts.Runner, opts.Extensions, opts.Host, opts.Daemon
+	if a.rt.Daemon != nil && a.panes.Host == nil {
+		a.panes.Host = daemon.NewHostAdapter(a.rt.Daemon)
 	}
 	l.watch = opts.Watch
 	if opts.Live {
-		if a.Runner == nil {
-			a.Runner = runs.New(a.Store, runs.Options{FlushInterval: liveFlush, MaxOutputBytes: liveMaxOutput, OnChange: func(string) { a.Notify() }})
+		if a.rt.Runner == nil {
+			a.rt.Runner = runs.New(a.Store, runs.Options{FlushInterval: liveFlush, MaxOutputBytes: liveMaxOutput, OnChange: func(string) { a.Notify() }})
 		}
-		if a.Extensions == nil {
-			a.Extensions = ext.New(ext.Options{})
+		if a.ext.Extensions == nil {
+			a.ext.Extensions = ext.New(ext.Options{})
 		}
-		if a.Host == nil {
+		if a.panes.Host == nil {
 			// With the "terminal.daemon" setting on, panes live in a daemon
 			// (mtmd, tuios) when one answers, and so outlive the app.
-			a.Host = ptyhost.AutoHost(a.Settings.Bool(setTerminalDaemon, false))
+			a.panes.Host = ptyhost.AutoHost(a.cfg.Settings.Bool(setTerminalDaemon, false))
 		}
 		if l.watch == 0 {
 			l.watch = DefaultWatch
 		}
 	}
 	l.watch = max(l.watch, 0)
-	if a.Host != nil {
-		a.Term = ptyhost.NewController(a.Host)
+	if a.panes.Host != nil {
+		a.panes.Term = ptyhost.NewController(a.panes.Host)
 	}
-	if a.Daemon != nil {
+	if a.rt.Daemon != nil {
 		_ = a.daemonMCPBase()
 		if opts.Live {
 			a.reconcileDaemonPanes()
@@ -127,7 +127,7 @@ func (a *App) setupLive(opts Options) {
 // tracking reports whether the store can change under the app: someone else
 // writes to it (the watcher looks), or the app's own background work does.
 func (a *App) tracking() bool {
-	return a.live.watch > 0 || a.Runner != nil || a.Extensions != nil || a.Daemon != nil
+	return a.rt.live.watch > 0 || a.rt.Runner != nil || a.ext.Extensions != nil || a.rt.Daemon != nil
 }
 
 // Notify wakes the app: the next wake-up looks at what changed (posted
@@ -135,44 +135,44 @@ func (a *App) tracking() bool {
 // It is safe from any goroutine and never blocks.
 func (a *App) Notify() {
 	select {
-	case a.live.wake <- struct{}{}:
+	case a.rt.live.wake <- struct{}{}:
 	default:
 	}
 }
 
 // post queues fn to run on the UI goroutine at the next wake-up.
 func (a *App) post(fn func(core.State) core.State) {
-	a.live.inboxMu.Lock()
-	a.live.inbox = append(a.live.inbox, fn)
-	a.live.inboxMu.Unlock()
+	a.rt.live.inboxMu.Lock()
+	a.rt.live.inbox = append(a.rt.live.inbox, fn)
+	a.rt.live.inboxMu.Unlock()
 	a.Notify()
 }
 
 // background runs work off the UI goroutine; what it returns is applied on
 // the UI goroutine at the next wake-up.
 func (a *App) background(work func(ctx context.Context) func(core.State) core.State) {
-	a.live.bg.Add(1)
+	a.rt.live.bg.Add(1)
 	go func() {
-		defer a.live.bg.Done()
-		if apply := work(a.live.bgCtx); apply != nil {
+		defer a.rt.live.bg.Done()
+		if apply := work(a.rt.live.bgCtx); apply != nil {
 			a.post(apply)
 		}
 	}()
 }
 
 // WaitBackground waits for the background work started so far.
-func (a *App) WaitBackground() { a.live.bg.Wait() }
+func (a *App) WaitBackground() { a.rt.live.bg.Wait() }
 
 // WatchCheck is one look of the store watcher: it reports (and wakes the app)
 // only when the newest change set or daemon hook telemetry moved since the
 // last look, so an idle store and idle daemon cost no redraw.
 func (a *App) WatchCheck() bool {
 	changed := false
-	if n, err := a.Store.LatestChangeSetNumber(); err == nil && n != a.live.seen.Load() {
-		a.live.seen.Store(n)
+	if n, err := a.Store.LatestChangeSetNumber(); err == nil && n != a.rt.live.seen.Load() {
+		a.rt.live.seen.Store(n)
 		changed = true
 	}
-	if a.Daemon != nil && a.pollTelemetry() {
+	if a.rt.Daemon != nil && a.pollTelemetry() {
 		changed = true
 	}
 	if changed {
@@ -188,8 +188,8 @@ func (a *App) markDrawn() {
 		return
 	}
 	if n, err := a.Store.LatestChangeSetNumber(); err == nil {
-		a.live.drawn = n
-		a.live.seen.Store(n)
+		a.rt.live.drawn = n
+		a.rt.live.seen.Store(n)
 	}
 }
 
@@ -200,7 +200,7 @@ func wakeMsg() tea.Msg {
 // wakeUp applies posted results and redraws when they, the store or the shown
 // session changed. A wake-up that finds nothing new changes nothing.
 func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
-	l := &a.live
+	l := &a.rt.live
 	l.inboxMu.Lock()
 	todo := l.inbox
 	l.inbox = nil
@@ -234,7 +234,7 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	l.refreshes++
-	a.gen++
+	a.viewMemo.gen++
 	return core.Next(a.settle(s))
 }
 
@@ -242,7 +242,7 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 // (one send per pending wake-up, at most MaxFPS a second), the store watcher
 // and the PTY host's change feed. send is the running program's Send.
 func (a *App) Start(send func(tea.Msg)) (stop func()) {
-	ctx, cancel := context.WithCancel(a.live.bgCtx)
+	ctx, cancel := context.WithCancel(a.rt.live.bgCtx)
 	var wg sync.WaitGroup
 	var gap time.Duration
 	if fps := a.Shell.MaxFPS; fps > 0 {
@@ -253,7 +253,7 @@ func (a *App) Start(send func(tea.Msg)) (stop func()) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-a.live.wake:
+			case <-a.rt.live.wake:
 			}
 			send(wakeMsg())
 			select {
@@ -263,7 +263,7 @@ func (a *App) Start(send func(tea.Msg)) (stop func()) {
 			}
 		}
 	})
-	if every := a.live.watch; every > 0 {
+	if every := a.rt.live.watch; every > 0 {
 		wg.Go(func() {
 			t := time.NewTicker(every)
 			defer t.Stop()
@@ -277,7 +277,7 @@ func (a *App) Start(send func(tea.Msg)) (stop func()) {
 			}
 		})
 	}
-	if feed, ok := a.Host.(interface{ Changes() <-chan string }); ok {
+	if feed, ok := a.panes.Host.(interface{ Changes() <-chan string }); ok {
 		changes := feed.Changes()
 		wg.Go(func() {
 			for {
@@ -299,15 +299,15 @@ func (a *App) Start(send func(tea.Msg)) (stop func()) {
 // Close stops the background work, cancels the runs still going and closes
 // every pane session. It is safe to call more than once.
 func (a *App) Close() {
-	a.live.closed.Do(func() {
-		a.live.bgStop()
-		if a.Runner != nil {
-			a.Runner.Close()
+	a.rt.live.closed.Do(func() {
+		a.rt.live.bgStop()
+		if a.rt.Runner != nil {
+			a.rt.Runner.Close()
 		}
-		if a.Host != nil {
-			a.Host.CloseAll()
+		if a.panes.Host != nil {
+			a.panes.Host.CloseAll()
 		}
-		a.live.bg.Wait()
+		a.rt.live.bg.Wait()
 	})
 }
 
@@ -330,7 +330,7 @@ func (a *App) started(s core.State, what string, rec *data.Record, err error) co
 		a.say("%s · running · x cancels", what)
 	}
 	if rec != nil {
-		a.gen++
+		a.viewMemo.gen++
 		selectRow(a.records(runsTable, data.KindRun), data.RefText(rec.Ref()))
 	}
 	return s
@@ -343,7 +343,7 @@ func (a *App) startShell(s core.State, title, command, dir string) core.State {
 	if label == "" {
 		label = command
 	}
-	if a.Runner == nil {
+	if a.rt.Runner == nil {
 		fields := map[string]any{"title": label, "command": command, "runStatus": "queued"}
 		if dir != "" {
 			fields["cwd"] = dir
@@ -351,12 +351,12 @@ func (a *App) startShell(s core.State, title, command, dir string) core.State {
 		rec, cs, err := a.Store.Create(data.CreateInput{Kind: data.KindRun, Fields: fields}, User)
 		a.wrote("queued "+label, cs, err)
 		if err == nil {
-			a.gen++
+			a.viewMemo.gen++
 			selectRow(a.records(runsTable, data.KindRun), data.RefText(rec.Ref()))
 		}
 		return s
 	}
-	rec, err := a.Runner.Start(context.Background(), runs.StartSpec{Title: title, Command: command, Dir: expandHome(dir), Actor: runActor})
+	rec, err := a.rt.Runner.Start(context.Background(), runs.StartSpec{Title: title, Command: command, Dir: expandHome(dir), Actor: runActor})
 	return a.started(s, "ran "+label, rec, err)
 }
 
@@ -367,9 +367,9 @@ func (a *App) runCancel(s core.State, c core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	switch {
-	case a.Runner == nil:
+	case a.rt.Runner == nil:
 		a.say("runs are not live in this build")
-	case a.Runner.Cancel(ref.ID):
+	case a.rt.Runner.Cancel(ref.ID):
 		a.say("cancelling %s", a.title(ref))
 	default:
 		a.say("%s is not running", a.title(ref))
@@ -398,15 +398,15 @@ func (a *App) runNew(s core.State, _ core.Command) core.StepResult {
 // --- extensions -------------------------------------------------------------------
 
 func (a *App) extRefresh(s core.State, _ core.Command) core.StepResult {
-	if a.Extensions == nil {
+	if a.ext.Extensions == nil {
 		a.say("extensions are not live in this build")
 		return core.Next(s)
 	}
-	dirs := append(slices.Clone(a.opts.ExtensionDirs), a.Settings.Strings("extensionDirs", nil)...)
+	dirs := append(slices.Clone(a.opts.ExtensionDirs), a.cfg.Settings.Strings("extensionDirs", nil)...)
 	for i, d := range dirs {
 		dirs[i] = expandHome(d)
 	}
-	mgr, store := a.Extensions, a.Store
+	mgr, store := a.ext.Extensions, a.Store
 	a.say("looking for extensions…")
 	a.background(func(ctx context.Context) func(core.State) core.State {
 		res, err := mgr.Discover(ctx, dirs, store)
@@ -463,7 +463,7 @@ func (a *App) extRun(s core.State, c core.Command) core.StepResult {
 	}
 	name := rec.Text("name")
 	switch {
-	case a.Extensions == nil || a.Runner == nil:
+	case a.ext.Extensions == nil || a.rt.Runner == nil:
 		return core.Next(a.show(s, ref)) // nothing runs in this build: the record's page
 	case rec.Text("runStatus") == ext.StatusOffline || rec.Text("binary") == "":
 		a.say("%s is offline · R looks again", name)
@@ -484,7 +484,7 @@ func (a *App) extRun(s core.State, c core.Command) core.StepResult {
 		values["command"] = cmds[0]
 	}
 	specs = append(specs, core.ParamSpec{Name: "args", Type: core.ParamString, Description: "arguments, split on spaces"})
-	mgr, runner := a.Extensions, a.Runner
+	mgr, runner := a.ext.Extensions, a.rt.Runner
 	return core.Next(a.openLaunch(s, "Run "+name, "Run", specs, values, func(s core.State, v map[string]any) (core.State, bool) {
 		var args []string
 		if cmd := data.Text(v["command"]); cmd != "" && v["command"] != nil {
@@ -504,10 +504,10 @@ func (a *App) extRun(s core.State, c core.Command) core.StepResult {
 // --- the live Screen ----------------------------------------------------------------
 
 func (a *App) hasSession(pane string) bool {
-	if a.Host == nil {
+	if a.panes.Host == nil {
 		return false
 	}
-	_, ok := a.Host.Snapshot(pane)
+	_, ok := a.panes.Host.Snapshot(pane)
 	return ok
 }
 
@@ -531,21 +531,21 @@ func (a *App) attach(pane data.Record) error {
 
 // attachSized is attach for a session shown somewhere other than the Screen.
 func (a *App) attachSized(pane data.Record, cols, rows int) error {
-	if a.Host == nil {
+	if a.panes.Host == nil {
 		return nil
 	}
-	if f, ok := a.Host.Snapshot(pane.ID); ok {
+	if f, ok := a.panes.Host.Snapshot(pane.ID); ok {
 		if !f.Exited {
 			return nil
 		}
-		_ = a.Host.Close(pane.ID)
-		a.Term.Forget(pane.ID)
-		delete(a.live.frames, pane.ID)
+		_ = a.panes.Host.Close(pane.ID)
+		a.panes.Term.Forget(pane.ID)
+		delete(a.rt.live.frames, pane.ID)
 	}
 	cmd, env := a.buildPaneLaunch(pane)
 	cwd := expandHome(pane.Text("cwd"))
 	var err error
-	if host, ok := a.Host.(ptyhost.EnvOpener); ok {
+	if host, ok := a.panes.Host.(ptyhost.EnvOpener); ok {
 		// The program learns which pane it is in and which task it works on:
 		// the MCP tools read both as their defaults.
 		env[mcpui.EnvPaneID] = pane.ID
@@ -554,15 +554,15 @@ func (a *App) attachSized(pane data.Record, cols, rows int) error {
 		}
 		err = host.OpenWithEnv(pane.ID, cmd, cwd, cols, rows, env)
 	} else {
-		err = a.Host.Open(pane.ID, cmd, cwd, cols, rows)
+		err = a.panes.Host.Open(pane.ID, cmd, cwd, cols, rows)
 	}
 	if err != nil {
 		return err
 	}
-	if f, ok := a.Host.Snapshot(pane.ID); ok {
-		a.live.frames[pane.ID] = f
+	if f, ok := a.panes.Host.Snapshot(pane.ID); ok {
+		a.rt.live.frames[pane.ID] = f
 	}
-	a.live.shown = pane.ID
+	a.rt.live.shown = pane.ID
 	return nil
 }
 
@@ -571,20 +571,20 @@ func (a *App) attachSized(pane data.Record, cols, rows int) error {
 // running to exited, it also returns the exited pane ID and exit code so wakeUp
 // can detach and auto-archive it cleanly.
 func (a *App) screenMoved() (moved bool, exitedID string, exitCode int) {
-	id := a.live.shown
-	if a.Host == nil || id == "" {
+	id := a.rt.live.shown
+	if a.panes.Host == nil || id == "" {
 		return false, "", 0
 	}
-	old, had := a.live.frames[id]
-	f, ok := a.Host.Snapshot(id)
+	old, had := a.rt.live.frames[id]
+	f, ok := a.panes.Host.Snapshot(id)
 	switch {
 	case !ok:
-		delete(a.live.frames, id)
+		delete(a.rt.live.frames, id)
 		return had, "", 0
 	case had && f.Revision == old.Revision && f.Cols == old.Cols && f.Rows == old.Rows && f.Exited == old.Exited:
 		return false, "", 0
 	}
-	a.live.frames[id] = f
+	a.rt.live.frames[id] = f
 	if f.Exited && (!had || !old.Exited) {
 		exitedID = id
 		exitCode = f.ExitCode
@@ -641,17 +641,17 @@ func (a *App) handlePaneExited(s core.State, paneID string, exitCode int) core.S
 			Summary: "pane process exited",
 		}, daemonSyncActor)
 	}
-	if a.Settings.Bool(SetAutoArchiveExited, true) && rec.ArchiveStatus != data.ArchiveArchived {
+	if a.cfg.Settings.Bool(SetAutoArchiveExited, true) && rec.ArchiveStatus != data.ArchiveArchived {
 		_, _, _ = a.Store.Archive(ref, daemonSyncActor)
-		delete(a.live.frames, paneID)
-		if a.live.shown == paneID {
-			a.live.shown = ""
+		delete(a.rt.live.frames, paneID)
+		if a.rt.live.shown == paneID {
+			a.rt.live.shown = ""
 		}
-		if a.Term != nil {
-			a.Term.Forget(paneID)
+		if a.panes.Term != nil {
+			a.panes.Term.Forget(paneID)
 		}
-		if a.Host != nil {
-			_ = a.Host.Close(paneID)
+		if a.panes.Host != nil {
+			_ = a.panes.Host.Close(paneID)
 		}
 		msg := fmt.Sprintf("pane %q exited (%d) · archived", title, exitCode)
 		a.say("%s", msg)
@@ -672,16 +672,16 @@ func cursorProp(x, y int, shape any) map[string]any {
 // with the hardware cursor, or Copy Mode's view of its history. It resizes
 // the session to the Screen when the two differ.
 func (a *App) liveScreen(pane data.Record, node string) (lines []string, cursor map[string]any, badges []ui.Badge, ok bool) {
-	if a.Host == nil {
+	if a.panes.Host == nil {
 		return nil, nil, nil, false
 	}
-	f, ok := a.live.frames[pane.ID]
-	if !ok || a.live.shown != pane.ID {
-		a.live.shown = pane.ID
-		if f, ok = a.Host.Snapshot(pane.ID); ok {
-			a.live.frames[pane.ID] = f
+	f, ok := a.rt.live.frames[pane.ID]
+	if !ok || a.rt.live.shown != pane.ID {
+		a.rt.live.shown = pane.ID
+		if f, ok = a.panes.Host.Snapshot(pane.ID); ok {
+			a.rt.live.frames[pane.ID] = f
 		} else {
-			delete(a.live.frames, pane.ID)
+			delete(a.rt.live.frames, pane.ID)
 		}
 	}
 	if !ok {
@@ -689,9 +689,9 @@ func (a *App) liveScreen(pane data.Record, node string) (lines []string, cursor 
 	}
 	if a.Shell != nil && !f.Exited {
 		if r, has := a.Shell.State.Layout.InnerRects[node]; has && r.W > 0 && r.H > 0 && (r.W != f.Cols || r.H != f.Rows) {
-			if a.Host.Resize(pane.ID, r.W, r.H) == nil {
+			if a.panes.Host.Resize(pane.ID, r.W, r.H) == nil {
 				f.Cols, f.Rows = r.W, r.H
-				a.live.frames[pane.ID] = f
+				a.rt.live.frames[pane.ID] = f
 				a.Notify() // the next wake-up draws the resized screen
 			}
 		}
@@ -700,7 +700,7 @@ func (a *App) liveScreen(pane data.Record, node string) (lines []string, cursor 
 	if f.Exited {
 		badges = []ui.Badge{{Text: fmt.Sprintf("exited %d · enter starts it again", f.ExitCode), Tone: "muted"}}
 	}
-	if cv, inCopy := a.Term.Copy(pane.ID); inCopy {
+	if cv, inCopy := a.panes.Term.Copy(pane.ID); inCopy {
 		lines, cursor = copyLines(cv)
 		badge := ui.Badge{Text: "copy", Tone: "accent"}
 		if cv.Search != "" && !cv.Searching {
@@ -761,7 +761,7 @@ func (a *App) act(s core.State, pane data.Record, action ptyhost.Action) (core.S
 	case ptyhost.ActionSpawn:
 		return a.spawn(s, pane, act.Command), nil, false
 	case ptyhost.ActionYank:
-		a.live.clipboard = act.Text
+		a.rt.live.clipboard = act.Text
 		a.say("yanked %d lines", strings.Count(act.Text, "\n")+1)
 		return s, []core.Effect{core.CustomEffect{Kind: effectClipboard, Data: act.Text}}, false
 	case ptyhost.ActionError:
@@ -777,20 +777,20 @@ func (a *App) termPrefix(s core.State, c core.Command) core.StepResult {
 	switch key := c.Arg("key"); {
 	case !ok:
 		a.say("no pane is selected")
-	case a.Term == nil:
+	case a.panes.Term == nil:
 		a.say("no live terminal is attached in this build")
 	case key != "t" && key != "v" && !a.hasSession(pane.ID):
 		a.say("the pane has no live session · enter starts one")
 	default:
-		prefix := a.Term.Prefix
+		prefix := a.panes.Term.Prefix
 		if prefix == "" {
 			prefix = "ctrl+a"
 		}
-		a.Term.Key(pane.ID, prefix)
-		next, effects, _ := a.act(s, *pane, a.Term.Key(pane.ID, key))
-		if a.Term.Mode(pane.ID) == ptyhost.ModeCopy && a.activeScratch() == nil {
+		a.panes.Term.Key(pane.ID, prefix)
+		next, effects, _ := a.act(s, *pane, a.panes.Term.Key(pane.ID, key))
+		if a.panes.Term.Mode(pane.ID) == ptyhost.ModeCopy && a.activeScratch() == nil {
 			// Copy Mode reads its keys on the Screen, wherever it was asked for.
-			a.activePage[pane.ID] = views.ScreenPageID
+			a.panes.activePage[pane.ID] = views.ScreenPageID
 			next.ActivePage = SpacePanes
 			next = withPage(a.dropModals(next), SpacePanes, siteScreen, ModeTerminal)
 		}

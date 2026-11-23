@@ -269,7 +269,7 @@ func TestWave3ProjectHeaderOverviewAndContextTable(t *testing.T) {
 	d.Keys("/")
 	d.Type("example.com")
 	d.Keys("enter")
-	ctxTbl := a.tables[projectContextTable]
+	ctxTbl := a.nav.tables[projectContextTable]
 	if ctxTbl == nil || len(ctxTbl.Filtered()) != 1 {
 		t.Fatalf("context table filter did not narrow to 1 item: %+v", ctxTbl)
 	}
@@ -291,14 +291,14 @@ func TestWave3ProjectHeaderOverviewAndContextTable(t *testing.T) {
 
 	// Clear filter and verify sort (o) and group (g b).
 	d.Keys("/", "esc", "o")
-	if a.tables[projectContextTable].SortField == "" {
+	if a.nav.tables[projectContextTable].SortField == "" {
 		t.Fatal("o did not sort project context table")
 	}
 	d.Keys("g", "b")
 	d.Type("kind")
 	d.Keys("enter")
-	if a.tables[projectContextTable].GroupField != "kind" {
-		t.Fatalf("g b did not group project context table by kind: got %q", a.tables[projectContextTable].GroupField)
+	if a.nav.tables[projectContextTable].GroupField != "kind" {
+		t.Fatalf("g b did not group project context table by kind: got %q", a.nav.tables[projectContextTable].GroupField)
 	}
 }
 
@@ -436,10 +436,10 @@ func TestWave3LiveTerminalHints(t *testing.T) {
 
 	// Trigger pane.hints via `f` from 1 Panes rail.
 	d.Keys("f")
-	if a.Mode() != ModeHints || a.hints == nil || !a.hints.session.Active() {
+	if a.Mode() != ModeHints || a.panes.hints == nil || !a.panes.hints.session.Active() {
 		t.Fatalf("f did not start ModeHints: mode=%q status=%q", a.Mode(), a.Status())
 	}
-	targets := a.hints.session.Targets()
+	targets := a.panes.hints.session.Targets()
 	if len(targets) != 3 {
 		t.Fatalf("expected 3 hint targets, got %d: %+v", len(targets), targets)
 	}
@@ -455,8 +455,8 @@ func TestWave3LiveTerminalHints(t *testing.T) {
 
 	// 1. Lowercase label copies target to clipboard + registers.
 	d.Keys(targets[0].Label)
-	if a.Mode() != ModeNormal || a.Register(core.RegUnnamed) != targets[0].Value || a.live.clipboard != targets[0].Value {
-		t.Fatalf("lowercase hint: mode=%q reg=%q clip=%q want=%q", a.Mode(), a.Register(core.RegUnnamed), a.live.clipboard, targets[0].Value)
+	if a.Mode() != ModeNormal || a.Register(core.RegUnnamed) != targets[0].Value || a.rt.live.clipboard != targets[0].Value {
+		t.Fatalf("lowercase hint: mode=%q reg=%q clip=%q want=%q", a.Mode(), a.Register(core.RegUnnamed), a.rt.live.clipboard, targets[0].Value)
 	}
 
 	// 2. Enter live terminal, trigger via ctrl+a f, then UPPERCASE label inserts into pane!
@@ -465,7 +465,7 @@ func TestWave3LiveTerminalHints(t *testing.T) {
 		t.Fatalf("failed to enter ModeTerminal: mode=%q", a.Mode())
 	}
 	d.Keys("ctrl+a", "f")
-	if a.Mode() != ModeHints || a.hints == nil {
+	if a.Mode() != ModeHints || a.panes.hints == nil {
 		t.Fatalf("ctrl+a f in ModeTerminal did not activate hints: mode=%q status=%q", a.Mode(), a.Status())
 	}
 	upper := strings.ToUpper(targets[1].Label)
@@ -489,12 +489,12 @@ func TestWave3LiveTerminalHints(t *testing.T) {
 
 	// 4. esc and q cancel hint mode cleanly.
 	d.Keys("ctrl+a", "f", "esc")
-	if a.Mode() != ModeTerminal || a.hints != nil {
-		t.Fatalf("esc did not cancel hints cleanly: mode=%q hints=%v", a.Mode(), a.hints)
+	if a.Mode() != ModeTerminal || a.panes.hints != nil {
+		t.Fatalf("esc did not cancel hints cleanly: mode=%q hints=%v", a.Mode(), a.panes.hints)
 	}
 	d.Keys("ctrl+a", "f", "q")
-	if a.Mode() != ModeTerminal || a.hints != nil {
-		t.Fatalf("q did not cancel hints cleanly: mode=%q hints=%v", a.Mode(), a.hints)
+	if a.Mode() != ModeTerminal || a.panes.hints != nil {
+		t.Fatalf("q did not cancel hints cleanly: mode=%q hints=%v", a.Mode(), a.panes.hints)
 	}
 }
 
@@ -549,7 +549,7 @@ fi
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.interruptDelay = 15 * time.Millisecond
+	a.panes.interruptDelay = 15 * time.Millisecond
 	t.Cleanup(func() { a.Close() })
 	d := NewDriver(a, 120, 36)
 

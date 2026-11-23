@@ -41,15 +41,15 @@ func (a *App) registerRecordAction(spec actions.RecordActionSpec) {
 	if strings.TrimSpace(spec.ID) == "" {
 		return
 	}
-	if a.recordActions == nil {
-		a.recordActions = map[string]actions.RecordActionSpec{}
+	if a.ext.recordActions == nil {
+		a.ext.recordActions = map[string]actions.RecordActionSpec{}
 	}
 	sp := spec.ToCommandSpec()
-	a.recordActions[sp.ID] = spec
-	if idx := slices.IndexFunc(a.specs, func(s core.CommandSpec) bool { return s.ID == sp.ID }); idx >= 0 {
-		a.specs[idx] = sp
+	a.ext.recordActions[sp.ID] = spec
+	if idx := slices.IndexFunc(a.bind.specs, func(s core.CommandSpec) bool { return s.ID == sp.ID }); idx >= 0 {
+		a.bind.specs[idx] = sp
 	} else {
-		a.specs = append(a.specs, sp)
+		a.bind.specs = append(a.bind.specs, sp)
 	}
 	if a.Engine != nil {
 		a.handle(sp.ID, a.runRecordAction(spec))
@@ -252,7 +252,7 @@ func (a *App) execRecordAction(s core.State, spec actions.RecordActionSpec, refP
 	cmdLine := shellJoin(argv)
 	refreshKinds := slices.Clone(spec.Exec.RefreshKinds)
 
-	if a.Runner != nil {
+	if a.rt.Runner != nil {
 		runArgs := argv
 		if len(env) > 0 {
 			runArgs = append(append([]string{"env"}, envSlice(env)...), argv...)
@@ -267,7 +267,7 @@ func (a *App) execRecordAction(s core.State, spec actions.RecordActionSpec, refP
 		if refPtr != nil && refPtr.Kind == data.KindTask {
 			startSpec.TaskRef = *refPtr
 		}
-		rec, err := a.Runner.Start(context.Background(), startSpec)
+		rec, err := a.rt.Runner.Start(context.Background(), startSpec)
 		s = a.started(s, "ran "+runTitle, rec, err)
 		if err != nil {
 			msg := failMsg
@@ -287,7 +287,7 @@ func (a *App) execRecordAction(s core.State, spec actions.RecordActionSpec, refP
 		} else {
 			a.pushToast("Running "+runTitle+"…", toast.Info)
 		}
-		doneCh := a.Runner.Done(rec.ID)
+		doneCh := a.rt.Runner.Done(rec.ID)
 		runID := rec.ID
 		a.background(func(ctx context.Context) func(core.State) core.State {
 			if doneCh != nil {
@@ -299,7 +299,7 @@ func (a *App) execRecordAction(s core.State, spec actions.RecordActionSpec, refP
 			}
 			refreshed := map[string]*data.QueryResult{}
 			for _, rk := range refreshKinds {
-				if bin := a.extCatalogs[rk]; bin != "" {
+				if bin := a.ext.extCatalogs[rk]; bin != "" {
 					if res, qerr := ext.QueryExternal(ctx, bin, rk, a.Store); qerr == nil {
 						cp := res
 						refreshed[rk] = &cp
@@ -308,11 +308,11 @@ func (a *App) execRecordAction(s core.State, spec actions.RecordActionSpec, refP
 			}
 			finalRec, _ := a.Store.Get(core.Ref{Kind: data.KindRun, ID: runID})
 			return func(s2 core.State) core.State {
-				if a.readCache != nil {
+				if a.ext.readCache != nil {
 					for _, rk := range refreshKinds {
-						a.readCache.MarkStale(rk)
+						a.ext.readCache.MarkStale(rk)
 						if res := refreshed[rk]; res != nil {
-							a.readCache.Put(rk, res.Items, res.Total)
+							a.ext.readCache.Put(rk, res.Items, res.Total)
 						}
 					}
 				}
@@ -329,7 +329,7 @@ func (a *App) execRecordAction(s core.State, spec actions.RecordActionSpec, refP
 					}
 					a.pushToast(msg, toast.Ok)
 				}
-				a.gen++
+				a.viewMemo.gen++
 				return s2
 			}
 		})
@@ -338,9 +338,9 @@ func (a *App) execRecordAction(s core.State, spec actions.RecordActionSpec, refP
 
 	// Synthetic app (no live Runner): record a queued run cleanly.
 	s = a.startShell(s, runTitle, cmdLine, dir)
-	if a.readCache != nil {
+	if a.ext.readCache != nil {
 		for _, rk := range refreshKinds {
-			a.readCache.MarkStale(rk)
+			a.ext.readCache.MarkStale(rk)
 		}
 	}
 	msg := queuedMsg

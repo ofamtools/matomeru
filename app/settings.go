@@ -2,11 +2,14 @@ package app
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/handlers"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/config"
 	"ofam.dev/ochazuke/core"
@@ -16,6 +19,87 @@ import (
 	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/table"
 )
+
+// ConfigController owns user settings, theme overlay, file/URL handlers, and
+// form draft persistence.
+type ConfigController struct {
+	Settings     *config.Settings
+	userSettings map[string]any
+	themeOverlay []byte
+	Handlers     *handlers.Registry
+	drafts       *form.DraftStore
+}
+
+func newConfigController() *ConfigController {
+	return &ConfigController{
+		userSettings: map[string]any{},
+		drafts:       form.NewDraftStore(),
+	}
+}
+
+// loadConfig lays the user's JSONC files over the defaults.
+func (a *App) loadConfig(dir string) {
+	read := func(name string) ([]byte, bool) {
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, false
+		}
+		if err != nil {
+			a.warn("%s: %v", name, err)
+			return nil, false
+		}
+		return b, true
+	}
+	if b, ok := read("settings.json"); ok {
+		if s, err := config.LoadSettings(b, DefaultSettings()); err != nil {
+			a.warn("settings.json: %v", err)
+		} else if user, err := readUserSettings(b); err != nil {
+			a.warn("settings.json: %v", err)
+		} else {
+			a.cfg.Settings, a.cfg.userSettings = s, user
+		}
+	}
+	if b, ok := read("themes.json"); ok {
+		if _, err := config.LoadTheme(b, ui.DefaultDarkTheme()); err != nil {
+			a.warn("themes.json: %v", err)
+		} else {
+			a.cfg.themeOverlay = b
+		}
+	}
+	if b, ok := read("bindings.json"); ok {
+		user, err := config.LoadBindings(b)
+		if err != nil {
+			a.warn("bindings.json: %v", err)
+			return
+		}
+		// A row that is not a valid binding is left out, so it can never
+		// shadow a key that works. One warning says how many were, and why
+		// the first one was: a file written for another version of mtm does
+		// not fill the status line.
+		bad, first := map[int]bool{}, ""
+		for _, d := range config.CheckBindings(Modes(), user, a.bind.specs...) {
+			if d.Severity != config.SevError {
+				continue
+			}
+			if len(bad) == 0 {
+				first = fmt.Sprintf("row %d: %s", d.Index+1, d.Message)
+			}
+			bad[d.Index] = true
+		}
+		var good []core.Binding
+		for i, row := range user {
+			if !bad[i] {
+				good = append(good, row)
+			}
+		}
+		if len(bad) > 0 {
+			a.warn("bindings.json: %d of %d rows are not v2 bindings and were left out (%s)", len(bad), len(user), first)
+		}
+		a.bind.userBindingsRaw = slices.Clone(user)
+		a.bind.userBindings = good
+		a.bind.bindings = config.MergeBindings(a.baseBindings(), good)
+	}
+}
 
 // The declared settings: each has a spec, so the Settings overlay (S) is a
 // form over them and a change applies at once.
@@ -144,11 +228,11 @@ func readUserSettings(b []byte) (map[string]any, error) {
 
 // reloadSettings rebuilds Settings from the keys the user set.
 func (a *App) reloadSettings() {
-	b, err := json.Marshal(a.userSettings)
+	b, err := json.Marshal(a.cfg.userSettings)
 	if err == nil {
 		var s *config.Settings
 		if s, err = config.LoadSettings(b, DefaultSettings()); err == nil {
-			a.Settings = s
+			a.cfg.Settings = s
 		}
 	}
 	if err != nil {
@@ -161,20 +245,20 @@ func (a *App) reloadSettings() {
 // density and border style the user set over it, then the user's themes.json.
 func (a *App) theme() ui.Theme {
 	theme := ui.DefaultDarkTheme()
-	name := a.Settings.String(SetTheme, defaultThemeName)
+	name := a.cfg.Settings.String(SetTheme, defaultThemeName)
 	for _, t := range ui.ThemePresets() {
 		if t.Name == name {
 			theme = t
 		}
 	}
-	if v, ok := a.userSettings[SetDensity].(string); ok && v != "" {
+	if v, ok := a.cfg.userSettings[SetDensity].(string); ok && v != "" {
 		theme.Density = v
 	}
-	if v, ok := a.userSettings[SetBorderStyle].(string); ok && v != "" {
+	if v, ok := a.cfg.userSettings[SetBorderStyle].(string); ok && v != "" {
 		theme.BorderStyle = v
 	}
-	if len(a.themeOverlay) > 0 {
-		if t, err := config.LoadTheme(a.themeOverlay, theme); err == nil {
+	if len(a.cfg.themeOverlay) > 0 {
+		if t, err := config.LoadTheme(a.cfg.themeOverlay, theme); err == nil {
 			theme = t
 		}
 	}
@@ -182,34 +266,34 @@ func (a *App) theme() ui.Theme {
 }
 
 func (a *App) showOptions() views.ShowOptions {
-	return views.ShowOptions{ShowMetadata: a.Settings.Bool(SetShowMetadata, true), ShowEmptyRelations: a.Settings.Bool(SetShowEmpty, true)}
+	return views.ShowOptions{ShowMetadata: a.cfg.Settings.Bool(SetShowMetadata, true), ShowEmptyRelations: a.cfg.Settings.Bool(SetShowEmpty, true)}
 }
 
 func (a *App) editOptions() views.EditOptions {
-	return views.EditOptions{ShowUniversalFields: a.Settings.Bool(SetEditUniversal, true), ShowExtraFields: a.Settings.Bool(SetEditExtra, true)}
+	return views.EditOptions{ShowUniversalFields: a.cfg.Settings.Bool(SetEditUniversal, true), ShowExtraFields: a.cfg.Settings.Bool(SetEditExtra, true)}
 }
 
 func (a *App) styleOptions() views.StyleOptions {
-	if a.Settings == nil {
+	if a.cfg.Settings == nil {
 		return views.DefaultStyleOptions()
 	}
 	return views.StyleOptions{
-		RowSemanticStyling: a.Settings.Bool(SetRowSemanticStyling, true),
-		StatusIcons:        a.Settings.Bool(SetStatusIcons, true),
+		RowSemanticStyling: a.cfg.Settings.Bool(SetRowSemanticStyling, true),
+		StatusIcons:        a.cfg.Settings.Bool(SetStatusIcons, true),
 	}
 }
 
 func (a *App) hierarchyLayout() string {
-	if a.Settings == nil {
+	if a.cfg.Settings == nil {
 		return WorkHierarchyLayoutAuto
 	}
-	if v, ok := a.userSettings[SetWorkHierarchyLayout].(string); ok && v != "" {
+	if v, ok := a.cfg.userSettings[SetWorkHierarchyLayout].(string); ok && v != "" {
 		switch v {
 		case WorkHierarchyLayoutAuto, WorkHierarchyLayoutTree, WorkHierarchyLayoutTable:
 			return v
 		}
 	}
-	if v, ok := a.userSettings[SetWorkTasksLayout].(string); ok && v != "" {
+	if v, ok := a.cfg.userSettings[SetWorkTasksLayout].(string); ok && v != "" {
 		switch v {
 		case WorkTasksLayoutTree:
 			return WorkHierarchyLayoutTree
@@ -217,7 +301,7 @@ func (a *App) hierarchyLayout() string {
 			return WorkHierarchyLayoutTable
 		}
 	}
-	if v := a.Settings.String(SetWorkHierarchyLayout, WorkHierarchyLayoutAuto); v != "" {
+	if v := a.cfg.Settings.String(SetWorkHierarchyLayout, WorkHierarchyLayoutAuto); v != "" {
 		return v
 	}
 	return WorkHierarchyLayoutAuto
@@ -225,12 +309,12 @@ func (a *App) hierarchyLayout() string {
 
 // matchMode is how a table's filter matches until the owner changes it.
 func (a *App) matchMode() table.MatchMode {
-	if v, ok := a.userSettings[legacyMatchModeID].(string); ok && v != "" {
-		if _, set := a.userSettings[SetMatchMode]; !set {
+	if v, ok := a.cfg.userSettings[legacyMatchModeID].(string); ok && v != "" {
+		if _, set := a.cfg.userSettings[SetMatchMode]; !set {
 			return table.MatchMode(v)
 		}
 	}
-	return table.MatchMode(a.Settings.String(SetMatchMode, string(table.MatchSubstring)))
+	return table.MatchMode(a.cfg.Settings.String(SetMatchMode, string(table.MatchSubstring)))
 }
 
 // applySettings makes the settings take effect on what is already open: the
@@ -241,9 +325,9 @@ func (a *App) applySettings() {
 		theme.Version = a.Shell.Theme.Version + 1 // drops the renderer's caches
 		a.Shell.Theme = theme
 	}
-	a.recCacheKeys = map[string]string{}
-	a.railCacheKey = ""
-	a.gen++
+	a.nav.recCacheKeys = map[string]string{}
+	a.panes.railCacheKey = ""
+	a.viewMemo.gen++
 }
 
 // writeConfig writes one of the user's configuration files. Without a
@@ -269,7 +353,7 @@ func (a *App) writeConfig(name string, v any) (bool, error) {
 func (a *App) settingValues() map[string]any {
 	out := map[string]any{}
 	for _, sp := range SettingSpecs() {
-		if v, ok := a.Settings.Raw(sp.Name); ok {
+		if v, ok := a.cfg.Settings.Raw(sp.Name); ok {
 			out[sp.Name] = v
 		}
 	}
@@ -315,14 +399,14 @@ func (a *App) commitSetting(fm *form.Model, name string) {
 	if !has {
 		return
 	}
-	if old, set := a.Settings.Raw(name); set && old == value && name != SetDensity && name != SetBorderStyle {
+	if old, set := a.cfg.Settings.Raw(name); set && old == value && name != SetDensity && name != SetBorderStyle {
 		return
 	}
-	a.userSettings[name] = value
+	a.cfg.userSettings[name] = value
 	if name == SetTheme {
 		// A preset brings its own density and border style.
-		delete(a.userSettings, SetDensity)
-		delete(a.userSettings, SetBorderStyle)
+		delete(a.cfg.userSettings, SetDensity)
+		delete(a.cfg.userSettings, SetBorderStyle)
 	}
 	a.reloadSettings()
 	a.applySettings()
@@ -332,21 +416,21 @@ func (a *App) commitSetting(fm *form.Model, name string) {
 		fm.SetValue(SetBorderStyle, theme.EffectiveBorderStyle())
 	}
 	if name == SetMatchMode {
-		for _, tbl := range a.tables {
+		for _, tbl := range a.nav.tables {
 			if tbl.Query == "" {
 				tbl.MatchMode = a.matchMode()
 			}
 		}
 	}
 	if name == SetPanesGroup {
-		a.railGroupSet = false
-		a.railCustomGroup = ""
+		a.panes.railGroupSet = false
+		a.panes.railCustomGroup = ""
 		a.rail()
 	}
 	if (name == SetWorkHierarchyLayout || name == SetWorkTasksLayout) && a.trees != nil {
 		clear(a.trees.layoutOverride)
 	}
-	saved, err := a.writeConfig(settingsFileName, a.userSettings)
+	saved, err := a.writeConfig(settingsFileName, a.cfg.userSettings)
 	switch {
 	case err != nil:
 		a.fail("save settings", err)
@@ -382,18 +466,18 @@ func ExportConfig(configDir string, jsonl bool) ([]byte, error) {
 		return nil, err
 	}
 	if jsonl {
-		settings, err := config.ExportSettingsJSONL(a.Settings.Merged())
+		settings, err := config.ExportSettingsJSONL(a.cfg.Settings.Merged())
 		if err != nil {
 			return nil, err
 		}
-		rows, err := config.ExportBindingsJSONL(a.bindings)
+		rows, err := config.ExportBindingsJSONL(a.bind.bindings)
 		if err != nil {
 			return nil, err
 		}
 		return append(settings, rows...), nil
 	}
-	out := ConfigExport{ConfigDir: configDir, Settings: a.Settings.Merged(), UserSettings: a.userSettings, Bindings: a.bindings,
-		UserBindings: a.userBindings, Warnings: a.Warnings}
+	out := ConfigExport{ConfigDir: configDir, Settings: a.cfg.Settings.Merged(), UserSettings: a.cfg.userSettings, Bindings: a.bind.bindings,
+		UserBindings: a.bind.userBindings, Warnings: a.Warnings}
 	if out.UserBindings == nil {
 		out.UserBindings = []core.Binding{}
 	}

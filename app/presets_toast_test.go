@@ -62,7 +62,7 @@ func TestWave4ConfirmationModalQuitAndDaemonReset(t *testing.T) {
 	}
 
 	// Opt-out: confirm.quit = false quits immediately.
-	a.userSettings[SetConfirmQuit] = false
+	a.cfg.userSettings[SetConfirmQuit] = false
 	a.reloadSettings()
 	d.Keys("Q")
 	if a.Modal() != "" || !hasQuitEffect(a) {
@@ -143,7 +143,7 @@ func TestWave4ConfirmationModalQuitAndDaemonReset(t *testing.T) {
 	if err := da.attach(*p3); err != nil {
 		t.Fatal(err)
 	}
-	da.userSettings[SetConfirmDaemonReset] = false
+	da.cfg.userSettings[SetConfirmDaemonReset] = false
 	da.reloadSettings()
 	dd.Keys("g", "R")
 	if da.Modal() != "" || !strings.Contains(da.Status(), "daemon reset") {
@@ -166,7 +166,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	d.Type("workstatus")
 	d.Keys("enter")
 
-	if wt := a.tables[workTable]; wt.Query != "tier" || wt.SortField != "title" || wt.GroupField != "workStatus" {
+	if wt := a.nav.tables[workTable]; wt.Query != "tier" || wt.SortField != "title" || wt.GroupField != "workStatus" {
 		t.Fatalf("work.table before preset save: q=%q sort=%q group=%q", wt.Query, wt.SortField, wt.GroupField)
 	}
 
@@ -188,7 +188,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 
 	// Set "tier-grouped" as default via d in picker.
 	d.Keys("d")
-	if def, ok := a.presets.Default(workTable); !ok || def.Name != "tier-grouped" {
+	if def, ok := a.nav.presets.Default(workTable); !ok || def.Name != "tier-grouped" {
 		t.Fatalf("d did not set default preset: ok=%v def=%+v", ok, def)
 	}
 	if !strings.Contains(d.Frame(), "default") {
@@ -202,13 +202,13 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 		ID:   CmdTablePresetSave,
 		Args: map[string]any{"name": "clean"},
 	}})
-	if len(a.presets.List(workTable)) != 2 {
-		t.Fatalf("expected 2 presets on work.table, got %+v", a.presets.List(workTable))
+	if len(a.nav.presets.List(workTable)) != 2 {
+		t.Fatalf("expected 2 presets on work.table, got %+v", a.nav.presets.List(workTable))
 	}
 
 	// Switch back to "tier-grouped" via g v -> enter.
 	d.Keys("g", "v", "enter")
-	if wt := a.tables[workTable]; wt.Query != "tier" || wt.SortField != "title" || wt.GroupField != "workStatus" {
+	if wt := a.nav.tables[workTable]; wt.Query != "tier" || wt.SortField != "title" || wt.GroupField != "workStatus" {
 		t.Fatalf("applying preset did not restore work.table state: q=%q sort=%q group=%q", wt.Query, wt.SortField, wt.GroupField)
 	}
 
@@ -222,16 +222,16 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	d.Keys("ctrl+s", "d", "esc")
 
 	// Verify distinct presets per table ID.
-	if len(a.presets.List(workTable)) != 2 || len(a.presets.List(runsTable)) != 1 {
-		t.Fatalf("presets not isolated by tableID: work=%+v runs=%+v", a.presets.List(workTable), a.presets.List(runsTable))
+	if len(a.nav.presets.List(workTable)) != 2 || len(a.nav.presets.List(runsTable)) != 1 {
+		t.Fatalf("presets not isolated by tableID: work=%+v runs=%+v", a.nav.presets.List(workTable), a.nav.presets.List(runsTable))
 	}
-	if _, existsOnRuns := a.presets.Get(runsTable, "tier-grouped"); existsOnRuns {
+	if _, existsOnRuns := a.nav.presets.Get(runsTable, "tier-grouped"); existsOnRuns {
 		t.Fatal("work.table preset leaked into runs.table")
 	}
 
 	// Delete "clean" via g v -> down -> x.
 	d.Keys("2", "g", "v", "down", "x", "esc")
-	if got := a.presets.List(workTable); len(got) != 1 || got[0].Name != "tier-grouped" {
+	if got := a.nav.presets.List(workTable); len(got) != 1 || got[0].Name != "tier-grouped" {
 		t.Fatalf("x did not delete second preset: %+v", got)
 	}
 
@@ -251,11 +251,11 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	// Reload a brand-new App over the same ConfigDir and verify ApplyDefault runs automatically.
 	b, bd := configured(t, dir)
 	bd.Keys("2")
-	if wt := b.tables[workTable]; wt == nil || wt.Query != "tier" || wt.SortField != "title" || wt.SortDir != table.SortAsc || wt.GroupField != "workStatus" {
+	if wt := b.nav.tables[workTable]; wt == nil || wt.Query != "tier" || wt.SortField != "title" || wt.SortDir != table.SortAsc || wt.GroupField != "workStatus" {
 		t.Fatalf("reloaded work.table did not auto-apply default preset: %+v", wt)
 	}
 	bd.Keys("3")
-	if rt := b.tables[runsTable]; rt == nil || rt.Query != "gate" || rt.SortField != "title" {
+	if rt := b.nav.tables[runsTable]; rt == nil || rt.Query != "gate" || rt.SortField != "title" {
 		t.Fatalf("reloaded runs.table did not auto-apply default preset: %+v", rt)
 	}
 }
@@ -410,21 +410,21 @@ func TestWave4ToastsRenderExpireAndOptOut(t *testing.T) {
 	// Advance clock past TTL -> expires cleanly on wakeUp/render.
 	cur = cur.Add(3 * time.Second)
 	wake(d)
-	if a.toasts.Len() != 0 {
-		t.Fatalf("toast did not expire: len=%d", a.toasts.Len())
+	if a.rt.toasts.Len() != 0 {
+		t.Fatalf("toast did not expire: len=%d", a.rt.toasts.Len())
 	}
 	if frame := d.Frame(); strings.Contains(frame, "Preset saved!") {
 		t.Fatalf("expired toast still rendered in frame:\n%s", frame)
 	}
 
 	// Opt-out: ui.toast = false suppresses pushing & rendering.
-	a.userSettings[SetToast] = false
+	a.cfg.userSettings[SetToast] = false
 	a.reloadSettings()
 	a.applySettings()
 	a.pushToast("Should not show", toast.Info, 5*time.Second)
 	d.Send(resize(120, 36))
-	if a.toasts.Len() != 0 || strings.Contains(d.Frame(), "Should not show") {
-		t.Fatalf("ui.toast=false did not suppress toast: len=%d", a.toasts.Len())
+	if a.rt.toasts.Len() != 0 || strings.Contains(d.Frame(), "Should not show") {
+		t.Fatalf("ui.toast=false did not suppress toast: len=%d", a.rt.toasts.Len())
 	}
 }
 
@@ -442,7 +442,7 @@ func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
 	}
 	d.Keys("esc")
 
-	a.userSettings[SetTreeGuides] = false
+	a.cfg.userSettings[SetTreeGuides] = false
 	a.reloadSettings()
 	a.applySettings()
 	d.Keys("T")
@@ -456,10 +456,10 @@ func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
 	d.Keys("1")
 	initialFocus := a.Focus()
 	d.Keys("g", "f")
-	if a.Mode() != ModeHints || a.hints == nil || !a.hints.focusJump || !a.hints.session.Active() {
-		t.Fatalf("g f did not activate focus jump hints: mode=%q hints=%+v", a.Mode(), a.hints)
+	if a.Mode() != ModeHints || a.panes.hints == nil || !a.panes.hints.focusJump || !a.panes.hints.session.Active() {
+		t.Fatalf("g f did not activate focus jump hints: mode=%q hints=%+v", a.Mode(), a.panes.hints)
 	}
-	targets := a.hints.session.Targets()
+	targets := a.panes.hints.session.Targets()
 	if len(targets) < 2 {
 		t.Fatalf("expected at least 2 focus hint targets on 1 Panes, got %+v", targets)
 	}
@@ -470,14 +470,14 @@ func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
 
 	// Cancel with esc restores mode and focus.
 	d.Keys("esc")
-	if a.Mode() != ModeNormal || a.hints != nil || a.Focus() != initialFocus {
+	if a.Mode() != ModeNormal || a.panes.hints != nil || a.Focus() != initialFocus {
 		t.Fatalf("esc did not cancel focus hints cleanly: mode=%q focus=%q", a.Mode(), a.Focus())
 	}
 
 	// Re-open with g f, pick a target whose ID differs from initialFocus, and type its label.
 	d.Keys("g", "f")
 	var pickTargetID, pickLabel string
-	for _, tgt := range a.hints.session.Targets() {
+	for _, tgt := range a.panes.hints.session.Targets() {
 		if tgt.ID != initialFocus {
 			pickTargetID = tgt.ID
 			pickLabel = tgt.Label
@@ -485,10 +485,10 @@ func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
 		}
 	}
 	if pickTargetID == "" || pickLabel == "" {
-		t.Fatalf("no alternate focus target found among %+v", a.hints.session.Targets())
+		t.Fatalf("no alternate focus target found among %+v", a.panes.hints.session.Targets())
 	}
 	d.Type(pickLabel)
-	if a.Mode() != ModeNormal || a.hints != nil {
+	if a.Mode() != ModeNormal || a.panes.hints != nil {
 		t.Fatalf("typing focus hint label %q did not exit ModeHints: mode=%q", pickLabel, a.Mode())
 	}
 	if a.Focus() != pickTargetID {

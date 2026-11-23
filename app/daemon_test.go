@@ -102,11 +102,11 @@ func TestWave2DaemonResetAndStartupReconciliation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.Daemon != client {
+	if a.rt.Daemon != client {
 		t.Fatal("setupLive did not store opts.Daemon on App")
 	}
-	if _, ok := a.Host.(*daemon.HostAdapter); !ok {
-		t.Fatalf("setupLive did not wire daemon.HostAdapter: got %T", a.Host)
+	if _, ok := a.panes.Host.(*daemon.HostAdapter); !ok {
+		t.Fatalf("setupLive did not wire daemon.HostAdapter: got %T", a.panes.Host)
 	}
 	d := NewDriver(a, 120, 36)
 
@@ -125,7 +125,7 @@ func TestWave2DaemonResetAndStartupReconciliation(t *testing.T) {
 		t.Fatalf("failed to attach daemon pane: mode=%s status=%q", a.Mode(), a.Status())
 	}
 	eventually(t, "daemon pane output", func() bool {
-		f, ok := a.Host.Snapshot(pane.ID)
+		f, ok := a.panes.Host.Snapshot(pane.ID)
 		return ok && slices.ContainsFunc(f.Plain, func(l string) bool { return strings.TrimSpace(l) == "daemon-alive" })
 	})
 
@@ -158,8 +158,8 @@ func TestWave2DaemonResetAndStartupReconciliation(t *testing.T) {
 	if err != nil || len(panesAfter) != 0 {
 		t.Fatalf("daemon still has panes after reset: panes=%v err=%v", panesAfter, err)
 	}
-	if len(b.live.frames) != 0 {
-		t.Fatalf("local frame cache not cleared: %v", b.live.frames)
+	if len(b.rt.live.frames) != 0 {
+		t.Fatalf("local frame cache not cleared: %v", b.rt.live.frames)
 	}
 	rec, err := store.Get(pane.Ref())
 	if err != nil || !rec.IsArchived() || rec.Text("runStatus") != "exited" {
@@ -379,7 +379,7 @@ func TestWave2LiveTelemetryAndBlockingApprovals(t *testing.T) {
 	if a.WatchCheck() {
 		t.Fatal("WatchCheck reported a second change when telemetry was unchanged")
 	}
-	<-a.live.wake
+	<-a.rt.live.wake
 	wake(d)
 
 	// Hook telemetry must NEVER reorder the pane list.

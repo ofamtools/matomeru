@@ -33,17 +33,17 @@ var hintsStripSGR = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b
 // paneVisibleLines returns the visible terminal lines for pane (either from the
 // live PTY frame or from the synthetic terminal buffer).
 func (a *App) paneVisibleLines(pane data.Record, live bool) []string {
-	if a.Host != nil {
-		if f, ok := a.Host.Snapshot(pane.ID); ok && len(f.Lines) > 0 {
-			a.live.frames[pane.ID] = f
-			if cv, inCopy := a.Term.Copy(pane.ID); inCopy {
+	if a.panes.Host != nil {
+		if f, ok := a.panes.Host.Snapshot(pane.ID); ok && len(f.Lines) > 0 {
+			a.rt.live.frames[pane.ID] = f
+			if cv, inCopy := a.panes.Term.Copy(pane.ID); inCopy {
 				lines, _ := copyLines(cv)
 				return lines
 			}
 			return slices.Clone(f.Lines)
 		}
 	}
-	if f, ok := a.live.frames[pane.ID]; ok && len(f.Lines) > 0 {
+	if f, ok := a.rt.live.frames[pane.ID]; ok && len(f.Lines) > 0 {
 		return slices.Clone(f.Lines)
 	}
 	return a.termLines(pane, live)
@@ -78,7 +78,7 @@ func (a *App) paneHints(s core.State, _ core.Command) core.StepResult {
 	}
 	sess := hints.NewSession(targets)
 	curFrame := s.ActiveFrame()
-	a.hints = &hintsState{
+	a.panes.hints = &hintsState{
 		session:     sess,
 		paneID:      pane.ID,
 		returnMode:  curFrame.Mode,
@@ -88,7 +88,7 @@ func (a *App) paneHints(s core.State, _ core.Command) core.StepResult {
 	}
 
 	if !inScratch {
-		a.activePage[pane.ID] = views.ScreenPageID
+		a.panes.activePage[pane.ID] = views.ScreenPageID
 		s.ActivePage = SpacePanes
 		s = withPage(s, SpacePanes, siteScreen, ModeHints)
 	} else {
@@ -101,12 +101,12 @@ func (a *App) paneHints(s core.State, _ core.Command) core.StepResult {
 // hintsRenderLines dims baseLines and composites the active hints.Session badges
 // over the terminal screen using hints.RenderOverlay.
 func (a *App) hintsRenderLines(baseLines []string, w, h int) []string {
-	if a.hints == nil || !a.hints.session.Active() {
+	if a.panes.hints == nil || !a.panes.hints.session.Active() {
 		return baseLines
 	}
 	lines := baseLines
-	if len(a.hints.lines) > 0 {
-		lines = a.hints.lines
+	if len(a.panes.hints.lines) > 0 {
+		lines = a.panes.hints.lines
 	}
 	if w <= 0 {
 		w = 80
@@ -123,13 +123,13 @@ func (a *App) hintsRenderLines(baseLines []string, w, h int) []string {
 		dimmed[i] = "\x1b[2m" + plain + "\x1b[0m"
 	}
 	style := hints.OverlayStyleFromTheme(a.theme())
-	overlaid := hints.RenderOverlay(strings.Join(dimmed, "\n"), w, h, a.hints.session, style)
+	overlaid := hints.RenderOverlay(strings.Join(dimmed, "\n"), w, h, a.panes.hints.session, style)
 	return strings.Split(overlaid, "\n")
 }
 
 func (a *App) exitHints(s core.State) core.State {
-	hs := a.hints
-	a.hints = nil
+	hs := a.panes.hints
+	a.panes.hints = nil
 	if hs == nil {
 		return s
 	}
@@ -167,16 +167,16 @@ func (a *App) hintsCancel(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
-	if a.hints == nil || a.hints.session == nil || !a.hints.session.Active() {
+	if a.panes.hints == nil || a.panes.hints.session == nil || !a.panes.hints.session.Active() {
 		return core.Next(a.exitHints(s))
 	}
 	key := c.Arg("key")
 	text := c.Arg("text")
 	var res hints.Result
 	if key != "" {
-		res = a.hints.session.HandleKey(key)
+		res = a.panes.hints.session.HandleKey(key)
 	} else if r, sz := utf8.DecodeRuneInString(text); text != "" && sz == len(text) && r != utf8.RuneError {
-		res = a.hints.session.HandleRune(r, false)
+		res = a.panes.hints.session.HandleRune(r, false)
 	}
 	switch res.Status {
 	case hints.StatusCancelled:
@@ -184,15 +184,15 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 		a.say("hints cancelled")
 		return core.Next(s)
 	case hints.StatusActive:
-		a.say("hints: %s_ (%d remaining)", a.hints.session.Prefix(), len(a.hints.session.Remaining()))
+		a.say("hints: %s_ (%d remaining)", a.panes.hints.session.Prefix(), len(a.panes.hints.session.Remaining()))
 		return core.Next(s)
 	case hints.StatusNoMatch:
 		a.say("no hint matches %q · esc/q cancels", key)
 		return core.Next(s)
 	case hints.StatusMatched:
 		target := res.Target
-		paneID := a.hints.paneID
-		focusJump := a.hints.focusJump
+		paneID := a.panes.hints.paneID
+		focusJump := a.panes.hints.focusJump
 		s = a.exitHints(s)
 		if target == nil {
 			return core.Next(s)
@@ -229,8 +229,8 @@ func (a *App) insertTextIntoPane(pane *data.Record, text string) {
 	if pane == nil || text == "" {
 		return
 	}
-	if a.Host != nil && a.hasSession(pane.ID) {
-		if err := a.Host.Write(pane.ID, []byte(text)); err != nil {
+	if a.panes.Host != nil && a.hasSession(pane.ID) {
+		if err := a.panes.Host.Write(pane.ID, []byte(text)); err != nil {
 			a.fail("insert into pane", err)
 			return
 		}
@@ -263,7 +263,7 @@ func (a *App) focusHints(s core.State, _ core.Command) core.StepResult {
 	}
 	sess := hints.NewSession(targets)
 	curFrame := s.ActiveFrame()
-	a.hints = &hintsState{
+	a.panes.hints = &hintsState{
 		session:     sess,
 		focusJump:   true,
 		returnMode:  curFrame.Mode,

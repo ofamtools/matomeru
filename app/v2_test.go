@@ -104,8 +104,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 	}
 	d.Keys("2")
 	set(SetMatchMode, "l")
-	if a.tables[workTable].MatchMode != "fuzzy" {
-		t.Fatalf("match mode of the open table = %q", a.tables[workTable].MatchMode)
+	if a.nav.tables[workTable].MatchMode != "fuzzy" {
+		t.Fatalf("match mode of the open table = %q", a.nav.tables[workTable].MatchMode)
 	}
 	// Show and Edit follow their settings.
 	d.Keys("enter")
@@ -151,8 +151,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		t.Errorf("settings.json holds %d keys, want only the 7 that were changed: %v", len(saved), saved)
 	}
 	again, _ := configured(t, dir)
-	if again.Shell.Theme.BorderStyle != ui.BorderSharp || again.Settings.Bool(SetFlagsColumn, true) || again.matchMode() != "fuzzy" {
-		t.Fatalf("the next start: border %q, flags %v, match %q", again.Shell.Theme.BorderStyle, again.Settings.Bool(SetFlagsColumn, true), again.matchMode())
+	if again.Shell.Theme.BorderStyle != ui.BorderSharp || again.cfg.Settings.Bool(SetFlagsColumn, true) || again.matchMode() != "fuzzy" {
+		t.Fatalf("the next start: border %q, flags %v, match %q", again.Shell.Theme.BorderStyle, again.cfg.Settings.Bool(SetFlagsColumn, true), again.matchMode())
 	}
 	// A theme preset brings its own density; a density set after it wins.
 	set(SetTheme, "l")
@@ -185,12 +185,12 @@ func TestBindingEditor(t *testing.T) {
 		d.Keys("/", "esc", "/") // esc clears what was typed before
 		d.Type(q)
 		d.Keys("enter")
-		if got := len(a.bindEd.Filtered()); got != want || a.Mode() != ModeBindings {
+		if got := len(a.bind.bindEd.Filtered()); got != want || a.Mode() != ModeBindings {
 			t.Fatalf("filter %q shows %d bindings, want %d (mode %s)", q, got, want, a.Mode())
 		}
 	}
 	d.Keys("2", "B")
-	if a.Modal() != "bindings" || a.Mode() != ModeBindings || len(a.bindEd.Filtered()) != len(DefaultBindings()) {
+	if a.Modal() != "bindings" || a.Mode() != ModeBindings || len(a.bind.bindEd.Filtered()) != len(DefaultBindings()) {
 		t.Fatalf("B: modal %q mode %s", a.Modal(), a.Mode())
 	}
 	filter("key:Z verb:record", 2)            // snooze and unsnooze
@@ -223,8 +223,8 @@ func TestBindingEditor(t *testing.T) {
 	// The next start reads the overrides.
 	b, bd := configured(t, dir)
 	bd.Keys("2", "g", "x")
-	if rec, _ := b.Store.Get(titled(t, b, data.KindTask, "ochazuke-v2").Ref()); !rec.IsStarred() || len(b.userBindings) != 2 {
-		t.Fatalf("the next start does not have g x (%d user rows)", len(b.userBindings))
+	if rec, _ := b.Store.Get(titled(t, b, data.KindTask, "ochazuke-v2").Ref()); !rec.IsStarred() || len(b.bind.userBindings) != 2 {
+		t.Fatalf("the next start does not have g x (%d user rows)", len(b.bind.userBindings))
 	}
 
 	// Reset puts it back; esc during a rebind leaves it alone.
@@ -235,7 +235,7 @@ func TestBindingEditor(t *testing.T) {
 		t.Fatalf("esc in a rebind changed something (mode %s)", a.Mode())
 	}
 	d.Keys("R")
-	if rows := saved(); len(rows) != 0 || len(a.userBindings) != 0 {
+	if rows := saved(); len(rows) != 0 || len(a.bind.userBindings) != 0 {
 		t.Fatalf("after reset bindings.json = %+v", rows)
 	}
 	// Unbind, undo, redo.
@@ -290,8 +290,8 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	d.Keys("esc", "g", "n")
 	d.Type("links")
 	d.Keys("enter")
-	if a.browseKind != "link" || a.Space() != SpaceWork || !strings.Contains(d.Frame(), "Links") {
-		t.Fatalf("browsing a custom noun: kind %q\n%s", a.browseKind, d.Frame())
+	if a.nav.browseKind != "link" || a.Space() != SpaceWork || !strings.Contains(d.Frame(), "Links") {
+		t.Fatalf("browsing a custom noun: kind %q\n%s", a.nav.browseKind, d.Frame())
 	}
 	d.Keys("n", "i")
 	d.Type("Ochazuke")
@@ -366,8 +366,8 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	}
 	// Back from another noun's index is the task index.
 	d.Keys("H")
-	if a.browseKind != "" || !strings.Contains(d.Frame(), "ochazuke-v2") {
-		t.Fatalf("H from the notes index: kind %q", a.browseKind)
+	if a.nav.browseKind != "" || !strings.Contains(d.Frame(), "ochazuke-v2") {
+		t.Fatalf("H from the notes index: kind %q", a.nav.browseKind)
 	}
 }
 

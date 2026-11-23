@@ -12,50 +12,50 @@ import (
 // --- Toast notifications (ochazuke/widgets/toast) --------------------------------
 
 func (a *App) initToasts() {
-	a.toasts = toast.NewWithClock(a.now)
+	a.rt.toasts = toast.NewWithClock(a.now)
 	a.syncToastSetting()
 }
 
 func (a *App) syncToastSetting() {
-	if a.toasts == nil {
+	if a.rt.toasts == nil {
 		return
 	}
-	a.toasts.SetEnabled(a.Settings.Bool(SetToast, true))
+	a.rt.toasts.SetEnabled(a.cfg.Settings.Bool(SetToast, true))
 }
 
 // pushToast adds a transient non-blocking notification when ui.toast is enabled.
 func (a *App) pushToast(text string, level toast.Level, ttl ...time.Duration) {
-	if a.toasts == nil {
+	if a.rt.toasts == nil {
 		return
 	}
 	a.syncToastSetting()
-	if !a.toasts.Enabled() || strings.TrimSpace(text) == "" {
+	if !a.rt.toasts.Enabled() || strings.TrimSpace(text) == "" {
 		return
 	}
-	a.toasts.Tick(a.now())
-	a.toasts.Push(text, level, ttl...)
-	a.gen++
+	a.rt.toasts.Tick(a.now())
+	a.rt.toasts.Push(text, level, ttl...)
+	a.viewMemo.gen++
 }
 
 // tickToasts prunes expired notifications and reports whether any expired.
 func (a *App) tickToasts() bool {
-	if a.toasts == nil {
+	if a.rt.toasts == nil {
 		return false
 	}
-	return a.toasts.Tick(a.now())
+	return a.rt.toasts.Tick(a.now())
 }
 
 // toastOverlay returns the floating toast overlay node when ui.toast is enabled
 // and at least one non-expired toast is active.
 func (a *App) toastOverlay() (ui.ViewNode, bool) {
-	if a.toasts == nil || !a.Settings.Bool(SetToast, true) {
+	if a.rt.toasts == nil || !a.cfg.Settings.Bool(SetToast, true) {
 		return ui.ViewNode{}, false
 	}
-	a.toasts.Tick(a.now())
-	if a.toasts.Len() == 0 {
+	a.rt.toasts.Tick(a.now())
+	if a.rt.toasts.Len() == 0 {
 		return ui.ViewNode{}, false
 	}
-	ov := a.toasts.ViewOverlay("app.toast")
+	ov := a.rt.toasts.ViewOverlay("app.toast")
 	if ov.Props == nil {
 		ov.Props = map[string]any{}
 	}
@@ -65,11 +65,11 @@ func (a *App) toastOverlay() (ui.ViewNode, bool) {
 }
 
 func (a *App) toastViewKey() string {
-	if a.toasts == nil || !a.Settings.Bool(SetToast, true) {
+	if a.rt.toasts == nil || !a.cfg.Settings.Bool(SetToast, true) {
 		return ""
 	}
 	now := a.now()
-	active := a.toasts.Active()
+	active := a.rt.toasts.Active()
 	if len(active) == 0 {
 		return ""
 	}

@@ -63,14 +63,14 @@ func (a *App) shellOpen(s core.State, c core.Command) core.StepResult {
 	if prefix == "" {
 		prefix = commandline.PrefixShell
 	}
-	if a.cmdline == nil {
-		a.cmdline = commandline.New(prefix)
-		a.cmdline.RegisterLookup = func(reg rune) (string, bool) {
+	if a.nav.cmdline == nil {
+		a.nav.cmdline = commandline.New(prefix)
+		a.nav.cmdline.RegisterLookup = func(reg rune) (string, bool) {
 			v := a.Register(reg)
 			return v, v != ""
 		}
 	} else {
-		a.cmdline.Open(prefix)
+		a.nav.cmdline.Open(prefix)
 	}
 	var target *core.Ref
 	if ref, ok := a.subject(s, c); ok {
@@ -78,7 +78,7 @@ func (a *App) shellOpen(s core.State, c core.Command) core.StepResult {
 		target = &r
 	}
 	vars, dir := a.shellVars(target)
-	a.cmdline.Vars = vars
+	a.nav.cmdline.Vars = vars
 
 	title := "Shell (!)"
 	switch prefix {
@@ -96,7 +96,7 @@ func (a *App) shellOpen(s core.State, c core.Command) core.StepResult {
 		titleSuffix = a.title(*target)
 	}
 
-	m := modal.NewCommandLineModal(a.cmdline, modal.CommandLineOptions{
+	m := modal.NewCommandLineModal(a.nav.cmdline, modal.CommandLineOptions{
 		ID:          "commandline",
 		Scope:       "commandline",
 		Mode:        ModeCommandLine,
@@ -146,7 +146,7 @@ func (a *App) execShellSubmission(s core.State, sub commandline.Submission, targ
 		a.say("empty command")
 		return s
 	}
-	a.Registers.SetSpecial(core.RegCommand, string(sub.Prefix)+sub.Raw)
+	a.nav.Registers.SetSpecial(core.RegCommand, string(sub.Prefix)+sub.Raw)
 	switch sub.Prefix {
 	case commandline.PrefixShell:
 		return a.startShell(s, "", cmdLine, dir)
@@ -184,9 +184,9 @@ func (a *App) execShellSubmission(s core.State, sub commandline.Submission, targ
 					return s
 				}
 				if out != "" {
-					a.Registers.Yank(0, out, false)
+					a.nav.Registers.Yank(0, out, false)
 				}
-				a.gen++
+				a.viewMemo.gen++
 				selectRow(a.records(runsTable, data.KindRun), data.RefText(rec.Ref()))
 				a.say("pipe finished (exit %d) · saved as run & yanked", exitCode)
 				return s
@@ -220,9 +220,9 @@ func (a *App) execShellSubmission(s core.State, sub commandline.Submission, targ
 					_, _, _ = a.Store.Relate(data.RelateInput{From: rec.Ref(), Kind: data.RelAbout, To: *aboutRef}, User)
 				}
 				if out != "" {
-					a.Registers.Yank(0, out, false)
+					a.nav.Registers.Yank(0, out, false)
 				}
-				a.gen++
+				a.viewMemo.gen++
 				a.wrote(fmt.Sprintf("captured note from r! (exit %d)", exitCode), cs, nil)
 				return s
 			}

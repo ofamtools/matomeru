@@ -43,7 +43,7 @@ func TestShellIORedirectionCommandLine(t *testing.T) {
 	// 2. | pipes the focused record's JSON into a shell command, captures output in a run and yanks it.
 	browseTo(t, a, d, task)
 	d.Keys("|")
-	if a.Modal() != "commandline" || a.cmdline.Prefix != "|" {
+	if a.Modal() != "commandline" || a.nav.cmdline.Prefix != "|" {
 		t.Fatalf("| did not open pipe commandline")
 	}
 	d.Type("tr a-z A-Z")
@@ -56,7 +56,7 @@ func TestShellIORedirectionCommandLine(t *testing.T) {
 
 	// 3. g ! (r!) reads shell output into a new note attached via about to the focused record.
 	d.Keys("g", "!")
-	if a.Modal() != "commandline" || a.cmdline.Prefix != "r!" {
+	if a.Modal() != "commandline" || a.nav.cmdline.Prefix != "r!" {
 		t.Fatalf("g ! did not open r! commandline")
 	}
 	d.Type("printf 'captured from shell'")

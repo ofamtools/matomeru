@@ -696,9 +696,9 @@ func TestWaveD2WorkTasksTreeLayoutAndOutlineAddFold(t *testing.T) {
 	d.Keys("esc", "esc")
 
 	// Opt-out setting work.tasksLayout = "table" switches cleanly to flat table view.
-	a.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
+	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
 	a.reloadSettings()
-	a.gen++
+	a.viewMemo.gen++
 	d.Keys("2")
 	tableFrame := d.Frame()
 	if !strings.Contains(tableFrame, "Status") || !strings.Contains(tableFrame, "Priority") {
@@ -939,8 +939,8 @@ func TestDeadPaneAutoDetachAndArchive(t *testing.T) {
 	if err := host.Open(pane.ID, "exit 7", "", 80, 20); err != nil {
 		t.Fatalf("host.Open: %v", err)
 	}
-	a.live.shown = pane.ID
-	a.live.frames[pane.ID] = ptyhost.Frame{ID: pane.ID, Cols: 80, Rows: 20, Exited: false, Revision: 0}
+	a.rt.live.shown = pane.ID
+	a.rt.live.frames[pane.ID] = ptyhost.Frame{ID: pane.ID, Cols: 80, Rows: 20, Exited: false, Revision: 0}
 
 	// Attach into ModeTerminal.
 	s := withMode(a.State(), ModeTerminal)

@@ -49,30 +49,30 @@ func (a *App) loadHarnesses(configDir string) {
 		}
 	}
 	entries := harness.MergeInstalled(defaultInstalledHarnesses(), cfg)
-	a.harnessMu.Lock()
-	a.harnessCfg = cfg
-	a.harnessEntries = entries
-	a.harnessMu.Unlock()
+	a.rt.harnessMu.Lock()
+	a.rt.harnessCfg = cfg
+	a.rt.harnessEntries = entries
+	a.rt.harnessMu.Unlock()
 }
 
 // Harnesses returns a copy of the current merged harness catalog entries.
 func (a *App) Harnesses() []harness.Entry {
-	a.harnessMu.RLock()
-	defer a.harnessMu.RUnlock()
-	return slices.Clone(a.harnessEntries)
+	a.rt.harnessMu.RLock()
+	defer a.rt.harnessMu.RUnlock()
+	return slices.Clone(a.rt.harnessEntries)
 }
 
 // SetInstalledHarnesses merges installed inventory from o-ai with harnesses.json
 // and updates the app's harness catalog.
 func (a *App) SetInstalledHarnesses(installed []harness.InstalledHarness) []harness.Entry {
-	a.harnessMu.Lock()
-	merged := harness.MergeInstalled(installed, a.harnessCfg)
-	a.harnessEntries = merged
-	a.harnessMu.Unlock()
+	a.rt.harnessMu.Lock()
+	merged := harness.MergeInstalled(installed, a.rt.harnessCfg)
+	a.rt.harnessEntries = merged
+	a.rt.harnessMu.Unlock()
 	if rf := a.activeRecordForm(); rf != nil && rf.kind == data.KindPane {
 		a.applyHarnessChoices(rf)
 	}
-	a.gen++
+	a.viewMemo.gen++
 	return slices.Clone(merged)
 }
 
@@ -82,15 +82,15 @@ func (a *App) lookupHarness(name string) (harness.Entry, bool) {
 		return harness.Entry{}, false
 	}
 	alias := harness.AliasID(want)
-	a.harnessMu.RLock()
-	defer a.harnessMu.RUnlock()
-	for _, e := range a.harnessEntries {
+	a.rt.harnessMu.RLock()
+	defer a.rt.harnessMu.RUnlock()
+	for _, e := range a.rt.harnessEntries {
 		if strings.EqualFold(e.ID, want) || strings.EqualFold(e.Name, want) {
 			return e, true
 		}
 	}
 	if alias != "" {
-		for _, e := range a.harnessEntries {
+		for _, e := range a.rt.harnessEntries {
 			if strings.EqualFold(e.ID, alias) || strings.EqualFold(e.Name, alias) {
 				return e, true
 			}
@@ -231,7 +231,7 @@ func installedFromRecords(items []data.Record) []harness.InstalledHarness {
 // from cached ai.harness records or `o-ai query --kind ai.harness` and merges
 // them with harnesses.json via harness.MergeInstalled.
 func (a *App) startHarnessDiscovery() {
-	dirs := append(slices.Clone(a.opts.ExtensionDirs), a.Settings.Strings("extensionDirs", nil)...)
+	dirs := append(slices.Clone(a.opts.ExtensionDirs), a.cfg.Settings.Strings("extensionDirs", nil)...)
 	for i, d := range dirs {
 		dirs[i] = expandHome(d)
 	}
@@ -241,10 +241,10 @@ func (a *App) startHarnessDiscovery() {
 			storeBinary = rec.Text("binary")
 		}
 	}
-	a.harnessMu.RLock()
-	cfg := a.harnessCfg
-	a.harnessMu.RUnlock()
-	cache := a.readCache
+	a.rt.harnessMu.RLock()
+	cfg := a.rt.harnessCfg
+	a.rt.harnessMu.RUnlock()
+	cache := a.ext.readCache
 
 	a.background(func(ctx context.Context) func(core.State) core.State {
 		var installed []harness.InstalledHarness
@@ -272,13 +272,13 @@ func (a *App) startHarnessDiscovery() {
 		}
 		merged := harness.MergeInstalled(installed, cfg)
 		return func(s core.State) core.State {
-			a.harnessMu.Lock()
-			a.harnessEntries = merged
-			a.harnessMu.Unlock()
+			a.rt.harnessMu.Lock()
+			a.rt.harnessEntries = merged
+			a.rt.harnessMu.Unlock()
 			if rf := a.activeRecordForm(); rf != nil && rf.kind == data.KindPane {
 				a.applyHarnessChoices(rf)
 			}
-			a.gen++
+			a.viewMemo.gen++
 			return s
 		}
 	})

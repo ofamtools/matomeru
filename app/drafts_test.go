@@ -178,7 +178,7 @@ func TestFormDraftsLifecycle(t *testing.T) {
 	if _, err := a.Store.GetByField(data.KindTask, "title", "First draft title"); err != nil {
 		t.Fatalf("restored draft was not created on submit: %v", err)
 	}
-	if remaining := a.drafts.List("new:task"); len(remaining) != 0 {
+	if remaining := a.cfg.drafts.List("new:task"); len(remaining) != 0 {
 		t.Fatalf("draft was not removed on submit: %d remaining", len(remaining))
 	}
 }

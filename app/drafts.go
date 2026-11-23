@@ -49,19 +49,19 @@ func (a *App) loadDrafts(dir string) {
 	if ds.MaxPerKey <= 0 {
 		ds.MaxPerKey = form.DefaultMaxDraftsPerKey
 	}
-	a.drafts = &ds
+	a.cfg.drafts = &ds
 }
 
 func (a *App) saveDrafts() {
 	path := a.draftsPath()
-	if path == "" || a.drafts == nil {
+	if path == "" || a.cfg.drafts == nil {
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		a.warn("%s: %v", draftsFileName, err)
 		return
 	}
-	b, err := json.MarshalIndent(a.drafts, "", "  ")
+	b, err := json.MarshalIndent(a.cfg.drafts, "", "  ")
 	if err != nil {
 		a.warn("%s: %v", draftsFileName, err)
 		return
@@ -96,18 +96,18 @@ func (a *App) attachFormDrafts(fm *form.Model, key string) {
 	if fm == nil || key == "" {
 		return
 	}
-	if a.drafts == nil {
-		a.drafts = form.NewDraftStore()
+	if a.cfg.drafts == nil {
+		a.cfg.drafts = form.NewDraftStore()
 	}
-	fm.SetDrafts(a.drafts.List(key))
+	fm.SetDrafts(a.cfg.drafts.List(key))
 }
 
 func (a *App) clearSubmittedDraft(fm *form.Model, draftKey string) {
-	if fm == nil || draftKey == "" || a.drafts == nil {
+	if fm == nil || draftKey == "" || a.cfg.drafts == nil {
 		return
 	}
 	if idx := fm.ActiveDraftIndex(); idx >= 0 {
-		if a.drafts.Remove(draftKey, idx) {
+		if a.cfg.drafts.Remove(draftKey, idx) {
 			a.saveDrafts()
 		}
 	}
@@ -129,7 +129,7 @@ func draftLabel(fm *form.Model) string {
 // It skips saving when the form is clean or when the user is viewing an
 // unmodified existing draft.
 func (a *App) saveFormDraft(fm *form.Model, draftKey string) bool {
-	if fm == nil || draftKey == "" || a.drafts == nil {
+	if fm == nil || draftKey == "" || a.cfg.drafts == nil {
 		return false
 	}
 	if fm.Editing {
@@ -143,7 +143,7 @@ func (a *App) saveFormDraft(fm *form.Model, draftKey string) bool {
 			return false
 		}
 	}
-	if !a.drafts.Save(draftKey, fm.Values, draftLabel(fm), a.now()) {
+	if !a.cfg.drafts.Save(draftKey, fm.Values, draftLabel(fm), a.now()) {
 		return false
 	}
 	a.saveDrafts()
@@ -285,7 +285,7 @@ func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
 			createdRef := ref
 			a.afterModal(func(st core.State) core.State {
 				if st.ActivePage == SpacePanes {
-					a.gen++
+					a.viewMemo.gen++
 					selectRow(a.rail(), data.RefText(createdRef))
 				}
 				return st

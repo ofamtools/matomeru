@@ -39,7 +39,7 @@ func relativeTime(now, t time.Time) string {
 
 func (a *App) recentsPick(s core.State, _ core.Command) core.StepResult {
 	res, err := a.Store.Query(data.Query{
-		IncludeArchived: a.showArchived,
+		IncludeArchived: a.nav.showArchived,
 		SortField:       "updatedAt",
 		SortDesc:        true,
 	})

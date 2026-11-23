@@ -41,7 +41,7 @@ type openTarget struct {
 
 // loadHandlers reads the user's handlers.json over the default rules.
 func (a *App) loadHandlers(dir string) {
-	a.Handlers = handlers.Default()
+	a.cfg.Handlers = handlers.Default()
 	if dir == "" {
 		return
 	}
@@ -50,7 +50,7 @@ func (a *App) loadHandlers(dir string) {
 		return
 	}
 	if err == nil {
-		err = a.Handlers.LoadJSONC(b)
+		err = a.cfg.Handlers.LoadJSONC(b)
 	}
 	if err != nil {
 		a.warn("%s: %v", handlersFileName, err)
@@ -71,7 +71,7 @@ func (a *App) targetOf(rec data.Record) (openTarget, bool) {
 			if !handlers.IsURL(v) {
 				t.path = expandHome(v)
 			}
-			t.rules = a.Handlers.Match(t.path)
+			t.rules = a.cfg.Handlers.Match(t.path)
 			return t, true
 		}
 	}
@@ -84,14 +84,14 @@ func (a *App) targetOf(rec data.Record) (openTarget, bool) {
 				}
 			}
 			t.path = contextTargetPath(rec.Text("contextKind"), v, pane)
-			t.rules = a.Handlers.Match(t.path)
+			t.rules = a.cfg.Handlers.Match(t.path)
 			return t, true
 		}
 	}
 	if body := rec.Text("body"); body != "" && (rec.Kind == data.KindDocument || rec.Kind == data.KindNote) {
 		t.body = body
 		// Inline text has no path: only the reader can show it.
-		for _, rule := range a.Handlers.Match("inline.md") {
+		for _, rule := range a.cfg.Handlers.Match("inline.md") {
 			if rule.Kind == handlers.KindBuiltin && rule.Name == handlers.MarkdownReader {
 				t.rules = append(t.rules, rule)
 			}
@@ -291,7 +291,7 @@ func (a *App) newPane(s core.State, from *core.Ref, title, command, dir, role st
 		rail.Query = ""
 		selectRow(rail, data.RefText(rec.Ref()))
 	}
-	a.activePage[rec.ID] = views.ScreenPageID
+	a.panes.activePage[rec.ID] = views.ScreenPageID
 	s.ActivePage = SpacePanes
 	if err := a.attach(*rec); err != nil {
 		a.fail("open "+title, err)
@@ -423,7 +423,7 @@ func (a *App) followLink(rm *modal.MarkdownModal, href string) modal.Result {
 			target = filepath.Join(filepath.Dir(rm.Path()), target)
 		}
 	}
-	rules := a.Handlers.Match(target)
+	rules := a.cfg.Handlers.Match(target)
 	if len(rules) == 0 {
 		return modal.Result{Handled: true, Status: fmt.Sprintf("no handler opens %s", target), SetStatus: true}
 	}

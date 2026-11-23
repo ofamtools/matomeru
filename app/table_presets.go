@@ -15,8 +15,8 @@ import (
 
 // loadPresets initializes a.presets from the "table.presets" setting.
 func (a *App) loadPresets() {
-	a.presets = table.NewPresetStore()
-	raw, ok := a.Settings.Raw(SetTablePresets)
+	a.nav.presets = table.NewPresetStore()
+	raw, ok := a.cfg.Settings.Raw(SetTablePresets)
 	if !ok || raw == nil {
 		return
 	}
@@ -25,17 +25,17 @@ func (a *App) loadPresets() {
 		a.warn("%s: %v", SetTablePresets, err)
 		return
 	}
-	if err := a.presets.UnmarshalJSON(b); err != nil {
+	if err := a.nav.presets.UnmarshalJSON(b); err != nil {
 		a.warn("%s: %v", SetTablePresets, err)
 	}
 }
 
 // savePresets persists a.presets into settings.json under "table.presets".
 func (a *App) savePresets() (bool, error) {
-	if a.presets == nil || len(a.presets.TableIDs()) == 0 {
-		delete(a.userSettings, SetTablePresets)
+	if a.nav.presets == nil || len(a.nav.presets.TableIDs()) == 0 {
+		delete(a.cfg.userSettings, SetTablePresets)
 	} else {
-		raw, err := a.presets.MarshalJSON()
+		raw, err := a.nav.presets.MarshalJSON()
 		if err != nil {
 			return false, err
 		}
@@ -43,24 +43,24 @@ func (a *App) savePresets() (bool, error) {
 		if err := json.Unmarshal(raw, &obj); err != nil {
 			return false, err
 		}
-		a.userSettings[SetTablePresets] = obj
+		a.cfg.userSettings[SetTablePresets] = obj
 	}
 	a.reloadSettings()
-	return a.writeConfig(settingsFileName, a.userSettings)
+	return a.writeConfig(settingsFileName, a.cfg.userSettings)
 }
 
 // applyDefaultPreset applies the default saved preset for tableID on initial
 // table creation.
 func (a *App) applyDefaultPreset(tbl *table.Model, tableID string) bool {
-	if a.presets == nil || tbl == nil || tableID == "" {
+	if a.nav.presets == nil || tbl == nil || tableID == "" {
 		return false
 	}
-	if !a.presets.ApplyDefault(tbl, tableID) {
+	if !a.nav.presets.ApplyDefault(tbl, tableID) {
 		return false
 	}
 	if tableID == railTable {
-		a.railGroupSet = true
-		a.railCustomGroup = tbl.GroupField
+		a.panes.railGroupSet = true
+		a.panes.railCustomGroup = tbl.GroupField
 	}
 	return true
 }
@@ -84,10 +84,10 @@ func (a *App) focusedTableForPreset(s core.State, c core.Command) (*table.Model,
 		}
 	}
 	focus := s.ActiveFrame().FocusID
-	if tbl := a.tables[focus]; tbl != nil {
+	if tbl := a.nav.tables[focus]; tbl != nil {
 		return tbl, focus
 	}
-	if s.ActivePage == SpaceWork && a.histPos >= 0 {
+	if s.ActivePage == SpaceWork && a.nav.histPos >= 0 {
 		return nil, ""
 	}
 	for _, sp := range spaces {
@@ -99,7 +99,7 @@ func (a *App) focusedTableForPreset(s core.State, c core.Command) (*table.Model,
 }
 
 func (a *App) ensureTable(id string) *table.Model {
-	if tbl := a.tables[id]; tbl != nil {
+	if tbl := a.nav.tables[id]; tbl != nil {
 		return tbl
 	}
 	switch id {
@@ -112,7 +112,7 @@ func (a *App) ensureTable(id string) *table.Model {
 	case extTable:
 		return a.records(extTable, dataKindForSpace(SpaceExtensions))
 	}
-	return a.tables[id]
+	return a.nav.tables[id]
 }
 
 func dataKindForSpace(spaceID string) string {
@@ -153,10 +153,10 @@ func presetSummary(p table.Preset) string {
 }
 
 func (a *App) presetPickerItems(tableID string) []picker.Item {
-	if a.presets == nil {
+	if a.nav.presets == nil {
 		return nil
 	}
-	list := a.presets.List(tableID)
+	list := a.nav.presets.List(tableID)
 	items := make([]picker.Item, len(list))
 	for i, p := range list {
 		it := picker.Item{
@@ -262,18 +262,18 @@ func (a *App) saveTablePreset(tableID, name string, makeDefault bool) bool {
 		a.say("no table %q", tableID)
 		return false
 	}
-	if a.presets == nil {
-		a.presets = table.NewPresetStore()
+	if a.nav.presets == nil {
+		a.nav.presets = table.NewPresetStore()
 	}
-	p := a.presets.Capture(tbl, name)
+	p := a.nav.presets.Capture(tbl, name)
 	if !makeDefault {
-		if prev, ok := a.presets.Get(tableID, name); ok {
+		if prev, ok := a.nav.presets.Get(tableID, name); ok {
 			p.Default = prev.Default
 		}
 	} else {
 		p.Default = true
 	}
-	if err := a.presets.Save(tableID, p); err != nil {
+	if err := a.nav.presets.Save(tableID, p); err != nil {
 		a.fail("save preset", err)
 		return false
 	}
@@ -292,17 +292,17 @@ func (a *App) saveTablePreset(tableID, name string, makeDefault bool) bool {
 
 func (a *App) applyTablePreset(tableID, name string) bool {
 	tbl := a.ensureTable(tableID)
-	if tbl == nil || a.presets == nil {
+	if tbl == nil || a.nav.presets == nil {
 		a.say("no table %q", tableID)
 		return false
 	}
-	if !a.presets.Apply(tbl, tableID, name) {
+	if !a.nav.presets.Apply(tbl, tableID, name) {
 		a.say("no preset %q for %s", name, tableID)
 		return false
 	}
 	if tableID == railTable {
-		a.railGroupSet = true
-		a.railCustomGroup = tbl.GroupField
+		a.panes.railGroupSet = true
+		a.panes.railCustomGroup = tbl.GroupField
 		a.rail()
 	}
 	a.say("applied preset %q to %s", name, tableID)
@@ -311,11 +311,11 @@ func (a *App) applyTablePreset(tableID, name string) bool {
 }
 
 func (a *App) setDefaultTablePreset(tableID, name string) bool {
-	if a.presets == nil {
+	if a.nav.presets == nil {
 		a.say("no presets for %s", tableID)
 		return false
 	}
-	if !a.presets.SetDefault(tableID, name) {
+	if !a.nav.presets.SetDefault(tableID, name) {
 		if name == "" {
 			a.say("no default preset to clear for %s", tableID)
 		} else {
@@ -341,7 +341,7 @@ func (a *App) setDefaultTablePreset(tableID, name string) bool {
 }
 
 func (a *App) deleteTablePreset(tableID, name string) bool {
-	if a.presets == nil || !a.presets.Delete(tableID, name) {
+	if a.nav.presets == nil || !a.nav.presets.Delete(tableID, name) {
 		a.say("no preset %q for %s", name, tableID)
 		return false
 	}

@@ -31,7 +31,7 @@ func (a *App) paneAssociate(s core.State, c core.Command) core.StepResult {
 		a.say("no pane selected to associate")
 		return core.Next(s)
 	}
-	nodes, err := a.Store.TaskTree(a.showArchived)
+	nodes, err := a.Store.TaskTree(a.nav.showArchived)
 	if err != nil {
 		a.fail("associate pane", err)
 		return core.Next(s)
@@ -112,7 +112,7 @@ func (a *App) associatePaneWithTask(paneRef, taskRef core.Ref) {
 }
 
 func (a *App) updatePaneContextProject(paneID string) {
-	if paneID == "" || a.ctxIdx == nil {
+	if paneID == "" || a.ctx == nil {
 		return
 	}
 	pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID})
@@ -124,12 +124,12 @@ func (a *App) updatePaneContextProject(paneID string) {
 	if projRef != nil {
 		projID = projRef.ID
 	}
-	a.ctxIdx.mu.Lock()
-	for _, it := range a.ctxIdx.items {
+	a.ctx.mu.Lock()
+	for _, it := range a.ctx.items {
 		if it.PaneID == paneID {
 			it.Project = projTitle
 			it.ProjectID = projID
 		}
 	}
-	a.ctxIdx.mu.Unlock()
+	a.ctx.mu.Unlock()
 }

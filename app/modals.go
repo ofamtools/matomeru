@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,6 +14,7 @@ import (
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/modal"
+	"ofam.dev/ochazuke/widgets/palette"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/toast"
@@ -85,7 +87,7 @@ func (a *App) applyModalResult(s core.State, res modal.Result) core.StepResult {
 		if cmd.Actor.ID == "" && cmd.Actor.Kind == "" {
 			cmd.Actor = User
 		}
-		a.gen++
+		a.viewMemo.gen++
 		var facts map[string]any
 		if a.Shell != nil && a.Shell.AppFacts != nil {
 			facts = a.Shell.AppFacts(s)
@@ -257,8 +259,8 @@ func (a *App) formPickRef(getForm func() *modal.FormModal) func(form.RefRequest)
 
 func (a *App) formDraftDiscard(draftKey string) func(int) modal.Result {
 	return func(idx int) modal.Result {
-		if draftKey != "" && a.drafts != nil {
-			a.drafts.Remove(draftKey, idx)
+		if draftKey != "" && a.cfg.drafts != nil {
+			a.cfg.drafts.Remove(draftKey, idx)
 			a.saveDrafts()
 		}
 		return modal.Result{
@@ -476,7 +478,7 @@ func (a *App) openConfirm(s core.State, opts modal.ConfirmOptions) core.State {
 // appQuit handles core.CmdAppQuit (Q / ctrl+c): prompts with the shared
 // confirmation dialog when confirm.quit is enabled, otherwise quits at once.
 func (a *App) appQuit(s core.State, _ core.Command) core.StepResult {
-	if !a.Settings.Bool(SetConfirmQuit, true) {
+	if !a.cfg.Settings.Bool(SetConfirmQuit, true) {
 		return core.Next(s, core.QuitEffect{})
 	}
 	return core.Next(a.openConfirm(s, modal.ConfirmOptions{
@@ -606,4 +608,194 @@ func (a *App) createPickedRecord(kind, title string) (data.Record, error) {
 	}
 	a.pushToast(fmt.Sprintf("Created %s %q", strings.ToLower(nounTitle), title), toast.Ok)
 	return *rec, nil
+}
+
+// --- palette, help, and path modal openers --------------------------------------
+
+func (a *App) paletteEntries() []palette.Entry {
+	reg := core.DefaultRegistry()
+	reg.Register(a.bind.specs...)
+	schemas := a.Store.Registry().List()
+	nounKinds := make([]string, 0, len(schemas))
+	for _, sc := range schemas {
+		nounKinds = append(nounKinds, sc.Kind)
+	}
+	var entries []palette.Entry
+	inspectSpec := core.CommandSpec{ID: CmdInspectOpen, Description: "Inspect a registry the app runs on"}
+	for _, sp := range reg.List() {
+		if sp.ID == CmdInspectOpen {
+			inspectSpec = sp
+			if len(sp.Params) > 0 {
+				inspectSpec.Params = slices.Clone(sp.Params)
+			}
+		}
+		if internal(sp) {
+			continue
+		}
+		specCopy := sp
+		if len(sp.Params) > 0 {
+			specCopy.Params = slices.Clone(sp.Params)
+		}
+		if specCopy.ID == views.CmdNew {
+			if len(specCopy.Params) == 0 {
+				specCopy.Params = []core.ParamSpec{{Name: "kind", Type: core.ParamString, Default: data.KindTask}}
+			}
+			specCopy.Params[0].Enum = nounKinds
+			if specCopy.Params[0].Description == "" {
+				specCopy.Params[0].Description = "Noun kind to create"
+			}
+			if specCopy.Params[0].Default == nil {
+				specCopy.Params[0].Default = data.KindTask
+			}
+		}
+		item := picker.Item{ID: sp.ID, Title: sp.ID, Subtitle: sp.Description}
+		var defaults map[string]any
+		for _, b := range a.bind.bindings {
+			if b.Command != sp.ID || len(b.Keys) == 0 {
+				continue
+			}
+			dynamic := false
+			for _, v := range b.Args {
+				if str, ok := v.(string); ok && strings.HasPrefix(str, "$") {
+					dynamic = true
+				}
+			}
+			if !dynamic {
+				defaults = maps.Clone(b.Args)
+				item.Data = defaults
+				item.Badges = []ui.Badge{{Text: strings.Join(b.Keys, " ")}}
+				break
+			}
+		}
+		entries = append(entries, palette.Entry{Spec: specCopy, Item: item, Defaults: defaults})
+	}
+	// The registries: "inspect actions", "inspect modes".
+	for _, what := range []string{InspectActions, InspectModes} {
+		defaults := map[string]any{"what": what}
+		entries = append(entries, palette.Entry{
+			Spec:     inspectSpec,
+			Item:     picker.Item{ID: CmdInspectOpen + ":" + what, Title: "inspect " + what, Subtitle: "Look at the " + what + " the app runs on", Data: defaults},
+			Defaults: defaults,
+		})
+	}
+	// A space is a page.open with its ID: one palette row each.
+	for i, sp := range spaces {
+		defaults := map[string]any{"id": sp.id}
+		entries = append(entries, palette.Entry{
+			Spec: core.CommandSpec{ID: core.CmdPageOpen, Description: "Go to the " + sp.title + " space"},
+			Item: picker.Item{ID: "space." + sp.id, Title: "space." + sp.id, Subtitle: "Go to the " + sp.title + " space",
+				Data: defaults, Badges: []ui.Badge{{Text: fmt.Sprint(i + 1)}}},
+			Defaults: defaults,
+		})
+	}
+	return entries
+}
+
+func (a *App) paletteOpen(s core.State, _ core.Command) core.StepResult {
+	pal := palette.New("Commands", a.paletteEntries())
+	pal.Placeholder = "a command · !cmd runs a shell command"
+	pal.Picker.PageSize = 10
+	var pm *modal.PaletteModal
+	pm = modal.NewPaletteModal(pal, modal.PaletteOptions{
+		ID:               "palette",
+		Scope:            "palette",
+		WidthPct:         70,
+		ExpandedWidthPct: 90,
+		HeightPct:        75,
+		PickerMode:       ModePicker,
+		FormMode:         ModeForm,
+		FormEditMode:     ModeFormEdit,
+		OnRawQuery: func(query string) (modal.Result, bool) {
+			line, shell := strings.CutPrefix(query, "!")
+			if !shell {
+				return modal.Result{}, false
+			}
+			line = strings.TrimSpace(line)
+			if line == "" {
+				return modal.Result{Handled: true, Status: "type a shell command after !", SetStatus: true}, true
+			}
+			a.afterModal(func(st core.State) core.State {
+				return a.startShell(st, "", line, "")
+			})
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}, true
+		},
+		OnSubmit: func(entry palette.Entry, args map[string]any) modal.Result {
+			a.nav.Registers.SetSpecial(core.RegCommand, entry.Item.Title)
+			return modal.Result{
+				Handled:     true,
+				Close:       true,
+				CloseReason: modal.CloseSubmit,
+				Emit: []core.Command{{
+					ID:     entry.Spec.ID,
+					Args:   args,
+					Source: "palette",
+					Actor:  User,
+				}},
+			}
+		},
+		OnPickPath: func(req form.PathRequest, current any) modal.Result {
+			field := req.Field
+			pathMod, ok := a.newPathPickerModal(current, func(entry pathpicker.DirEntry) modal.Result {
+				pm.SetPickedValue(field, entry.Path)
+				return modal.Result{}
+			})
+			if !ok {
+				return modal.Result{Handled: true}
+			}
+			return modal.Result{
+				Handled:   true,
+				Push:      pathMod,
+				Status:    "enter opens · tab chooses · left goes up",
+				SetStatus: true,
+			}
+		},
+		OnPickRef: func(req form.RefRequest) modal.Result {
+			field := req.Field
+			return modal.Result{
+				Handled: true,
+				Push: a.newRefPickerModal(req, func(ref core.Ref) {
+					pm.SetPickedValue(field, ref)
+				}),
+			}
+		},
+	})
+	return core.Next(a.pushModal(s, pm))
+}
+
+func (a *App) helpOpen(s core.State, _ core.Command) core.StepResult {
+	active := a.activeKeyBindings(s)
+	items := make([]picker.Item, len(active))
+	for i, b := range active {
+		items[i] = picker.Item{ID: fmt.Sprint(i), Title: fmt.Sprintf("%-12s %s", b.keys, b.command), Subtitle: b.hint, Keywords: []string{b.scope, b.mode}}
+		if b.scope != "" {
+			items[i].Badges = []ui.Badge{{Text: b.scope, Tone: "accent"}}
+		}
+	}
+	pm := picker.New("Bindings · "+a.Engine.Mode(s), items)
+	pm.Placeholder = "keys that work here"
+	m := modal.NewPickerModal(pm, modal.PickerOptions{
+		ID:       "help",
+		PageSize: 10,
+		OnConfirm: func(_ picker.Item) modal.Result {
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
+	return core.Next(a.pushModal(s, m))
+}
+
+func (a *App) pathOpen(s core.State, c core.Command) core.StepResult {
+	var target *core.Ref
+	var start any
+	if ref, ok := a.subject(s, c); ok {
+		if rec, err := a.Store.Get(ref); err == nil {
+			target = &ref
+			for _, field := range []string{"defaultDir", "cwd", "filePath"} {
+				if v := rec.Text(field); v != "" {
+					start = v
+					break
+				}
+			}
+		}
+	}
+	return core.Next(a.openPath(s, "", target, start))
 }

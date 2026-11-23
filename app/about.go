@@ -205,7 +205,7 @@ func BuildAboutInfo(store *data.Store, configDir string, client *daemon.Client, 
 // BuildAboutInfo gathers AboutInfo using this App's store, daemon, mounted
 // extension catalogs, config directory, and discovered harnesses.
 func (a *App) BuildAboutInfo() AboutInfo {
-	return buildAboutInfoWithCatalogs(a.Store, a.opts.ConfigDir, a.daemonClient(), a.Harnesses(), a.extCatalogs)
+	return buildAboutInfoWithCatalogs(a.Store, a.opts.ConfigDir, a.daemonClient(), a.Harnesses(), a.ext.extCatalogs)
 }
 
 func buildAboutInfoWithCatalogs(store *data.Store, configDir string, client *daemon.Client, harnesses []harness.Entry, extCatalogs map[string]string) AboutInfo {

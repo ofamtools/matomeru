@@ -157,7 +157,7 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 	if a.inWorkTree(a.State()) {
 		t.Fatal("g t did not toggle Lanes to table view")
 	}
-	if row, ok := a.tables[workTable].FocusedRow(); !ok || row.Ref == nil || row.Ref.ID != selBefore {
+	if row, ok := a.nav.tables[workTable].FocusedRow(); !ok || row.Ref == nil || row.Ref.ID != selBefore {
 		t.Fatalf("table selection after g t = %+v, want %q", row, selBefore)
 	}
 	d.Keys("g", "t")
@@ -181,7 +181,7 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 	d.Keys("g", "n")
 	d.Type("lanes")
 	d.Keys("enter")
-	a.userSettings[SetTreeTopLevelGap] = false
+	a.cfg.userSettings[SetTreeTopLevelGap] = false
 	a.reloadSettings()
 	a.applySettings()
 	d.Send(wakeMsg())
@@ -202,7 +202,7 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 
 	// Clear per-kind override and verify work.hierarchyLayout = "table" forces table on Lanes & Tasks.
 	clear(a.trees.layoutOverride)
-	a.userSettings[SetWorkHierarchyLayout] = WorkHierarchyLayoutTable
+	a.cfg.userSettings[SetWorkHierarchyLayout] = WorkHierarchyLayoutTable
 	a.reloadSettings()
 	a.applySettings()
 	if a.inWorkTree(a.State()) {

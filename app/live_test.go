@@ -74,23 +74,23 @@ func script(t *testing.T, dir, name, body string) {
 func TestWatcherRedrawsOnlyOnChange(t *testing.T) {
 	a, d := liveApp(t, true, Options{})
 	d.Keys("2")
-	renders, refreshes := a.Shell.Renders, a.live.refreshes
+	renders, refreshes := a.Shell.Renders, a.rt.live.refreshes
 	for range 20 {
 		if a.WatchCheck() {
 			t.Fatal("the watcher reported a change in an idle store")
 		}
 	}
-	if len(a.live.wake) != 0 || a.Shell.Renders != renders || a.live.refreshes != refreshes {
-		t.Fatalf("an idle store woke the app: wake %d, renders %d -> %d", len(a.live.wake), renders, a.Shell.Renders)
+	if len(a.rt.live.wake) != 0 || a.Shell.Renders != renders || a.rt.live.refreshes != refreshes {
+		t.Fatalf("an idle store woke the app: wake %d, renders %d -> %d", len(a.rt.live.wake), renders, a.Shell.Renders)
 	}
 
 	d.Keys("s", "s") // the owner's own writes are drawn by their own commands
-	if a.WatchCheck() || len(a.live.wake) != 0 {
+	if a.WatchCheck() || len(a.rt.live.wake) != 0 {
 		t.Fatal("the app's own write came back as a change")
 	}
 	wake(d) // a wake-up that finds nothing new redraws nothing new
-	if a.live.refreshes != refreshes {
-		t.Fatalf("a wake-up with nothing new refreshed the view (%d -> %d)", refreshes, a.live.refreshes)
+	if a.rt.live.refreshes != refreshes {
+		t.Fatalf("a wake-up with nothing new refreshed the view (%d -> %d)", refreshes, a.rt.live.refreshes)
 	}
 
 	// Another process (an agent's MCP call, the CLI) writes to the store.
@@ -101,16 +101,16 @@ func TestWatcherRedrawsOnlyOnChange(t *testing.T) {
 	if strings.Contains(d.Frame(), "Written elsewhere") {
 		t.Fatal("the view changed before the watcher looked")
 	}
-	if !a.WatchCheck() || len(a.live.wake) != 1 {
-		t.Fatalf("the watcher missed the write (wake %d)", len(a.live.wake))
+	if !a.WatchCheck() || len(a.rt.live.wake) != 1 {
+		t.Fatalf("the watcher missed the write (wake %d)", len(a.rt.live.wake))
 	}
 	if a.WatchCheck() {
 		t.Fatal("one write was reported twice")
 	}
-	<-a.live.wake
+	<-a.rt.live.wake
 	wake(d)
-	if a.live.refreshes != refreshes+1 || !strings.Contains(d.Frame(), "Written elsewhere") {
-		t.Fatalf("refreshes %d -> %d; frame:\n%s", refreshes, a.live.refreshes, d.Frame())
+	if a.rt.live.refreshes != refreshes+1 || !strings.Contains(d.Frame(), "Written elsewhere") {
+		t.Fatalf("refreshes %d -> %d; frame:\n%s", refreshes, a.rt.live.refreshes, d.Frame())
 	}
 }
 
@@ -161,7 +161,7 @@ func TestRunsAreLive(t *testing.T) {
 	finish := func(id string) data.Record {
 		t.Helper()
 		select {
-		case <-a.Runner.Done(id):
+		case <-a.rt.Runner.Done(id):
 		case <-time.After(liveDeadline):
 			t.Fatalf("run %s did not end", id)
 		}
@@ -255,7 +255,7 @@ esac
 		t.Fatalf("no run was recorded: %v (%s)", err, a.Status())
 	}
 	select {
-	case <-a.Runner.Done(run.ID):
+	case <-a.rt.Runner.Done(run.ID):
 	case <-time.After(liveDeadline):
 		t.Fatal("the extension's run did not end")
 	}
@@ -287,7 +287,7 @@ func TestScreenIsALiveTerminal(t *testing.T) {
 	shows := func(id, line string) {
 		t.Helper()
 		eventually(t, id+" showing "+line, func() bool {
-			f, ok := a.Host.Snapshot(id)
+			f, ok := a.panes.Host.Snapshot(id)
 			return ok && slices.ContainsFunc(f.Plain, func(l string) bool { return strings.TrimSpace(l) == line })
 		})
 		wake(d)
@@ -314,7 +314,7 @@ func TestScreenIsALiveTerminal(t *testing.T) {
 	d.Keys("enter")
 	shows(pane.ID, "hi")
 	eventually(t, "cat's answer", func() bool {
-		f, _ := a.Host.Snapshot(pane.ID)
+		f, _ := a.panes.Host.Snapshot(pane.ID)
 		return len(f.Plain) >= 3 && f.Plain[1] == "hi" && f.Plain[2] == "hi"
 	})
 	if after, _ := a.Store.Get(pane.Ref()); !after.Time("promptedAt").After(pane.Time("promptedAt")) {
@@ -328,16 +328,16 @@ func TestScreenIsALiveTerminal(t *testing.T) {
 
 	// Copy Mode: k moves up to cat's "hi", y yanks the line.
 	d.Keys("ctrl+a", "[")
-	if a.Term.Mode(pane.ID) != ptyhost.ModeCopy || a.Mode() != ModeTerminal || !strings.Contains(d.Frame(), "copy") {
-		t.Fatalf("ctrl+a [: %s, status %q\n%s", a.Term.Mode(pane.ID), a.Status(), d.Frame())
+	if a.panes.Term.Mode(pane.ID) != ptyhost.ModeCopy || a.Mode() != ModeTerminal || !strings.Contains(d.Frame(), "copy") {
+		t.Fatalf("ctrl+a [: %s, status %q\n%s", a.panes.Term.Mode(pane.ID), a.Status(), d.Frame())
 	}
 	d.Keys("k", "y")
 	yanked := slices.ContainsFunc(a.Shell.LastEffects, func(e core.Effect) bool {
 		c, ok := e.(core.CustomEffect)
 		return ok && c.Kind == effectClipboard && c.Data == "hi"
 	})
-	if a.live.clipboard != "hi" || !yanked || a.Term.Mode(pane.ID) != ptyhost.ModePassthrough {
-		t.Fatalf("yank: clipboard %q, effect %v, mode %s", a.live.clipboard, a.Shell.LastEffects, a.Term.Mode(pane.ID))
+	if a.rt.live.clipboard != "hi" || !yanked || a.panes.Term.Mode(pane.ID) != ptyhost.ModePassthrough {
+		t.Fatalf("yank: clipboard %q, effect %v, mode %s", a.rt.live.clipboard, a.Shell.LastEffects, a.panes.Term.Mode(pane.ID))
 	}
 
 	// ctrl+a t: a shell beside the pane, in its directory.
@@ -384,7 +384,7 @@ func TestLivePaneEnvPIDEscapeZoom(t *testing.T) {
 	}
 	has := func(line string) func() bool {
 		return func() bool {
-			f, ok := a.Host.Snapshot(pane.ID)
+			f, ok := a.panes.Host.Snapshot(pane.ID)
 			return ok && slices.ContainsFunc(f.Plain, func(l string) bool { return strings.TrimSpace(l) == line })
 		}
 	}
@@ -395,22 +395,22 @@ func TestLivePaneEnvPIDEscapeZoom(t *testing.T) {
 	}
 	eventually(t, "the pane's environment", has("env="+pane.ID+"/t77"))
 	wake(d)
-	f, _ := a.Host.Snapshot(pane.ID)
+	f, _ := a.panes.Host.Snapshot(pane.ID)
 	if want := fmt.Sprintf("Screen · pid %d", f.PID); f.PID <= 0 || !strings.Contains(d.Frame(), want) {
 		t.Fatalf("the Screen's title does not show %q:\n%s", want, d.Frame())
 	}
 	d.Keys("ctrl+a", "esc")
 	d.Keys("enter")
 	eventually(t, "the escape cat -v echoes", has("^["))
-	if a.escapes != 1 || a.Mode() != ModeTerminal {
-		t.Fatalf("escapes %d, mode %s", a.escapes, a.Mode())
+	if a.panes.escapes != 1 || a.Mode() != ModeTerminal {
+		t.Fatalf("escapes %d, mode %s", a.panes.escapes, a.Mode())
 	}
 	d.Keys("ctrl+a", "z")
-	if frame := d.Frame(); !a.zoom || strings.Contains(frame, "Pages") || strings.Contains(frame, "envpane") || !strings.Contains(frame, "zoomed") || a.Focus() != siteScreen {
+	if frame := d.Frame(); !a.panes.zoom || strings.Contains(frame, "Pages") || strings.Contains(frame, "envpane") || !strings.Contains(frame, "zoomed") || a.Focus() != siteScreen {
 		t.Fatalf("zoom (focus %s):\n%s", a.Focus(), frame)
 	}
 	d.Keys("ctrl+a", "z", "ctrl+a", "d")
-	if a.zoom || a.Mode() != ModeNormal || !strings.Contains(d.Frame(), "Pages") {
-		t.Fatalf("unzoom and detach: zoom %v mode %s", a.zoom, a.Mode())
+	if a.panes.zoom || a.Mode() != ModeNormal || !strings.Contains(d.Frame(), "Pages") {
+		t.Fatalf("unzoom and detach: zoom %v mode %s", a.panes.zoom, a.Mode())
 	}
 }

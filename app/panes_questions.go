@@ -72,32 +72,32 @@ func cardIsAnswered(n *ui.ViewNode) bool {
 }
 
 func (a *App) stagedFor(pageID, cardID string) (map[string]any, bool) {
-	if a.stagedAnswers == nil || a.stagedAnswers[pageID] == nil {
+	if a.panes.stagedAnswers == nil || a.panes.stagedAnswers[pageID] == nil {
 		return nil, false
 	}
-	v, ok := a.stagedAnswers[pageID][cardID]
+	v, ok := a.panes.stagedAnswers[pageID][cardID]
 	return v, ok
 }
 
 func (a *App) setStagedAnswer(pageID, cardID string, values map[string]any) {
-	if a.stagedAnswers == nil {
-		a.stagedAnswers = map[string]map[string]map[string]any{}
+	if a.panes.stagedAnswers == nil {
+		a.panes.stagedAnswers = map[string]map[string]map[string]any{}
 	}
-	if a.stagedAnswers[pageID] == nil {
-		a.stagedAnswers[pageID] = map[string]map[string]any{}
+	if a.panes.stagedAnswers[pageID] == nil {
+		a.panes.stagedAnswers[pageID] = map[string]map[string]any{}
 	}
-	a.stagedAnswers[pageID][cardID] = values
+	a.panes.stagedAnswers[pageID][cardID] = values
 }
 
 func (a *App) clearStagedAnswers(pageID string, cardIDs []string) {
-	if a.stagedAnswers == nil || a.stagedAnswers[pageID] == nil {
+	if a.panes.stagedAnswers == nil || a.panes.stagedAnswers[pageID] == nil {
 		return
 	}
 	for _, id := range cardIDs {
-		delete(a.stagedAnswers[pageID], id)
+		delete(a.panes.stagedAnswers[pageID], id)
 	}
-	if len(a.stagedAnswers[pageID]) == 0 {
-		delete(a.stagedAnswers, pageID)
+	if len(a.panes.stagedAnswers[pageID]) == 0 {
+		delete(a.panes.stagedAnswers, pageID)
 	}
 }
 
@@ -723,4 +723,73 @@ func formatQuestionAnswerValues(values map[string]any) string {
 		return data.Text(values)
 	}
 	return string(b)
+}
+
+// answerQuestion opens the form of the focused question card (or submits a
+// batch when focused on the Submit All card).
+func (a *App) answerQuestion(s core.State, c core.Command) core.StepResult {
+	root := a.View(s)
+	focus := s.ActiveFrame().FocusID
+	if strings.HasPrefix(focus, questionBatchSubmitPrefix) {
+		return a.questionSubmitAll(s, c)
+	}
+	var card *ui.ViewNode
+	var walk func(n *ui.ViewNode, within *ui.ViewNode) bool
+	walk = func(n *ui.ViewNode, within *ui.ViewNode) bool {
+		if n.Scope == mcpui.ScopeQuestion && n.Kind == ui.KindCard {
+			within = n
+		}
+		if n.ID == focus && focus != "" {
+			card = within
+			return true
+		}
+		for i := range n.Children {
+			if walk(&n.Children[i], within) {
+				return true
+			}
+		}
+		return false
+	}
+	walk(&root, nil)
+	pane, ok := a.SelectedPane()
+	if card == nil || !ok {
+		// Global KindQuestion record (e.g. in 2 Work -> Questions or Show page).
+		if ref, hasRef := a.subject(s, c); hasRef && ref.Kind == data.KindQuestion {
+			rec, err := a.Store.Get(ref)
+			if err != nil {
+				a.fail("answer", err)
+				return core.Next(s)
+			}
+			// If pressing enter on an already-answered question in the index, open its Show page;
+			// pressing `a` always opens the answer form.
+			if rec.Text("status") != "open" && strings.HasSuffix(c.Source, ":enter") {
+				if cur, showing := a.Showing(); !showing || cur != ref {
+					return core.Next(a.show(s, ref))
+				}
+			}
+			return core.Next(a.openAnswerFormForQuestionRecord(s, *rec))
+		}
+		a.say("no question here to answer")
+		return core.Next(s)
+	}
+	if card.Facts != nil && card.Facts["batchSubmit"] == true {
+		return a.questionSubmitAll(s, c)
+	}
+	pageID := a.panes.activePage[pane.ID]
+	if content := root.Find("site.content"); content != nil && content.Ref != nil && content.Ref.Kind == data.KindPage {
+		pageID = content.Ref.ID
+	}
+	var batch *batchQuestionInfo
+	batchPos := 0
+	if bid := cardBatchID(card); bid != "" {
+		if content := root.Find("site.content"); content != nil {
+			if batches := findQuestionBatches(content, pageID); batches[bid] != nil {
+				batch = batches[bid]
+				if idx := slices.IndexFunc(batch.cards, func(cn ui.ViewNode) bool { return cn.ID == card.ID }); idx >= 0 {
+					batchPos = idx
+				}
+			}
+		}
+	}
+	return core.Next(a.openAnswerFormForCard(s, pageID, card, batch, batchPos))
 }

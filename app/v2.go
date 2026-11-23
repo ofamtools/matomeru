@@ -28,12 +28,12 @@ const cancelKey = "ctrl+g"
 
 // rebuildKeymap compiles the bindings and gives the engine the result.
 func (a *App) rebuildKeymap() error {
-	km, err := core.NewKeymap(Modes(), a.bindings, a.specs...)
+	km, err := core.NewKeymap(Modes(), a.bind.bindings, a.bind.specs...)
 	if km == nil {
 		return err
 	}
 	km.CancelKey = cancelKey
-	a.Keymap = km
+	a.bind.Keymap = km
 	if a.Engine != nil {
 		a.Engine.Keymap = km
 	}
@@ -45,8 +45,8 @@ func (a *App) rebuildKeymap() error {
 // workKind is the noun the Work space's index lists: tasks, or the noun
 // picked with "g n".
 func (a *App) workKind() string {
-	if a.browseKind != "" {
-		return a.browseKind
+	if a.nav.browseKind != "" {
+		return a.nav.browseKind
 	}
 	return data.KindTask
 }
@@ -67,7 +67,7 @@ func (a *App) kindOfTable(id string) string {
 func (a *App) nounsPick(s core.State, _ core.Command) core.StepResult {
 	var items []picker.Item
 	for _, schema := range a.Store.Registry().List() {
-		res, err := a.Store.Query(data.Query{Kind: schema.Kind, IncludeArchived: a.showArchived, Limit: 1})
+		res, err := a.Store.Query(data.Query{Kind: schema.Kind, IncludeArchived: a.nav.showArchived, Limit: 1})
 		if err != nil {
 			a.fail("count "+schema.Kind, err)
 			continue
@@ -124,17 +124,17 @@ func (a *App) browse(s core.State, kind string) core.State {
 	if kind == data.KindTask {
 		kind = ""
 	}
-	if kind != a.browseKind {
-		a.browseKind = kind
-		delete(a.tables, workTable) // another noun: its own filter, sort and group
+	if kind != a.nav.browseKind {
+		a.nav.browseKind = kind
+		delete(a.nav.tables, workTable) // another noun: its own filter, sort and group
 		if a.trees != nil {
 			delete(a.trees.workTableRowID, a.workKind())
 		}
-		a.indexFocus = workTable
+		a.nav.indexFocus = workTable
 	}
-	if a.histPos >= 0 {
+	if a.nav.histPos >= 0 {
 		a.leave(s)
-		a.histPos = -1
+		a.nav.histPos = -1
 	}
 	s.ActivePage = SpaceWork
 	schema := a.schema(a.workKind())
@@ -234,7 +234,7 @@ func (a *App) fieldPick(what string) func(core.State, core.Command) core.StepRes
 }
 
 func (a *App) fieldPicked(what, tableID, key string) {
-	tbl := a.tables[tableID]
+	tbl := a.nav.tables[tableID]
 	if tbl == nil {
 		return
 	}
@@ -256,8 +256,8 @@ func (a *App) fieldPicked(what, tableID, key string) {
 		tbl.GroupField, tbl.Collapsed = key, nil
 		tbl.SelectedIdx, tbl.Offset = 0, 0
 		if tableID == railTable {
-			a.railGroupSet = true
-			a.railCustomGroup = key
+			a.panes.railGroupSet = true
+			a.panes.railCustomGroup = key
 		}
 		if key == "" {
 			a.say("not grouped")
@@ -290,7 +290,7 @@ func (a *App) assign(s core.State, c core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	field := assignField(ref.Kind)
-	nodes, err := a.Store.TaskTree(a.showArchived)
+	nodes, err := a.Store.TaskTree(a.nav.showArchived)
 	if err != nil {
 		a.fail("assign", err)
 		return core.Next(s)
@@ -445,12 +445,12 @@ func (m *bindingsModal) OnClose(modal.CloseReason) {
 }
 
 func (a *App) bindingsOpen(s core.State, _ core.Command) core.StepResult {
-	if a.bindEd == nil {
+	if a.bind.bindEd == nil {
 		// Opened once per run: closing the editor keeps its undo history.
-		a.bindEd = bindings.New(Modes(), config.MergeBindings(a.baseBindings(), a.userBindings), a.specs...)
-		a.bindUser = len(a.userBindings)
+		a.bind.bindEd = bindings.New(Modes(), config.MergeBindings(a.baseBindings(), a.bind.userBindings), a.bind.specs...)
+		a.bind.bindUser = len(a.bind.userBindings)
 	}
-	a.bindEd.SetQuery("")
+	a.bind.bindEd.SetQuery("")
 	a.say("/ filters (key: verb: mode: scope: conflict:) · r rebinds · x unbinds · R resets · u undoes · each change is live")
 	return core.Next(a.pushModal(s, &bindingsModal{a: a, mode: ModeBindings}))
 }
@@ -458,17 +458,17 @@ func (a *App) bindingsOpen(s core.State, _ core.Command) core.StepResult {
 // bindingsChanged makes the editor's state the live keymap and saves the
 // overrides.
 func (a *App) bindingsChanged(what string) {
-	ed := a.bindEd
+	ed := a.bind.bindEd
 	if bm := a.activeBindings(); bm != nil {
 		bm.conflictsInit = false
 	}
 	base := a.baseBindings()
-	a.userBindings = bindingOverrides(ed.Bindings(), base, a.bindUser)
-	a.bindings = config.MergeBindings(base, a.userBindings)
+	a.bind.userBindings = bindingOverrides(ed.Bindings(), base, a.bind.bindUser)
+	a.bind.bindings = config.MergeBindings(base, a.bind.userBindings)
 	if err := a.rebuildKeymap(); err != nil {
 		what += " · " + err.Error()
 	}
-	rows := a.userBindings
+	rows := a.bind.userBindings
 	if rows == nil {
 		rows = []core.Binding{}
 	}
@@ -484,7 +484,7 @@ func (a *App) bindingsChanged(what string) {
 }
 
 func (a *App) bindingName(idx int) string {
-	rows := a.bindEd.Bindings()
+	rows := a.bind.bindEd.Bindings()
 	if idx < 0 || idx >= len(rows) {
 		return "binding"
 	}
@@ -501,7 +501,7 @@ func (a *App) bindingName(idx int) string {
 }
 
 func (m *bindingsModal) Handle(c core.Command) modal.Result {
-	ed := m.a.bindEd
+	ed := m.a.bind.bindEd
 	if ed == nil {
 		if c.ID == modal.CmdCancel {
 			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseCancel}
@@ -618,7 +618,7 @@ func (m *bindingsModal) Handle(c core.Command) modal.Result {
 
 // View draws the binding editor overlay and any key sequence being captured.
 func (m *bindingsModal) View(_, _ int) ui.ViewNode {
-	ed := m.a.bindEd
+	ed := m.a.bind.bindEd
 	if ed == nil {
 		return modal.Overlay(modal.OverlaySpec{ID: "bindings", Scope: "bindings", Title: "Bindings", WidthPct: 90, HeightPct: 85})
 	}
@@ -626,7 +626,7 @@ func (m *bindingsModal) View(_, _ int) ui.ViewNode {
 	rows := ed.Bindings()
 	if !m.conflictsInit {
 		conflicts := 0
-		for _, an := range bindings.AnalyzeBindings(Modes(), rows, nil, m.a.specs...) {
+		for _, an := range bindings.AnalyzeBindings(Modes(), rows, nil, m.a.bind.specs...) {
 			if len(an.Conflicts) > 0 {
 				conflicts++
 			}
@@ -636,7 +636,7 @@ func (m *bindingsModal) View(_, _ int) ui.ViewNode {
 	}
 	badges := []ui.Badge{
 		{Text: fmt.Sprintf("%d of %d", len(ed.Filtered()), len(rows))},
-		{Text: fmt.Sprintf("%d overrides", len(m.a.userBindings))},
+		{Text: fmt.Sprintf("%d overrides", len(m.a.bind.userBindings))},
 	}
 	if m.conflicts > 0 {
 		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d with notes · conflict: filters", m.conflicts), Tone: "warning"})
@@ -658,8 +658,8 @@ func (m *bindingsModal) View(_, _ int) ui.ViewNode {
 // --- panes: zoom, attention, lanes, escape ------------------------------------------
 
 func (a *App) paneZoom(s core.State, _ core.Command) core.StepResult {
-	a.zoom = !a.zoom
-	if a.zoom {
+	a.panes.zoom = !a.panes.zoom
+	if a.panes.zoom {
 		a.say("zoomed: the rail and the pages are hidden · ctrl+a z brings them back")
 	} else {
 		a.say("unzoomed")
@@ -722,7 +722,7 @@ func (a *App) nextAttention(s core.State, _ core.Command) core.StepResult {
 		a.say("%s wants you", views.Title(a.schema(data.KindPane), *pane))
 		if page, asked := a.openQuestion(pane.ID); asked {
 			s = a.jumpToPage(s, page)
-			a.gen++
+			a.viewMemo.gen++
 			// On the question itself, ready to answer.
 			for _, n := range a.focusables(s) {
 				if n.region == "site.content" {
@@ -768,13 +768,13 @@ func (a *App) termEscape(s core.State, _ core.Command) core.StepResult {
 	if !ok || (!inScratch && (s.Pages[SpacePanes].Mode != ModeTerminal || s.ActivePage != SpacePanes)) {
 		return core.Next(s)
 	}
-	if a.Host != nil && a.hasSession(pane.ID) {
-		if err := a.Host.Write(pane.ID, []byte{0x1b}); err != nil {
+	if a.panes.Host != nil && a.hasSession(pane.ID) {
+		if err := a.panes.Host.Write(pane.ID, []byte{0x1b}); err != nil {
 			a.fail("send esc", err)
 			return core.Next(s)
 		}
 	}
-	a.escapes++
+	a.panes.escapes++
 	a.say("sent esc to the pane")
 	return core.Next(s)
 }

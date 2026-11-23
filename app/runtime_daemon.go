@@ -8,11 +8,14 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/harness"
 	"ofam.dev/matomeru/ptyhost"
+	"ofam.dev/matomeru/runs"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
@@ -21,6 +24,23 @@ import (
 	"ofam.dev/ochazuke/widgets/table"
 	"ofam.dev/ochazuke/widgets/toast"
 )
+
+// RuntimeController owns live execution runtime state: command runner, daemon
+// client, watcher/live frames, harness discovery, toasts, and reload flag.
+type RuntimeController struct {
+	Runner         *runs.Runner
+	Daemon         *daemon.Client
+	live           liveState
+	harnessMu      sync.RWMutex
+	harnessCfg     harness.FileConfig
+	harnessEntries []harness.Entry
+	toasts         *toast.Model
+	wantReload     bool
+}
+
+func newRuntimeController() *RuntimeController {
+	return &RuntimeController{}
+}
 
 const daemonRPCTimeout = 2 * time.Second
 
@@ -31,19 +51,19 @@ var daemonSyncActor = core.Actor{Kind: "system", ID: "mtm.daemon", Label: "daemo
 // --- 1. Local daemon integration + daemon.reset ----------------------------------
 
 func (a *App) daemonClient() *daemon.Client {
-	if a.Daemon != nil {
-		return a.Daemon
+	if a.rt.Daemon != nil {
+		return a.rt.Daemon
 	}
-	if ha, ok := a.Host.(*daemon.HostAdapter); ok {
+	if ha, ok := a.panes.Host.(*daemon.HostAdapter); ok {
 		return ha.Client()
 	}
 	return nil
 }
 
 func (a *App) daemonMCPBase() string {
-	a.live.telemetryMu.RLock()
-	base := a.live.mcpURL
-	a.live.telemetryMu.RUnlock()
+	a.rt.live.telemetryMu.RLock()
+	base := a.rt.live.mcpURL
+	a.rt.live.telemetryMu.RUnlock()
 	if base != "" {
 		return base
 	}
@@ -51,15 +71,15 @@ func (a *App) daemonMCPBase() string {
 	if client == nil {
 		return ""
 	}
-	ctx, cancel := context.WithTimeout(a.live.bgCtx, daemonRPCTimeout)
+	ctx, cancel := context.WithTimeout(a.rt.live.bgCtx, daemonRPCTimeout)
 	defer cancel()
 	st, err := client.Status(ctx)
 	if err != nil || st == nil || st.MCPURL == "" {
 		return ""
 	}
-	a.live.telemetryMu.Lock()
-	a.live.mcpURL = st.MCPURL
-	a.live.telemetryMu.Unlock()
+	a.rt.live.telemetryMu.Lock()
+	a.rt.live.mcpURL = st.MCPURL
+	a.rt.live.telemetryMu.Unlock()
 	return st.MCPURL
 }
 
@@ -81,7 +101,7 @@ func (a *App) reconcileDaemonPanes() {
 	if client == nil || a.Store == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(a.live.bgCtx, daemonRPCTimeout)
+	ctx, cancel := context.WithTimeout(a.rt.live.bgCtx, daemonRPCTimeout)
 	defer cancel()
 	livePanes, err := client.List(ctx)
 	if err != nil {
@@ -100,9 +120,9 @@ func (a *App) reconcileDaemonPanes() {
 	for _, rec := range res.Items {
 		seen[rec.ID] = true
 		if _, alive := liveByID[rec.ID]; alive {
-			if a.Host != nil {
-				if f, ok := a.Host.Snapshot(rec.ID); ok {
-					a.live.frames[rec.ID] = f
+			if a.panes.Host != nil {
+				if f, ok := a.panes.Host.Snapshot(rec.ID); ok {
+					a.rt.live.frames[rec.ID] = f
 				}
 			}
 			continue
@@ -158,9 +178,9 @@ func (a *App) reconcileDaemonPanes() {
 			fields["pid"] = info.PID
 		}
 		_, _, _ = a.Store.Create(data.CreateInput{Kind: data.KindPane, ID: info.ID, Fields: fields}, daemonSyncActor)
-		if a.Host != nil {
-			if f, ok := a.Host.Snapshot(info.ID); ok {
-				a.live.frames[info.ID] = f
+		if a.panes.Host != nil {
+			if f, ok := a.panes.Host.Snapshot(info.ID); ok {
+				a.rt.live.frames[info.ID] = f
 			}
 		}
 	}
@@ -176,7 +196,7 @@ func (a *App) daemonReset(s core.State, _ core.Command) core.StepResult {
 		a.say("no local daemon is connected")
 		return core.Next(s)
 	}
-	if a.Settings.Bool(SetConfirmDaemonReset, true) {
+	if a.cfg.Settings.Bool(SetConfirmDaemonReset, true) {
 		liveCount := a.liveDaemonPaneCount(client)
 		return core.Next(a.openConfirm(s, modal.ConfirmOptions{
 			Title:        "Reset Daemon",
@@ -202,7 +222,7 @@ func (a *App) liveDaemonPaneCount(client *daemon.Client) int {
 	if panes, err := client.List(ctx); err == nil {
 		return len(panes)
 	}
-	return len(a.live.frames)
+	return len(a.rt.live.frames)
 }
 
 func (a *App) execDaemonReset(s core.State) core.State {
@@ -217,13 +237,13 @@ func (a *App) execDaemonReset(s core.State) core.State {
 		a.fail("daemon reset", err)
 		return s
 	}
-	if ha, ok := a.Host.(*daemon.HostAdapter); ok {
+	if ha, ok := a.panes.Host.(*daemon.HostAdapter); ok {
 		ha.ClearCache()
 	}
-	a.live.frames = map[string]ptyhost.Frame{}
-	a.live.shown = ""
-	if a.Host != nil {
-		a.Term = ptyhost.NewController(a.Host)
+	a.rt.live.frames = map[string]ptyhost.Frame{}
+	a.rt.live.shown = ""
+	if a.panes.Host != nil {
+		a.panes.Term = ptyhost.NewController(a.panes.Host)
 	}
 	a.setTelemetry(&daemon.TelemetryResult{
 		Telemetry:        map[string]*daemon.PaneTelemetry{},
@@ -245,7 +265,7 @@ func (a *App) execDaemonReset(s core.State) core.State {
 			}
 		}
 	}
-	a.activePage = map[string]string{}
+	a.panes.activePage = map[string]string{}
 	if a.activeScratch() != nil {
 		s, _ = a.modals.Close(s, "scratch", modal.CloseCancel)
 	}
@@ -295,7 +315,7 @@ func (a *App) daemonUpgrade(s core.State, _ core.Command) core.StepResult {
 // appReload marks the client for in-place binary re-exec and exits Bubble Tea
 // cleanly without touching the daemon or any live panes.
 func (a *App) appReload(s core.State, _ core.Command) core.StepResult {
-	a.wantReload = true
+	a.rt.wantReload = true
 	a.say("reloading Matomeru client...")
 	return core.Next(s, core.QuitEffect{})
 }
@@ -330,18 +350,18 @@ func telemetryFingerprint(res *daemon.TelemetryResult) string {
 
 func (a *App) setTelemetry(res *daemon.TelemetryResult, markDrawn bool) bool {
 	fp := telemetryFingerprint(res)
-	a.live.telemetryMu.Lock()
-	if fp == a.live.telemetryFP && a.live.telemetry != nil {
-		a.live.telemetryMu.Unlock()
+	a.rt.live.telemetryMu.Lock()
+	if fp == a.rt.live.telemetryFP && a.rt.live.telemetry != nil {
+		a.rt.live.telemetryMu.Unlock()
 		return false
 	}
-	a.live.telemetry = res
-	a.live.telemetryFP = fp
-	seq := a.live.telemetrySeq.Add(1)
+	a.rt.live.telemetry = res
+	a.rt.live.telemetryFP = fp
+	seq := a.rt.live.telemetrySeq.Add(1)
 	if markDrawn {
-		a.live.telemetryDrawn = seq
+		a.rt.live.telemetryDrawn = seq
 	}
-	a.live.telemetryMu.Unlock()
+	a.rt.live.telemetryMu.Unlock()
 	return true
 }
 
@@ -352,7 +372,7 @@ func (a *App) pollTelemetry() bool {
 	if client == nil {
 		return false
 	}
-	ctx, cancel := context.WithTimeout(a.live.bgCtx, daemonRPCTimeout)
+	ctx, cancel := context.WithTimeout(a.rt.live.bgCtx, daemonRPCTimeout)
 	defer cancel()
 	res, err := client.Telemetry(ctx, "")
 	if err != nil {
@@ -377,22 +397,22 @@ func (a *App) refreshTelemetry() {
 }
 
 func (a *App) paneTelemetry(paneID string) *daemon.PaneTelemetry {
-	a.live.telemetryMu.RLock()
-	defer a.live.telemetryMu.RUnlock()
-	if a.live.telemetry == nil {
+	a.rt.live.telemetryMu.RLock()
+	defer a.rt.live.telemetryMu.RUnlock()
+	if a.rt.live.telemetry == nil {
 		return nil
 	}
-	return a.live.telemetry.Telemetry[paneID]
+	return a.rt.live.telemetry.Telemetry[paneID]
 }
 
 func (a *App) pendingApprovalsFor(paneID string) []*daemon.PendingApproval {
-	a.live.telemetryMu.RLock()
-	defer a.live.telemetryMu.RUnlock()
-	if a.live.telemetry == nil {
+	a.rt.live.telemetryMu.RLock()
+	defer a.rt.live.telemetryMu.RUnlock()
+	if a.rt.live.telemetry == nil {
 		return nil
 	}
 	var out []*daemon.PendingApproval
-	for _, p := range a.live.telemetry.PendingApprovals {
+	for _, p := range a.rt.live.telemetry.PendingApprovals {
 		if p != nil && p.PaneID == paneID {
 			out = append(out, p)
 		}

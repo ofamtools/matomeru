@@ -32,7 +32,7 @@ func (a *App) execSuggestedCommand(s core.State, rec data.Record, cmdLine, dir, 
 		runRec *data.Record
 		err    error
 	)
-	if a.Runner != nil {
+	if a.rt.Runner != nil {
 		spec := runs.StartSpec{
 			Title:   title,
 			Command: cmdLine,
@@ -42,7 +42,7 @@ func (a *App) execSuggestedCommand(s core.State, rec data.Record, cmdLine, dir, 
 		if taskRef, ok := rec.RefField("task"); ok {
 			spec.TaskRef = taskRef
 		}
-		runRec, err = a.Runner.Start(context.Background(), spec)
+		runRec, err = a.rt.Runner.Start(context.Background(), spec)
 		s = a.started(s, "ran "+title, runRec, err)
 	} else {
 		fields := map[string]any{"title": title, "command": cmdLine, "runStatus": "queued"}
@@ -56,7 +56,7 @@ func (a *App) execSuggestedCommand(s core.State, rec data.Record, cmdLine, dir, 
 		runRec, cs, err = a.Store.Create(data.CreateInput{Kind: data.KindRun, Fields: fields}, User)
 		a.wrote("ran "+title, cs, err)
 		if err == nil && runRec != nil {
-			a.gen++
+			a.viewMemo.gen++
 			selectRow(a.records(runsTable, data.KindRun), data.RefText(runRec.Ref()))
 		}
 	}
@@ -78,7 +78,7 @@ func (a *App) execSuggestedCommand(s core.State, rec data.Record, cmdLine, dir, 
 	a.pushToast("Running "+title+" in 3 Runs", toast.Ok)
 	s = a.openSpace(s, SpaceRuns)
 	if runRec != nil {
-		a.gen++
+		a.viewMemo.gen++
 		selectRow(a.records(runsTable, data.KindRun), data.RefText(runRec.Ref()))
 	}
 	return s

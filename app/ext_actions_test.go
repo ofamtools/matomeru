@@ -151,7 +151,7 @@ esac
 	a.Shell.Update(wakeMsg())
 
 	// ReadCache refreshed w.item to only 1 item (beta).
-	snap, ok := a.readCache.Get("w.item")
+	snap, ok := a.ext.readCache.Get("w.item")
 	if !ok || len(snap.Items) != 1 || snap.Items[0].ID != "w2" {
 		t.Fatalf("readCache not refreshed after purge: ok=%v snap=%+v", ok, snap)
 	}
@@ -174,7 +174,7 @@ func TestVisualSettingsOptOutRebuildsTablesImmediately(t *testing.T) {
 	}
 
 	// Toggle ui.rowSemanticStyling=false -> applySettings invalidates recCacheKeys immediately.
-	a.userSettings[SetRowSemanticStyling] = false
+	a.cfg.userSettings[SetRowSemanticStyling] = false
 	a.reloadSettings()
 	a.applySettings()
 	tblNoRow := a.records(workTable, data.KindLane)
@@ -183,7 +183,7 @@ func TestVisualSettingsOptOutRebuildsTablesImmediately(t *testing.T) {
 	}
 
 	// Toggle ui.statusIcons=false -> clears cell icons immediately.
-	a.userSettings[SetStatusIcons] = false
+	a.cfg.userSettings[SetStatusIcons] = false
 	a.reloadSettings()
 	a.applySettings()
 	tblNoIcons := a.records(workTable, data.KindLane)
@@ -192,7 +192,7 @@ func TestVisualSettingsOptOutRebuildsTablesImmediately(t *testing.T) {
 	}
 
 	// work.hierarchyLayout = "table" overrides auto default.
-	a.userSettings[SetWorkHierarchyLayout] = WorkHierarchyLayoutTable
+	a.cfg.userSettings[SetWorkHierarchyLayout] = WorkHierarchyLayoutTable
 	a.reloadSettings()
 	a.applySettings()
 	if a.workTasksLayout() != WorkTasksLayoutTable {

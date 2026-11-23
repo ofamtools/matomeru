@@ -84,7 +84,7 @@ func TestModalStackNestedFlows(t *testing.T) {
 	d.Keys("esc")
 
 	// 2. Palette -> Path/Ref -> Palette
-	a.specs = append(a.specs, core.CommandSpec{
+	a.bind.specs = append(a.bind.specs, core.CommandSpec{
 		ID:          "modalstack.test.cmd",
 		Description: "Command with path and ref params",
 		Params: []core.ParamSpec{
@@ -162,7 +162,7 @@ func TestModalStackDropAllLIFOCleanup(t *testing.T) {
 	if len(st.Modals) != 0 || !a.modals.Empty() || a.Modal() != "" {
 		t.Fatalf("dropModals left modals: state=%v stack=%v", st.Modals, a.modals.IDs())
 	}
-	if drafts := a.drafts.List(composerDraftKey(paneID)); len(drafts) == 0 {
+	if drafts := a.cfg.drafts.List(composerDraftKey(paneID)); len(drafts) == 0 {
 		t.Fatal("dropModals did not save composer draft via OnClose(CloseDropAll)")
 	}
 	a.Shell.State = st
@@ -203,7 +203,7 @@ func TestModalStackDropAllLIFOCleanup(t *testing.T) {
 	if !slices.Equal(closeOrder, []string{"probe"}) || !slices.Equal(closeReasons, []modal.CloseReason{modal.CloseDropAll}) {
 		t.Fatalf("unexpected probe close: order=%v reasons=%v", closeOrder, closeReasons)
 	}
-	if drafts := a.drafts.List("new:task"); len(drafts) == 0 || drafts[0].Values["title"] != "Draft saved on drop" {
+	if drafts := a.cfg.drafts.List("new:task"); len(drafts) == 0 || drafts[0].Values["title"] != "Draft saved on drop" {
 		t.Fatalf("form draft not saved during DropAll: %+v", drafts)
 	}
 }

@@ -84,7 +84,7 @@ func (m *scratchModal) View(_, _ int) ui.ViewNode {
 	if lines, cursor, live, ok := m.a.liveScreen(*pane, scratchScreen); ok {
 		screen.Props["lines"], screen.Props["cursor"] = lines, cursor
 		badges = live
-		if f := m.a.live.frames[pane.ID]; f.PID > 0 && !f.Exited {
+		if f := m.a.rt.live.frames[pane.ID]; f.PID > 0 && !f.Exited {
 			title = fmt.Sprintf("%s · pid %d", title, f.PID)
 		}
 	} else {
@@ -187,7 +187,7 @@ func (a *App) scratchToggle(s core.State, c core.Command) core.StepResult {
 		a.fail("scratch", err)
 		return core.Next(s)
 	}
-	if a.Host != nil && role == data.RoleScratchVim {
+	if a.panes.Host != nil && role == data.RoleScratchVim {
 		// The editor opens a file Matomeru keeps: it is there before it does.
 		file := pane.Text("filePath")
 		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {

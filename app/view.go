@@ -37,19 +37,19 @@ func clip(s string, w int) string {
 // state or the app's data changed since the last call.
 func (a *App) View(s core.State) ui.ViewNode {
 	key := a.viewKey(s)
-	if key == a.memoKey && key != "" {
-		return a.memo
+	if key == a.viewMemo.memoKey && key != "" {
+		return a.viewMemo.memo
 	}
 	root := a.build(s)
 	if key == a.viewKey(s) { // building may itself have noted an error
-		a.memoKey, a.memo = key, root
+		a.viewMemo.memoKey, a.viewMemo.memo = key, root
 	}
 	return root
 }
 
 func (a *App) viewKey(s core.State) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%d|%s|%s|", a.gen, s.ActivePage, a.status)
+	fmt.Fprintf(&b, "%d|%s|%s|", a.viewMemo.gen, s.ActivePage, a.status)
 	f := s.Pages[s.ActivePage]
 	fmt.Fprintf(&b, "%s|%s|", f.FocusID, f.Mode)
 	for _, m := range s.Modals {
@@ -65,8 +65,8 @@ func (a *App) viewKey(s core.State) string {
 	if tk := a.toastViewKey(); tk != "" {
 		b.WriteString("|toast:" + tk)
 	}
-	if a.hints != nil && a.hints.session != nil && a.hints.session.Active() {
-		fmt.Fprintf(&b, "|hints:%t:%s:%d", a.hints.focusJump, a.hints.session.Prefix(), len(a.hints.session.Remaining()))
+	if a.panes.hints != nil && a.panes.hints.session != nil && a.panes.hints.session.Active() {
+		fmt.Fprintf(&b, "|hints:%t:%s:%d", a.panes.hints.focusJump, a.panes.hints.session.Prefix(), len(a.panes.hints.session.Remaining()))
 	}
 	return b.String()
 }
@@ -92,8 +92,8 @@ func (a *App) build(s core.State) ui.ViewNode {
 	for _, m := range s.Modals {
 		overlays = append(overlays, a.modal(m))
 	}
-	if a.hints != nil && a.hints.focusJump && a.hints.session != nil && a.hints.session.Active() {
-		overlays = append(overlays, a.hints.session.ViewOverlay("focus.hints.overlay"))
+	if a.panes.hints != nil && a.panes.hints.focusJump && a.panes.hints.session != nil && a.panes.hints.session.Active() {
+		overlays = append(overlays, a.panes.hints.session.ViewOverlay("focus.hints.overlay"))
 	}
 	if toastOv, ok := a.toastOverlay(); ok {
 		overlays = append(overlays, toastOv)
@@ -111,7 +111,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 		line("hints", clip(a.hintLine(s, chain), w), "muted"),
 	}
 	root.Children = append(append([]ui.ViewNode{tabs}, footer...), overlays...)
-	applyTreeGuides(&root, a.Settings.Bool(SetTreeGuides, true))
+	applyTreeGuides(&root, a.cfg.Settings.Bool(SetTreeGuides, true))
 	return root
 }
 
@@ -131,23 +131,23 @@ func (a *App) statusLine(s core.State, chain []core.ContextFrame) string {
 	}
 	// A filter is shown while it is typed and for as long as it narrows a list.
 	typing, cursor := a.Engine.Mode(s) == ModeFilter, map[bool]string{true: "▏"}
-	if onPages := typing && a.filterTarget == "toc"; s.ActivePage == SpacePanes && (a.tocFilter != "" || onPages) {
-		out += " · pages /" + a.tocFilter + cursor[onPages]
+	if onPages := typing && a.nav.filterTarget == "toc"; s.ActivePage == SpacePanes && (a.nav.tocFilter != "" || onPages) {
+		out += " · pages /" + a.nav.tocFilter + cursor[onPages]
 	}
-	list := a.filterTarget
+	list := a.nav.filterTarget
 	if !typing {
 		list = s.ActiveFrame().FocusID
 	}
-	if tbl := a.tables[list]; tbl != nil && (tbl.Query != "" || typing) {
+	if tbl := a.nav.tables[list]; tbl != nil && (tbl.Query != "" || typing) {
 		field := ""
 		if tbl.FilterField != views.AnyField && tbl.FilterField != "" {
 			field = tbl.FilterField + " "
 		}
 		shownQuery := tbl.Query
 		if typing {
-			a.filterLine.Sync(tbl.Query)
+			a.nav.filterLine.Sync(tbl.Query)
 			rs := []rune(tbl.Query)
-			ci := min(max(a.filterLine.Cursor, 0), len(rs))
+			ci := min(max(a.nav.filterLine.Cursor, 0), len(rs))
 			shownQuery = string(rs[:ci]) + "█" + string(rs[ci:])
 		}
 		out += " · " + field + "/" + shownQuery + " (" + string(tbl.MatchMode) + ")"
@@ -171,11 +171,11 @@ type activeBinding struct {
 // the leader reaches, with the leader's key in front.
 func (a *App) activeKeyBindings(s core.State) []activeBinding {
 	chain := ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, a.Shell.AppFacts(s))
-	out := a.bindingsFor(s, chain, a.Keymap.ModeChain(a.Engine.Mode(s)), nil, "")
+	out := a.bindingsFor(s, chain, a.bind.Keymap.ModeChain(a.Engine.Mode(s)), nil, "")
 	if a.Engine.Mode(s) == ModeTerminal {
 		var modes []string
 		for _, m := range leader.Modes {
-			modes = append(modes, a.Keymap.ModeChain(m)...)
+			modes = append(modes, a.bind.Keymap.ModeChain(m)...)
 		}
 		out = append(out, a.bindingsFor(s, chain, modes, leader.ExcludeTags, "ctrl+a ")...)
 	}
@@ -194,23 +194,23 @@ func (a *App) bindingsFor(s core.State, chain []core.ContextFrame, modes, exclud
 			facts[i][k] = v
 		}
 	}
-	modalID := ""
+	topModalID := ""
 	if n := len(s.Modals); n > 0 {
-		modalID = s.Modals[n-1].ID
+		topModalID = s.Modals[n-1].ID
 	}
 	env := func(level int) map[string]any {
 		return map[string]any{"mode": a.Engine.Mode(s), "scope": chain[level].Scope, "facts": facts[level],
-			"modal": map[string]any{"open": len(s.Modals) > 0, "id": modalID}, "count": nil, "layer": nil}
+			"modal": map[string]any{"open": len(s.Modals) > 0, "id": topModalID}, "count": nil, "layer": nil}
 	}
 	var out []activeBinding
 	seen := map[string]bool{}
 	add := func(level int, scope string) {
 		for _, mode := range append(slices.Clone(modes), "") {
-			for _, b := range a.bindings {
+			for _, b := range a.bind.bindings {
 				if b.Scope != scope || b.Mode != mode || b.Unbind || (b.Command == "" && b.Layer == nil) {
 					continue
 				}
-				if b.Command != "" && a.Keymap.Commands.HasAnyTag(b.Command, exclude) {
+				if b.Command != "" && a.bind.Keymap.Commands.HasAnyTag(b.Command, exclude) {
 					continue
 				}
 				if cond, err := expr.Parse(b.When); err != nil || !cond.Eval(env(level)) {
@@ -256,12 +256,12 @@ func (a *App) hintLine(s core.State, chain []core.ContextFrame) string {
 	if a.Shell == nil {
 		return ""
 	}
-	modes := a.Keymap.ModeChain(a.Engine.Mode(s))
+	modes := a.bind.Keymap.ModeChain(a.Engine.Mode(s))
 	exclude, lead := []string(nil), ""
 	if l := s.Input.Layer; l != nil {
 		modes, exclude, lead = nil, l.ExcludeTags, l.Name+": "
 		for _, m := range l.Modes {
-			modes = append(modes, a.Keymap.ModeChain(m)...)
+			modes = append(modes, a.bind.Keymap.ModeChain(m)...)
 		}
 	}
 	full := append(slices.Clone(chain[:len(chain)-1]), core.ContextFrame{Scope: "app", Facts: a.Shell.AppFacts(s)})
@@ -315,20 +315,20 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		site = a.projectOverviewView(s, groupName, projRef)
 	} else if pane, ok := a.SelectedPane(); ok {
 		ref := pane.Ref()
-		res, err := a.Store.Query(data.Query{Kind: data.KindPage, Parent: &ref, ParentField: "pane", IncludeArchived: a.showArchived})
+		res, err := a.Store.Query(data.Query{Kind: data.KindPage, Parent: &ref, ParentField: "pane", IncludeArchived: a.nav.showArchived})
 		if err != nil {
 			a.fail("read pages", err)
 		}
 		opts := views.SiteOptions{
 			Store:       a.Store,
-			ShowLaneBar: a.Settings.Bool(SetLaneBar, true),
-			HideTOC:     !a.Settings.Bool(SetShowTOC, true),
+			ShowLaneBar: a.cfg.Settings.Bool(SetLaneBar, true),
+			HideTOC:     !a.cfg.Settings.Bool(SetShowTOC, true),
 			LaneHint:    laneBarHint,
 		}
 		if a.Shell != nil {
 			opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once
 		}
-		site = views.PaneSiteViewWith(*pane, res.Items, a.activePage[pane.ID], a.tocFilter, opts)
+		site = views.PaneSiteViewWith(*pane, res.Items, a.panes.activePage[pane.ID], a.nav.tocFilter, opts)
 		a.enhanceQuestionsSite(&site, *pane, res.Items)
 		var extraTop []ui.ViewNode
 		if strip, ok := a.paneHeaderStrip(*pane); ok {
@@ -344,7 +344,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		if len(extraTop) > 0 {
 			site.Children = append(extraTop, site.Children...)
 		}
-		a.live.shown = ""
+		a.rt.live.shown = ""
 		if screen := site.Find(siteScreen); screen != nil {
 			var shownLines []string
 			if lines, cursor, badges, ok := a.liveScreen(*pane, siteScreen); ok {
@@ -352,7 +352,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 				screen.Props["lines"], screen.Props["cursor"] = lines, cursor
 				content := site.Find("site.content")
 				content.Badges = badges
-				if f := a.live.frames[pane.ID]; f.PID > 0 && !f.Exited {
+				if f := a.rt.live.frames[pane.ID]; f.PID > 0 && !f.Exited {
 					content.Title = fmt.Sprintf("Screen · pid %d", f.PID)
 				}
 			} else {
@@ -361,19 +361,19 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 				screen.Props["lines"] = shownLines
 				site.Find("site.content").Badges = []ui.Badge{{Text: "not attached", Tone: "muted"}}
 			}
-			if a.hints != nil && a.hints.session != nil && a.hints.session.Active() && a.hints.paneID == pane.ID {
+			if a.panes.hints != nil && a.panes.hints.session != nil && a.panes.hints.session.Active() && a.panes.hints.paneID == pane.ID {
 				w, h := a.screenSize()
 				screen.Props["lines"] = a.hintsRenderLines(shownLines, w, h)
 				delete(screen.Props, "cursor")
 				if content := site.Find("site.content"); content != nil {
 					content.Badges = append(slices.Clone(content.Badges),
-						ui.Badge{Text: fmt.Sprintf("hints %d", len(a.hints.session.Remaining())), Tone: "accent"})
+						ui.Badge{Text: fmt.Sprintf("hints %d", len(a.panes.hints.session.Remaining())), Tone: "accent"})
 				}
-				site.Children = append(site.Children, a.hints.session.View("site.hints.bar"))
+				site.Children = append(site.Children, a.panes.hints.session.View("site.hints.bar"))
 			}
 		}
 	}
-	if a.zoom && site.ID == "site" {
+	if a.panes.zoom && site.ID == "site" {
 		// Zoomed: only the pane's page, still inside the pane's context chain.
 		if split, content := site.Find("site.pane"), site.Find("site.content"); split != nil && content != nil {
 			page := *content
@@ -383,7 +383,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		return site
 	}
 	ratio := railRatio
-	if a.Settings.Bool(SetRailAutoWiden, false) && s.Pages[SpacePanes].FocusID == railTable {
+	if a.cfg.Settings.Bool(SetRailAutoWiden, false) && s.Pages[SpacePanes].FocusID == railTable {
 		ratio = railRatioWidened
 	}
 	return ui.ViewNode{ID: "panes.split", Kind: ui.KindSplit, Ratio: ratio, Gap: 1, Children: []ui.ViewNode{rail, site}}
@@ -417,14 +417,14 @@ func (a *App) workSpace(s core.State) ui.ViewNode {
 		return views.IndexView(a.schema(kind), a.records(workTable, kind), SpaceWork)
 	}
 	crumbs := []string{a.schema(kind).Plural}
-	for _, h := range a.history[:a.histPos+1] {
+	for _, h := range a.nav.history[:a.nav.histPos+1] {
 		crumbs = append(crumbs, a.title(h.ref))
 	}
 	if len(crumbs) > 4 {
 		crumbs = []string{crumbs[0], "…", crumbs[len(crumbs)-2], crumbs[len(crumbs)-1]}
 	}
 	trail := " " + strings.Join(crumbs, " › ")
-	if n := len(a.history) - a.histPos - 1; n > 0 {
+	if n := len(a.nav.history) - a.nav.histPos - 1; n > 0 {
 		trail += fmt.Sprintf("   (%d forward)", n)
 	}
 	page, err := views.ShowViewWith(a.Store, ref, s.Pages[SpaceWork].FocusID, a.showOptions())
@@ -517,7 +517,7 @@ func (a *App) modal(m core.Frame) ui.ViewNode {
 
 // noSession says why the Screen shows no live session.
 func (a *App) noSession() string {
-	if a.Host == nil {
+	if a.panes.Host == nil {
 		return "No live terminal is attached in this build."
 	}
 	return "This pane has no live session yet. Enter starts one."

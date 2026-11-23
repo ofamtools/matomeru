@@ -39,10 +39,10 @@ func (p program) Init() tea.Cmd { return p.a.Shell.Init() }
 func (p program) View() tea.View { return p.a.Shell.View() }
 
 func (p program) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if _, recording := p.a.Macros.Recording(); recording {
+	if _, recording := p.a.nav.Macros.Recording(); recording {
 		if ev, ok := otea.Translate(msg); ok {
 			if key, isKey := ev.(core.KeyEvent); isKey {
-				p.a.Macros.Record(key)
+				p.a.nav.Macros.Record(key)
 			}
 		}
 	}
@@ -59,9 +59,9 @@ func (a *App) effect(e core.Effect) { a.effects = append(a.effects, e) }
 // yank puts text into the registers and onto the system clipboard. what
 // names it in the status line.
 func (a *App) yank(text, what string) {
-	a.Registers.Yank(0, text, strings.Contains(text, "\n"))
-	a.Registers.SetSpecial(core.RegClipboard, text)
-	a.live.clipboard = text
+	a.nav.Registers.Yank(0, text, strings.Contains(text, "\n"))
+	a.nav.Registers.SetSpecial(core.RegClipboard, text)
+	a.rt.live.clipboard = text
 	a.effect(core.CustomEffect{Kind: effectClipboard, Data: text})
 	shown := clip(strings.ReplaceAll(text, "\n", "⏎"), 48)
 	a.say("yanked %s: %s", what, shown)
@@ -71,7 +71,7 @@ func (a *App) yank(text, what string) {
 // '+' the clipboard, '%' the focused record, '/' the last filter, ':' the
 // last command.
 func (a *App) Register(reg rune) string {
-	v, _ := a.Registers.Get(reg)
+	v, _ := a.nav.Registers.Get(reg)
 	return v.Text
 }
 
@@ -92,7 +92,7 @@ func (a *App) syncPath(s core.State) {
 		}
 	}
 	if a.Register(core.RegPath) != path {
-		a.Registers.SetSpecial(core.RegPath, path)
+		a.nav.Registers.SetSpecial(core.RegPath, path)
 	}
 }
 
@@ -271,7 +271,7 @@ func regOf(c core.Command) rune {
 // macroRecord starts recording the keys pressed into a register.
 func (a *App) macroRecord(s core.State, c core.Command) core.StepResult {
 	reg := regOf(c)
-	if !a.Macros.Start(reg) {
+	if !a.nav.Macros.Start(reg) {
 		a.say("q then a letter records a macro")
 		return core.Next(s)
 	}
@@ -281,14 +281,14 @@ func (a *App) macroRecord(s core.State, c core.Command) core.StepResult {
 
 // macroStop ends the recording. The keys that ended it are not part of it.
 func (a *App) macroStop(s core.State, c core.Command) core.StepResult {
-	reg, recording := a.Macros.Recording()
+	reg, recording := a.nav.Macros.Recording()
 	if !recording {
 		return core.Next(s)
 	}
-	keys := a.Macros.Stop()
+	keys := a.nav.Macros.Stop()
 	if seq, fromKey := strings.CutPrefix(c.Source, "key:"); fromKey {
 		keys = keys[:max(len(keys)-len(strings.Fields(seq)), 0)]
-		a.Macros.Set(reg, keys)
+		a.nav.Macros.Set(reg, keys)
 	}
 	a.say("recorded @%c: %d keys · @ %c replays", reg, len(keys), reg)
 	return core.Next(s)
@@ -298,11 +298,11 @@ func (a *App) macroStop(s core.State, c core.Command) core.StepResult {
 // keys were pressed again.
 func (a *App) macroReplay(s core.State, c core.Command) core.StepResult {
 	reg := regOf(c)
-	if a.replaying >= maxReplayDepth {
+	if a.nav.replaying >= maxReplayDepth {
 		a.say("the macro replays itself: stopped")
 		return core.Next(s)
 	}
-	keys, ok := a.Macros.Replay(reg, c.Times())
+	keys, ok := a.nav.Macros.Replay(reg, c.Times())
 	if !ok {
 		if reg == '@' {
 			a.say("no macro was replayed yet")
@@ -311,13 +311,13 @@ func (a *App) macroReplay(s core.State, c core.Command) core.StepResult {
 		}
 		return core.Next(s)
 	}
-	a.replaying++
+	a.nav.replaying++
 	res := a.Engine.ReplayKeys(s, func(st core.State) []core.ContextFrame {
 		return ui.ContextChain(a.View(st), st.ActiveFrame().FocusID, a.Shell.AppFacts(st))
 	}, keys)
-	a.replaying--
+	a.nav.replaying--
 	if a.status == "" {
-		a.say("replayed @%c", a.Macros.LastPlayed())
+		a.say("replayed @%c", a.nav.Macros.LastPlayed())
 	}
 	return res
 }

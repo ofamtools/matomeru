@@ -45,7 +45,9 @@ type CollectedContextItem struct {
 // without entering the owner's undo stack.
 var contextHarvestActor = core.Actor{Kind: "system", ID: "mtm.context", Label: "context"}
 
-type contextIndex struct {
+// ContextController owns the deduplicated high-signal context index harvested
+// from prompts, agent pages, documents, and visible terminal screens.
+type ContextController struct {
 	mu              sync.RWMutex
 	items           map[string]*CollectedContextItem // paneID\x00canonKey -> item
 	starred         map[string]bool                  // canonKey -> starred
@@ -57,8 +59,8 @@ type contextIndex struct {
 	screenHarvestAt map[string]time.Time
 }
 
-func newContextIndex() *contextIndex {
-	return &contextIndex{
+func newContextController() *ContextController {
+	return &ContextController{
 		items:           map[string]*CollectedContextItem{},
 		starred:         map[string]bool{},
 		persisted:       map[string]bool{},
@@ -102,11 +104,11 @@ func splitContextFileLoc(raw string) (path string, line, col int) {
 	return path, 0, 0
 }
 
-func (a *App) ensureContextIndex() *contextIndex {
-	if a.ctxIdx == nil {
-		a.ctxIdx = newContextIndex()
+func (a *App) ensureContextIndex() *ContextController {
+	if a.ctx == nil {
+		a.ctx = newContextController()
 	}
-	return a.ctxIdx
+	return a.ctx
 }
 
 func mapContextRecordKind(kind string) string {
@@ -135,7 +137,7 @@ func mapContextRecordSource(src string) string {
 	}
 }
 
-func (a *App) loadPersistedContextIndex(idx *contextIndex) {
+func (a *App) loadPersistedContextIndex(idx *ContextController) {
 	if a.Store == nil {
 		return
 	}
@@ -443,7 +445,7 @@ func (a *App) syncContextItems() {
 	a.loadPersistedContextIndex(idx)
 
 	// 1. Agent response / UI pages.
-	if pages, err := a.Store.Query(data.Query{Kind: data.KindPage, IncludeArchived: a.showArchived}); err == nil {
+	if pages, err := a.Store.Query(data.Query{Kind: data.KindPage, IncludeArchived: a.nav.showArchived}); err == nil {
 		for _, page := range pages.Items {
 			idx.mu.RLock()
 			seenRev, ok := idx.pageRevs[page.ID]
@@ -482,7 +484,7 @@ func (a *App) syncContextItems() {
 	}
 
 	// 2. Documents with filePath / path.
-	if docs, err := a.Store.Query(data.Query{Kind: data.KindDocument, IncludeArchived: a.showArchived}); err == nil {
+	if docs, err := a.Store.Query(data.Query{Kind: data.KindDocument, IncludeArchived: a.nav.showArchived}); err == nil {
 		for _, doc := range docs.Items {
 			idx.mu.RLock()
 			seenRev, ok := idx.docRevs[doc.ID]
@@ -518,7 +520,7 @@ func (a *App) syncContextItems() {
 	}
 
 	// 3. Cached live terminal screen frames.
-	for paneID, frame := range a.live.frames {
+	for paneID, frame := range a.rt.live.frames {
 		if len(frame.Lines) == 0 {
 			continue
 		}
@@ -581,7 +583,7 @@ func (a *App) paneContextItems(paneID string) []CollectedContextItem {
 func (a *App) projectContextItems(groupName string, projRef *core.Ref) []CollectedContextItem {
 	a.syncContextItems()
 	paneSet := map[string]bool{}
-	for _, p := range a.railGroupPanes[groupName] {
+	for _, p := range a.panes.railGroupPanes[groupName] {
 		paneSet[p.ID] = true
 	}
 	idx := a.ensureContextIndex()
@@ -694,7 +696,7 @@ func (a *App) openContextValue(s core.State, kind, value string, pane *data.Reco
 		a.say("empty context target")
 		return core.Next(s)
 	}
-	rules := a.Handlers.Match(target)
+	rules := a.cfg.Handlers.Match(target)
 	if len(rules) == 0 {
 		a.say("no handler opens %s", target)
 		return core.Next(s)

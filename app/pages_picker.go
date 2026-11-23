@@ -38,12 +38,12 @@ var coreNounOrder = []string{
 }
 
 func (a *App) schemaCount(kind string) int {
-	if a.isExternalKind(kind) && a.readCache != nil {
-		if snap, ok := a.readCache.Get(kind); ok {
+	if a.isExternalKind(kind) && a.ext.readCache != nil {
+		if snap, ok := a.ext.readCache.Get(kind); ok {
 			return len(snap.Items)
 		}
 	}
-	if res, err := a.Store.Query(data.Query{Kind: kind, IncludeArchived: a.showArchived, Limit: 1}); err == nil {
+	if res, err := a.Store.Query(data.Query{Kind: kind, IncludeArchived: a.nav.showArchived, Limit: 1}); err == nil {
 		return res.Total
 	}
 	return 0
@@ -119,7 +119,7 @@ func (a *App) pagesPick(s core.State, _ core.Command) core.StepResult {
 			})
 		}
 	}
-	if panesRes, err := a.Store.Query(data.Query{Kind: data.KindPane, IncludeArchived: a.showArchived}); err == nil {
+	if panesRes, err := a.Store.Query(data.Query{Kind: data.KindPane, IncludeArchived: a.nav.showArchived}); err == nil {
 		paneSchema := a.schema(data.KindPane)
 		for _, pane := range panesRes.Items {
 			ref := pane.Ref()
@@ -229,8 +229,8 @@ func (a *App) jumpToUnifiedPage(s core.State, pickedID string) core.State {
 		}
 		s = a.dropModals(s)
 		s.ActivePage = SpacePanes
-		a.tocFilter = ""
-		a.activePage[paneID] = views.ScreenPageID
+		a.nav.tocFilter = ""
+		a.panes.activePage[paneID] = views.ScreenPageID
 		return withPage(s, SpacePanes, tocPrefix+views.ScreenPageID, ModeNormal)
 	case strings.HasPrefix(pickedID, pagePickPagePrefix):
 		return a.jumpToPage(s, strings.TrimPrefix(pickedID, pagePickPagePrefix))

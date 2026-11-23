@@ -22,7 +22,7 @@ const (
 
 // panesGroupMode returns the effective rail grouping setting ("project-pane" or "flat").
 func (a *App) panesGroupMode() string {
-	if a.Settings != nil && a.Settings.String(SetPanesGroup, PanesGroupProjectPane) == PanesGroupFlat {
+	if a.cfg.Settings != nil && a.cfg.Settings.String(SetPanesGroup, PanesGroupProjectPane) == PanesGroupFlat {
 		return PanesGroupFlat
 	}
 	return PanesGroupProjectPane
@@ -34,12 +34,12 @@ func (a *App) panesGroupToggle(s core.State, _ core.Command) core.StepResult {
 	if a.panesGroupMode() == PanesGroupFlat {
 		nextMode = PanesGroupProjectPane
 	}
-	a.userSettings[SetPanesGroup] = nextMode
-	a.railGroupSet = false
-	a.railCustomGroup = ""
+	a.cfg.userSettings[SetPanesGroup] = nextMode
+	a.panes.railGroupSet = false
+	a.panes.railCustomGroup = ""
 	a.reloadSettings()
 	a.applySettings()
-	if tbl := a.tables[railTable]; tbl != nil {
+	if tbl := a.nav.tables[railTable]; tbl != nil {
 		if nextMode == PanesGroupProjectPane {
 			tbl.GroupField = "project"
 		} else {
@@ -48,7 +48,7 @@ func (a *App) panesGroupToggle(s core.State, _ core.Command) core.StepResult {
 		tbl.Collapsed = nil
 	}
 	a.rail()
-	if saved, err := a.writeConfig(settingsFileName, a.userSettings); err != nil {
+	if saved, err := a.writeConfig(settingsFileName, a.cfg.userSettings); err != nil {
 		a.fail("save panes.group", err)
 	} else if saved {
 		a.say("panes rail: %s · saved", nextMode)
@@ -113,7 +113,7 @@ func selectGroupHeader(tbl *table.Model, groupName string) bool {
 // (or "Unassigned") while preserving stable promptedAt order within every group
 // and across groups.
 func (a *App) buildRail() *table.Model {
-	res, err := a.Store.Query(data.Query{Kind: data.KindPane, IncludeArchived: a.showArchived})
+	res, err := a.Store.Query(data.Query{Kind: data.KindPane, IncludeArchived: a.nav.showArchived})
 	if err != nil {
 		a.fail("read panes", err)
 	}
@@ -179,10 +179,10 @@ func (a *App) buildRail() *table.Model {
 			row.Facts[factOpenable] = true
 		}
 	}
-	a.railProjectRefs = projRefs
-	a.railGroupPanes = groupPanes
+	a.panes.railProjectRefs = projRefs
+	a.panes.railGroupPanes = groupPanes
 
-	old := a.tables[railTable]
+	old := a.nav.tables[railTable]
 	var oldRowID, oldHeaderGroup string
 	if old != nil {
 		if it, ok := old.Focused(); ok {
@@ -196,8 +196,8 @@ func (a *App) buildRail() *table.Model {
 
 	tbl := keep(old, fresh)
 	switch {
-	case a.railGroupSet:
-		tbl.GroupField = a.railCustomGroup
+	case a.panes.railGroupSet:
+		tbl.GroupField = a.panes.railCustomGroup
 	case a.panesGroupMode() == PanesGroupProjectPane:
 		tbl.GroupField = "project"
 	default:
@@ -229,7 +229,7 @@ func (a *App) buildRail() *table.Model {
 	}
 
 	a.pageSize(tbl, railTable)
-	a.tables[railTable] = tbl
+	a.nav.tables[railTable] = tbl
 	return tbl
 }
 
@@ -241,7 +241,7 @@ func (a *App) selectedRailProject() (groupName string, projRef *core.Ref, ok boo
 	if !focused || !it.Header {
 		return "", nil, false
 	}
-	if ref, exists := a.railProjectRefs[it.Group]; exists {
+	if ref, exists := a.panes.railProjectRefs[it.Group]; exists {
 		r := ref
 		return it.Group, &r, true
 	}
@@ -253,7 +253,7 @@ func (a *App) projectDescendants(rootID string) []data.Record {
 	if rootID == "" {
 		return nil
 	}
-	nodes, err := a.Store.TaskTree(a.showArchived)
+	nodes, err := a.Store.TaskTree(a.nav.showArchived)
 	if err != nil {
 		return nil
 	}
@@ -277,7 +277,7 @@ func (a *App) projectDescendants(rootID string) []data.Record {
 // projectLanes collects active lanes associated with a project, its descendant
 // tasks, or its panes.
 func (a *App) projectLanes(projRef *core.Ref, taskIDs map[string]bool, paneIDs map[string]bool) []data.Record {
-	res, err := a.Store.Query(data.Query{Kind: data.KindLane, IncludeArchived: a.showArchived})
+	res, err := a.Store.Query(data.Query{Kind: data.KindLane, IncludeArchived: a.nav.showArchived})
 	if err != nil {
 		return nil
 	}
@@ -316,7 +316,7 @@ func (a *App) projectLanes(projRef *core.Ref, taskIDs map[string]bool, paneIDs m
 // projectNotes collects notes associated with a project, its descendant tasks,
 // or its panes.
 func (a *App) projectNotes(projRef *core.Ref, taskIDs map[string]bool, paneIDs map[string]bool) []data.Record {
-	res, err := a.Store.Query(data.Query{Kind: data.KindNote, IncludeArchived: a.showArchived})
+	res, err := a.Store.Query(data.Query{Kind: data.KindNote, IncludeArchived: a.nav.showArchived})
 	if err != nil {
 		return nil
 	}
@@ -377,7 +377,7 @@ func (a *App) projectLinks(projRef *core.Ref, taskIDs map[string]bool, ctxItems 
 				}
 			}
 		}
-		if docs, err := a.Store.Query(data.Query{Kind: data.KindDocument, IncludeArchived: a.showArchived}); err == nil {
+		if docs, err := a.Store.Query(data.Query{Kind: data.KindDocument, IncludeArchived: a.nav.showArchived}); err == nil {
 			for _, d := range docs.Items {
 				if t, ok := d.RefField("task"); ok && (t.ID == projRef.ID || taskIDs[t.ID]) {
 					if fp := d.Text("filePath"); fp != "" {
@@ -438,19 +438,19 @@ func (a *App) projectContextTableModel(groupName string, projRef *core.Ref) *tab
 		}
 		byID[it.Key] = it
 	}
-	a.projectCtxRows = byID
-	a.projectCtxGroup = groupName
-	a.projectCtxRef = projRef
+	a.panes.projectCtxRows = byID
+	a.panes.projectCtxGroup = groupName
+	a.panes.projectCtxRef = projRef
 
 	fresh := table.New(cols, rows)
-	old := a.tables[projectContextTable]
+	old := a.nav.tables[projectContextTable]
 	tbl := keep(old, fresh)
 	if old == nil {
 		tbl.MatchMode = a.matchMode()
 		a.applyDefaultPreset(tbl, projectContextTable)
 	}
 	a.pageSize(tbl, projectContextTable)
-	a.tables[projectContextTable] = tbl
+	a.nav.tables[projectContextTable] = tbl
 	return tbl
 }
 
@@ -458,7 +458,7 @@ func (a *App) projectContextTableModel(groupName string, projRef *core.Ref) *tab
 // on a Project header row: notes, links, related tasks, and the filterable /
 // sortable / groupable Context Items table for that project's panes.
 func (a *App) projectOverviewView(_ core.State, groupName string, projRef *core.Ref) ui.ViewNode {
-	groupPanes := a.railGroupPanes[groupName]
+	groupPanes := a.panes.railGroupPanes[groupName]
 	paneIDs := make(map[string]bool, len(groupPanes))
 	for _, p := range groupPanes {
 		paneIDs[p.ID] = true
@@ -632,7 +632,7 @@ func (a *App) projectOverviewView(_ core.State, groupName string, projRef *core.
 // focusedProjectContextItem returns the CollectedContextItem currently focused
 // in projectContextTable.
 func (a *App) focusedProjectContextItem() (CollectedContextItem, bool) {
-	tbl := a.tables[projectContextTable]
+	tbl := a.nav.tables[projectContextTable]
 	if tbl == nil {
 		return CollectedContextItem{}, false
 	}
@@ -640,14 +640,14 @@ func (a *App) focusedProjectContextItem() (CollectedContextItem, bool) {
 	if !ok {
 		return CollectedContextItem{}, false
 	}
-	it, exists := a.projectCtxRows[row.ID]
+	it, exists := a.panes.projectCtxRows[row.ID]
 	return it, exists
 }
 
 // projectContextCommand handles open, yank, star, and attach actions on rows of
 // the project overview's Context Items table.
 func (a *App) projectContextOpen(s core.State, _ core.Command) core.StepResult {
-	tbl := a.tables[projectContextTable]
+	tbl := a.nav.tables[projectContextTable]
 	if tbl != nil {
 		if it, ok := tbl.Focused(); ok && it.Header {
 			tbl.ToggleGroup()
@@ -699,7 +699,7 @@ func (a *App) projectContextAttach(s core.State, _ core.Command) core.StepResult
 		a.say("no context item selected")
 		return core.Next(s)
 	}
-	target := a.projectCtxRef
+	target := a.panes.projectCtxRef
 	if target == nil && it.PaneID != "" {
 		r := core.Ref{Kind: data.KindPane, ID: it.PaneID}
 		target = &r

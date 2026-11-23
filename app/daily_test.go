@@ -26,10 +26,10 @@ func browseTo(t *testing.T, a *App, d *Driver, rec data.Record) {
 	if a.Modal() != "" || a.workKind() != rec.Kind {
 		t.Fatalf("g n did not open %s (modal %q, noun %q)", rec.Kind, a.Modal(), a.workKind())
 	}
-	if !selectRow(a.tables[workTable], data.RefText(rec.Ref())) {
+	if !selectRow(a.nav.tables[workTable], data.RefText(rec.Ref())) {
 		t.Fatalf("%s is not in its index", data.RefText(rec.Ref()))
 	}
-	a.gen++
+	a.viewMemo.gen++
 }
 
 func mkRec(t *testing.T, a *App, kind string, fields map[string]any) data.Record {
@@ -96,7 +96,7 @@ func TestYankPicker(t *testing.T) {
 	if a.Modal() != "" || a.Register(core.RegUnnamed) != "ochazuke" || a.Register(core.RegYank) != "ochazuke" || a.Register(core.RegClipboard) != "ochazuke" {
 		t.Fatalf("picking repo yanked %q / %q / %q (modal %q)", a.Register(core.RegUnnamed), a.Register(core.RegYank), a.Register(core.RegClipboard), a.Modal())
 	}
-	if a.live.clipboard != "ochazuke" || !slices.ContainsFunc(a.Shell.LastEffects, func(e core.Effect) bool {
+	if a.rt.live.clipboard != "ochazuke" || !slices.ContainsFunc(a.Shell.LastEffects, func(e core.Effect) bool {
 		c, ok := e.(core.CustomEffect)
 		return ok && c.Kind == effectClipboard && c.Data == "ochazuke"
 	}) {
@@ -139,20 +139,20 @@ func TestYankPicker(t *testing.T) {
 // through the engine, and the special registers follow what the owner does.
 func TestRegistersAndMacros(t *testing.T) {
 	a, d := demo(t)
-	a.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
+	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
 	a.reloadSettings()
 	d.Keys("2")
-	tbl := func() int { return a.tables[workTable].SelectedIdx }
+	tbl := func() int { return a.nav.tables[workTable].SelectedIdx }
 	start := tbl()
 	d.Keys("q", "a")
-	if reg, on := a.Macros.Recording(); !on || reg != 'a' || !strings.Contains(a.Status(), "recording @a") {
+	if reg, on := a.nav.Macros.Recording(); !on || reg != 'a' || !strings.Contains(a.Status(), "recording @a") {
 		t.Fatalf("q a did not start recording (status %q)", a.Status())
 	}
 	d.Keys("j", "j", "q")
-	if _, on := a.Macros.Recording(); on {
+	if _, on := a.nav.Macros.Recording(); on {
 		t.Fatal("q did not stop the recording")
 	}
-	if keys, ok := a.Macros.Macro('a'); !ok || len(keys) != 2 || keys[0].Key != "j" {
+	if keys, ok := a.nav.Macros.Macro('a'); !ok || len(keys) != 2 || keys[0].Key != "j" {
 		t.Fatalf("macro a = %+v", keys)
 	}
 	if tbl() != start+2 {
@@ -174,21 +174,21 @@ func TestRegistersAndMacros(t *testing.T) {
 	d.Keys("q", "b", "/")
 	d.Type("tier")
 	d.Keys("enter", "q")
-	if a.tables[workTable].Query != "tier" || a.Register(core.RegSearch) != "tier" {
-		t.Fatalf("filter %q, \"/ = %q", a.tables[workTable].Query, a.Register(core.RegSearch))
+	if a.nav.tables[workTable].Query != "tier" || a.Register(core.RegSearch) != "tier" {
+		t.Fatalf("filter %q, \"/ = %q", a.nav.tables[workTable].Query, a.Register(core.RegSearch))
 	}
 	d.Keys("/", "esc")
-	if a.tables[workTable].Query != "" {
+	if a.nav.tables[workTable].Query != "" {
 		t.Fatal("esc did not clear the filter")
 	}
 	d.Keys("@", "b")
-	if a.tables[workTable].Query != "tier" || a.Mode() != ModeNormal {
-		t.Fatalf("@ b: filter %q, mode %q", a.tables[workTable].Query, a.Mode())
+	if a.nav.tables[workTable].Query != "tier" || a.Mode() != ModeNormal {
+		t.Fatalf("@ b: filter %q, mode %q", a.nav.tables[workTable].Query, a.Mode())
 	}
 	d.Keys("/", "esc")
 
 	// "% is the focused record: its reference, or its file when it has one.
-	row, _ := a.tables[workTable].FocusedRow()
+	row, _ := a.nav.tables[workTable].FocusedRow()
 	if a.Register(core.RegPath) != row.ID || !strings.HasPrefix(row.ID, "task:") {
 		t.Fatalf("\"%% = %q, focused %q", a.Register(core.RegPath), row.ID)
 	}
@@ -204,7 +204,7 @@ func TestRegistersAndMacros(t *testing.T) {
 	d.Keys(":")
 	d.Type("archived.toggle")
 	d.Keys("enter")
-	if a.Register(core.RegCommand) != "archived.toggle" || !a.showArchived {
+	if a.Register(core.RegCommand) != "archived.toggle" || !a.nav.showArchived {
 		t.Fatalf("\": = %q", a.Register(core.RegCommand))
 	}
 	// The outline is based on the normal mode and keeps q for closing: it
@@ -237,7 +237,7 @@ func TestRegistersAndMacros(t *testing.T) {
 		t.Fatalf("Q y did not confirm quit: modal=%q quit=%v", a.Modal(), hasQuit())
 	}
 	// With confirm.quit=false, Q quits immediately without opening the confirm modal.
-	a.userSettings[SetConfirmQuit] = false
+	a.cfg.userSettings[SetConfirmQuit] = false
 	a.reloadSettings()
 	d.Keys("Q")
 	if a.Modal() != "" || !hasQuit() {
@@ -261,7 +261,7 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	a.Handlers.IsDir = func(p string) bool { return p == dir || strings.HasSuffix(p, "-next") }
+	a.cfg.Handlers.IsDir = func(p string) bool { return p == dir || strings.HasSuffix(p, "-next") }
 	doc := mkRec(t, a, data.KindDocument, map[string]any{"title": "Guide", "filePath": guide})
 	note := mkRec(t, a, data.KindNote, map[string]any{"title": "Inline", "body": "# Inline note\n\nKept in the record.\n"})
 
@@ -356,12 +356,12 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 		t.Fatalf("o on a pane with a directory: modal %q, status %q", a.Modal(), a.Status())
 	}
 	d.Keys("esc")
-	a.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
+	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
 	a.reloadSettings()
 	browseTo(t, a, d, titled(t, a, data.KindTask, "ochazuke-v2"))
 	d.Keys("o")
-	if a.Modal() != "" || a.tables[workTable].SortField != "title" {
-		t.Fatalf("o on a task: modal %q, sort %q", a.Modal(), a.tables[workTable].SortField)
+	if a.Modal() != "" || a.nav.tables[workTable].SortField != "title" {
+		t.Fatalf("o on a task: modal %q, sort %q", a.Modal(), a.nav.tables[workTable].SortField)
 	}
 }
 
@@ -392,13 +392,13 @@ func TestHandlersConfig(t *testing.T) {
 	}
 
 	// The daemon switch is read from settings.json; it has no row in the form.
-	if a.Settings.Bool(setTerminalDaemon, false) {
+	if a.cfg.Settings.Bool(setTerminalDaemon, false) {
 		t.Fatal("terminal.daemon is on by default")
 	}
 	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(`{"terminal.daemon": true}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if on, err := New(a.Store, Options{ConfigDir: dir}); err != nil || len(on.Warnings) != 0 || !on.Settings.Bool(setTerminalDaemon, false) {
+	if on, err := New(a.Store, Options{ConfigDir: dir}); err != nil || len(on.Warnings) != 0 || !on.cfg.Settings.Bool(setTerminalDaemon, false) {
 		t.Fatalf("terminal.daemon from settings.json: %v", err)
 	}
 
@@ -407,7 +407,7 @@ func TestHandlersConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, err := New(a.Store, Options{ConfigDir: dir})
-	if err != nil || len(b.Warnings) != 1 || !strings.Contains(b.Warnings[0], handlersFileName) || len(b.Handlers.Match("x.md")) != 2 {
+	if err != nil || len(b.Warnings) != 1 || !strings.Contains(b.Warnings[0], handlersFileName) || len(b.cfg.Handlers.Match("x.md")) != 2 {
 		t.Fatalf("warnings %v, err %v", b.Warnings, err)
 	}
 }
@@ -475,7 +475,7 @@ func TestGlobalScratches(t *testing.T) {
 	a, d := liveApp(t, true, Options{Host: host, DataDir: dataDir})
 	before := len(a.rail().Rows)
 	d.Keys("2", "j", "j")
-	focus, row := a.Focus(), a.tables[workTable].SelectedIdx
+	focus, row := a.Focus(), a.nav.tables[workTable].SelectedIdx
 
 	d.Keys("ctrl+a", "S")
 	if a.Modal() != "scratch" || a.Mode() != ModeTerminal || a.Space() != SpaceWork {
@@ -511,8 +511,8 @@ func TestGlobalScratches(t *testing.T) {
 		t.Fatalf("the managed scratch file was not made: %v", err)
 	}
 	d.Keys("ctrl+a", "V")
-	if a.Modal() != "" || a.Space() != SpaceWork || a.Focus() != focus || a.tables[workTable].SelectedIdx != row || a.Mode() != ModeNormal {
-		t.Fatalf("hiding the scratch lost the place: modal %q, space %q, focus %q, row %d, mode %q", a.Modal(), a.Space(), a.Focus(), a.tables[workTable].SelectedIdx, a.Mode())
+	if a.Modal() != "" || a.Space() != SpaceWork || a.Focus() != focus || a.nav.tables[workTable].SelectedIdx != row || a.Mode() != ModeNormal {
+		t.Fatalf("hiding the scratch lost the place: modal %q, space %q, focus %q, row %d, mode %q", a.Modal(), a.Space(), a.Focus(), a.nav.tables[workTable].SelectedIdx, a.Mode())
 	}
 
 	// Asked for again, from another space: the same pane and the same session.
@@ -538,7 +538,7 @@ func TestGlobalScratches(t *testing.T) {
 	// The per-pane side panes say what they are and which pane they are beside.
 	d.Keys("1")
 	selectRow(a.rail(), data.RefText(titled(t, a, data.KindPane, "claude: wave 5B").Ref()))
-	a.gen++
+	a.viewMemo.gen++
 	parent, _ := a.SelectedPane()
 	d.Keys("ctrl+a", "t")
 	sideTerm := panesWithRole(t, a, data.RoleSideTerm)
@@ -622,7 +622,7 @@ func TestRuleFromSignal(t *testing.T) {
 	if got, _ := a.Store.Get(human.Ref()); got.Text("triageState") != data.TriageUnreviewed || got.IsArchived() {
 		t.Fatal("a signal the rule does not hold for was changed")
 	}
-	if rows := a.tables[workTable].Filtered(); len(rows) != 1 || !strings.Contains(d.Frame(), "Can you look?") || strings.Contains(d.Frame(), "Bump a") {
+	if rows := a.nav.tables[workTable].Filtered(); len(rows) != 1 || !strings.Contains(d.Frame(), "Can you look?") || strings.Contains(d.Frame(), "Bump a") {
 		t.Fatalf("the index still lists the noise (%d rows):\n%s", len(rows), d.Frame())
 	}
 	// R anywhere else does nothing of the kind.
@@ -657,8 +657,8 @@ func TestInspectActionsAndModes(t *testing.T) {
 		t.Fatalf("\": = %q", a.Register(core.RegCommand))
 	}
 	pm := inspectMod.Model()
-	if len(pm.Items) != len(ActionsOf(a.bindings, a.specs)) {
-		t.Fatalf("%d rows for %d actions", len(pm.Items), len(ActionsOf(a.bindings, a.specs)))
+	if len(pm.Items) != len(ActionsOf(a.bind.bindings, a.bind.specs)) {
+		t.Fatalf("%d rows for %d actions", len(pm.Items), len(ActionsOf(a.bind.bindings, a.bind.specs)))
 	}
 	item := func(id string) (found bool, unbound bool, keys string) {
 		for _, it := range a.activePicker("inspect").Model().Items {
@@ -684,10 +684,10 @@ func TestInspectActionsAndModes(t *testing.T) {
 		t.Fatalf("the filter: mode %q, focused %q", a.Mode(), focused.ID)
 	}
 	d.Keys("a")
-	if len(a.userBindings) != 1 || a.userBindings[0].Command != CmdGroupField || !strings.Contains(a.Status(), "bound "+CmdGroupField+" to ") {
-		t.Fatalf("a did not bind it: %+v (%q)", a.userBindings, a.Status())
+	if len(a.bind.userBindings) != 1 || a.bind.userBindings[0].Command != CmdGroupField || !strings.Contains(a.Status(), "bound "+CmdGroupField+" to ") {
+		t.Fatalf("a did not bind it: %+v (%q)", a.bind.userBindings, a.Status())
 	}
-	keys := a.userBindings[0].Keys
+	keys := a.bind.userBindings[0].Keys
 	if _, unbound, shown := item(CmdGroupField); unbound || shown != strings.Join(keys, " ") {
 		t.Fatalf("the row still reads %q after binding to %v", shown, keys)
 	}
@@ -698,10 +698,10 @@ func TestInspectActionsAndModes(t *testing.T) {
 	// The key works at once, and is there on the next start.
 	d.Keys("esc")
 	d.Keys(keys...)
-	if a.Modal() != "" || a.tables[workTable].GroupField == "" {
+	if a.Modal() != "" || a.nav.tables[workTable].GroupField == "" {
 		t.Fatalf("%v did not group the list (status %q)", keys, a.Status())
 	}
-	if b, err := New(a.Store, Options{ConfigDir: dir}); err != nil || len(b.Warnings) != 0 || len(b.userBindings) != 1 || !slices.Equal(b.userBindings[0].Keys, keys) {
+	if b, err := New(a.Store, Options{ConfigDir: dir}); err != nil || len(b.Warnings) != 0 || len(b.bind.userBindings) != 1 || !slices.Equal(b.bind.userBindings[0].Keys, keys) {
 		t.Fatalf("the next start: %v", err)
 	}
 
@@ -716,9 +716,9 @@ func TestInspectActionsAndModes(t *testing.T) {
 	if frame := d.Frame(); !strings.Contains(frame, "Inspect modes") || !strings.Contains(frame, "passthrough") || !strings.Contains(frame, "base normal") {
 		t.Fatalf("the modes inspector:\n%s", frame)
 	}
-	before := len(a.userBindings)
+	before := len(a.bind.userBindings)
 	d.Keys("a", "q")
-	if len(a.userBindings) != before || a.Modal() != "" {
+	if len(a.bind.userBindings) != before || a.Modal() != "" {
 		t.Fatal("a bound something in the modes inspector, or q did not close it")
 	}
 	d.Keys("g", "n")
@@ -901,15 +901,15 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 	d.Keys("/")
 	d.Type("one two")
 	d.Keys("ctrl+w")
-	if got := a.tables[workTable].Query; got != "one " {
+	if got := a.nav.tables[workTable].Query; got != "one " {
 		t.Fatalf("filter ctrl+w -> %q", got)
 	}
 	d.Keys("ctrl+u")
-	if got := a.tables[workTable].Query; got != "" {
+	if got := a.nav.tables[workTable].Query; got != "" {
 		t.Fatalf("filter ctrl+u -> %q", got)
 	}
 	d.Keys("ctrl+y")
-	if got := a.tables[workTable].Query; got != "one " {
+	if got := a.nav.tables[workTable].Query; got != "one " {
 		t.Fatalf("filter ctrl+y -> %q", got)
 	}
 	d.Keys("esc")
@@ -943,13 +943,13 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 	if got := bm.line.Value(); got != "verb:record.star " {
 		t.Fatalf("bindings filter ctrl+w -> %q", got)
 	}
-	if len(a.bindEd.Filtered()) != 1 {
-		t.Fatalf("bindings filter did not apply query %q (got %d rows)", bm.line.Value(), len(a.bindEd.Filtered()))
+	if len(a.bind.bindEd.Filtered()) != 1 {
+		t.Fatalf("bindings filter did not apply query %q (got %d rows)", bm.line.Value(), len(a.bind.bindEd.Filtered()))
 	}
 	d.Keys("esc", "esc")
 
 	// 5. All Readline actions appear in the actions inspector with bound keys.
-	actions := ActionsOf(a.bindings, a.specs)
+	actions := ActionsOf(a.bind.bindings, a.bind.specs)
 	byID := map[string]ActionInfo{}
 	for _, act := range actions {
 		byID[act.ID] = act

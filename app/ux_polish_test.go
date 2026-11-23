@@ -100,7 +100,7 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 			{Name: "task", Type: core.ParamRef, RefKinds: []string{data.KindTask}},
 		},
 	}
-	a.specs = append(a.specs, spec)
+	a.bind.specs = append(a.bind.specs, spec)
 	a.handle(testCmd, func(s core.State, c core.Command) core.StepResult {
 		gotArgs = c.Args
 		return core.Next(s)
@@ -202,7 +202,7 @@ func TestPanesTOCToggleAndReaderTOC(t *testing.T) {
 		t.Fatalf("enter on rail did not focus TOC: focus=%q", a.Focus())
 	}
 	d.Keys("t")
-	if a.Settings.Bool(SetShowTOC, true) {
+	if a.cfg.Settings.Bool(SetShowTOC, true) {
 		t.Fatal("t did not turn panes.showTOC off")
 	}
 	if strings.Contains(d.Frame(), "Pages") {
@@ -214,7 +214,7 @@ func TestPanesTOCToggleAndReaderTOC(t *testing.T) {
 
 	// Press t again to restore the Pages TOC rail.
 	d.Keys("t")
-	if !a.Settings.Bool(SetShowTOC, true) || !strings.Contains(d.Frame(), "Pages") {
+	if !a.cfg.Settings.Bool(SetShowTOC, true) || !strings.Contains(d.Frame(), "Pages") {
 		t.Fatalf("second t did not restore Pages TOC rail:\n%s", d.Frame())
 	}
 
@@ -229,8 +229,8 @@ func TestPanesTOCToggleAndReaderTOC(t *testing.T) {
 	d.Keys("g", "n")
 	d.Type("notes")
 	d.Keys("enter")
-	selectRow(a.tables[workTable], data.RefText(guide.Ref()))
-	a.gen++
+	selectRow(a.nav.tables[workTable], data.RefText(guide.Ref()))
+	a.viewMemo.gen++
 	d.Keys("o")
 	if a.Modal() != "reader" || a.Mode() != ModeReader {
 		t.Fatalf("o did not open Markdown reader: modal=%q mode=%q", a.Modal(), a.Mode())

@@ -229,47 +229,47 @@ func TestListsWorkOnAnyField(t *testing.T) {
 		}
 	}
 	pick("repo", "g", "b")
-	if frame := d.Frame(); a.tables[workTable].GroupField != "repo" || !strings.Contains(frame, "▾ ochazuke (1)") || !strings.Contains(frame, "▾ matomeru (1)") {
-		t.Fatalf("grouped by a column that is not shown (%q):\n%s", a.tables[workTable].GroupField, frame)
+	if frame := d.Frame(); a.nav.tables[workTable].GroupField != "repo" || !strings.Contains(frame, "▾ ochazuke (1)") || !strings.Contains(frame, "▾ matomeru (1)") {
+		t.Fatalf("grouped by a column that is not shown (%q):\n%s", a.nav.tables[workTable].GroupField, frame)
 	}
 	d.Keys("space")
-	if !a.tables[workTable].Collapsed["ochazuke"] {
+	if !a.nav.tables[workTable].Collapsed["ochazuke"] {
 		t.Fatal("space did not fold the focused group")
 	}
 	d.Keys("g", "b", "enter") // the first row: not grouped
-	if a.tables[workTable].GroupField != "" {
-		t.Fatalf("still grouped by %q", a.tables[workTable].GroupField)
+	if a.nav.tables[workTable].GroupField != "" {
+		t.Fatalf("still grouped by %q", a.nav.tables[workTable].GroupField)
 	}
 	pick("sprint", "g", "s")
-	if tbl := a.tables[workTable]; tbl.SortField != "sprint" || tbl.SortDir != table.SortAsc {
+	if tbl := a.nav.tables[workTable]; tbl.SortField != "sprint" || tbl.SortDir != table.SortAsc {
 		t.Fatalf("sorted by %q (%v)", tbl.SortField, tbl.SortDir)
 	}
 	d.Keys("g", "s", "enter")
-	if a.tables[workTable].SortField != "" {
-		t.Fatalf("still sorted by %q", a.tables[workTable].SortField)
+	if a.nav.tables[workTable].SortField != "" {
+		t.Fatalf("still sorted by %q", a.nav.tables[workTable].SortField)
 	}
 	// Regex over every field; an invalid one is reported and matched as text.
 	d.Keys("/", "tab", "tab")
 	d.Type("wave 5[ab]: ")
-	if got := len(a.tables[workTable].Filtered()); got != 2 || a.tables[workTable].MatchMode != "regex" {
-		t.Fatalf("regex filter matched %d rows in mode %s", got, a.tables[workTable].MatchMode)
+	if got := len(a.nav.tables[workTable].Filtered()); got != 2 || a.nav.tables[workTable].MatchMode != "regex" {
+		t.Fatalf("regex filter matched %d rows in mode %s", got, a.nav.tables[workTable].MatchMode)
 	}
 	// One field: the regex is anchored to that field's text.
 	d.Keys("ctrl+u", "ctrl+t")
 	d.Type("^tier [01]")
-	if got := len(a.tables[workTable].Filtered()); got != 2 || a.tables[workTable].FilterField != "title" {
-		t.Fatalf("regex on %s matched %d rows", a.tables[workTable].FilterField, got)
+	if got := len(a.nav.tables[workTable].Filtered()); got != 2 || a.nav.tables[workTable].FilterField != "title" {
+		t.Fatalf("regex on %s matched %d rows", a.nav.tables[workTable].FilterField, got)
 	}
 	d.Keys("ctrl+u")
 	d.Type("[")
-	if a.tables[workTable].Filtered(); a.tables[workTable].FilterErr == "" || !strings.Contains(d.Frame(), "invalid regex") {
+	if a.nav.tables[workTable].Filtered(); a.nav.tables[workTable].FilterErr == "" || !strings.Contains(d.Frame(), "invalid regex") {
 		t.Fatal("an invalid regex is not reported")
 	}
 	d.Keys("esc")
 	pick("sprint", "f")
 	d.Keys("/")
 	d.Type("s4")
-	if tbl := a.tables[workTable]; tbl.FilterField != "sprint" || len(tbl.Filtered()) != 1 {
+	if tbl := a.nav.tables[workTable]; tbl.FilterField != "sprint" || len(tbl.Filtered()) != 1 {
 		t.Fatalf("f filters on %q: %d rows", tbl.FilterField, len(tbl.Filtered()))
 	}
 	d.Keys("esc")
@@ -344,7 +344,7 @@ func TestDefaultBindingsAreValid(t *testing.T) {
 		if b.Command == "" {
 			continue
 		}
-		if _, ok := a.Keymap.Commands.Lookup(b.Command); !ok {
+		if _, ok := a.bind.Keymap.Commands.Lookup(b.Command); !ok {
 			t.Errorf("binding %d (%s %v): command %q has no spec", i, b.Mode, b.Keys, b.Command)
 		}
 	}

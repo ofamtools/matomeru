@@ -57,7 +57,7 @@ func (a *App) recordActionsOpen(s core.State, c core.Command) core.StepResult {
 			if p, ok := picked.Data.(recordActionPayload); ok {
 				args = p.args
 			}
-			a.Registers.SetSpecial(core.RegCommand, picked.Title)
+			a.nav.Registers.SetSpecial(core.RegCommand, picked.Title)
 			return modal.Result{
 				Handled:     true,
 				Close:       true,
@@ -102,7 +102,7 @@ func (a *App) recordFacts(s core.State, ref core.Ref) map[string]any {
 }
 
 func (a *App) recordBindingKeys(cmdID, kind string, fixedArgs map[string]any) string {
-	for _, b := range a.bindings {
+	for _, b := range a.bind.bindings {
 		if b.Unbind || b.Command != cmdID || len(b.Keys) == 0 {
 			continue
 		}
@@ -216,7 +216,7 @@ func (a *App) recordActionItems(s core.State, ref core.Ref) []picker.Item {
 	curShowing, isShowing := a.Showing()
 	onOwnShow := isShowing && curShowing == ref && s.ActivePage == SpaceWork
 
-	for _, sp := range a.specs {
+	for _, sp := range a.bind.specs {
 		isRec, _ := sp.Meta["record"].(bool)
 		if !isRec {
 			continue
