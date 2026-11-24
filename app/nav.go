@@ -169,6 +169,18 @@ func (a *App) column(s core.State, delta int) core.State {
 	if to == at {
 		return s
 	}
+	// When stepping right from a live-previewed middle-rail canvas into site.content,
+	// commit the previewed canvas as the pane's active page so content stays aligned.
+	if nodes[cur].region == "site.toc" && regions[to] == "site.content" &&
+		(a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTOCLivePreview, true)) {
+		curID := nodes[cur].id
+		if pageID, ok := strings.CutPrefix(curID, tocPrefix); ok && pageID != "" &&
+			!strings.HasPrefix(curID, views.TOCGroupPrefix) && !strings.HasPrefix(curID, views.LaneTOCPrefix) {
+			if pane, hasPane := a.SelectedPane(); hasPane && pane != nil {
+				a.panes.activePage[pane.ID] = pageID
+			}
+		}
+	}
 	target := a.nav.lastFocus[regions[to]]
 	if !slices.ContainsFunc(nodes, func(n fnode) bool { return n.id == target && n.region == regions[to] }) {
 		idx := slices.IndexFunc(nodes, func(n fnode) bool {

@@ -182,3 +182,63 @@ func TestSlimLeftRailInlineStateIconAndOptOut(t *testing.T) {
 		t.Fatalf("with railStateColumn=true, expected State column restored, got %+v", tblOptOut.Columns)
 	}
 }
+
+func TestTOCLivePreviewOnCursorMoveAndOptOut(t *testing.T) {
+	a, d := demo(t)
+	pane, ok := a.SelectedPane()
+	if !ok {
+		t.Fatal("expected selected pane")
+	}
+
+	res, err := a.Router.CreatePage(User, mcpui.CreatePageArgs{
+		Pane:   pane.ID,
+		Slug:   "preview-canvas",
+		Title:  "Preview Canvas",
+		Pinned: true,
+		Root: ui.ViewNode{
+			Kind:  ui.KindMarkdown,
+			Props: map[string]any{"markdown": "# Preview Heading\n\nLive preview body for cursor hover."},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+
+	// Move from left rail to middle rail (site.toc.screen), then step down to Preview Canvas
+	// WITHOUT pressing enter. The right panel must immediately preview the canvas while keeping it unread.
+	d.Keys("1", "l")
+	for i := 0; i < 10 && a.Focus() != tocPrefix+res.ID; i++ {
+		d.Keys("j")
+	}
+	if a.Focus() != tocPrefix+res.ID {
+		t.Fatalf("could not focus preview canvas in TOC, got %q", a.Focus())
+	}
+	frame := d.Frame()
+	if !strings.Contains(frame, "Live preview body for cursor hover.") {
+		t.Fatalf("moving cursor onto canvas in middle rail did not live-preview its content:\n%s", frame)
+	}
+	stored, err := a.Store.Get(core.Ref{Kind: data.KindPage, ID: res.ID})
+	if err != nil {
+		t.Fatalf("Store.Get: %v", err)
+	}
+	if !stored.IsUnread() {
+		t.Fatalf("live-previewing an unread canvas must not mark it viewed before opening")
+	}
+
+	// Stepping right with l keeps the previewed canvas in site.content rather than snapping back to Screen.
+	d.Keys("l")
+	if !strings.Contains(d.Frame(), "Live preview body for cursor hover.") {
+		t.Fatalf("pressing l from previewed canvas snapped away from previewed content:\n%s", d.Frame())
+	}
+
+	// Opt-out panes.tocLivePreview=false keeps Screen shown until enter opens the canvas.
+	d.Keys("h")
+	a.panes.activePage[pane.ID] = views.ScreenPageID
+	a.cfg.userSettings[SetTOCLivePreview] = false
+	a.reloadSettings()
+	a.viewMemo.gen++
+	d.Send(resize(120, 36))
+	if strings.Contains(d.Frame(), "Live preview body for cursor hover.") {
+		t.Fatalf("with tocLivePreview=false, moving cursor in TOC should not live-preview:\n%s", d.Frame())
+	}
+}

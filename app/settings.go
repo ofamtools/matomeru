@@ -144,6 +144,7 @@ const (
 	SetSessionUXNotes                = "session.uxNotes"
 	SetPageLockScroll                = "panes.pageLockScroll"
 	SetInteractiveCanvas             = "panes.interactiveCanvas"
+	SetTOCLivePreview                = "panes.tocLivePreview"
 	SetEdgeFocusSpill                = "nav.edgeFocusSpill"
 	SetVerboseHookBar                = "panes.verboseHookBar"
 	SetLaneInTOC                     = "panes.laneInTOC"
@@ -246,6 +247,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetSessionUXNotes, true, "enable zero-interruption in-context UX note capture (alt+n) and session note replay"),
 		flag(SetPageLockScroll, true, "lock reading and scrolling inside a ui.page until explicit detach (esc/q/ctrl+a d)"),
 		flag(SetInteractiveCanvas, true, "make canvas tables, Markdown links, and checkboxes interactive in reading mode"),
+		flag(SetTOCLivePreview, true, "live-preview the focused canvas in the right panel while moving through the middle rail"),
 		flag(SetEdgeFocusSpill, false, "allow j/k at list or pane edges to silently spill focus to adjacent panes"),
 		flag(SetVerboseHookBar, false, "show verbose tool, subagent, and summary text in the pane hook indicator"),
 		flag(SetLaneInTOC, true, "show the pane's active lane and progress counter inside the pane TOC"),

@@ -359,7 +359,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		if err != nil {
 			a.fail("read pages", err)
 		}
-		activePageID := a.panes.activePage[pane.ID]
+		shownPageID, previewing := a.displayedSitePageID(s, pane.ID, res.Items)
 		opts := views.SiteOptions{
 			Store:            a.Store,
 			ShowLaneBar:      a.cfg.Settings.Bool(SetLaneBar, false),
@@ -367,7 +367,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 			CompactTOC:       a.cfg.Settings.Bool(SetCompactTOC, true),
 			TOCGrouped:       a.cfg.Settings.Bool(SetTOCGrouped, true),
 			TOCCollapsed:     a.panes.tocCollapsed,
-			PageScrollOffset: a.pageScrollOffset(activePageID),
+			PageScrollOffset: a.pageScrollOffset(shownPageID),
 			PageScrollLocked: s.Pages[SpacePanes].Mode == ModePage,
 			WrapPageScroll:   true,
 			HideTOC:          !a.cfg.Settings.Bool(SetShowTOC, true),
@@ -376,9 +376,14 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		if a.Shell != nil {
 			opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once
 		}
-		site = views.PaneSiteViewWith(*pane, res.Items, a.panes.activePage[pane.ID], a.nav.tocFilter, opts)
+		site = views.PaneSiteViewWith(*pane, res.Items, shownPageID, a.nav.tocFilter, opts)
 		a.enhanceQuestionsSite(&site, *pane, res.Items)
-		a.enhanceCanvasSite(&site, a.activeSitePageID())
+		a.enhanceCanvasSite(&site, shownPageID)
+		if previewing && shownPageID != views.ScreenPageID {
+			if content := site.Find("site.content"); content != nil {
+				content.Badges = append(slices.Clone(content.Badges), ui.Badge{Text: "preview · enter opens", Tone: "muted"})
+			}
+		}
 		var extraTop []ui.ViewNode
 		if strip, ok := a.paneHeaderStrip(*pane); ok {
 			extraTop = append(extraTop, strip)
@@ -438,6 +443,33 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		ratio = railRatioWidened
 	}
 	return ui.ViewNode{ID: "panes.split", Kind: ui.KindSplit, Ratio: ratio, Gap: 1, Children: []ui.ViewNode{rail, site}}
+}
+
+func (a *App) displayedSitePageID(s core.State, paneID string, pages []data.Record) (string, bool) {
+	active := a.panes.activePage[paneID]
+	if active == "" {
+		active = views.ScreenPageID
+	}
+	if a.cfg != nil && a.cfg.Settings != nil && !a.cfg.Settings.Bool(SetTOCLivePreview, true) {
+		return active, false
+	}
+	if s.ActivePage != SpacePanes {
+		return active, false
+	}
+	focus := s.Pages[SpacePanes].FocusID
+	pageID, ok := strings.CutPrefix(focus, tocPrefix)
+	if !ok || pageID == "" || strings.HasPrefix(focus, views.TOCGroupPrefix) || strings.HasPrefix(focus, views.LaneTOCPrefix) {
+		return active, false
+	}
+	if pageID == views.ScreenPageID {
+		return views.ScreenPageID, active != views.ScreenPageID
+	}
+	for _, p := range pages {
+		if p.ID == pageID {
+			return pageID, pageID != active
+		}
+	}
+	return active, false
 }
 
 // termLines is what the Screen page shows of a pane with no live session:
