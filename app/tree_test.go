@@ -113,7 +113,7 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 		t.Fatalf("i on lane: mode=%q edit=%+v", a.Mode(), ed)
 	}
 	d.Type("Core ")
-	d.Keys("enter")
+	d.Keys("esc")
 	if rec, _ := store.Get(root1.Ref()); rec.Text("title") != "Core Wave Alpha" {
 		t.Fatalf("lane after inline rename = %q, want Core Wave Alpha", rec.Text("title"))
 	}
@@ -123,7 +123,7 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 		t.Fatalf("o+tab on lane: edit=%+v, want ParentID=%q", ed, root1.ID)
 	}
 	d.Type("Second Child Lane")
-	d.Keys("enter")
+	d.Keys("esc")
 	createdLane, err := store.GetByField(data.KindLane, "title", "Second Child Lane")
 	if err != nil {
 		t.Fatalf("Second Child Lane not created: %v", err)

@@ -197,7 +197,7 @@ func TestWaveD2AboutInfoAndOverlay(t *testing.T) {
 			t.Errorf("About overlay frame missing %q:\n%s", want, frame)
 		}
 	}
-	d.Keys("j", "esc")
+	d.Keys("j", "esc", "esc")
 	if a.Modal() != "" {
 		t.Fatalf("esc did not close modalAbout: %q", a.Modal())
 	}
@@ -574,7 +574,7 @@ esac
 	if len(actionIDs) == 0 || actionIDs[0] != "df.culprit.clean" {
 		t.Fatalf("expected %q at top of ; Actions on df.culprit, got %v", "df.culprit.clean", actionIDs)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// Row 0 is rebuildable ("go-build-cache"): X opens Wave 4 confirmation dialog.
 	d.Keys("X")

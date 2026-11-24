@@ -228,7 +228,7 @@ func TestFDSearchFormReactiveAndRepeatable(t *testing.T) {
 	}
 
 	// Disabling edit.reactiveFields shows all fields even when type == "dir".
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 	a.cfg.userSettings[SetFormReactiveFields] = false
 	a.reloadSettings()
 	a.applySettings()
@@ -244,7 +244,7 @@ func TestFDSearchFormReactiveAndRepeatable(t *testing.T) {
 		!slices.ContainsFunc(fmOff.VisibleFields(), func(p core.ParamSpec) bool { return p.Name == "size" }) {
 		t.Fatal("with edit.reactiveFields=false, extension/size must remain visible when type=dir")
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// Restore edit.reactiveFields = true and test repeatable paths (+/x + p path picker) and extension (+/x).
 	a.cfg.userSettings[SetFormReactiveFields] = true
@@ -300,7 +300,7 @@ func TestFDSearchFormReactiveAndRepeatable(t *testing.T) {
 	if !slices.Equal(gotExt, []string{"go", "md"}) {
 		t.Fatalf("extension = %v, want [go md]", gotExt)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 }
 
 func TestFDSearchEndToEndWithFakeBinary(t *testing.T) {
@@ -431,7 +431,7 @@ func TestFDSearchEndToEndWithFakeBinary(t *testing.T) {
 	if a.Modal() != "openwith" {
 		t.Fatalf("o in fd.results did not push openwith: modal=%q", a.Modal())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 	if a.Modal() != fdResultsModalID {
 		t.Fatalf("esc from openwith did not return to fd.results: modal=%q", a.Modal())
 	}
@@ -468,7 +468,7 @@ func TestFDSearchEndToEndWithFakeBinary(t *testing.T) {
 	if frame := d.Frame(); !strings.Contains(frame, "Hello from fake fd!") {
 		t.Fatalf("markdown reader did not display README.md content:\n%s", frame)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 8. Verify 0 matches shows info toast and does not push an empty picker.
 	d.Keys("g", "F")

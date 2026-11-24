@@ -81,7 +81,7 @@ func TestModalStackNestedFlows(t *testing.T) {
 	if got := fm.Values["title"]; got != "Nested stack task" {
 		t.Fatalf("form title lost across ref picker: got %v", got)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 2. Palette -> Path/Ref -> Palette
 	a.bind.specs = append(a.bind.specs, core.CommandSpec{
@@ -121,7 +121,7 @@ func TestModalStackNestedFlows(t *testing.T) {
 	if _, ok := data.AsRef(pal.ActiveForm.TypedValues()["target"]); !ok {
 		t.Fatalf("palette target ref not set: %#v", pal.ActiveForm.TypedValues()["target"])
 	}
-	d.Keys("esc", "esc", "esc")
+	d.Keys("esc", "esc", "esc", "esc")
 
 	// 3. Presets -> SaveForm -> Presets
 	d.Keys("2", "g", "v")
@@ -141,7 +141,7 @@ func TestModalStackNestedFlows(t *testing.T) {
 	if !slices.Contains(pickerIDs(a, "table.presets"), "stacked-preset") {
 		t.Fatalf("saved preset missing from refreshed table.presets picker: %v", pickerIDs(a, "table.presets"))
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 }
 
 // TestModalStackDropAllLIFOCleanup verifies DropAll runs OnClose in LIFO order,
@@ -243,7 +243,7 @@ func TestModalStackScopeBindings(t *testing.T) {
 	if a.Modal() != "yank" || a.activePicker("yank").Model().Query != "ty" {
 		t.Fatalf("y with non-empty query should filter: modal=%q query=%q", a.Modal(), a.activePicker("yank").Model().Query)
 	}
-	d.Keys("esc", "esc", "y", "y") // second y with empty query yanks primary and closes
+	d.Keys("esc", "esc", "esc", "y", "y") // second y with empty query yanks primary and closes
 	if a.Modal() != "" || !strings.Contains(a.Status(), "yanked") {
 		t.Fatalf("y y in yank scope failed: modal=%q status=%q", a.Modal(), a.Status())
 	}
@@ -290,7 +290,7 @@ func TestModalStackScopeBindings(t *testing.T) {
 	if slices.Contains(pickerIDs(a, "table.presets"), "scope-preset") {
 		t.Fatalf("x in table.presets scope did not delete preset: %v", pickerIDs(a, "table.presets"))
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 4. "path" scope: ctrl+t toggles hidden, left goes to parent, right enters dir, tab selects.
 	d.Keys("2", "ctrl+o")
@@ -348,7 +348,7 @@ func TestModalStackScopeBindings(t *testing.T) {
 	if a.Modal() != "form" {
 		t.Fatalf("enter in palette form scope did not execute record.new: modal=%q status=%q", a.Modal(), a.Status())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 6. "answer" scope: ctrl+n / ctrl+p cycle batched questions.
 	res, err := a.Router.Ask(User, mcpui.AskArgs{
@@ -383,7 +383,7 @@ func TestModalStackScopeBindings(t *testing.T) {
 	if backCard := a.activeAnswerForm().cardID; backCard != firstCard {
 		t.Fatalf("ctrl+p in answer scope did not return to first batch question: got %q want %q", backCard, firstCard)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 }
 
 // TestModalStackPickerCreateHook verifies the "+ Create new" PickerCreateHook
@@ -415,7 +415,7 @@ func TestModalStackPickerCreateHook(t *testing.T) {
 	if got, ok := data.AsRef(fm.TypedValues()["parent"]); !ok || got != createdRefTask.Ref() {
 		t.Fatalf("form parent = %#v, want %v", fm.TypedValues()["parent"], createdRefTask.Ref())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 2. Inside "assign" picker (m on a task).
 	targetTask := mkRec(t, a, data.KindTask, map[string]any{"title": "Move Me Task"})

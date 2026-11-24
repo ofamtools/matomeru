@@ -230,6 +230,9 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 	if a.tickToasts() {
 		changed = true
 	}
+	if a.tickEscapeGuard() {
+		changed = true
+	}
 	if !changed {
 		return core.Next(s)
 	}

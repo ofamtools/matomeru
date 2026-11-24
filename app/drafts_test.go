@@ -106,7 +106,7 @@ func TestFormDraftsLifecycle(t *testing.T) {
 	// Save first draft on esc.
 	d.Keys("n", "i")
 	d.Type("First draft title")
-	d.Keys("enter", "esc")
+	d.Keys("enter", "esc", "esc")
 	if a.Modal() != "" {
 		t.Fatalf("esc did not close form: %q", a.Modal())
 	}
@@ -129,7 +129,7 @@ func TestFormDraftsLifecycle(t *testing.T) {
 	// Save a second draft.
 	d.Keys("i")
 	d.Type("Second draft title")
-	d.Keys("enter", "esc")
+	d.Keys("enter", "esc", "esc")
 
 	// Reopen and type live edits, then cycle drafts with [ and ].
 	d.Keys("n", "i")
@@ -203,7 +203,7 @@ func TestFormDraftsPersistAcrossRestart(t *testing.T) {
 	d1 := NewDriver(a1, 120, 36)
 	d1.Keys("2", "n", "i")
 	d1.Type("Persisted draft")
-	d1.Keys("enter", "esc")
+	d1.Keys("enter", "esc", "esc")
 	a1.Close()
 
 	if _, err := os.Stat(filepath.Join(dir, draftsFileName)); err != nil {

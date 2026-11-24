@@ -92,14 +92,14 @@ func TestPickerNormalModeNavigationAndFilterTransitions(t *testing.T) {
 		t.Fatalf("q in ModePicker did not close: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 
-	// esc closes immediately from ModePicker.
-	d.Keys("g", "n", "esc")
+	// esc arms then closes from ModePicker under default double-esc guard.
+	d.Keys("g", "n", "esc", "esc")
 	if a.Modal() != "" || a.Mode() != ModeNormal {
-		t.Fatalf("esc in ModePicker did not close: modal=%q mode=%q", a.Modal(), a.Mode())
+		t.Fatalf("double esc in ModePicker did not close: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 
 	// `/` enters ModePickerFilter, typing filters, first esc returns to ModePicker preserving query,
-	// second esc closes the picker.
+	// double esc closes the picker.
 	d.Keys("g", "n", "/")
 	if a.Mode() != ModePickerFilter {
 		t.Fatalf("/ did not enter ModePickerFilter: mode=%q", a.Mode())
@@ -116,9 +116,9 @@ func TestPickerNormalModeNavigationAndFilterTransitions(t *testing.T) {
 	if a.Modal() != "nouns" || a.Mode() != ModePicker || pm.Filtering || pm.Query != "task" {
 		t.Fatalf("first esc from filter: modal=%q mode=%q filtering=%v query=%q", a.Modal(), a.Mode(), pm.Filtering, pm.Query)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 	if a.Modal() != "" || a.Mode() != ModeNormal {
-		t.Fatalf("second esc did not close picker: modal=%q mode=%q", a.Modal(), a.Mode())
+		t.Fatalf("double esc did not close picker: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 
 	// `i` also enters ModePickerFilter.
@@ -266,11 +266,11 @@ func TestPickerDefaultModeSetting(t *testing.T) {
 	if a.Mode() != ModePicker {
 		t.Fatalf("normal: g n mode = %q, want %q", a.Mode(), ModePicker)
 	}
-	d.Keys("esc", ":")
+	d.Keys("esc", "esc", ":")
 	if a.Mode() != ModePickerFilter {
 		t.Fatalf("normal: palette mode = %q, want %q", a.Mode(), ModePickerFilter)
 	}
-	d.Keys("esc", "esc")
+	d.Keys("esc", "esc", "esc")
 
 	// 2. "all-normal": BOTH standard pickers and Palette start in ModePicker.
 	a.cfg.userSettings[SetPickerDefaultMode] = PickerDefaultModeAllNormal
@@ -279,14 +279,14 @@ func TestPickerDefaultModeSetting(t *testing.T) {
 	if a.Mode() != ModePicker {
 		t.Fatalf("all-normal: g n mode = %q, want %q", a.Mode(), ModePicker)
 	}
-	d.Keys("esc", ":")
+	d.Keys("esc", "esc", ":")
 	if a.Mode() != ModePicker {
 		t.Fatalf("all-normal: palette mode = %q, want %q", a.Mode(), ModePicker)
 	}
-	// Single esc closes palette when already in ModePicker.
-	d.Keys("esc")
+	// Double esc closes palette when already in ModePicker under default guard.
+	d.Keys("esc", "esc")
 	if a.Modal() != "" {
-		t.Fatalf("all-normal: single esc did not close palette: modal=%q", a.Modal())
+		t.Fatalf("all-normal: double esc did not close palette: modal=%q", a.Modal())
 	}
 
 	// 3. "filter": ALL pickers (standard, path, palette) start in ModePickerFilter.
@@ -305,15 +305,15 @@ func TestPickerDefaultModeSetting(t *testing.T) {
 	if a.Modal() != "path" || a.Mode() != ModePickerFilter {
 		t.Fatalf("filter: ctrl+o mode = %q, want %q", a.Mode(), ModePickerFilter)
 	}
-	d.Keys("esc", "esc")
+	d.Keys("esc", "esc", "esc")
 	if a.Modal() != "" {
-		t.Fatalf("filter: two escs did not close path picker: modal=%q", a.Modal())
+		t.Fatalf("filter: escs did not close path picker: modal=%q", a.Modal())
 	}
 	d.Keys(":")
 	if a.Mode() != ModePickerFilter {
 		t.Fatalf("filter: palette mode = %q, want %q", a.Mode(), ModePickerFilter)
 	}
-	d.Keys("esc", "esc")
+	d.Keys("esc", "esc", "esc")
 }
 
 func TestPickerModeBindingsCheckZeroErrors(t *testing.T) {

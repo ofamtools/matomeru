@@ -174,7 +174,7 @@ var policies = map[string]policy{
 		allow: []string{
 			mod + "/data", mod + "/mcpui", mod + "/views", mod + "/runs", mod + "/ext", mod + "/ptyhost", mod + "/handlers", mod + "/triage",
 			mod + "/daemon", mod + "/harness", mod + "/contextitems", mod + "/actions", bubbletea,
-			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea", ochazuke + "/recorder",
+			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea", ochazuke + "/recorder", ochazuke + "/traits",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/tree", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/pathpicker",
 			ochazuke + "/widgets/bindings", ochazuke + "/widgets/markdown", ochazuke + "/widgets/input", ochazuke + "/widgets/commandline",
 			ochazuke + "/widgets/palette", ochazuke + "/widgets/toast", ochazuke + "/widgets/hints", ochazuke + "/widgets/modal",

@@ -60,7 +60,7 @@ func TestPaletteLiveArgsForm(t *testing.T) {
 	if rf := a.activeRecordForm(); a.Modal() != "form" || rf == nil || rf.kind != data.KindPane || !strings.Contains(d.Frame(), "New pane") {
 		t.Fatalf("enter in palette args form did not open New pane: modal=%q kind=%v\n%s", a.Modal(), rf, d.Frame())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// !cmd shell shortcut still works in the palette.
 	d.Keys(":")

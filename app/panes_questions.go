@@ -361,6 +361,7 @@ func formSpecsAndValuesFromCard(card *ui.ViewNode) ([]core.ParamSpec, map[string
 }
 
 func (a *App) newAnswerFormModal(fm *form.Model, am *answerFormModal) *answerFormModal {
+	fm.Wrap = a.wrapInputs()
 	a.attachFormDrafts(fm, am.draftKey)
 	var mod *modal.FormModal
 	mod = modal.NewFormModal(fm, modal.FormOptions{

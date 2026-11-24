@@ -81,6 +81,8 @@ const (
 	CmdOutlineEditOutdent   = "outline.edit.outdent"
 	CmdOutlineEditCommit    = "outline.edit.commit"
 	CmdOutlineEditCancel    = "outline.edit.cancel"
+	CmdOutlineEditNewline   = "outline.edit.newline"
+	CmdOutlineEditLinebreak = "outline.edit.linebreak"
 	CmdRecentsPick          = "recents.pick"
 	CmdPagesPick            = "pages.pick"
 	CmdPaletteOpen          = "palette.open"
@@ -474,7 +476,7 @@ func DefaultBindings() []core.Binding {
 		hidden(when(bind(ModePicker, "palette", "l", palette.CmdFocusForm, "edit arguments"), "facts.hasArgs")),
 		bind(ModePicker, all, "enter", picker.CmdConfirm, "choose"),
 		bind(ModePicker, all, "tab", picker.CmdModeCycle, "match mode"),
-		bind(ModePicker, all, "esc", CmdModalCancel, "close"),
+		with(bind(ModePicker, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}),
 		hidden(bind(ModePicker, all, "q", CmdModalCancel, "close")),
 
 		// Pickers: Filter Insert Mode (typing narrows the picker, esc returns to normal mode).
@@ -528,7 +530,7 @@ func DefaultBindings() []core.Binding {
 		bind(ModeForm, all, "D", form.CmdDraftDiscard, "discard draft"),
 		bind(ModeForm, all, "u", CmdUndo, "undo"),
 		bind(ModeForm, all, "ctrl+r", CmdRedo, "redo"),
-		bind(ModeForm, all, "esc", CmdModalCancel, "close"),
+		with(bind(ModeForm, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}),
 		hidden(bind(ModeForm, all, "q", CmdModalCancel, "close")),
 		{Mode: ModeFormEdit, Class: core.ClassPrintable, Command: form.CmdInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
 		{Mode: ModeFormEdit, Class: core.ClassPaste, Command: form.CmdInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
@@ -557,7 +559,7 @@ func DefaultBindings() []core.Binding {
 		bind(ModeBindings, all, "R", "bindings.reset", "reset"),
 		bind(ModeBindings, all, "u", "bindings.undo", "undo"),
 		bind(ModeBindings, all, "ctrl+r", "bindings.redo", "redo"),
-		bind(ModeBindings, all, "esc", CmdModalCancel, "close"),
+		with(bind(ModeBindings, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}),
 		hidden(bind(ModeBindings, all, "q", CmdModalCancel, "close")),
 		{Mode: ModeBindingsFilter, Class: core.ClassPrintable, Command: "bindings.filter.append", Args: map[string]any{"text": "$text"}, Hidden: true},
 		{Mode: ModeBindingsFilter, Class: core.ClassPaste, Command: "bindings.filter.append", Args: map[string]any{"text": "$text"}, Hidden: true},
@@ -595,7 +597,7 @@ func DefaultBindings() []core.Binding {
 		bind(ModeReader, all, "y", markdown.CmdCodeYank, "yank code block"),
 		bind(ModeReader, all, "backspace", CmdReaderBack, "back"),
 		hidden(bind(ModeReader, all, "H", CmdReaderBack, "back")),
-		bind(ModeReader, all, "esc", CmdModalCancel, "close"),
+		with(bind(ModeReader, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}),
 		bind(ModeReader, all, "q", CmdModalCancel, "close"),
 
 		// The inspector: actions and modes.
@@ -611,7 +613,7 @@ func DefaultBindings() []core.Binding {
 		bind(ModeInspect, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
 		bind(ModeInspect, all, "/", CmdInspectFilter, "filter"),
 		when(bind(ModeInspect, all, "a", CmdInspectBind, "bind to a free key"), "facts.inspecting == \"actions\""),
-		bind(ModeInspect, all, "esc", CmdModalCancel, "close"),
+		with(bind(ModeInspect, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}),
 		bind(ModeInspect, all, "q", CmdModalCancel, "close"),
 
 		// Outline: the normal keys work on the selected task.
@@ -645,7 +647,7 @@ func DefaultBindings() []core.Binding {
 		bind(ModeOutline, all, "z c", tree.CmdFoldClose, "fold subtree"),
 		bind(ModeOutline, all, "z R", tree.CmdFoldOpenAll, "unfold all"),
 		bind(ModeOutline, all, "z M", tree.CmdFoldCloseAll, "fold all"),
-		bind(ModeOutline, all, "esc", CmdModalCancel, "close"),
+		with(bind(ModeOutline, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}),
 		bind(ModeOutline, all, "q", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "T", CmdModalCancel, "close"),
 
@@ -655,8 +657,10 @@ func DefaultBindings() []core.Binding {
 		bind(ModeOutlineEdit, all, "backspace", CmdOutlineEditBackspace, "erase"),
 		bind(ModeOutlineEdit, all, "tab", CmdOutlineEditIndent, "indent"),
 		bind(ModeOutlineEdit, all, "shift+tab", CmdOutlineEditOutdent, "outdent"),
-		bind(ModeOutlineEdit, all, "enter", CmdOutlineEditCommit, "save"),
-		bind(ModeOutlineEdit, all, "esc", CmdOutlineEditCancel, "cancel"),
+		bind(ModeOutlineEdit, all, "enter", CmdOutlineEditNewline, "commit & new item"),
+		bind(ModeOutlineEdit, all, "shift+enter", CmdOutlineEditLinebreak, "insert line break"),
+		bind(ModeOutlineEdit, all, "esc", CmdOutlineEditCommit, "save & normal mode"),
+		bind(ModeOutlineEdit, all, "ctrl+c", CmdOutlineEditCancel, "discard edit"),
 
 		// Command line: !, |, r! with Readline editing, history and ctrl+r register paste.
 		{Mode: ModeCommandLine, Class: core.ClassPrintable, Command: commandline.CmdInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
@@ -713,7 +717,7 @@ func DefaultBindings() []core.Binding {
 		bind(ModeAbout, all, "ctrl+e", "motion.scroll.down", "scroll viewport down"),
 		bind(ModeAbout, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
 		hidden(bind(ModeAbout, all, "space", "motion.page.down", "page down")),
-		bind(ModeAbout, all, "esc", CmdModalCancel, "close"),
+		with(bind(ModeAbout, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}),
 		bind(ModeAbout, all, "q", CmdModalCancel, "close"),
 	}
 	out = append(out, macroBindings()...)

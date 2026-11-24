@@ -138,7 +138,7 @@ func TestUXNoteCaptureAcrossModesAndNestedModals(t *testing.T) {
 	if a.Modal() != "help" {
 		t.Fatalf("did not restore help modal after note submit: got %q", a.Modal())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 3. Inside a form modal (Settings 'S')
 	d.Keys("S")
@@ -154,7 +154,7 @@ func TestUXNoteCaptureAcrossModesAndNestedModals(t *testing.T) {
 	if a.Modal() != "settings" {
 		t.Fatalf("did not restore settings modal after note submit: got %q", a.Modal())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	_, evs := readSavedRecording(t, a.rt.uxNoteSessionPath)
 	notes := recorder.FilterNotes(evs)
@@ -200,7 +200,7 @@ func TestUXNotesOptOutListAndSandboxOpen(t *testing.T) {
 	if !strings.Contains(d.Frame(), "Inspect list and sandbox open") {
 		t.Fatalf("expected captured note text in session.note.list picker:\n%s", d.Frame())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// session.sandbox.open emits ExecEffect pointing at the flushed recording file.
 	d.Send(core.CommandEvent{Command: core.Command{ID: CmdSessionSandboxOpen, Source: "palette", Actor: User}})

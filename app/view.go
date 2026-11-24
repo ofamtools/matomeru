@@ -65,6 +65,9 @@ func (a *App) viewKey(s core.State) string {
 	if tk := a.toastViewKey(); tk != "" {
 		b.WriteString("|toast:" + tk)
 	}
+	if gk := a.escapeGuardViewKey(); gk != "" {
+		b.WriteString("|eg:" + gk)
+	}
 	if a.panes.hints != nil && a.panes.hints.session != nil && a.panes.hints.session.Active() {
 		fmt.Fprintf(&b, "|hints:%t:%s:%d", a.panes.hints.focusJump, a.panes.hints.session.Prefix(), len(a.panes.hints.session.Remaining()))
 	}
@@ -97,8 +100,12 @@ func (a *App) build(s core.State) ui.ViewNode {
 	}
 	root := ui.ViewNode{ID: "root", Kind: ui.KindVStack, Children: []ui.ViewNode{tabs}}
 	var overlays []ui.ViewNode
-	for _, m := range s.Modals {
-		overlays = append(overlays, a.modal(m))
+	for i, m := range s.Modals {
+		ov := a.modal(m)
+		if i == len(s.Modals)-1 {
+			ov = a.decorateEscapeGuardOverlay(ov)
+		}
+		overlays = append(overlays, ov)
 	}
 	if a.panes.hints != nil && a.panes.hints.focusJump && a.panes.hints.session != nil && a.panes.hints.session.Active() {
 		overlays = append(overlays, a.panes.hints.session.ViewOverlay("focus.hints.overlay"))
@@ -126,6 +133,9 @@ func (a *App) build(s core.State) ui.ViewNode {
 func (a *App) statusLine(s core.State, chain []core.ContextFrame) string {
 	scopes := make([]string, 0, len(chain))
 	for _, f := range chain {
+		if strings.HasPrefix(f.Scope, "trait.") {
+			continue
+		}
 		scopes = append(scopes, f.Scope)
 	}
 	slices.Reverse(scopes)
@@ -238,7 +248,10 @@ func (a *App) bindingsFor(s core.State, chain []core.ContextFrame, modes, exclud
 				}
 				// One fixed argument tells two bindings of a command apart: "record.new note".
 				if len(b.Args) == 1 {
-					for _, v := range b.Args {
+					for k, v := range b.Args {
+						if k == "via" {
+							continue
+						}
 						if str := fmt.Sprint(v); !strings.HasPrefix(str, "$") {
 							command += " " + str
 						}

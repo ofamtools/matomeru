@@ -121,7 +121,7 @@ esac
 	if !slices.Contains(ids, "w.item.purge") || !slices.Contains(ids, "w.item.hidden-when-not-ready") {
 		t.Fatalf("expected both actions on ready item, got %v", ids)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// Row 1 (ready=false): HideWhenFalse hides the second action; X refuses with expanded RefuseMessage.
 	d.Keys("j", ";")
@@ -129,7 +129,7 @@ esac
 	if !slices.Contains(ids2, "w.item.purge") || slices.Contains(ids2, "w.item.hidden-when-not-ready") {
 		t.Fatalf("HideWhenFalse not respected on non-ready item: %v", ids2)
 	}
-	d.Keys("esc", "X")
+	d.Keys("esc", "esc", "X")
 	if a.Modal() == "confirm" {
 		t.Fatal("guard refusal should not open confirm modal")
 	}

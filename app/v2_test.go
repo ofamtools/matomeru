@@ -63,7 +63,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetToolsFDBinary: "", SetSearchFDMaxResults: 200,
 		SetSessionUXNotes: true,
 		SetPageLockScroll: true, SetEdgeFocusSpill: false, SetVerboseHookBar: false,
-		SetLaneInTOC: true, SetCompactTOC: true, SetTOCGrouped: true}
+		SetLaneInTOC: true, SetCompactTOC: true, SetTOCGrouped: true,
+		SetModalEscapeGuard: "double", SetWrapInputs: true, SetWrapOutline: true, SetOutlineEnterNewline: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -93,7 +94,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 			d.Keys("j")
 		}
 		d.Keys(keys...)
-		d.Keys("esc")
+		d.Keys("esc", "esc")
 	}
 	d.Keys("3")
 	if !strings.Contains(d.Frame(), "Flags") {
@@ -128,7 +129,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 	if a.Modal() != "form" || slices.ContainsFunc(a.activeRecordForm().Model().Specs, func(p core.ParamSpec) bool { return views.IsUniversalField(p.Name) }) {
 		t.Fatal("edit.showUniversalFields off still offers them")
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 	set(SetRailAutoWiden, "space")
 	d.Keys("1")
 	if w := a.Shell.State.Layout.Rects["panes.rail"].W; w < 45 {
@@ -214,7 +215,7 @@ func TestBindingEditor(t *testing.T) {
 		!rows[1].Unbind || !slices.Equal(rows[1].Keys, []string{"s"}) || rows[1].When != rows[0].When {
 		t.Fatalf("bindings.json after the rebind = %+v", rows)
 	}
-	d.Keys("esc", "s")
+	d.Keys("esc", "esc", "s")
 	if starred() {
 		t.Fatal("s still stars after it was moved")
 	}
@@ -249,7 +250,7 @@ func TestBindingEditor(t *testing.T) {
 	if rows := saved(); len(rows) != 1 || !rows[0].Unbind || rows[0].Command != views.CmdStar {
 		t.Fatalf("after unbind bindings.json = %+v", rows)
 	}
-	d.Keys("esc", "s")
+	d.Keys("esc", "esc", "s")
 	if starred() {
 		t.Fatal("the unbound s still stars")
 	}
@@ -261,7 +262,7 @@ func TestBindingEditor(t *testing.T) {
 	if len(saved()) != 1 {
 		t.Fatal("ctrl+r did not unbind again")
 	}
-	d.Keys("u", "esc", "s")
+	d.Keys("u", "esc", "esc", "s")
 	if !starred() || a.Modal() != "" {
 		t.Fatal("s does not star after the undo")
 	}
@@ -293,7 +294,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	// A schema registered later is a noun like any other.
 	a.Store.Registry().Register(data.Schema{Kind: "link", Title: "Link", Plural: "Links", SummaryField: "title",
 		Fields: []data.FieldSpec{{Name: "title", Type: core.ParamString, Required: true}, {Name: "url", Type: core.ParamString}}})
-	d.Keys("esc", "g", "n", "/")
+	d.Keys("esc", "esc", "g", "n", "/")
 	d.Type("links")
 	d.Keys("enter")
 	if a.nav.browseKind != "link" || a.Space() != SpaceWork || !strings.Contains(d.Frame(), "Links") {
@@ -360,7 +361,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 	if !strings.Contains(a.Status(), "not written") || !rec().SnoozedUntil.Equal(want) || a.Modal() != "form" {
 		t.Fatalf("a time that does not parse: status %q, modal %q", a.Status(), a.Modal())
 	}
-	d.Keys("esc", "e")
+	d.Keys("esc", "esc", "e")
 	field(data.ColArchiveStatus)
 	d.Keys("l", "ctrl+s")
 	if !rec().IsArchived() {

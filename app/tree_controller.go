@@ -219,6 +219,7 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 	tm.GapTopLevel = opts.GapTopLevel
 	tm.Guides = opts.Guides
 	tm.ShowFoldCount = opts.ShowFoldCount
+	tm.Wrap = a.cfg.Settings == nil || a.cfg.Settings.Bool(SetWrapOutline, true)
 	tm.ScrollOff = a.scrollOff()
 	tm.PageSize = a.treeViewportHeight(treeID)
 	tm.SetNodes(built.Nodes)

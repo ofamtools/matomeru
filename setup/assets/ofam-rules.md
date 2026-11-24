@@ -17,9 +17,10 @@
 - Parallel implementation workers must own strictly disjoint file sets; serialize edits to any shared file.
 - Name every Go source and test file after its domain module or responsibility (e.g., `confirm.go`, `presets.go`, `setup.go`). NEVER create `wave*.go`, `sprint*.go`, `phase*.go`, or `milestone*.go` sidecar files.
 
-### 4. Presenter / API-Driven UI Architecture
-- Follow a strict unidirectional pipeline: API/store updates domain data -> pure Presenter projects schema-driven view models -> dumb UI renderer draws view models with zero per-noun conditionals or modal switches.
-- Drive visual styling declaratively from theme tokens, schema properties, and view metadata; build rich, scannable TUI layouts (whitespace, tree/outline defaults for parent-child nouns, semantic color, clear symbols).
+### 4. Separate Data from Behavior (Value Objects, Facts, Bindings & Atomic Verbs)
+- Follow a strict unidirectional pipeline: well-defined atomic mutation API updates domain data -> pure Presenter projects pure value objects (`ViewNode` + truthful read-only `Facts` like `atTop`, `atBottom`, `empty`, `filtering`, `focused`) -> dumb UI renderer draws them with zero store access, zero behavioral policy, and zero per-noun/modal switches.
+- Compose interaction behavior in pure data (`bindings.json` `when` guards over `Facts` + generic verb `args`, `themes.json` focus tokens, `Schema` properties, `ViewNode` JSON) rather than Go conditionals or single-caller fake-generic props. Built-in pages and nouns must use the same data vocabulary as dynamic `ui.page` JSON and `o-*` catalogs (`~/hub/docs/2026-11-23-data-from-behavior-architecture.md`).
+- Drive visual styling declaratively from theme tokens, schema properties, and view metadata; build rich, scannable TUI layouts (whitespace over nested borders, unmistakable focus contrast, tree/outline defaults for parent-child nouns, semantic color, clear symbols).
 - Every UI or layout change must provide an opt-out setting in configuration rather than hardcoded branches.
 
 ### 5. Structural Hygiene & Scaled Checks
@@ -29,7 +30,12 @@
 
 ### 6. Single MCP Gateway, Startup, Restarts & Releases
 - `mtm mcp serve` (and the daemon HTTP endpoint `$MTM_MCP_URL`) is the family's single MCP gateway; prefer it over per-tool MCP servers.
-- At session start, inspect `MTM_PANE_ID` / `MTM_SOCKET` / `MTM_MCP_URL` (and `TUIOS_ENV` if set). Whenever `$MTM_PANE_ID` is non-empty, claim it on your root and active child lane immediately (`mtm lane relate <LANE_ID> claim pane:$MTM_PANE_ID`).
+- At session start, inspect `MTM_PANE_ID` / `MTM_SOCKET` / `MTM_MCP_URL`. Whenever `$MTM_PANE_ID` is non-empty, claim it on your root and active child lane immediately (`mtm lane relate <LANE_ID> claim pane:$MTM_PANE_ID`).
 - After installing a new `mtm` binary, run `mtm daemon upgrade --json` to re-exec the daemon in place without killing live panes (never quit the user's TUI yourself).
 - Follow the `ofam-wave-release` skill runbook when closing waves, tagging releases, Developer ID signing, and atomically installing binaries into `~/bin/`.
+
+### 7. Questions, Q&A Logging & Owner Commands
+- **Owner Q&As (`data.log_qa`):** Whenever the owner asks an informational question (wants to know something rather than have work executed), log the Q&A pair through Matomeru via `mtm mcp call data.log_qa '{"prompt":"<owner words>","answer":"<structured Markdown>","pane":"$MTM_PANE_ID","page":"qa"}'` — format `answer` as structured Markdown (headings, bullet lists, bold labels, fenced code blocks; never a flat prose wall). Creates an answered `questionKind="qa"` record + read Q&A card with zero unread nagging; never include secrets.
+- **Owner Decisions (`ui.ask`):** When you need a decision from the owner and Matomeru is active, pose it via `mtm mcp call ui.ask '{"pane":"$MTM_PANE_ID","title":"...","details":"...","choices":[...]}'` with 2–4 named options describing what each choice does (or a `questions` batch array; read answers via `ui.list_pages`). Never write options as bare yes/no unless the question is literally yes/no.
+- **Owner Commands & Context:** Record reusable commands/recipes for the owner via `mtm mcp call data.suggest_command` (or `mtm cmd create`) and attach key URLs/PR refs/docs via `mtm mcp call data.add_context` (never include secrets).
 <!-- ofam:end -->

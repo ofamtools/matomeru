@@ -194,7 +194,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	if !strings.Contains(d.Frame(), "default") {
 		t.Fatalf("default badge not shown in presets picker:\n%s", d.Frame())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// Clear work.table and save a second preset "clean" via direct command.
 	d.Keys("/", "esc", "g", "b", "enter", "o", "o") // clear filter, group, sort
@@ -219,7 +219,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	d.Type("title")
 	d.Keys("enter", "g", "v", "s", "i")
 	d.Type("gate-runs")
-	d.Keys("ctrl+s", "d", "esc")
+	d.Keys("ctrl+s", "d", "esc", "esc")
 
 	// Verify distinct presets per table ID.
 	if len(a.nav.presets.List(workTable)) != 2 || len(a.nav.presets.List(runsTable)) != 1 {
@@ -230,7 +230,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	}
 
 	// Delete "clean" via g v -> down -> x.
-	d.Keys("2", "g", "v", "down", "x", "esc")
+	d.Keys("2", "g", "v", "down", "x", "esc", "esc")
 	if got := a.nav.presets.List(workTable); len(got) != 1 || got[0].Name != "tier-grouped" {
 		t.Fatalf("x did not delete second preset: %+v", got)
 	}
@@ -304,7 +304,7 @@ func TestWave4ActionsJSONAndNamespaceGroupedRecordActions(t *testing.T) {
 	if !strings.Contains(d.Frame(), "task.ship") {
 		t.Fatalf("palette missing task.ship from actions.json:\n%s", d.Frame())
 	}
-	d.Keys("esc", "esc")
+	d.Keys("esc", "esc", "esc")
 
 	// 1. Focus a PANE and open `;`: pane.* MUST sit strictly above record.* with visible headings.
 	d.Keys("1")
@@ -325,7 +325,7 @@ func TestWave4ActionsJSONAndNamespaceGroupedRecordActions(t *testing.T) {
 	if !strings.Contains(paneFrame, "[pane]") || !strings.Contains(paneFrame, "[record]") {
 		t.Fatalf("pane actions picker missing namespace headings:\n%s", paneFrame)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 2. Focus a TASK and open `;`: task.* MUST sit strictly above record.* with visible headings.
 	task := mkRec(t, a, data.KindTask, map[string]any{"title": "Ship Wave 4", "workStatus": "active"})

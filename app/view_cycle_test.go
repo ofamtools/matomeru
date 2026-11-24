@@ -263,7 +263,7 @@ func TestViewCycleModalFormDensityAndOptOuts(t *testing.T) {
 	if got := a.Shell.Theme.EffectiveDensity(); got != ui.DensityBalanced {
 		t.Fatalf("form insert alt+v wrap: density=%q, want balanced", got)
 	}
-	d.Keys("esc", "esc")
+	d.Keys("esc", "esc", "esc")
 
 	// Picker filter (insert) mode: alt+v runs view.cycle without closing or typing into query;
 	// after esc -> ModePicker (normal), V runs view.cycle without closing.
@@ -279,7 +279,7 @@ func TestViewCycleModalFormDensityAndOptOuts(t *testing.T) {
 	if a.Modal() != "pages" || a.Mode() != ModePicker || a.Status() != "no view modes to cycle here" {
 		t.Fatalf("picker normal V: modal=%q mode=%q status=%q", a.Modal(), a.Mode(), a.Status())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 2. Opt-out: ui.viewCycle = false disables g V everywhere.
 	a.cfg.userSettings[SetViewCycle] = false
@@ -316,7 +316,7 @@ func TestViewCycleModalFormDensityAndOptOuts(t *testing.T) {
 	if rf := a.activeRecordForm(); rf == nil || !rf.Model().ShowAllFields {
 		t.Fatalf("record form did not honor edit.reactiveFields=false: rf=%v", rf)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// Live toggle in Settings updates ShowAllFields.
 	d.Keys("S")
@@ -330,7 +330,7 @@ func TestViewCycleModalFormDensityAndOptOuts(t *testing.T) {
 	if !a.cfg.Settings.Bool(SetFormReactiveFields, false) || settingsFM.Model().ShowAllFields {
 		t.Fatalf("live toggle of edit.reactiveFields failed: setting=%v ShowAllFields=%v", a.cfg.Settings.Bool(SetFormReactiveFields, false), settingsFM.Model().ShowAllFields)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 }
 
 func TestReactiveAndRepeatableLaunchFormEndToEnd(t *testing.T) {

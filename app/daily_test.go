@@ -345,12 +345,12 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 	if ids := pickerIDs(a, "openwith"); len(ids) != 1 {
 		t.Fatalf("O on an inline note offers %v", ids)
 	}
-	d.Keys("esc", "o")
+	d.Keys("esc", "esc", "o")
 	inlineReader := a.activeMarkdown("reader")
 	if a.Modal() != "reader" || inlineReader == nil || inlineReader.Model().Title != "Inline" || !strings.Contains(d.Frame(), "Kept in the record.") {
 		t.Fatalf("o on a note (modal %q):\n%s", a.Modal(), d.Frame())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// A pane's directory goes to the path picker; a task, with nothing to
 	// open, keeps o for sorting.
@@ -358,7 +358,7 @@ func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 	if a.Modal() != "path" {
 		t.Fatalf("o on a pane with a directory: modal %q, status %q", a.Modal(), a.Status())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
 	a.reloadSettings()
 	browseTo(t, a, d, titled(t, a, data.KindTask, "ochazuke-v2"))
@@ -633,7 +633,7 @@ func TestRuleFromSignal(t *testing.T) {
 	if a.Modal() != "launch" {
 		t.Fatalf("R on the remaining signal: modal %q", a.Modal())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 	browseTo(t, a, d, titled(t, a, data.KindTask, "ochazuke-v2"))
 	d.Keys("R")
 	if a.Modal() != "" {
@@ -699,7 +699,7 @@ func TestInspectActionsAndModes(t *testing.T) {
 		t.Fatalf("bindings.json: %v\n%s", err, saved)
 	}
 	// The key works at once, and is there on the next start.
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 	d.Keys(keys...)
 	if a.Modal() != "" || a.nav.tables[workTable].GroupField == "" {
 		t.Fatalf("%v did not group the list (status %q)", keys, a.Status())
@@ -782,7 +782,7 @@ func TestShowEmptySectionNewAndBreadcrumbs(t *testing.T) {
 	if got, ok := data.AsRef(a.activeRecordForm().Model().TypedValues()["task"]); !ok || got != task.Ref() {
 		t.Fatalf("pre-filled schedule task = %v, want %v", a.activeRecordForm().Model().TypedValues()["task"], task.Ref())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// Step down to empty Directories and press n -> opens pathpicker for this task.
 	for i := 0; i < 20 && a.Focus() != "show.sec.rel.directory.out"; i++ {
@@ -795,7 +795,7 @@ func TestShowEmptySectionNewAndBreadcrumbs(t *testing.T) {
 	if a.Modal() != "path" || a.activePathPicker() == nil {
 		t.Fatalf("n on empty Directories: modal=%q pathPicker=%v", a.Modal(), a.activePathPicker())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// Bouncing back and forth builds history > 4; breadcrumb collapses middle with ellipsis while H still walks back.
 	d.Keys("g", "g") // back to show.header
@@ -856,7 +856,7 @@ func TestRecordActionsPicker(t *testing.T) {
 	if !slices.Contains(ids, views.CmdUnstar) || slices.Contains(ids, views.CmdStar) {
 		t.Fatalf("after starring, record actions = %v", ids)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// On a signal, triage.rule.from-signal appears; on a doc with filePath, open.target appears.
 	sig := mkRec(t, a, data.KindSignal, map[string]any{"title": "ci green", "source": "github"})
@@ -865,7 +865,7 @@ func TestRecordActionsPicker(t *testing.T) {
 	if ids := pickerIDs(a, "record.actions"); !slices.Contains(ids, CmdTriageRule) || slices.Contains(ids, CmdRunRerun) {
 		t.Fatalf("signal record actions = %v", ids)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	doc := mkRec(t, a, data.KindDocument, map[string]any{"title": "Spec", "filePath": "/tmp/spec.md"})
 	browseTo(t, a, d, doc)
@@ -873,7 +873,7 @@ func TestRecordActionsPicker(t *testing.T) {
 	if ids := pickerIDs(a, "record.actions"); !slices.Contains(ids, CmdOpenTarget) || !slices.Contains(ids, CmdOpenWith) {
 		t.Fatalf("openable document record actions = %v", ids)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 }
 
 func TestReadlineBindingsAcrossInputs(t *testing.T) {
@@ -934,7 +934,7 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 	if pal.Model().Picker.SelectedIdx == beforeSel {
 		t.Fatal("ctrl+n did not move selection in picker")
 	}
-	d.Keys("esc", "esc")
+	d.Keys("esc", "esc", "esc")
 
 	// 4. Binding editor filter mode: ctrl+w works on filter query.
 	d.Keys("B", "/")
@@ -950,7 +950,7 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 	if len(a.bind.bindEd.Filtered()) != 1 {
 		t.Fatalf("bindings filter did not apply query %q (got %d rows)", bm.line.Value(), len(a.bind.bindEd.Filtered()))
 	}
-	d.Keys("esc", "esc")
+	d.Keys("esc", "esc", "esc")
 
 	// 5. All Readline actions appear in the actions inspector with bound keys.
 	actions := ActionsOf(a.bind.bindings, a.bind.specs)

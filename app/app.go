@@ -27,6 +27,7 @@ import (
 	"ofam.dev/ochazuke/config"
 	"ofam.dev/ochazuke/core"
 	otea "ofam.dev/ochazuke/tea"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/commandline"
 	"ofam.dev/ochazuke/widgets/form"
@@ -144,25 +145,27 @@ type viewMemoState struct {
 // App is the application state around the engine. Handlers change it and the
 // store; View reads both.
 type App struct {
-	Store        *data.Store
-	Router       *mcpui.Router
-	Engine       *core.Engine
-	Shell        *otea.Shell
-	Warnings     []string
-	opts         Options
-	status       string
-	effects      []core.Effect
-	modals       *modal.Stack
-	pendingState []func(core.State) core.State
-	trees        *treeController
-	viewMemo     viewMemoState
-	cfg          *ConfigController
-	bind         *BindingsController
-	nav          *NavController
-	panes        *PaneController
-	rt           *RuntimeController
-	ext          *ExtensionController
-	ctx          *ContextController
+	Store         *data.Store
+	Router        *mcpui.Router
+	Engine        *core.Engine
+	Shell         *otea.Shell
+	Warnings      []string
+	opts          Options
+	status        string
+	effects       []core.Effect
+	modals        *modal.Stack
+	escGuard      traits.EscapeGuardState
+	escGuardModal string
+	pendingState  []func(core.State) core.State
+	trees         *treeController
+	viewMemo      viewMemoState
+	cfg           *ConfigController
+	bind          *BindingsController
+	nav           *NavController
+	panes         *PaneController
+	rt            *RuntimeController
+	ext           *ExtensionController
+	ctx           *ContextController
 }
 
 // WantReload reports whether the user triggered app.reload so the binary
@@ -237,8 +240,15 @@ func New(store *data.Store, opts Options) (*App, error) {
 		}
 	}
 	a.Shell.OnCustom = func(e core.CustomEffect) tea.Cmd {
-		if text, ok := e.Data.(string); ok && e.Kind == effectClipboard {
-			return tea.SetClipboard(text)
+		switch e.Kind {
+		case effectClipboard:
+			if text, ok := e.Data.(string); ok {
+				return tea.SetClipboard(text)
+			}
+		case effectEscapeGuardTick:
+			if delay, ok := e.Data.(time.Duration); ok && delay > 0 && a.opts.Now == nil {
+				return tea.Tick(delay, func(time.Time) tea.Msg { return wakeMsg() })
+			}
 		}
 		return nil
 	}
@@ -388,8 +398,12 @@ func (a *App) subject(s core.State, c core.Command) (core.Ref, bool) {
 func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResult) {
 	a.Engine.Handle(id, func(s core.State, c core.Command) core.StepResult {
 		a.tickToasts()
+		prevModal := a.Modal()
+		prevMode := a.Engine.Mode(s)
+		a.syncEscapeGuardModal(prevModal)
 		a.viewMemo.gen++
 		out := fn(s, c)
+		a.afterCommandEscapeGuard(prevModal, prevMode, c, &out)
 		a.viewMemo.gen++
 		out.State = a.settle(out.State)
 		a.syncPath(out.State)
@@ -525,6 +539,8 @@ func (a *App) register() {
 	a.handle(CmdOutlineEditOutdent, a.outlineEditOutdent)
 	a.handle(CmdOutlineEditCommit, a.outlineEditCommit)
 	a.handle(CmdOutlineEditCancel, a.outlineEditCancel)
+	a.handle(CmdOutlineEditNewline, a.outlineEditNewline)
+	a.handle(CmdOutlineEditLinebreak, a.outlineEditLinebreak)
 	a.handle(CmdRecentsPick, a.recentsPick)
 	a.handle(CmdPagesPick, a.pagesPick)
 	a.handle(CmdRecordActions, a.recordActionsOpen)
@@ -540,7 +556,7 @@ func (a *App) register() {
 	}
 	a.handle(CmdHelpOpen, a.helpOpen)
 	a.handle(CmdPathOpen, a.pathOpen)
-	a.handle(CmdModalCancel, a.handleModal)
+	a.handle(CmdModalCancel, a.modalCancel)
 
 	for _, id := range []string{CmdPickerInsert, CmdPickerBack, picker.CmdConfirm, picker.CmdModeCycle,
 		picker.CmdFilterStart, picker.CmdFilterStop, picker.CmdFilterClear} {

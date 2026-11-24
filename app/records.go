@@ -686,6 +686,7 @@ func (a *App) reloadForm() {
 	fm.Editing = false
 	fm.SubmitRow = fresh.SubmitRow
 	fm.SubmitLabel = fresh.SubmitLabel
+	fm.Wrap = a.wrapInputs()
 	if a.cfg != nil && a.cfg.Settings != nil {
 		fm.ShowAllFields = !a.cfg.Settings.Bool(SetFormReactiveFields, true)
 	}

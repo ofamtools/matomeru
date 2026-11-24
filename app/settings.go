@@ -14,6 +14,7 @@ import (
 	"ofam.dev/ochazuke/config"
 	"ofam.dev/ochazuke/core"
 	otea "ofam.dev/ochazuke/tea"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/modal"
@@ -143,6 +144,10 @@ const (
 	SetLaneInTOC               = "panes.laneInTOC"
 	SetCompactTOC              = "panes.compactTOC"
 	SetTOCGrouped              = "panes.tocGrouped"
+	SetModalEscapeGuard        = "modal.escapeGuard"
+	SetWrapInputs              = "ui.wrapInputs"
+	SetWrapOutline             = "ui.wrapOutline"
+	SetOutlineEnterNewline     = "outline.enterNewline"
 	PickerDefaultModeNormal    = "normal"
 	PickerDefaultModeAllNormal = "all-normal"
 	PickerDefaultModeFilter    = "filter"
@@ -225,6 +230,10 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetLaneInTOC, true, "show the pane's active lane and progress counter inside the pane TOC"),
 		flag(SetCompactTOC, true, "render pane TOC entries as compact 1-line scannable rows"),
 		flag(SetTOCGrouped, true, "group pane TOC entries into collapsible Pinned / Active / Pages sections"),
+		enum(SetModalEscapeGuard, traits.EscapeGuardDouble, "guard against accidental esc modal close (double, cooloff, both, off)", traits.EscapeGuardDouble, traits.EscapeGuardCooloff, traits.EscapeGuardBoth, traits.EscapeGuardOff),
+		flag(SetWrapInputs, true, "wrap long text in form inputs so overflow stays visible"),
+		flag(SetWrapOutline, true, "wrap long titles and multiline items in trees and outline"),
+		flag(SetOutlineEnterNewline, true, "pressing enter in inline outline edit commits the row and starts a new sibling below"),
 	}
 }
 
@@ -399,8 +408,16 @@ func (a *App) settingValues() map[string]any {
 	return out
 }
 
+func (a *App) wrapInputs() bool {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return true
+	}
+	return a.cfg.Settings.Bool(SetWrapInputs, true)
+}
+
 func (a *App) settingsOpen(s core.State, _ core.Command) core.StepResult {
 	fm := form.New("Settings", SettingSpecs(), a.settingValues())
+	fm.Wrap = a.wrapInputs()
 	fm.SubmitLabel = "change · applied and saved as you go"
 	m := modal.NewFormModal(fm, modal.FormOptions{
 		ID:            "settings",
@@ -478,6 +495,28 @@ func (a *App) commitSetting(fm *form.Model, name string) {
 		if ff := a.activeForm(fdSearchModalID); ff != nil {
 			ff.Model().ShowAllFields = showAll
 		}
+	}
+	if name == SetWrapInputs {
+		wrap := a.wrapInputs()
+		fm.Wrap = wrap
+		if rf := a.activeRecordForm(); rf != nil {
+			rf.Model().Wrap = wrap
+		}
+		if lf := a.activeLaunchForm(); lf != nil {
+			lf.Model().Wrap = wrap
+		}
+		if af := a.activeAnswerForm(); af != nil {
+			af.Model().Wrap = wrap
+		}
+		if ff := a.activeForm(fdSearchModalID); ff != nil {
+			ff.Model().Wrap = wrap
+		}
+		if uf := a.activeForm(uxNoteModalID); uf != nil {
+			uf.Model().Wrap = wrap
+		}
+	}
+	if name == SetModalEscapeGuard {
+		a.resetEscapeGuard()
 	}
 	saved, err := a.writeConfig(settingsFileName, a.cfg.userSettings)
 	switch {

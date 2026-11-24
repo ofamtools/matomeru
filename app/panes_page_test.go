@@ -64,7 +64,7 @@ func TestNewPaneFormDefaultsToZshFirst(t *testing.T) {
 	if got := data.Text(fm.Values["harness"]); got != "zsh" {
 		t.Fatalf("expected default harness value zsh, got %q", got)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// Pressing n in SpacePanes opens "New Agent" with zsh excluded.
 	d.Keys("1", "n")

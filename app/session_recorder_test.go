@@ -101,7 +101,7 @@ func TestSessionRecorderSettingsAndLiveToggle(t *testing.T) {
 			}
 			d.Keys("j")
 		}
-		d.Keys("space", "esc")
+		d.Keys("space", "esc", "esc")
 	}
 
 	toggleInSettings()

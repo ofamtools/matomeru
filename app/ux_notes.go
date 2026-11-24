@@ -196,6 +196,7 @@ func (a *App) sessionNoteCapture(s core.State, _ core.Command) core.StepResult {
 	fm := form.New("Quick UX Note", specs, nil)
 	fm.SubmitRow = true
 	fm.SubmitLabel = "Save Note"
+	fm.Wrap = a.wrapInputs()
 	// Autofocus the note field directly in edit mode so typing starts at once.
 	fm.HandleCommand(core.Command{ID: form.CmdEdit})
 

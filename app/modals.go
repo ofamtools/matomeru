@@ -358,6 +358,7 @@ func (a *App) newRecordFormModalWith(kind string, ref, about *core.Ref, fm *form
 	}
 	schema := a.schema(kind)
 	fm.SubmitRow = true
+	fm.Wrap = a.wrapInputs()
 	if a.cfg != nil && a.cfg.Settings != nil {
 		fm.ShowAllFields = !a.cfg.Settings.Bool(SetFormReactiveFields, true)
 	}
@@ -411,6 +412,7 @@ func (a *App) newRecordFormModalWith(kind string, ref, about *core.Ref, fm *form
 func (a *App) newLaunchModal(title, submitLabel string, specs []core.ParamSpec, values map[string]any, draftKey string, onSubmit func(core.State, map[string]any) (core.State, bool)) *modal.FormModal {
 	fm := form.New(title, specs, values)
 	fm.SubmitRow = true
+	fm.Wrap = a.wrapInputs()
 	if a.cfg != nil && a.cfg.Settings != nil {
 		fm.ShowAllFields = !a.cfg.Settings.Bool(SetFormReactiveFields, true)
 	}

@@ -117,6 +117,12 @@ func (m *outlineModal) Handle(cmd core.Command) modal.Result {
 	case CmdOutlineEditCommit:
 		m.a.runOutlineEditCommit()
 		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineEditNewline:
+		m.a.runOutlineEditNewline()
+		return modal.Result{Handled: true, Mode: m.Mode()}
+	case CmdOutlineEditLinebreak:
+		m.a.runOutlineEditLinebreak()
+		return modal.Result{Handled: true, Mode: m.Mode()}
 	}
 	if strings.HasPrefix(cmd.ID, "motion.") {
 		m.a.outlineTreeMove(cmd)
@@ -154,7 +160,7 @@ func (a *App) runTreeStartEdit(tm *tree.Model, kind, treeID string, isWork bool,
 		returnMode: returnMode,
 		isWorkTree: isWork,
 	}
-	a.say("inline edit · enter saves · esc cancels")
+	a.say("inline edit · enter saves & adds · esc saves · shift+enter newline · ctrl+c discards")
 	return true
 }
 
@@ -174,7 +180,7 @@ func (a *App) runTreeStartAdd(tm *tree.Model, kind, treeID string, isWork bool, 
 	if noun == "" {
 		noun = kind
 	}
-	a.say("new %s · tab indents · shift+tab outdents · enter saves · esc cancels", noun)
+	a.say("new %s · tab indents · shift+tab outdents · enter saves & adds · esc saves · ctrl+c discards", noun)
 }
 
 func (a *App) outlineStartEdit(atEnd bool) func(core.State, core.Command) core.StepResult {
@@ -323,25 +329,42 @@ func (a *App) runOutlineEditCommit() (string, bool) {
 	title := strings.TrimSpace(res.Value)
 	schema := a.schema(meta.kind)
 	field := summaryField(schema)
+	treeID := outlineTree
+	if meta.isWorkTree {
+		treeID = workTable
+	}
 
 	if res.Kind == tree.EditRename {
-		if title == "" {
-			a.say("title cannot be empty · cancelled")
-			return ret, true
-		}
 		ref := core.Ref{Kind: meta.kind, ID: res.TargetID}
 		_ = a.ensureShadow(ref)
+		if title == "" {
+			_, cs, err := a.Store.Archive(ref, User)
+			noun := strings.ToLower(schema.Title)
+			if noun == "" {
+				noun = meta.kind
+			}
+			a.wrote("removed empty "+noun, cs, err)
+			a.syncTreeModel(tm, meta.kind, treeID)
+			if meta.isWorkTree {
+				a.syncWorkTreeToTable(meta.kind, tm)
+			}
+			return ret, true
+		}
 		_, cs, err := a.Store.Patch(data.PatchInput{
 			Ref:     ref,
 			Fields:  map[string]any{field: title},
 			Summary: "rename " + title,
 		}, User)
+		a.syncTreeModel(tm, meta.kind, treeID)
+		if meta.isWorkTree {
+			a.syncWorkTreeToTable(meta.kind, tm)
+		}
 		a.wrote("renamed to "+title, cs, err)
 		return ret, true
 	}
 
 	if title == "" {
-		a.say("cancelled")
+		a.say("")
 		return ret, true
 	}
 
@@ -362,10 +385,6 @@ func (a *App) runOutlineEditCommit() (string, bool) {
 		}
 	}
 
-	treeID := outlineTree
-	if meta.isWorkTree {
-		treeID = workTable
-	}
 	a.syncTreeModel(tm, meta.kind, treeID)
 	tm.Reveal(created.ID)
 	a.trees.folded[meta.kind] = tm.Folded
@@ -383,6 +402,81 @@ func (a *App) outlineEditCommit(s core.State, c core.Command) core.StepResult {
 	if ret, ok := a.runOutlineEditCommit(); ok {
 		return core.Next(withMode(s, ret))
 	}
+	return core.Next(s)
+}
+
+func (a *App) runOutlineEditNewline() (string, bool) {
+	tm, meta, ok := a.activeEditTree()
+	if !ok {
+		return "", false
+	}
+	if a.cfg != nil && a.cfg.Settings != nil && !a.cfg.Settings.Bool(SetOutlineEnterNewline, true) {
+		return a.runOutlineEditCommit()
+	}
+	kind := meta.kind
+	isWork := meta.isWorkTree
+	treeID := outlineTree
+	if isWork {
+		treeID = workTable
+	}
+	ret := meta.returnMode
+	if ret == "" {
+		ret = ModeNormal
+	}
+	var prevParentID string
+	var prevDepth int
+	if ed := tm.Edit(); ed != nil {
+		prevParentID = ed.ParentID
+		prevDepth = ed.Depth
+		if ed.Kind == tree.EditRename {
+			if row, has := tm.Focused(); has {
+				prevParentID = row.ParentID
+				prevDepth = row.Depth
+			}
+		}
+	}
+
+	ret, ok = a.runOutlineEditCommit()
+	if !ok {
+		return "", false
+	}
+	a.runTreeStartAdd(tm, kind, treeID, isWork, ret, false)
+	if prevParentID != "" {
+		if ed := tm.Edit(); ed != nil && ed.ParentID != prevParentID {
+			delete(tm.Folded, prevParentID)
+			ed.ParentID = prevParentID
+			ed.Depth = prevDepth
+			ed.AfterID = ""
+			ed.BeforeID = ""
+			tm.Clamp()
+		}
+	}
+	return ModeOutlineEdit, true
+}
+
+func (a *App) outlineEditNewline(s core.State, c core.Command) core.StepResult {
+	if a.Modal() == "outline" {
+		return a.handleModal(s, c)
+	}
+	if mode, ok := a.runOutlineEditNewline(); ok {
+		return core.Next(withMode(s, mode))
+	}
+	return core.Next(s)
+}
+
+func (a *App) runOutlineEditLinebreak() {
+	tm, _, ok := a.activeEditTree()
+	if !ok {
+		return
+	}
+	tm.EditInsertNewline()
+}
+
+func (a *App) outlineEditLinebreak(s core.State, c core.Command) core.StepResult {
+	if a.Modal() == "outline" {
+		return a.handleModal(s, c)
+	}
+	a.runOutlineEditLinebreak()
 	return core.Next(s)
 }
 

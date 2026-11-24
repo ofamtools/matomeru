@@ -65,6 +65,8 @@ func (d *Driver) Keys(names ...string) {
 			d.Send(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 		case n == "shift+tab":
 			d.Send(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+		case n == "shift+enter":
+			d.Send(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
 		case strings.HasPrefix(n, "ctrl+") && len(n) == len("ctrl+")+1:
 			d.Send(tea.KeyPressMsg{Code: rune(n[len("ctrl+")]), Mod: tea.ModCtrl})
 		default:

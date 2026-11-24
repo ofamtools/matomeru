@@ -107,9 +107,9 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 		t.Fatalf("i: mode=%q edit=%+v, want cursor 0", a.Mode(), ed)
 	}
 	d.Type("Pre ")
-	d.Keys("enter")
+	d.Keys("esc")
 	if rec, _ := store.Get(roots[0].Ref()); rec.Text("title") != "Pre Root 01" {
-		t.Fatalf("after i + Type + enter: title = %q, want %q", rec.Text("title"), "Pre Root 01")
+		t.Fatalf("after i + Type + esc: title = %q, want %q", rec.Text("title"), "Pre Root 01")
 	}
 
 	d.Keys("a")
@@ -117,9 +117,9 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 		t.Fatalf("a: mode=%q edit=%+v, want cursor at end", a.Mode(), ed)
 	}
 	d.Type(" Post")
-	d.Keys("enter")
+	d.Keys("esc")
 	if rec, _ := store.Get(roots[0].Ref()); rec.Text("title") != "Pre Root 01 Post" {
-		t.Fatalf("after a + Type + enter: title = %q, want %q", rec.Text("title"), "Pre Root 01 Post")
+		t.Fatalf("after a + Type + esc: title = %q, want %q", rec.Text("title"), "Pre Root 01 Post")
 	}
 
 	// 6. `o` inserts below at SAME indent level (root sibling, NOT child).
@@ -128,7 +128,7 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 		t.Fatalf("o on root: mode=%q edit=%+v, want empty ParentID", a.Mode(), ed)
 	}
 	d.Type("Sibling Below")
-	d.Keys("enter")
+	d.Keys("esc")
 	sibBelow, err := store.GetByField(data.KindTask, "title", "Sibling Below")
 	if err != nil {
 		t.Fatalf("Sibling Below not created: %v", err)
@@ -148,7 +148,7 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 	}
 	d.Keys("tab")
 	d.Type("Child Via Tab")
-	d.Keys("enter")
+	d.Keys("esc")
 	childRec, err := store.GetByField(data.KindTask, "title", "Child Via Tab")
 	if err != nil {
 		t.Fatalf("Child Via Tab not created: %v", err)
@@ -163,7 +163,7 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 		t.Fatalf("O on child: edit=%+v, want add_above under %q", ed, sibBelow.ID)
 	}
 	d.Type("Child Above")
-	d.Keys("enter")
+	d.Keys("esc")
 	childAbove, err := store.GetByField(data.KindTask, "title", "Child Above")
 	if err != nil {
 		t.Fatalf("Child Above not created: %v", err)
@@ -187,5 +187,5 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 	if a.Modal() != "form" || a.Mode() != ModeForm {
 		t.Fatalf("after e in outline: modal=%q mode=%q, want form/form", a.Modal(), a.Mode())
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 }

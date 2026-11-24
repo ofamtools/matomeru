@@ -94,6 +94,8 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: CmdOutlineEditOutdent, Description: "Outdent a new inline outline task one level", Meta: map[string]any{"internal": true}},
 		{ID: CmdOutlineEditCommit, Description: "Commit inline outline edit", Meta: map[string]any{"internal": true}},
 		{ID: CmdOutlineEditCancel, Description: "Cancel inline outline edit", Meta: map[string]any{"internal": true}},
+		{ID: CmdOutlineEditNewline, Description: "Commit inline outline edit and start a new sibling below", Meta: map[string]any{"internal": true}},
+		{ID: CmdOutlineEditLinebreak, Description: "Insert a line break in inline outline edit", Meta: map[string]any{"internal": true}},
 		spec(CmdRecentsPick, "Pick from recently updated records across all nouns"),
 		spec(CmdPagesPick, "Pick a page of any pane"),
 		spec(CmdRecordActions, "Pick an action for the focused record"),

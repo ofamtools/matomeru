@@ -358,6 +358,7 @@ func (a *App) openFDSearchModal(s core.State, c core.Command, reuseLast bool) co
 	fm := form.New("Search Files (fd)", specs, initial)
 	fm.SubmitRow = true
 	fm.SubmitLabel = "Search"
+	fm.Wrap = a.wrapInputs()
 	if a.cfg != nil && a.cfg.Settings != nil {
 		fm.ShowAllFields = !a.cfg.Settings.Bool(SetFormReactiveFields, true)
 	}
