@@ -20,6 +20,7 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/mcpui"
+	"ofam.dev/matomeru/panesearch"
 	"ofam.dev/matomeru/ptyhost"
 )
 
@@ -285,7 +286,11 @@ func (s *Server) Start(ctx context.Context) error {
 			}
 			return fmt.Errorf("daemon: listen mcp http %s: %w", s.cfg.MCPAddr, err)
 		}
-		handler := mcpui.NewHTTPHandler(s.cfg.Store, s.cfg.Router)
+		box := mcpui.NewToolbox(s.cfg.Store, s.cfg.Router)
+		if box.PaneSearch != nil {
+			box.PaneSearch.LiveData = s.paneSearchLiveData
+		}
+		handler := mcpui.NewHTTPHandlerWithToolbox(box)
 		httpSrv := &http.Server{Handler: handler}
 		s.mu.Lock()
 		s.httpLn = httpLn
@@ -832,4 +837,52 @@ func (s *Server) listPanes() []PaneInfo {
 		out = append(out, info)
 	}
 	return out
+}
+
+func (s *Server) paneSearchLiveData() mcpui.PaneSearchLiveSnapshot {
+	snap := mcpui.PaneSearchLiveSnapshot{
+		Frames:          map[string]panesearch.LiveFrame{},
+		Turns:           map[string][]panesearch.Turn{},
+		TranscriptPaths: map[string]string{},
+		SessionIDs:      map[string]string{},
+	}
+	s.mu.Lock()
+	ids := make([]string, 0, len(s.panes))
+	for id := range s.panes {
+		ids = append(ids, id)
+	}
+	s.mu.Unlock()
+	for _, id := range ids {
+		if f, ok := s.host.Snapshot(id); ok {
+			snap.Frames[id] = panesearch.LiveFrame{
+				Lines:    f.History(),
+				Revision: f.Revision,
+			}
+		}
+	}
+	tel, _ := s.telemetry.snapshot("")
+	for id, pt := range tel {
+		if pt == nil {
+			continue
+		}
+		if pt.TranscriptPath != "" {
+			snap.TranscriptPaths[id] = pt.TranscriptPath
+		}
+		if pt.SessionID != "" {
+			snap.SessionIDs[id] = pt.SessionID
+		}
+		if len(pt.RecentTurns) > 0 {
+			turns := make([]panesearch.Turn, len(pt.RecentTurns))
+			for i, ht := range pt.RecentTurns {
+				turns[i] = panesearch.Turn{
+					Prompt:   ht.Prompt,
+					Response: ht.Response,
+					Summary:  ht.Summary,
+					At:       ht.At,
+				}
+			}
+			snap.Turns[id] = turns
+		}
+	}
+	return snap
 }

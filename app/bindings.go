@@ -736,6 +736,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, uxNotesBindings()...)
 	out = append(out, pageModeBindings()...)
 	out = append(out, fdSearchBindings()...)
+	out = append(out, paneSearchBindings()...)
 	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {
 		out = appendReadlineBindings(out, mode, all)
 	}

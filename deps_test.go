@@ -91,7 +91,7 @@ var policies = map[string]policy{
 	},
 	// MCP Open UI: ViewNode data over the store.
 	mod + "/mcpui": {
-		allow:      []string{mod + "/data", mod + "/triage", ochazuke + "/core", ochazuke + "/ui"},
+		allow:      []string{mod + "/data", mod + "/triage", mod + "/panesearch", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/traits"},
 		forbidDeps: noTea,
 	},
 	// ViewNode generators.
@@ -139,7 +139,7 @@ var policies = map[string]policy{
 	},
 	// Local self-hosted daemon: Unix-socket PTY persistence, HTTP MCP, and schedule ticker.
 	mod + "/daemon": {
-		allow:      []string{mod + "/data", mod + "/mcpui", mod + "/ptyhost", ochazuke + "/core"},
+		allow:      []string{mod + "/data", mod + "/mcpui", mod + "/panesearch", mod + "/ptyhost", ochazuke + "/core"},
 		forbidDeps: noTea,
 	},
 	// Agent hook handler: pure stdlib wire client for the daemon Unix socket.
@@ -168,12 +168,17 @@ var policies = map[string]policy{
 		allow:      []string{ochazuke + "/core"},
 		forbidDeps: noUI,
 	},
+	// Global pane & chat-log search: pure corpus, transcript reader, and matcher; no UI.
+	mod + "/panesearch": {
+		allow:      []string{mod + "/data", ochazuke + "/core", ochazuke + "/traits"},
+		forbidDeps: append([]string{mod + "/app"}, noUI...),
+	},
 	// The application: the only package that wires the foundation onto the
 	// engine and its Bubble Tea shell.
 	mod + "/app": {
 		allow: []string{
 			mod + "/data", mod + "/mcpui", mod + "/views", mod + "/runs", mod + "/ext", mod + "/ptyhost", mod + "/handlers", mod + "/triage",
-			mod + "/daemon", mod + "/harness", mod + "/contextitems", mod + "/actions", bubbletea,
+			mod + "/daemon", mod + "/harness", mod + "/contextitems", mod + "/actions", mod + "/panesearch", bubbletea,
 			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea", ochazuke + "/recorder", ochazuke + "/traits",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/tree", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/pathpicker",
 			ochazuke + "/widgets/bindings", ochazuke + "/widgets/markdown", ochazuke + "/widgets/input", ochazuke + "/widgets/commandline",
@@ -182,7 +187,7 @@ var policies = map[string]policy{
 	},
 	// The binary: oden + ochazuke/cli around app, data, mcpui, daemon, agenthook, harness, ptyhost, setup and migrate.
 	mod + "/cmd/mtm": {
-		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", mod + "/setup", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", oden, bubbletea},
+		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", mod + "/setup", mod + "/panesearch", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", ochazuke + "/traits", oden, bubbletea},
 	},
 }
 

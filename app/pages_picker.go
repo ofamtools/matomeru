@@ -222,17 +222,7 @@ func (a *App) jumpToUnifiedPage(s core.State, pickedID string) core.State {
 		return a.browse(s, strings.TrimPrefix(pickedID, pagePickNounPrefix))
 	case strings.HasPrefix(pickedID, pagePickScreenPrefix):
 		paneID := strings.TrimPrefix(pickedID, pagePickScreenPrefix)
-		paneRef := core.Ref{Kind: data.KindPane, ID: paneID}
-		rail := a.rail()
-		if !selectRow(rail, data.RefText(paneRef)) {
-			rail.Query = ""
-			selectRow(rail, data.RefText(paneRef))
-		}
-		s = a.dropModals(s)
-		s.ActivePage = SpacePanes
-		a.nav.tocFilter = ""
-		a.panes.activePage[paneID] = views.ScreenPageID
-		return withPage(s, SpacePanes, tocPrefix+views.ScreenPageID, ModeNormal)
+		return a.jumpToPane(s, paneID, false)
 	case strings.HasPrefix(pickedID, pagePickPagePrefix):
 		return a.jumpToPage(s, strings.TrimPrefix(pickedID, pagePickPagePrefix))
 	default:

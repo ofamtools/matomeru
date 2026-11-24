@@ -4,11 +4,96 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
+
+const (
+	maxRecentTurns        = 50
+	maxTurnFieldTextBytes = 8 * 1024
+)
+
+var (
+	telemetrySecretAssignRe = regexp.MustCompile(`\b((?:[A-Z][A-Z0-9_]*)?(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|AUTH|CREDENTIAL)[A-Z0-9_]*)=([^\s'"]+)`)
+	telemetryBearerRe       = regexp.MustCompile(`(?i)\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}`)
+)
+
+func sanitizeTurnText(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	s = telemetrySecretAssignRe.ReplaceAllString(s, "${1}=***")
+	s = telemetryBearerRe.ReplaceAllString(s, "${1}***")
+	if len(s) > maxTurnFieldTextBytes {
+		s = strings.TrimSpace(s[:maxTurnFieldTextBytes])
+	}
+	return s
+}
+
+func payloadString(m map[string]any, keys ...string) string {
+	if len(m) == 0 {
+		return ""
+	}
+	for _, k := range keys {
+		if raw, ok := m[k]; ok {
+			if s, ok := raw.(string); ok {
+				if trimmed := strings.TrimSpace(s); trimmed != "" {
+					return trimmed
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func extractTranscriptPath(payload map[string]any) string {
+	return payloadString(payload, "transcript_path", "transcriptPath")
+}
+
+func extractSessionID(payload map[string]any) string {
+	return payloadString(payload, "session_id", "sessionId", "conversationId", "conversation_id", "thread-id", "thread_id")
+}
+
+func updateStickyMetadata(pt *PaneTelemetry, payload map[string]any) {
+	if tp := extractTranscriptPath(payload); tp != "" {
+		pt.TranscriptPath = tp
+	}
+	if sid := extractSessionID(payload); sid != "" {
+		pt.SessionID = sid
+	}
+}
+
+func appendRecentTurn(pt *PaneTelemetry, ev HookEvent, now time.Time) {
+	prompt := sanitizeTurnText(ev.Prompt)
+	resp := sanitizeTurnText(ev.Response)
+	summary := ""
+	if prompt == "" && resp == "" && (ev.Kind == "" || ev.Kind == HookKindState) {
+		summary = sanitizeTurnText(ev.Summary)
+	}
+	if prompt == "" && resp == "" && summary == "" {
+		return
+	}
+	if len(pt.RecentTurns) > 0 {
+		last := pt.RecentTurns[len(pt.RecentTurns)-1]
+		if last.Prompt == prompt && last.Response == resp && last.Summary == summary {
+			return
+		}
+	}
+	pt.RecentTurns = append(pt.RecentTurns, HookTurn{
+		Prompt:   prompt,
+		Response: resp,
+		Summary:  summary,
+		At:       now,
+	})
+	if len(pt.RecentTurns) > maxRecentTurns {
+		pt.RecentTurns = slices.Clone(pt.RecentTurns[len(pt.RecentTurns)-maxRecentTurns:])
+	}
+}
 
 type approvalResult struct {
 	Decision string
@@ -82,7 +167,9 @@ func (ts *telemetryStore) recordEvent(ev HookEvent, now time.Time) {
 	}
 	if ev.Payload != nil {
 		pt.Payload = cloneMap(ev.Payload)
+		updateStickyMetadata(pt, ev.Payload)
 	}
+	appendRecentTurn(pt, ev, now)
 	if ev.Kind == HookKindSubagent && ev.SubagentID != "" {
 		switch ev.SubagentAction {
 		case SubagentStop:
@@ -140,6 +227,7 @@ func (ts *telemetryStore) waitApproval(ctx context.Context, ev HookEvent, timeou
 		}
 		if ev.Payload != nil {
 			pt.Payload = cloneMap(ev.Payload)
+			updateStickyMetadata(pt, ev.Payload)
 		}
 	}
 	ts.mu.Unlock()
@@ -273,6 +361,9 @@ func (ts *telemetryStore) snapshot(paneID string) (map[string]*PaneTelemetry, []
 		}
 		cp := *pt
 		cp.Payload = cloneMap(pt.Payload)
+		if len(pt.RecentTurns) > 0 {
+			cp.RecentTurns = slices.Clone(pt.RecentTurns)
+		}
 		if len(pt.ActiveSubagents) > 0 {
 			cp.ActiveSubagents = make(map[string]SubagentInfo, len(pt.ActiveSubagents))
 			maps.Copy(cp.ActiveSubagents, pt.ActiveSubagents)

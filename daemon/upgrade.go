@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -233,6 +234,9 @@ func (ts *telemetryStore) restore(panes map[string]*PaneTelemetry) {
 		}
 		cp := *pt
 		cp.Payload = cloneMap(pt.Payload)
+		if len(pt.RecentTurns) > 0 {
+			cp.RecentTurns = slices.Clone(pt.RecentTurns)
+		}
 		if len(pt.ActiveSubagents) > 0 {
 			cp.ActiveSubagents = make(map[string]SubagentInfo, len(pt.ActiveSubagents))
 			maps.Copy(cp.ActiveSubagents, pt.ActiveSubagents)

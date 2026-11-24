@@ -220,6 +220,14 @@ type SubagentInfo struct {
 	StartedAt time.Time `json:"startedAt"`
 }
 
+// HookTurn is one bounded prompt/response/summary turn captured from hook events.
+type HookTurn struct {
+	Prompt   string    `json:"prompt,omitempty"`
+	Response string    `json:"response,omitempty"`
+	Summary  string    `json:"summary,omitempty"`
+	At       time.Time `json:"at"`
+}
+
 // PaneTelemetry holds the latest hook-reported state and activity for one pane.
 type PaneTelemetry struct {
 	PaneID          string                  `json:"paneId"`
@@ -227,6 +235,9 @@ type PaneTelemetry struct {
 	State           string                  `json:"state,omitempty"`
 	Tool            string                  `json:"tool,omitempty"`
 	Summary         string                  `json:"summary,omitempty"`
+	TranscriptPath  string                  `json:"transcriptPath,omitempty"`
+	SessionID       string                  `json:"sessionId,omitempty"`
+	RecentTurns     []HookTurn              `json:"recentTurns,omitempty"`
 	ActiveSubagents map[string]SubagentInfo `json:"activeSubagents,omitempty"`
 	SubagentCount   int                     `json:"subagentCount"`
 	LastKind        string                  `json:"lastKind,omitempty"`

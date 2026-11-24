@@ -529,6 +529,8 @@ func DefaultSchemas() *Registry {
 				str("command", "command line a live session of the pane runs; empty runs $SHELL"),
 				{Name: "role", Type: core.ParamString, Enum: PaneRoles, Description: "what the pane is for: a normal pane, a global scratch, or a side pane of parentPane; empty is normal"},
 				refTo("parentPane", KindPane, "pane a side pane was opened beside"),
+				str("transcriptPath", "path to the agent session transcript log file"),
+				str("sessionId", "agent harness session or conversation identifier"),
 			},
 			StatusColumns:  []StatusColumn{paneRun},
 			DefaultColumns: []string{"title", "runStatus", "harness", "cwd", "task"},

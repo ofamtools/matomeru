@@ -675,6 +675,10 @@ func (a *App) register() {
 	for _, id := range []string{CmdFDResultYank, CmdFDResultOpenWith, CmdFDResultAttach, CmdFDResultRefine} {
 		a.handle(id, a.handleModal)
 	}
+	a.handle(CmdPaneSearch, a.paneSearch)
+	for _, id := range []string{CmdPaneSearchAttach, CmdPaneSearchYank, CmdPaneSearchSourceCycle, CmdPaneSearchArchivedToggle} {
+		a.handle(id, a.handleModal)
+	}
 	for id, spec := range a.ext.recordActions {
 		a.handle(id, a.runRecordAction(spec))
 	}

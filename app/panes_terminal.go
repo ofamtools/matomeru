@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/panesearch"
 	"ofam.dev/matomeru/ptyhost"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
@@ -49,6 +50,8 @@ type PaneController struct {
 	queuedPrompts   map[string][]string
 	interruptDelay  time.Duration
 	stagedAnswers   map[string]map[string]map[string]any
+	searchCache     *panesearch.Cache
+	searchGen       uint64
 }
 
 func newPaneController() *PaneController {
@@ -58,7 +61,37 @@ func newPaneController() *PaneController {
 		sideSplit:    map[string]string{},
 		pageScroll:   map[string]int{},
 		tocCollapsed: map[string]bool{},
+		searchCache:  panesearch.NewCache(),
 	}
+}
+
+// jumpToPane navigates to 1 Panes, selects paneID in the rail (clearing rail
+// filters or showing archived panes when needed), and opens its Screen. When
+// enterLive is true it attaches straight into the live terminal.
+func (a *App) jumpToPane(s core.State, paneID string, enterLive bool) core.State {
+	paneRef := core.Ref{Kind: data.KindPane, ID: paneID}
+	pane, err := a.Store.Get(paneRef)
+	if err != nil {
+		a.fail("open pane", err)
+		return s
+	}
+	if pane.IsArchived() && !a.nav.showArchived {
+		a.nav.showArchived = true
+		a.panes.railCacheKey = ""
+	}
+	rail := a.rail()
+	if !selectRow(rail, data.RefText(paneRef)) {
+		rail.Query = ""
+		selectRow(rail, data.RefText(paneRef))
+	}
+	s = a.dropModals(s)
+	s.ActivePage = SpacePanes
+	a.nav.tocFilter = ""
+	a.panes.activePage[paneID] = views.ScreenPageID
+	if enterLive {
+		return a.enterScreen(withPage(s, SpacePanes, siteScreen, ModeNormal), *pane)
+	}
+	return withPage(s, SpacePanes, tocPrefix+views.ScreenPageID, ModeNormal)
 }
 
 // jumpToPage shows a page in its pane's site: the pane is selected in the

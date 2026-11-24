@@ -588,6 +588,10 @@ func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
 		},
 	}
 
+	if kind == data.KindPane {
+		children = append(children, mtmPaneSearchCommand(g))
+	}
+
 	if kind == data.KindQuestion {
 		answerParams := []oden.Parameter{
 			{Name: "answer", Type: "string", Description: "Answer text (or pass as a positional argument)"},

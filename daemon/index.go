@@ -25,30 +25,51 @@ type extractedContext struct {
 }
 
 // indexHookEvent runs lightweight auto-indexing into s.cfg.Store for hook
-// events carrying written files, user prompts, or assistant responses.
+// events carrying transcript metadata, written files, user prompts, or
+// assistant responses.
 func (s *Server) indexHookEvent(ev HookEvent) {
 	if s.cfg.Store == nil {
 		return
 	}
-	if len(ev.Files) == 0 && strings.TrimSpace(ev.Prompt) == "" && strings.TrimSpace(ev.Response) == "" {
+	transcriptPath := extractTranscriptPath(ev.Payload)
+	sessionID := extractSessionID(ev.Payload)
+	hasContextWork := len(ev.Files) > 0 || strings.TrimSpace(ev.Prompt) != "" || strings.TrimSpace(ev.Response) != ""
+	if transcriptPath == "" && sessionID == "" && !hasContextWork {
 		return
 	}
 
 	paneID := strings.TrimSpace(ev.PaneID)
+	actorID := paneID
+	if actorID == "" {
+		actorID = "hook"
+	}
+	actor := core.Actor{Kind: "agent", ID: actorID, Label: ev.Harness}
+
 	taskID := ""
 	if paneID != "" {
 		if pane, err := s.cfg.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID}); err == nil {
 			if t, ok := pane.RefField("task"); ok {
 				taskID = t.ID
 			}
+			patchFields := map[string]any{}
+			if transcriptPath != "" && pane.Text("transcriptPath") != transcriptPath {
+				patchFields["transcriptPath"] = transcriptPath
+			}
+			if sessionID != "" && pane.Text("sessionId") != sessionID {
+				patchFields["sessionId"] = sessionID
+			}
+			if len(patchFields) > 0 {
+				_, _, _ = s.cfg.Store.Patch(data.PatchInput{
+					Ref:     pane.Ref(),
+					Fields:  patchFields,
+					Summary: "record pane session telemetry",
+				}, actor)
+			}
 		}
 	}
-
-	actorID := paneID
-	if actorID == "" {
-		actorID = "hook"
+	if !hasContextWork {
+		return
 	}
-	actor := core.Actor{Kind: "agent", ID: actorID, Label: ev.Harness}
 
 	// 1. Written/edited files from PostToolUse.
 	for _, rawPath := range ev.Files {

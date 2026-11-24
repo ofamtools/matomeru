@@ -35,22 +35,25 @@ const (
 )
 
 // Tools returns every tool the MCP server lists: the four Open UI tools,
-// the lane tools, the data tools, then the triage tools.
+// the lane tools, the data tools, the triage tools, then pane search.
 func Tools(router *Router, dataTools *DataTools) []ToolSpec {
 	out := append(router.ToolSpecs(), NewLaneTools(nil).ToolSpecs()...)
 	out = append(out, dataTools.ToolSpecs()...)
-	return append(out, NewTriageTools(nil).ToolSpecs()...)
+	out = append(out, NewTriageTools(nil).ToolSpecs()...)
+	return append(out, NewPaneSearchTools(nil).ToolSpecs()...)
 }
 
 // Toolbox is every tool over one store: the Open UI tools, the lane tools,
-// the data tools and the triage tools, behind one Call. The MCP server and the CLI both run
-// tools through it. Getenv reads the environment (nil is os.Getenv).
+// the data tools, the triage tools and pane search, behind one Call. The MCP
+// server and the CLI both run tools through it. Getenv reads the environment
+// (nil is os.Getenv).
 type Toolbox struct {
-	Router *Router
-	Lanes  *LaneTools
-	Data   *DataTools
-	Triage *TriageTools
-	Getenv func(string) string
+	Router     *Router
+	Lanes      *LaneTools
+	Data       *DataTools
+	Triage     *TriageTools
+	PaneSearch *PaneSearchTools
+	Getenv     func(string) string
 }
 
 // NewToolbox returns the toolbox over store. A nil router gets a new one.
@@ -58,7 +61,13 @@ func NewToolbox(store *data.Store, router *Router) *Toolbox {
 	if router == nil {
 		router = New(store)
 	}
-	return &Toolbox{Router: router, Lanes: NewLaneTools(store), Data: NewDataTools(store), Triage: NewTriageTools(store)}
+	return &Toolbox{
+		Router:     router,
+		Lanes:      NewLaneTools(store),
+		Data:       NewDataTools(store),
+		Triage:     NewTriageTools(store),
+		PaneSearch: NewPaneSearchTools(store),
+	}
 }
 
 // ToolSpecs lists every tool.
@@ -67,6 +76,9 @@ func (b *Toolbox) ToolSpecs() []ToolSpec {
 	out = append(out, b.Data.ToolSpecs()...)
 	if b.Triage != nil {
 		out = append(out, b.Triage.ToolSpecs()...)
+	}
+	if b.PaneSearch != nil {
+		out = append(out, b.PaneSearch.ToolSpecs()...)
 	}
 	return out
 }
@@ -207,6 +219,8 @@ func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw j
 		return lanes.Call(ctx, actor, name, raw)
 	case b.Triage != nil && b.Triage.HasTool(name):
 		return b.Triage.Call(ctx, actor, name, raw)
+	case b.PaneSearch != nil && b.PaneSearch.HasTool(name):
+		return b.PaneSearch.Call(ctx, actor, name, raw)
 	}
 	return b.Router.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
 }

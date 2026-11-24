@@ -61,6 +61,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetViewCycle: true, SetFormReactiveFields: true,
 		SetSessionRecord: true, SetSessionPromptSaveOnExit: false,
 		SetToolsFDBinary: "", SetSearchFDMaxResults: 200,
+		SetSearchPanesIncludeTranscripts: true, SetSearchPanesIncludeArchived: false, SetSearchPanesMaxLogKB: 2048,
 		SetSessionUXNotes: true,
 		SetPageLockScroll: true, SetEdgeFocusSpill: false, SetVerboseHookBar: false,
 		SetLaneInTOC: true, SetCompactTOC: true, SetTOCGrouped: true,
