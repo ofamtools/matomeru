@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -61,6 +62,7 @@ type StartSpec struct {
 	Command string
 	Args    []string
 	Dir     string
+	Env     []string
 	TaskRef core.Ref
 	Actor   core.Actor
 }
@@ -151,6 +153,9 @@ func (r *Runner) Start(ctx context.Context, spec StartSpec) (*data.Record, error
 		cmd = exec.CommandContext(runCtx, "/bin/sh", "-c", spec.Command)
 	}
 	cmd.Dir = spec.Dir
+	if len(spec.Env) > 0 {
+		cmd.Env = append(os.Environ(), spec.Env...)
+	}
 	out := &tailBuffer{max: r.opts.MaxOutputBytes}
 	cmd.Stdout, cmd.Stderr = out, out
 	killGroup(cmd)

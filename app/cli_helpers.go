@@ -139,6 +139,8 @@ type ExtDiscoveryResult struct {
 	Status       string       `json:"status"`
 	Version      string       `json:"version,omitempty"`
 	Summary      string       `json:"summary,omitempty"`
+	InstallPkg   string       `json:"installPkg,omitempty"`
+	Category     string       `json:"category,omitempty"`
 	Capabilities []string     `json:"capabilities,omitempty"`
 	Commands     []string     `json:"commands,omitempty"`
 	Changed      bool         `json:"changed"`
@@ -148,7 +150,13 @@ type ExtDiscoveryResult struct {
 // DiscoverExtensions probes DefaultTools in dirs and PATH, upserting extension
 // records in store, and returns results for tools that were found or already recorded.
 func DiscoverExtensions(ctx context.Context, store *data.Store, dirs []string) ([]ExtDiscoveryResult, error) {
-	mgr := ext.New(ext.Options{})
+	return DiscoverExtensionsWithCatalog(ctx, store, dirs, false)
+}
+
+// DiscoverExtensionsWithCatalog probes DefaultTools (and the OFAM catalog when
+// includeCatalog is true) in dirs and PATH, upserting extension records in store.
+func DiscoverExtensionsWithCatalog(ctx context.Context, store *data.Store, dirs []string, includeCatalog bool) ([]ExtDiscoveryResult, error) {
+	mgr := ext.New(ext.Options{IncludeCatalog: includeCatalog})
 	results, err := mgr.Discover(ctx, dirs, store)
 	out := make([]ExtDiscoveryResult, 0, len(results))
 	for _, r := range results {
@@ -161,6 +169,8 @@ func DiscoverExtensions(ctx context.Context, store *data.Store, dirs []string) (
 			Status:       r.Status,
 			Version:      r.Version,
 			Summary:      r.Summary,
+			InstallPkg:   r.InstallPkg,
+			Category:     r.Category,
 			Capabilities: r.Capabilities,
 			Commands:     r.Commands,
 			Changed:      r.Changed,

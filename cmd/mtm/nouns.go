@@ -652,12 +652,13 @@ func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
 	if kind == data.KindExtension {
 		discoverParams := []oden.Parameter{
 			{Name: "dir", Type: "string", Repeatable: true, Description: "Directory to search before PATH"},
+			{Name: "catalog", Type: "bool", Description: "Include uninstalled OFAM catalog tools as available"},
 		}
 		children = append(children,
 			oden.Command{
 				Name:       "discover",
 				Summary:    "discover installed o-* extensions",
-				Usage:      "[--dir DIR]",
+				Usage:      "[--dir DIR] [--catalog]",
 				Parameters: discoverParams,
 				Handle: func(c *oden.Ctx) error {
 					p, err := c.Parse(discoverParams)
@@ -665,14 +666,14 @@ func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
 						return err
 					}
 					if len(p.Positional()) != 0 {
-						return errors.New("usage: mtm extension discover [--dir DIR]")
+						return errors.New("usage: mtm extension discover [--dir DIR] [--catalog]")
 					}
 					store, err := openStoreWithSeed(g)
 					if err != nil {
 						return err
 					}
 					defer store.Close()
-					res, err := app.DiscoverExtensions(c.Context, store, p.Strings("dir"))
+					res, err := app.DiscoverExtensionsWithCatalog(c.Context, store, p.Strings("dir"), p.Bool("catalog"))
 					if err != nil {
 						return err
 					}
@@ -731,6 +732,8 @@ func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
 					return printRecordOne(c.Stdout, store, data.KindRun, format, rec)
 				},
 			},
+			mtmExtensionCatalogCommand(g),
+			mtmExtensionInstallCommand(g),
 		)
 	}
 

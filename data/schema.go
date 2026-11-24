@@ -419,6 +419,7 @@ func DefaultSchemas() *Registry {
 		{Name: "healthy", Label: "Healthy", Tone: "state.done", RowTone: "row.active", Icon: "●", IconTone: "state.done", Position: 0, Open: true},
 		{Name: "degraded", Label: "Degraded", Tone: "warning", RowTone: "row.attention", Icon: "◐", IconTone: "warning", Position: 1, Open: true},
 		{Name: "offline", Label: "Offline", Tone: "muted", RowTone: "row.muted", Icon: "○", IconTone: "muted", Position: 2, Ends: true},
+		{Name: "available", Label: "Available", Tone: "accent", RowTone: "row.muted", Icon: "↓", IconTone: "accent", Position: 3, Open: true},
 	}}
 	outcome := StatusColumn{Name: "outcomeStatus", Title: "Outcome", Default: "pending", PrimaryRowStyle: true, Values: []StatusValue{
 		{Name: "pending", Label: "Pending", Tone: "warning", RowTone: "row.attention", Icon: "○", IconTone: "warning", Position: 0, Open: true},
@@ -650,6 +651,8 @@ func DefaultSchemas() *Registry {
 				{Name: "capabilities", Type: core.ParamList, Description: "what the extension can do (nouns, pages, MCP tools)"},
 				{Name: "commands", Type: core.ParamList, Description: "extension-specific commands, such as setup"},
 				str("version", "version the binary reports"),
+				str("installPkg", "Go module package for go install"),
+				str("category", "catalog group: core or optional"),
 			},
 			StatusColumns:  []StatusColumn{extRun},
 			DefaultColumns: []string{"name", "runStatus", "binary", "summary"},

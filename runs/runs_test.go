@@ -81,6 +81,19 @@ func TestRunDone(t *testing.T) {
 	}
 }
 
+func TestRunEnv(t *testing.T) {
+	r, _ := newRunner(t, Options{})
+	rec := finished(t, r, StartSpec{
+		Title:   "env-check",
+		Command: `echo "val=$MTM_TEST_ENV_VAR"`,
+		Env:     []string{"MTM_TEST_ENV_VAR=ofam.dev"},
+		Actor:   owner,
+	})
+	if rec.Text("runStatus") != StatusDone || strings.TrimSpace(rec.Text("output")) != "val=ofam.dev" {
+		t.Fatalf("run = %v", rec.Fields)
+	}
+}
+
 func TestRunFailed(t *testing.T) {
 	r, _ := newRunner(t, Options{})
 	rec := finished(t, r, StartSpec{Command: "echo oops >&2; exit 7", Actor: owner})

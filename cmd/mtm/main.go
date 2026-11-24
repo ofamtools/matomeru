@@ -72,7 +72,9 @@ mtm <noun> list|get|create|add|edit|set|patch|star|unstar|archive|restore|snooze
                                          command (cmd), context (ctx) (plus plurals)
 mtm question answer <id> (--answer "..." | <answer>)
                                          answer a question and sync its linked pane ui.page card
-mtm extension discover [--dir DIR]       discover installed o-* extensions
+mtm extension discover [--dir DIR] [--catalog] discover installed o-* extensions
+mtm extension catalog [--json]           list OFAM tool catalog and install status
+mtm extension install [<name>|--all]     install OFAM tools via go install
 mtm extension run <name> [args...]       run an extension command as a recorded run
 mtm undo | redo                          undo or redo the last CLI change
 mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--field k=v ...] [--archived] [--starred]

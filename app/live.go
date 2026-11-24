@@ -92,7 +92,7 @@ func (a *App) setupLive(opts Options) {
 			a.rt.Runner = runs.New(a.Store, runs.Options{FlushInterval: liveFlush, MaxOutputBytes: liveMaxOutput, OnChange: func(string) { a.Notify() }})
 		}
 		if a.ext.Extensions == nil {
-			a.ext.Extensions = ext.New(ext.Options{})
+			a.ext.Extensions = a.newLiveExtManager()
 		}
 		if a.panes.Host == nil {
 			// With the "terminal.daemon" setting on, panes live in a daemon
@@ -407,47 +407,18 @@ func (a *App) extRefresh(s core.State, _ core.Command) core.StepResult {
 		a.say("extensions are not live in this build")
 		return core.Next(s)
 	}
-	dirs := append(slices.Clone(a.opts.ExtensionDirs), a.cfg.Settings.Strings("extensionDirs", nil)...)
-	for i, d := range dirs {
-		dirs[i] = expandHome(d)
-	}
+	a.syncLiveExtManager()
+	dirs := a.extensionDirs()
 	mgr, store := a.ext.Extensions, a.Store
 	a.say("looking for extensions…")
 	a.background(func(ctx context.Context) func(core.State) core.State {
-		res, err := mgr.Discover(ctx, dirs, store)
-		type loadedCatalog struct {
-			binary   string
-			manifest ext.Manifest
-		}
-		var catalogs []loadedCatalog
-		for _, r := range res {
-			if r.Status == ext.StatusHealthy && r.Binary != "" {
-				if m, cerr := ext.LoadCatalog(ctx, r.Binary); cerr == nil && len(m.Schemas) > 0 {
-					catalogs = append(catalogs, loadedCatalog{binary: r.Binary, manifest: m})
-				}
-			}
-		}
+		res, catalogs, err := rediscoverExtensions(ctx, mgr, dirs, store)
 		return func(s core.State) core.State {
-			found, healthy, mounted := 0, 0, 0
-			for _, r := range res {
-				if r.Binary != "" {
-					found++
-				}
-				if r.Status == ext.StatusHealthy {
-					healthy++
-				}
-			}
-			for _, lc := range catalogs {
-				if merr := a.MountCatalog(lc.binary, lc.manifest); merr == nil {
-					mounted += len(lc.manifest.Schemas)
-				}
-			}
+			mounted := a.mountLoadedCatalogs(catalogs)
 			if err != nil {
 				a.fail("look for extensions", err)
-			} else if mounted > 0 {
-				a.say("%d of %d extensions found, %d healthy · %d external noun(s) mounted", found, len(res), healthy, mounted)
 			} else {
-				a.say("%d of %d extensions found, %d healthy", found, len(res), healthy)
+				a.say("%s", formatExtRefreshStatus(res, mounted))
 			}
 			return s
 		}
@@ -470,6 +441,9 @@ func (a *App) extRun(s core.State, c core.Command) core.StepResult {
 	switch {
 	case a.ext.Extensions == nil || a.rt.Runner == nil:
 		return core.Next(a.show(s, ref)) // nothing runs in this build: the record's page
+	case rec.Text("runStatus") == ext.StatusAvailable:
+		a.say("%s is not installed · press enter or i to install", name)
+		return core.Next(s)
 	case rec.Text("runStatus") == ext.StatusOffline || rec.Text("binary") == "":
 		a.say("%s is offline · R looks again", name)
 		return core.Next(s)

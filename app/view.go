@@ -485,6 +485,7 @@ func (a *App) workSpace(s core.State) ui.ViewNode {
 			if a.openable(*rec) {
 				facts[factOpenable] = true
 			}
+			a.applyExtensionFacts(*rec, facts)
 			header.Facts = facts
 		}
 	}

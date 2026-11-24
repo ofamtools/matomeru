@@ -158,6 +158,8 @@ const (
 	SetInheritProjectTask            = "panes.inheritProjectTask"
 	SetFocusRailOnExit               = "terminal.focusRailOnExit"
 	SetFocusRailOnDetach             = "terminal.focusRailOnDetach"
+	SetExtensionsShowCatalog         = "extensions.showCatalog"
+	SetExtensionsGoPrivate           = "extensions.goPrivate"
 	RailEnterModeLive                = "live"
 	RailEnterModeTOC                 = "toc"
 	PickerDefaultModeNormal          = "normal"
@@ -256,6 +258,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetInheritProjectTask, true, "auto-inherit the active top-level project task when creating records in 1 Panes"),
 		flag(SetFocusRailOnExit, true, "when an active terminal or side split exits, detach, move focus to the left rail, and select the next pane"),
 		flag(SetFocusRailOnDetach, true, "when detaching from a live terminal (ctrl+a d), move focus back to the left pane rail"),
+		flag(SetExtensionsShowCatalog, true, "show uninstalled OFAM catalog tools as available in 4 Extensions"),
+		{Name: SetExtensionsGoPrivate, Type: core.ParamString, Default: "ofam.dev", Description: "GOPRIVATE value used when installing OFAM extensions via go install"},
 	}
 }
 

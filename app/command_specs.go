@@ -77,6 +77,8 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdRunNew, "Run a shell command as a run", "editing"),
 		spec(CmdExtRefresh, "Look for extensions and check their health", "editing"),
 		recordSpec(CmdExtRun, "Run a command of the focused extension", []string{data.KindExtension}, "", "editing"),
+		recordSpec(CmdExtInstall, "Download and install (or update) the focused OFAM extension via go install", []string{data.KindExtension}, "facts.extInstallable", "editing"),
+		spec(CmdExtInstallAll, "Install all missing core OFAM extensions via go install", "editing"),
 		{ID: CmdTermPrefix, Description: "The pane's prefix key and the key after it: [ copy mode, t side terminal, v side vim",
 			Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
 		{ID: CmdWake, Description: "Look at what changed off the UI goroutine", Meta: map[string]any{"internal": true}},

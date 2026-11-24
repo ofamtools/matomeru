@@ -68,7 +68,7 @@ func (a *App) records(id, kind string) *table.Model {
 	styleOpts := a.styleOptions()
 	if _, isExt := a.ext.extCatalogs[kind]; !isExt && a.Store != nil {
 		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
-			key := fmt.Sprintf("%s|%d|%t|%t|%t|%t", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons)
+			key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog())
 			if a.nav.recCacheKeys != nil && a.nav.recCacheKeys[id] == key && a.nav.tables[id] != nil {
 				a.pageSize(a.nav.tables[id], id)
 				return a.nav.tables[id]
@@ -91,6 +91,7 @@ func (a *App) records(id, kind string) *table.Model {
 		}
 		items = res.Items
 	}
+	items = a.filterExtensionItems(kind, items)
 	schema := a.schema(kind)
 	fresh := views.TableFromRecordsWith(schema, items, styleOpts)
 	// A reference shows the record it points at, not its ID.
@@ -114,6 +115,7 @@ func (a *App) records(id, kind string) *table.Model {
 		if a.openable(rec) {
 			fresh.Rows[i].Facts[factOpenable] = true // "o" opens it; a row without the fact sorts
 		}
+		a.applyExtensionFacts(rec, fresh.Rows[i].Facts)
 	}
 	for _, sp := range spaces {
 		if sp.table == id && sp.columns != nil {

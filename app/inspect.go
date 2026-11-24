@@ -103,6 +103,8 @@ var actionCLIMap = map[string]string{
 	"extension.refresh":       "mtm extension discover",
 	"extension.run":           "mtm extension run <name> [args...]",
 	"extension.setup":         "mtm extension run <name> setup",
+	"extension.install":       "mtm extension install <name>",
+	"extension.install.all":   "mtm extension install --all",
 	"question.answer":         "mtm question answer <id> --answer \"...\"",
 	"command.run":             "mtm command get <id>",
 	"pane.associate":          "mtm pane set <id> --field task=<task-id>",

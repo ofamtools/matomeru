@@ -63,7 +63,7 @@ var spaces = []spaceDef{
 	{SpaceRuns, "Runs", runsTable, data.KindRun, []table.Column{
 		{Key: "title", Title: "Run"}, {Key: "runStatus", Title: "State", Width: 9}, {Key: "exitCode", Title: "Exit", Width: 4, Align: "right"}, {Key: views.FlagsField, Title: "Flags", Width: 5}}},
 	{SpaceExtensions, "Extensions", extTable, data.KindExtension, []table.Column{
-		{Key: "name", Title: "Extension"}, {Key: "runStatus", Title: "Health", Width: 9}, {Key: "binary", Title: "Binary", Width: 12}, {Key: views.FlagsField, Title: "Flags", Width: 5}}},
+		{Key: "name", Title: "Extension"}, {Key: "runStatus", Title: "Health", Width: 11}, {Key: "binary", Title: "Binary", Width: 12}, {Key: views.FlagsField, Title: "Flags", Width: 5}}},
 }
 
 // Node IDs the app gives focus to.
@@ -474,6 +474,8 @@ func (a *App) register() {
 	a.handle(CmdRunNew, a.runNew)
 	a.handle(CmdExtRefresh, a.extRefresh)
 	a.handle(CmdExtRun, a.extRun)
+	a.handle(CmdExtInstall, a.extInstall)
+	a.handle(CmdExtInstallAll, a.extInstallAll)
 	a.handle(CmdTermPrefix, a.termPrefix)
 	// A wake-up is not a command of the owner's: it redraws only what changed.
 	a.Engine.Handle(CmdWake, a.wakeUp)

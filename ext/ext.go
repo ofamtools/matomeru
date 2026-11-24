@@ -40,8 +40,9 @@ import (
 
 // Health states written to an extension's runStatus.
 const (
-	StatusHealthy = "healthy"
-	StatusOffline = "offline"
+	StatusHealthy   = "healthy"
+	StatusOffline   = "offline"
+	StatusAvailable = "available"
 )
 
 // DefaultTools are the o-* tools Discover looks for, including side-by-side v2
@@ -75,6 +76,16 @@ const (
 type Options struct {
 	// Tools are the tool names to discover; nil means DefaultTools.
 	Tools []string
+	// Catalog lists installable tools; nil defaults to DefaultCatalog when
+	// IncludeCatalog is true (and for enriching installed tools).
+	Catalog []CatalogEntry
+	// IncludeCatalog causes Discover to also probe catalog tools and upsert
+	// missing ones as StatusAvailable.
+	IncludeCatalog bool
+	// GoBinary is the go executable used by Install; empty defaults to "go".
+	GoBinary string
+	// GoPrivate is set as GOPRIVATE during Install; empty defaults to "ofam.dev".
+	GoPrivate string
 	// MaxProcesses caps the probe and extension processes running at once.
 	MaxProcesses int
 	// ProbeTimeout bounds each probe invocation.
@@ -85,6 +96,7 @@ type Options struct {
 
 // Manager discovers extensions and runs their commands.
 type Manager struct {
+	mu   sync.RWMutex
 	opts Options
 	sem  chan struct{}
 }
@@ -93,6 +105,12 @@ type Manager struct {
 func New(opts Options) *Manager {
 	if opts.Tools == nil {
 		opts.Tools = DefaultTools
+	}
+	if opts.GoBinary == "" {
+		opts.GoBinary = DefaultGoBinary
+	}
+	if opts.GoPrivate == "" {
+		opts.GoPrivate = DefaultGoPrivate
 	}
 	if opts.MaxProcesses <= 0 {
 		opts.MaxProcesses = DefaultMaxProcesses
@@ -114,6 +132,8 @@ type Result struct {
 	Status       string
 	Version      string
 	Summary      string
+	InstallPkg   string
+	Category     string
 	Capabilities []string
 	Commands     []string
 	Err          error // why the tool is offline, when it is
@@ -123,12 +143,28 @@ type Result struct {
 
 // Discover probes every tool, looking in searchDirs and then PATH, and
 // upserts one extension record per tool by name. A tool never found gets no
-// record; one found before and now gone is marked offline and keeps the rest
-// of its record. Nothing is written for a record that would not change.
+// record unless IncludeCatalog is true and it is in the catalog (in which case
+// it is upserted as StatusAvailable). One found before and now gone is marked
+// offline and keeps the rest of its record. Nothing is written for a record
+// that would not change.
 func (m *Manager) Discover(ctx context.Context, searchDirs []string, store *data.Store) ([]Result, error) {
-	results := make([]Result, len(m.opts.Tools))
+	m.mu.RLock()
+	includeCatalog := m.opts.IncludeCatalog
+	m.mu.RUnlock()
+
+	catMap := m.catalogMap()
+	tools := slices.Clone(m.opts.Tools)
+	if includeCatalog {
+		for _, entry := range m.Catalog() {
+			if !slices.Contains(tools, entry.Name) {
+				tools = append(tools, entry.Name)
+			}
+		}
+	}
+
+	results := make([]Result, len(tools))
 	var wg sync.WaitGroup
-	for i, name := range m.opts.Tools {
+	for i, name := range tools {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -141,22 +177,41 @@ func (m *Manager) Discover(ctx context.Context, searchDirs []string, store *data
 	}
 	var errs []error
 	for i := range results {
-		if err := m.upsert(store, &results[i]); err != nil {
+		entry, inCatalog := catMap[results[i].Name]
+		if inCatalog {
+			results[i].InstallPkg = entry.Package
+			results[i].Category = entry.Category
+		}
+		if err := m.upsert(store, &results[i], entry, inCatalog, includeCatalog); err != nil {
 			errs = append(errs, fmt.Errorf("ext: record %s: %w", results[i].Name, err))
 		}
 	}
 	return results, errors.Join(errs...)
 }
 
-func (m *Manager) upsert(store *data.Store, res *Result) error {
+func (m *Manager) upsert(store *data.Store, res *Result, entry CatalogEntry, inCatalog, includeCatalog bool) error {
 	existing, err := store.GetByField(data.KindExtension, "name", res.Name)
 	if err != nil && !errors.Is(err, data.ErrNotFound) {
 		return err
 	}
-	if existing == nil {
-		if res.Binary == "" {
-			return nil
+	if res.Binary == "" {
+		wasInstalled := existing != nil && existing.Text("runStatus") != StatusAvailable
+		if !wasInstalled {
+			if !includeCatalog || !inCatalog {
+				res.Record = existing
+				return nil
+			}
+			res.Status = StatusAvailable
+			res.Summary = entry.Summary
+			res.Err = nil
 		}
+	} else if res.Status == StatusHealthy && res.Summary == "" && inCatalog {
+		if existing == nil || existing.Text("summary") == "" {
+			res.Summary = entry.Summary
+		}
+	}
+
+	if existing == nil {
 		rec, _, err := store.Create(data.CreateInput{Kind: data.KindExtension, Fields: res.fields()}, m.opts.Actor)
 		res.Record, res.Changed = rec, err == nil
 		return err
@@ -186,6 +241,18 @@ func (res Result) fields() map[string]any {
 	f := map[string]any{"name": res.Name, "runStatus": res.Status}
 	if res.Binary != "" {
 		f["binary"] = res.Binary
+	}
+	if res.InstallPkg != "" {
+		f["installPkg"] = res.InstallPkg
+	}
+	if res.Category != "" {
+		f["category"] = res.Category
+	}
+	if res.Status == StatusAvailable {
+		if res.Summary != "" {
+			f["summary"] = res.Summary
+		}
+		return f
 	}
 	if res.Status != StatusHealthy {
 		return f
@@ -358,6 +425,9 @@ func (m *Manager) RunCommand(ctx context.Context, extName string, args []string,
 		return nil, err
 	}
 	bin := ext.Text("binary")
+	if ext.Text("runStatus") == StatusAvailable {
+		return nil, fmt.Errorf("ext: extension %s is not installed", extName)
+	}
 	if ext.Text("runStatus") == StatusOffline || bin == "" {
 		return nil, fmt.Errorf("ext: extension %s is offline", extName)
 	}

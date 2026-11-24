@@ -65,6 +65,8 @@ const (
 	CmdRunNew               = "run.new"
 	CmdExtRefresh           = "extension.refresh"
 	CmdExtRun               = "extension.run"
+	CmdExtInstall           = "extension.install"
+	CmdExtInstallAll        = "extension.install.all"
 	CmdTermPrefix           = "terminal.prefix"
 	CmdWake                 = "app.wake"
 	CmdOutlineOpen          = "outline.open"
@@ -340,7 +342,9 @@ func DefaultBindings() []core.Binding {
 		bind(n, SpacePanes, "c", CmdPaneCompose, "compose prompt"),
 		bind(n, SpacePanes, "L", CmdPaneAssociate, "associate pane with task"),
 		bind(n, all, "g c", CmdContextPick, "context items"),
-		bind(n, data.KindExtension, "enter", CmdExtRun, "run"),
+		when(bind(n, data.KindExtension, "enter", CmdExtInstall, "install extension"), "facts.extAvailable"),
+		when(bind(n, data.KindExtension, "enter", CmdExtRun, "run"), "!facts.extAvailable"),
+		when(bind(n, data.KindExtension, "i", CmdExtInstall, "install / update"), "facts.extInstallable"),
 		bind(n, all, "enter", views.CmdOpen, "open"),
 		bind(n, SpaceWork, "backspace", CmdHistoryBack, "back"),
 		bind(n, SpaceWork, "H", CmdHistoryBack, "back"),
@@ -375,6 +379,7 @@ func DefaultBindings() []core.Binding {
 		bind(n, data.KindRun, "x", CmdRunCancel, "cancel"),
 		bind(n, SpaceRuns, "n", CmdRunNew, "run a command"),
 		bind(n, data.KindExtension, "r", CmdExtRun, "run"),
+		bind(n, SpaceExtensions, "D", CmdExtInstallAll, "install all missing core tools"),
 		bind(n, SpaceExtensions, "U", CmdExtSetup, "extension setup"),
 		bind(n, SpaceExtensions, "R", CmdExtRefresh, "look for extensions"),
 		bind(n, data.KindSignal, "R", CmdTriageRule, "rule from this signal"),
