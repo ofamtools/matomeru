@@ -387,7 +387,7 @@ func (d *DataTools) ToolSpecs() []ToolSpec {
 		},
 		{
 			Name:        ToolLogQA,
-			Description: "Log an answered Q&A pair (owner asked the agent, agent answered): creates a KindQuestion record with questionKind \"qa\" and status \"answered\" (no attention/needs_you alert). Format answer as structured Markdown (headings, bullet lists, bold labels, fenced code blocks; never a flat prose wall). When page is given (e.g. \"qa\" or \"questions\"), also appends a read Q&A card to that page without unread nagging. Returns {question, page?, cardId?}.",
+			Description: "Log an answered Q&A pair (owner asked the agent, agent answered): creates a KindQuestion record with questionKind \"qa\" and status \"answered\" (no attention/needs_you alert). Format answer as structured Markdown (headings, bullet lists, bold labels, fenced code blocks; never a flat prose wall). If an answer exceeds 10 lines of text, publish the full write-up as its own dedicated page with ui.create_page instead of stuffing it into a shared Q&A card. When page is given (e.g. \"qa\" or \"questions\"), also appends a read Q&A card to that page without unread nagging. Returns {question, page?, cardId?}.",
 			InputSchema: object([]string{"prompt", "answer"}, props{
 				"id":      text("question ID; generated when omitted"),
 				"prompt":  text("the question the owner asked"),

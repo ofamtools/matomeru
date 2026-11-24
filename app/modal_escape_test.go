@@ -415,9 +415,9 @@ func TestWrapInputsAndWrapOutlineSettings(t *testing.T) {
 	if idx < 0 || idx+len(wantSeq) > len(names) || !slices.Equal(names[idx:idx+len(wantSeq)], wantSeq) {
 		t.Fatalf("SettingSpecs missing ordered sequence %v in %v", wantSeq, names)
 	}
-	wantTail := []string{SetCardBorderStyle, SetRailEnterMode, SetSideTermSplit, SetInheritProjectTask}
+	wantTail := []string{SetCardBorderStyle, SetRailEnterMode, SetSideTermSplit, SetInheritProjectTask, SetFocusRailOnExit, SetFocusRailOnDetach}
 	if !slices.Equal(names[len(names)-len(wantTail):], wantTail) {
-		t.Fatalf("last 4 SettingSpecs = %v, want %v", names[len(names)-len(wantTail):], wantTail)
+		t.Fatalf("last %d SettingSpecs = %v, want %v", len(wantTail), names[len(names)-len(wantTail):], wantTail)
 	}
 }
 

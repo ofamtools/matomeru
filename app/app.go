@@ -507,6 +507,12 @@ func (a *App) register() {
 		}
 		if s.ActiveFrame().Mode == ModeTerminal {
 			a.say("left the pane")
+			if s.ActivePage == SpacePanes && (a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFocusRailOnDetach, true)) {
+				if a.panes != nil {
+					a.panes.zoom = false
+				}
+				return core.Next(withPage(s, SpacePanes, railTable, ModeNormal))
+			}
 			s = withMode(s, ModeNormal)
 		}
 		return core.Next(s)

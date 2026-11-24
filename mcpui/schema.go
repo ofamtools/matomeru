@@ -63,7 +63,7 @@ func (r *Router) ToolSpecs() []ToolSpec {
 	return []ToolSpec{
 		{
 			Name:        ToolCreatePage,
-			Description: "Create a page (a ViewNode tree) in a pane's interactive site. Returns {id, ref, slug, updatedAt}.",
+			Description: "Create a page (a ViewNode tree) in a pane's interactive site. Whenever an output, explanation, or context block exceeds 10 lines of text, put it on its own dedicated page with ui.create_page (using kind \"markdown\" for rich text) rather than packing it into a card or Questions page. Returns {id, ref, slug, updatedAt}.",
 			InputSchema: object([]string{"title", "root"}, props{
 				"pane":     pane,
 				"task":     text("task ID the page belongs to; defaults to the pane's task"),
@@ -91,7 +91,7 @@ func (r *Router) ToolSpecs() []ToolSpec {
 		},
 		{
 			Name:        ToolAsk,
-			Description: "Ask the owner one question or a batch of questions: prepends unread question card(s) to the pane's pinned Questions page (created when missing). Give either a single question (form, choices, or card) or a questions array for a multi-question batch with Submit All. Returns {id, ref, slug, updatedAt, cardId, cardIds?, batchId?}; read answers with ui.list_pages.",
+			Description: "Ask the owner one question or a batch of questions: prepends unread question card(s) to the pane's pinned Questions page (created when missing). Keep question card details concise (<= 10 lines); if supporting output or context exceeds 10 lines of text, put that output on its own dedicated page with ui.create_page first and reference it from the question. Give either a single question (form, choices, or card) or a questions array for a multi-question batch with Submit All. Returns {id, ref, slug, updatedAt, cardId, cardIds?, batchId?}; read answers with ui.list_pages.",
 			InputSchema: object([]string{}, props{
 				"pane":    pane,
 				"task":    text("task ID for a newly created questions page"),

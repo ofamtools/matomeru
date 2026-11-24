@@ -217,10 +217,10 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 			l.drawn, changed = n, true
 		}
 	}
-	if moved, exitedID, exitCode := a.screenMoved(); moved {
+	if moved, exited := a.screenMoved(); moved {
 		changed = true
-		if exitedID != "" {
-			s = a.handlePaneExited(s, exitedID, exitCode)
+		for _, ex := range exited {
+			s = a.handlePaneExited(s, ex.id, ex.code)
 		}
 	}
 	if seq := l.telemetrySeq.Load(); seq != l.telemetryDrawn {
@@ -571,26 +571,43 @@ func (a *App) attachSized(pane data.Record, cols, rows int) error {
 	return nil
 }
 
-// screenMoved re-reads the shown session (and any active side split session)
-// and reports whether its revision or size changed since it was last drawn.
-// When a live session transitions from running to exited, it also returns the
-// exited pane ID and exit code so wakeUp can detach and auto-archive it cleanly.
-func (a *App) screenMoved() (moved bool, exitedID string, exitCode int) {
+type paneExit struct {
+	id   string
+	code int
+}
+
+// screenMoved re-reads shown, side-split, scratch, and tracked live sessions
+// and reports any revision/size changes plus every session that exited or vanished.
+func (a *App) screenMoved() (bool, []paneExit) {
 	if a.panes.Host == nil {
-		return false, "", 0
+		return false, nil
 	}
-	m1, ex1, code1 := a.pollShownSession(a.rt.live.shown)
-	moved, exitedID, exitCode = m1, ex1, code1
-	if side := a.rt.live.shownSide; side != "" && side != a.rt.live.shown {
-		m2, ex2, code2 := a.pollShownSession(side)
-		if m2 {
+	ids := make([]string, 0, len(a.rt.live.frames)+3)
+	add := func(id string) {
+		if id != "" && !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	add(a.rt.live.shown)
+	add(a.rt.live.shownSide)
+	if sm := a.activeScratch(); sm != nil {
+		add(sm.paneID)
+	}
+	for id := range a.rt.live.frames {
+		add(id)
+	}
+	moved := false
+	var exited []paneExit
+	for _, id := range ids {
+		m, exID, code := a.pollShownSession(id)
+		if m {
 			moved = true
 		}
-		if exitedID == "" && ex2 != "" {
-			exitedID, exitCode = ex2, code2
+		if exID != "" {
+			exited = append(exited, paneExit{id: exID, code: code})
 		}
 	}
-	return moved, exitedID, exitCode
+	return moved, exited
 }
 
 func (a *App) pollShownSession(id string) (moved bool, exitedID string, exitCode int) {
@@ -602,7 +619,10 @@ func (a *App) pollShownSession(id string) (moved bool, exitedID string, exitCode
 	switch {
 	case !ok:
 		delete(a.rt.live.frames, id)
-		return had, "", 0
+		if had {
+			return true, id, -1
+		}
+		return false, "", 0
 	case had && f.Revision == old.Revision && f.Cols == old.Cols && f.Rows == old.Rows && f.Exited == old.Exited:
 		return false, "", 0
 	}

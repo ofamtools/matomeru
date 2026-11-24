@@ -472,3 +472,85 @@ func TestPanesUXDeadPaneExitClosesSideSplitDetachesFocusesRailAndSelectsNext(t *
 		t.Fatalf("opt-out terminal.focusRailOnExit=false moved focus to %q, want %q", a.Focus(), siteScreen)
 	}
 }
+
+func TestPanesUXKeyIJumpsToPanesAndKilledSessionVanishTriggersExit(t *testing.T) {
+	a, d := demo(t)
+	d.Keys("2")
+	if a.Space() != SpaceWork {
+		t.Fatalf("expected SpaceWork, got %q", a.Space())
+	}
+	d.Keys("I")
+	if a.Space() != SpacePanes {
+		t.Fatalf("expected I to jump to SpacePanes, got %q", a.Space())
+	}
+
+	// ctrl+a d detaches directly back to the left pane rail (and respects terminal.focusRailOnDetach=false).
+	d.Keys("enter")
+	if a.Mode() != ModeTerminal || a.Focus() != siteScreen {
+		t.Fatalf("expected ModeTerminal on siteScreen, got mode=%q focus=%q", a.Mode(), a.Focus())
+	}
+	d.Keys("ctrl+a", "d")
+	if a.Mode() != ModeNormal || a.Focus() != railTable {
+		t.Fatalf("ctrl+a d did not detach to left pane rail: mode=%q focus=%q", a.Mode(), a.Focus())
+	}
+	a.cfg.userSettings[SetFocusRailOnDetach] = false
+	a.reloadSettings()
+	d.Keys("enter", "ctrl+a", "d")
+	if a.Mode() != ModeNormal || a.Focus() != siteScreen {
+		t.Fatalf("opt-out terminal.focusRailOnDetach=false mismatch: mode=%q focus=%q", a.Mode(), a.Focus())
+	}
+	a.cfg.userSettings[SetFocusRailOnDetach] = true
+	a.reloadSettings()
+	d.Keys("h", "h")
+
+	// Simulate a live daemon session that gets killed/closed (Snapshot returns ok=false).
+	host := &pasteCaptureHost{
+		frame: ptyhost.Frame{Cols: 80, Rows: 20, Lines: []string{"$ "}, Plain: []string{"$ "}, Revision: 1},
+	}
+	vanishHost := &vanishingHost{inner: host, alive: map[string]bool{}}
+	a.panes.Host = vanishHost
+	a.panes.Term = ptyhost.NewController(vanishHost)
+	first, ok := a.SelectedPane()
+	if !ok {
+		t.Fatal("expected selected pane")
+	}
+	vanishHost.alive[first.ID] = true
+	a.rt.live.shown = first.ID
+	a.rt.live.frames[first.ID] = host.frame
+	d.Keys("enter")
+	if a.Mode() != ModeTerminal {
+		t.Fatalf("expected ModeTerminal, got %q", a.Mode())
+	}
+	// Kill session on host -> Snapshot returns ok=false -> wakeUp must detach, archive, and focus rail.
+	vanishHost.alive[first.ID] = false
+	res := a.wakeUp(a.State(), core.Command{ID: CmdWake})
+	a.Shell.State = res.State
+	if a.Mode() != ModeNormal || a.Focus() != railTable {
+		t.Fatalf("killed session vanish did not detach & focus rail: mode=%q focus=%q", a.Mode(), a.Focus())
+	}
+	if rec, err := a.Store.Get(first.Ref()); err != nil || rec.ArchiveStatus != data.ArchiveArchived {
+		t.Fatalf("killed session was not archived: err=%v rec=%+v", err, rec)
+	}
+}
+
+type vanishingHost struct {
+	inner ptyhost.Host
+	alive map[string]bool
+}
+
+func (v *vanishingHost) Open(id, cmd, cwd string, cols, rows int) error {
+	v.alive[id] = true
+	return v.inner.Open(id, cmd, cwd, cols, rows)
+}
+func (v *vanishingHost) Resize(id string, cols, rows int) error {
+	return v.inner.Resize(id, cols, rows)
+}
+func (v *vanishingHost) Write(id string, b []byte) error { return v.inner.Write(id, b) }
+func (v *vanishingHost) Close(id string) error           { delete(v.alive, id); return v.inner.Close(id) }
+func (v *vanishingHost) CloseAll()                       { v.inner.CloseAll() }
+func (v *vanishingHost) Snapshot(id string) (ptyhost.Frame, bool) {
+	if !v.alive[id] {
+		return ptyhost.Frame{}, false
+	}
+	return v.inner.Snapshot(id)
+}

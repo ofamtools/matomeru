@@ -225,7 +225,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.Keys("ctrl+a", "z")
 	k.check("ctrl+a z again brings them back", !a.panes.zoom && k.has("Pages", "nvim: core/keymap.go"))
 	k.Keys("ctrl+a", "d")
-	k.check("ctrl+a d detaches", a.Mode() == ModeNormal && a.Focus() == siteScreen)
+	k.check("ctrl+a d detaches to the pane rail", a.Mode() == ModeNormal && a.Focus() == railTable)
 
 	k.section("4. Work: Show pages and the back stack")
 	k.Keys("2")

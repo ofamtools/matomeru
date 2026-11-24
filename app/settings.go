@@ -153,6 +153,7 @@ const (
 	SetSideTermSplit           = "panes.sideTermSplit"
 	SetInheritProjectTask      = "panes.inheritProjectTask"
 	SetFocusRailOnExit         = "terminal.focusRailOnExit"
+	SetFocusRailOnDetach       = "terminal.focusRailOnDetach"
 	RailEnterModeLive          = "live"
 	RailEnterModeTOC           = "toc"
 	PickerDefaultModeNormal    = "normal"
@@ -246,6 +247,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetSideTermSplit, true, "open ctrl+a t / ctrl+a v as a side-by-side split beside the active pane"),
 		flag(SetInheritProjectTask, true, "auto-inherit the active top-level project task when creating records in 1 Panes"),
 		flag(SetFocusRailOnExit, true, "when an active terminal or side split exits, detach, move focus to the left rail, and select the next pane"),
+		flag(SetFocusRailOnDetach, true, "when detaching from a live terminal (ctrl+a d), move focus back to the left pane rail"),
 	}
 }
 

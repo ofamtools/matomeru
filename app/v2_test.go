@@ -66,7 +66,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetLaneInTOC: true, SetCompactTOC: true, SetTOCGrouped: true,
 		SetModalEscapeGuard: "double", SetWrapInputs: true, SetWrapOutline: true, SetOutlineEnterNewline: true,
 		SetCardBorderStyle: ui.CardBorderSubtle, SetRailEnterMode: RailEnterModeLive,
-		SetSideTermSplit: true, SetInheritProjectTask: true, SetFocusRailOnExit: true}
+		SetSideTermSplit: true, SetInheritProjectTask: true, SetFocusRailOnExit: true, SetFocusRailOnDetach: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

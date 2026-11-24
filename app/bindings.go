@@ -258,6 +258,7 @@ func DefaultBindings() []core.Binding {
 	out := []core.Binding{
 		// Spaces.
 		with(bind(n, all, "1", core.CmdPageOpen, "panes"), map[string]any{"id": SpacePanes}),
+		with(bind(n, all, "I", core.CmdPageOpen, "panes"), map[string]any{"id": SpacePanes}),
 		with(bind(n, all, "2", core.CmdPageOpen, "work"), map[string]any{"id": SpaceWork}),
 		with(bind(n, all, "3", core.CmdPageOpen, "runs"), map[string]any{"id": SpaceRuns}),
 		with(bind(n, all, "4", core.CmdPageOpen, "extensions"), map[string]any{"id": SpaceExtensions}),
