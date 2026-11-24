@@ -145,6 +145,7 @@ func (a *App) applyHarnessChoices(rf *recordFormModal) {
 		return
 	}
 	a.applyHarnessChoicesToForm(rf.kind, rf.ref, rf.Model())
+	applyFormChoiceFilters(rf.Model(), rf.choices, rf.excludeChoices)
 }
 
 func (a *App) applyHarnessChoicesToForm(kind string, ref *core.Ref, fm *form.Model) {
@@ -171,7 +172,7 @@ func (a *App) applyHarnessChoicesToForm(kind string, ref *core.Ref, fm *form.Mod
 	// falling back to os.Getwd() so the user always sees the launch directory.
 	if ref == nil && strings.TrimSpace(data.Text(fm.Values["cwd"])) == "" {
 		dir := ""
-		if taskRef, ok := data.AsRef(fm.Values["task"]); ok {
+		if taskRef, ok := asRefValue(fm.Values["task"]); ok {
 			dir = a.defaultDirForTask(taskRef)
 		}
 		if dir == "" {

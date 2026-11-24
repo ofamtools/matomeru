@@ -41,7 +41,16 @@ func CommandSpecs() []core.CommandSpec {
 	return append(append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
-		{ID: views.CmdNew, Description: "Create a record", Tags: []string{"editing"}, Params: []core.ParamSpec{{Name: "kind", Type: core.ParamString, Default: "task"}}},
+		{ID: views.CmdNew, Description: "Create a record", Tags: []string{"editing"}, Params: []core.ParamSpec{
+			{Name: "kind", Type: core.ParamString, Default: "task", Description: "Noun kind to create"},
+			{Name: "title", Type: core.ParamString, Description: "Optional form title override"},
+			{Name: "defaults", Type: core.ParamObject, Description: "Optional map of default field values applied to the form or instant creation"},
+			{Name: "fields", Type: core.ParamObject, Description: "Optional list of field names to include in the form"},
+			{Name: "hideFields", Type: core.ParamObject, Description: "Optional list of field names to omit from the form while keeping their defaults on submit"},
+			{Name: "choices", Type: core.ParamObject, Description: "Optional map of field name to allowed choice values"},
+			{Name: "excludeChoices", Type: core.ParamObject, Description: "Optional map of field name to excluded choice values"},
+			{Name: "submit", Type: core.ParamBool, Default: false, Description: "Skip the form modal and create the record immediately from defaults and inferred context"},
+		}},
 		recordSpec(views.CmdStar, "Star the focused record", nil, "facts.starStatus != \"starred\"", "editing"),
 		recordSpec(views.CmdUnstar, "Unstar the focused record", nil, "facts.starStatus == \"starred\"", "editing"),
 		recordSpec(views.CmdArchive, "Archive the focused record", nil, "facts.archiveStatus != \"archived\"", "editing"),

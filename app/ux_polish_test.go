@@ -184,8 +184,18 @@ func TestNewHereOnPanesOpensNewPaneForm(t *testing.T) {
 		t.Fatalf("n on 1 Panes opened modal=%q form=%+v, want kind=pane", a.Modal(), rf)
 	}
 	frame := d.Frame()
-	if !strings.Contains(frame, "New pane") || strings.Contains(frame, "New task") {
-		t.Fatalf("n on 1 Panes did not render New pane form:\n%s", frame)
+	if !strings.Contains(frame, "New Agent") || strings.Contains(frame, "New task") {
+		t.Fatalf("n on 1 Panes did not render New Agent form:\n%s", frame)
+	}
+	d.Keys("esc")
+
+	// CmdNewHere remains registered and still opens the unfiltered New pane form on SpacePanes.
+	d.Send(core.CommandEvent{Command: core.Command{ID: CmdNewHere, Source: "test", Actor: User}})
+	if rf := a.activeRecordForm(); a.Modal() != "form" || rf == nil || rf.kind != data.KindPane {
+		t.Fatalf("record.new.here on 1 Panes opened modal=%q form=%+v, want kind=pane", a.Modal(), rf)
+	}
+	if !strings.Contains(d.Frame(), "New pane") {
+		t.Fatalf("record.new.here on 1 Panes did not render New pane form:\n%s", d.Frame())
 	}
 }
 

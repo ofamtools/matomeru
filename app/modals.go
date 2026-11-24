@@ -160,11 +160,20 @@ func (a *App) topPicker() *modal.PickerModal {
 // recordFormModal wraps modal.FormModal with record metadata for create/edit forms.
 type recordFormModal struct {
 	*modal.FormModal
-	kind     string
-	ref      *core.Ref // nil for a new record
-	about    *core.Ref // a new note is attached to this record
-	draftKey string
-	isNew    bool
+	kind           string
+	ref            *core.Ref // nil for a new record
+	about          *core.Ref // a new note is attached to this record
+	draftKey       string
+	isNew          bool
+	hiddenDefaults map[string]any
+	choices        map[string][]string
+	excludeChoices map[string][]string
+}
+
+type recordFormOptions struct {
+	hiddenDefaults map[string]any
+	choices        map[string][]string
+	excludeChoices map[string][]string
 }
 
 // answerFormModal wraps modal.FormModal with question/batch metadata for the answer modal.
@@ -324,6 +333,10 @@ func (a *App) formCancelDraftClose(getModel func() *form.Model, draftKey string)
 }
 
 func (a *App) newRecordFormModal(kind string, ref, about *core.Ref, fm *form.Model) *recordFormModal {
+	return a.newRecordFormModalWith(kind, ref, about, fm, recordFormOptions{})
+}
+
+func (a *App) newRecordFormModalWith(kind string, ref, about *core.Ref, fm *form.Model, opts recordFormOptions) *recordFormModal {
 	var refCopy, aboutCopy *core.Ref
 	if ref != nil {
 		r := *ref
@@ -334,11 +347,14 @@ func (a *App) newRecordFormModal(kind string, ref, about *core.Ref, fm *form.Mod
 		aboutCopy = &r
 	}
 	rf := &recordFormModal{
-		kind:     kind,
-		ref:      refCopy,
-		about:    aboutCopy,
-		draftKey: recordDraftKey(kind, refCopy),
-		isNew:    refCopy == nil,
+		kind:           kind,
+		ref:            refCopy,
+		about:          aboutCopy,
+		draftKey:       recordDraftKey(kind, refCopy),
+		isNew:          refCopy == nil,
+		hiddenDefaults: maps.Clone(opts.hiddenDefaults),
+		choices:        opts.choices,
+		excludeChoices: opts.excludeChoices,
 	}
 	schema := a.schema(kind)
 	fm.SubmitRow = true
@@ -351,6 +367,7 @@ func (a *App) newRecordFormModal(kind string, ref, about *core.Ref, fm *form.Mod
 		fm.SubmitLabel = "Save " + strings.ToLower(schema.Title)
 	}
 	a.applyHarnessChoicesToForm(kind, refCopy, fm)
+	applyFormChoiceFilters(fm, rf.choices, rf.excludeChoices)
 	a.attachFormDrafts(fm, rf.draftKey)
 
 	var mod *modal.FormModal

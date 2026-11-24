@@ -332,7 +332,16 @@ func DefaultBindings() []core.Binding {
 		// Record actions, on whatever record is focused.
 		bind(n, all, "e", views.CmdEdit, "edit"),
 		with(bind(n, all, "n", views.CmdNew, "new task"), map[string]any{"kind": "task"}),
-		bind(n, SpacePanes, "n", CmdNewHere, "new"),
+		with(bind(n, SpacePanes, "C", views.CmdNew, "new terminal"), map[string]any{
+			"kind":     data.KindPane,
+			"defaults": map[string]any{"harness": "zsh"},
+			"submit":   true,
+		}),
+		with(bind(n, SpacePanes, "n", views.CmdNew, "new agent"), map[string]any{
+			"kind":           data.KindPane,
+			"title":          "New Agent",
+			"excludeChoices": map[string]any{"harness": []string{"zsh"}},
+		}),
 		when(bind(n, SpacePanes, "t", CmdSiteTOCToggle, "toggle pages"), "layer == nil"),
 		bind(n, SpaceWork, "n", CmdNewHere, "new"),
 		bind(n, all, "m", CmdAssign, "move to a task"),

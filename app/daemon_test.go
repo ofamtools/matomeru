@@ -15,6 +15,7 @@ import (
 	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ptyhost"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 )
 
@@ -265,11 +266,11 @@ func TestWave2HarnessDiscoveryFormChoicesAndLaunch(t *testing.T) {
 		t.Fatalf("merged harnesses = %v, want %v", gotIDs, wantIDs)
 	}
 
-	// Open New Pane (n) on 1 Panes and verify dynamic harness choices.
+	// Open New Agent (n) on 1 Panes and verify dynamic agent harness choices (zsh excluded).
 	d.Keys("1", "n")
 	rf := a.activeRecordForm()
-	if a.Modal() != "form" || rf == nil || rf.kind != data.KindPane {
-		t.Fatalf("n on 1 Panes did not open New pane form: modal=%q form=%+v", a.Modal(), rf)
+	if a.Modal() != "form" || rf == nil || rf.kind != data.KindPane || rf.Model().Title != "New Agent" {
+		t.Fatalf("n on 1 Panes did not open New Agent form: modal=%q form=%+v", a.Modal(), rf)
 	}
 	var harnessSpec core.ParamSpec
 	found := false
@@ -280,11 +281,36 @@ func TestWave2HarnessDiscoveryFormChoicesAndLaunch(t *testing.T) {
 			break
 		}
 	}
-	if !found || !slices.Equal(harnessSpec.Enum, wantIDs) {
-		t.Fatalf("New pane harness enum = %v (found=%v), want %v", harnessSpec.Enum, found, wantIDs)
+	wantAgentIDs := []string{"myagent", "claude", "codex"}
+	if !found || !slices.Equal(harnessSpec.Enum, wantAgentIDs) {
+		t.Fatalf("New Agent harness enum = %v (found=%v), want %v", harnessSpec.Enum, found, wantAgentIDs)
 	}
 	if gotDefault := data.Text(rf.Model().Values["harness"]); gotDefault != "myagent" {
-		t.Fatalf("New pane default harness = %q, want %q", gotDefault, "myagent")
+		t.Fatalf("New Agent default harness = %q, want %q", gotDefault, "myagent")
+	}
+	d.Keys("esc")
+
+	// Unfiltered record.new {kind: "pane"} keeps the full merged harness list including zsh.
+	d.Send(core.CommandEvent{Command: core.Command{
+		ID:     views.CmdNew,
+		Args:   map[string]any{"kind": data.KindPane},
+		Source: "test",
+		Actor:  User,
+	}})
+	rf = a.activeRecordForm()
+	if a.Modal() != "form" || rf == nil || rf.kind != data.KindPane {
+		t.Fatalf("record.new pane did not open form: modal=%q form=%+v", a.Modal(), rf)
+	}
+	found = false
+	for _, sp := range rf.Model().Specs {
+		if sp.Name == "harness" {
+			harnessSpec = sp
+			found = true
+			break
+		}
+	}
+	if !found || !slices.Equal(harnessSpec.Enum, wantIDs) {
+		t.Fatalf("New pane harness enum = %v (found=%v), want %v", harnessSpec.Enum, found, wantIDs)
 	}
 	d.Keys("esc")
 

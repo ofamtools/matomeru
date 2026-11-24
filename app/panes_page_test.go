@@ -36,9 +36,15 @@ func (h *pasteCaptureHost) Write(_ string, data []byte) error {
 
 func TestNewPaneFormDefaultsToZshFirst(t *testing.T) {
 	a, d := demo(t)
-	d.Keys("1", "n")
+	// Direct record.new {kind: "pane"} without excludeChoices keeps zsh first and default.
+	d.Send(core.CommandEvent{Command: core.Command{
+		ID:     views.CmdNew,
+		Args:   map[string]any{"kind": data.KindPane},
+		Source: "test",
+		Actor:  User,
+	}})
 	if a.Modal() != "form" {
-		t.Fatalf("n on Panes did not open New Pane form: modal=%q", a.Modal())
+		t.Fatalf("record.new pane did not open New Pane form: modal=%q", a.Modal())
 	}
 	rf := a.activeRecordForm()
 	if rf == nil || rf.kind != data.KindPane {
@@ -57,6 +63,35 @@ func TestNewPaneFormDefaultsToZshFirst(t *testing.T) {
 	}
 	if got := data.Text(fm.Values["harness"]); got != "zsh" {
 		t.Fatalf("expected default harness value zsh, got %q", got)
+	}
+	d.Keys("esc")
+
+	// Pressing n in SpacePanes opens "New Agent" with zsh excluded.
+	d.Keys("1", "n")
+	if a.Modal() != "form" {
+		t.Fatalf("n on Panes did not open New Agent form: modal=%q", a.Modal())
+	}
+	rf = a.activeRecordForm()
+	if rf == nil || rf.kind != data.KindPane || rf.Model().Title != "New Agent" {
+		t.Fatalf("expected New Agent pane form, got modal=%+v title=%q", rf, rf.Model().Title)
+	}
+	choices = nil
+	for _, sp := range rf.Model().Specs {
+		if sp.Name == "harness" {
+			choices = sp.Enum
+			break
+		}
+	}
+	if len(choices) == 0 {
+		t.Fatal("expected non-empty agent harness choices")
+	}
+	for _, c := range choices {
+		if c == "zsh" {
+			t.Fatalf("expected zsh excluded from New Agent harness choices, got %v", choices)
+		}
+	}
+	if got := data.Text(rf.Model().Values["harness"]); got == "" || got == "zsh" {
+		t.Fatalf("expected non-zsh default harness in New Agent form, got %q", got)
 	}
 }
 

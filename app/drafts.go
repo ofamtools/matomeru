@@ -224,11 +224,22 @@ func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
 	fm := rf.Model()
 	schema := a.schema(rf.kind)
 
+	merged := maps.Clone(values)
+	if merged == nil {
+		merged = map[string]any{}
+	}
+	for k, v := range rf.hiddenDefaults {
+		if _, exists := merged[k]; !exists {
+			merged[k] = v
+		}
+	}
+
 	// Validate snoozedUntil before performing any write.
 	var (
 		hasSnoozeSpec bool
 		snoozeText    string
 		snoozeUntil   time.Time
+		snoozePtr     *time.Time
 	)
 	for _, sp := range fm.Specs {
 		if sp.Name == data.ColSnoozedUntil {
@@ -237,7 +248,7 @@ func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
 		}
 	}
 	if hasSnoozeSpec {
-		snoozeText = strings.TrimSpace(data.Text(values[data.ColSnoozedUntil]))
+		snoozeText = strings.TrimSpace(data.Text(merged[data.ColSnoozedUntil]))
 		if snoozeText != "" {
 			t, ok := parseSnoozeTime(snoozeText)
 			if !ok {
@@ -249,40 +260,18 @@ func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
 				return false
 			}
 			snoozeUntil = t
+			snoozePtr = &snoozeUntil
 		}
 	}
-
-	fields := maps.Clone(values)
-	if fields == nil {
-		fields = map[string]any{}
-	}
-	maps.DeleteFunc(fields, func(k string, _ any) bool { return views.IsUniversalField(k) })
 
 	if rf.ref == nil {
-		rec, cs, err := a.Store.Create(data.CreateInput{Kind: rf.kind, Fields: fields}, User)
-		if err != nil {
-			a.fail("create "+rf.kind, err)
+		rec, ok := a.createRecordFromValues(rf.kind, rf.about, merged, snoozePtr)
+		if !ok {
 			return false
-		}
-		ref := rec.Ref()
-		a.syncManagedFile(rec)
-		if rf.about != nil {
-			if _, _, err := a.Store.Relate(data.RelateInput{From: ref, Kind: data.RelAbout, To: *rf.about}, User); err != nil {
-				a.fail("attach note", err)
-			}
-		}
-		if data.Text(values[data.ColStarStatus]) == data.StarStarred {
-			_, _, _ = a.Store.Star(ref, User)
-		}
-		if data.Text(values[data.ColArchiveStatus]) == data.ArchiveArchived {
-			_, _, _ = a.Store.Archive(ref, User)
-		}
-		if snoozeText != "" {
-			_, _, _ = a.Store.Snooze(ref, snoozeUntil, User)
 		}
 		a.clearSubmittedDraft(fm, rf.draftKey)
 		if rf.kind == data.KindPane {
-			createdRef := ref
+			createdRef := rec.Ref()
 			a.afterModal(func(st core.State) core.State {
 				if st.ActivePage == SpacePanes {
 					a.viewMemo.gen++
@@ -291,9 +280,11 @@ func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
 				return st
 			})
 		}
-		a.wrote(fmt.Sprintf("created %s %q", strings.ToLower(schema.Title), views.Title(schema, *rec)), cs, nil)
 		return true
 	}
+
+	fields := maps.Clone(merged)
+	maps.DeleteFunc(fields, func(k string, _ any) bool { return views.IsUniversalField(k) })
 
 	cur, err := a.Store.Get(*rf.ref)
 	if err != nil {

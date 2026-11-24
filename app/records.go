@@ -4,12 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/form"
 )
 
 // wrote reports a change the owner made, with what "u" would now do.
@@ -142,25 +148,361 @@ func (a *App) edit(s core.State, c core.Command) core.StepResult {
 	return core.Next(a.pushModal(s, rf))
 }
 
+func boolArg(v any) bool {
+	switch x := v.(type) {
+	case bool:
+		return x
+	case string:
+		switch strings.ToLower(strings.TrimSpace(x)) {
+		case "true", "1", "yes":
+			return true
+		}
+	}
+	return false
+}
+
+func objectArg(v any) map[string]any {
+	m, _ := v.(map[string]any)
+	return m
+}
+
+func stringListArg(v any) []string {
+	switch x := v.(type) {
+	case []string:
+		var out []string
+		for _, s := range x {
+			if s = strings.TrimSpace(s); s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	case []any:
+		var out []string
+		for _, item := range x {
+			if s := strings.TrimSpace(data.Text(item)); s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	case string:
+		var out []string
+		for _, part := range strings.Split(x, ",") {
+			if s := strings.TrimSpace(part); s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+func stringListMapArg(v any) map[string][]string {
+	if v == nil {
+		return nil
+	}
+	out := map[string][]string{}
+	switch m := v.(type) {
+	case map[string][]string:
+		for k, vals := range m {
+			if list := stringListArg(vals); len(list) > 0 {
+				out[k] = list
+			}
+		}
+	case map[string]any:
+		for k, raw := range m {
+			if list := stringListArg(raw); len(list) > 0 {
+				out[k] = list
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func filterChoiceValues(enum, allow, exclude []string) []string {
+	var out []string
+	switch {
+	case len(allow) > 0 && len(enum) > 0:
+		for _, v := range enum {
+			if slices.Contains(allow, v) {
+				out = append(out, v)
+			}
+		}
+	case len(allow) > 0:
+		out = slices.Clone(allow)
+	default:
+		out = slices.Clone(enum)
+	}
+	if len(exclude) > 0 && len(out) > 0 {
+		filtered := make([]string, 0, len(out))
+		for _, v := range out {
+			if !slices.Contains(exclude, v) {
+				filtered = append(filtered, v)
+			}
+		}
+		out = filtered
+	}
+	return out
+}
+
+// shapeCreateSchema returns a copy of schema shaped by generic record.new
+// binding args: fields (allowlist), hideFields (denylist), choices (allowed
+// enum values), and excludeChoices (excluded enum values).
+func shapeCreateSchema(schema data.Schema, args map[string]any) data.Schema {
+	if len(args) == 0 {
+		return schema
+	}
+	allow := stringListArg(args["fields"])
+	hide := stringListArg(args["hideFields"])
+	choices := stringListMapArg(args["choices"])
+	exclude := stringListMapArg(args["excludeChoices"])
+	if len(allow) == 0 && len(hide) == 0 && len(choices) == 0 && len(exclude) == 0 {
+		return schema
+	}
+	shaped := schema
+	fields := make([]data.FieldSpec, 0, len(schema.Fields))
+	for _, f := range schema.Fields {
+		if len(allow) > 0 && !slices.Contains(allow, f.Name) {
+			continue
+		}
+		if len(hide) > 0 && slices.Contains(hide, f.Name) {
+			continue
+		}
+		if len(f.Enum) > 0 {
+			f.Enum = slices.Clone(f.Enum)
+		}
+		fieldAllow := choices[f.Name]
+		fieldExclude := exclude[f.Name]
+		if len(fieldAllow) > 0 || len(fieldExclude) > 0 {
+			f.Enum = filterChoiceValues(f.Enum, fieldAllow, fieldExclude)
+			if len(f.Enum) > 0 {
+				if oldDef := strings.TrimSpace(data.Text(f.Default)); oldDef != "" && !slices.Contains(f.Enum, oldDef) {
+					f.Default = f.Enum[0]
+				}
+			}
+		}
+		fields = append(fields, f)
+	}
+	shaped.Fields = fields
+	return shaped
+}
+
+func filterFormFields(fm *form.Model, allow, hide []string) {
+	if fm == nil || (len(allow) == 0 && len(hide) == 0) {
+		return
+	}
+	kept := make([]core.ParamSpec, 0, len(fm.Specs))
+	for _, sp := range fm.Specs {
+		if len(allow) > 0 && !slices.Contains(allow, sp.Name) {
+			continue
+		}
+		if len(hide) > 0 && slices.Contains(hide, sp.Name) {
+			continue
+		}
+		kept = append(kept, sp)
+	}
+	fm.Specs = kept
+}
+
+// applyFormChoiceFilters applies generic choices and excludeChoices narrowing
+// to a form's field specs and updates any excluded default/current value.
+func applyFormChoiceFilters(fm *form.Model, choices, exclude map[string][]string) {
+	if fm == nil || (len(choices) == 0 && len(exclude) == 0) {
+		return
+	}
+	wasDirty := fm.Dirty
+	for i := range fm.Specs {
+		name := fm.Specs[i].Name
+		allow := choices[name]
+		excl := exclude[name]
+		if len(allow) == 0 && len(excl) == 0 {
+			continue
+		}
+		nextEnum := filterChoiceValues(fm.Specs[i].Enum, allow, excl)
+		fm.Specs[i].Enum = nextEnum
+		if len(nextEnum) > 0 {
+			if oldDef := strings.TrimSpace(data.Text(fm.Specs[i].Default)); oldDef != "" && !slices.Contains(nextEnum, oldDef) {
+				fm.Specs[i].Default = nextEnum[0]
+			}
+			if cur := strings.TrimSpace(data.Text(fm.Values[name])); cur != "" && !slices.Contains(nextEnum, cur) {
+				fm.SetValue(name, nextEnum[0])
+			}
+		}
+	}
+	fm.Dirty = wasDirty
+}
+
+func synthesizeSummaryFallback(schema data.Schema, values, defaults map[string]any) string {
+	label := strings.TrimSpace(data.Text(defaults["harness"]))
+	if label == "" {
+		label = strings.TrimSpace(data.Text(values["harness"]))
+	}
+	base := ""
+	if cwd := strings.TrimSpace(data.Text(values["cwd"])); cwd != "" {
+		b := filepath.Base(filepath.Clean(cwd))
+		if b != "" && b != "." && b != string(filepath.Separator) {
+			base = b
+		}
+	}
+	switch {
+	case label != "" && base != "":
+		return label + " · " + base
+	case label != "":
+		return label
+	case base != "":
+		return base
+	case strings.TrimSpace(schema.Title) != "":
+		return schema.Title
+	default:
+		return schema.Kind
+	}
+}
+
+func asRefValue(v any) (core.Ref, bool) {
+	if ref, ok := data.AsRef(v); ok {
+		return ref, true
+	}
+	if s, ok := v.(string); ok {
+		if kind, id, has := strings.Cut(strings.TrimSpace(s), ":"); has && kind != "" && id != "" {
+			return core.Ref{Kind: kind, ID: id}, true
+		}
+	}
+	return core.Ref{}, false
+}
+
+func (a *App) inferCreateCwd(s core.State, subject core.Ref, hasSubject bool, taskVal any) string {
+	if taskRef, ok := asRefValue(taskVal); ok {
+		if dir := a.defaultDirForTask(taskRef); dir != "" {
+			return dir
+		}
+	}
+	if hasSubject {
+		if subject.Kind == data.KindTask {
+			if dir := a.defaultDirForTask(subject); dir != "" {
+				return dir
+			}
+		} else if rec, err := a.Store.Get(subject); err == nil && rec != nil {
+			if dir := strings.TrimSpace(rec.Text("defaultDir")); dir != "" {
+				return dir
+			}
+			if dir := strings.TrimSpace(rec.Text("cwd")); dir != "" {
+				return dir
+			}
+		}
+	}
+	if s.ActivePage == SpacePanes {
+		if _, projRef, onProj := a.selectedRailProject(); onProj && projRef != nil {
+			if dir := a.defaultDirForTask(*projRef); dir != "" {
+				return dir
+			}
+		}
+		if pane, ok := a.SelectedPane(); ok && pane != nil {
+			if t, ok := pane.RefField("task"); ok {
+				if dir := a.defaultDirForTask(t); dir != "" {
+					return dir
+				}
+			}
+			if dir := strings.TrimSpace(pane.Text("cwd")); dir != "" {
+				return dir
+			}
+		}
+	}
+	if wd, err := os.Getwd(); err == nil {
+		return wd
+	}
+	return ""
+}
+
+// createRecordFromValues persists a new record of kind from submitted form or
+// instant-create values, runs post-create hooks (managed file sync, about
+// relation, universal star/archive/snooze), and reports status.
+func (a *App) createRecordFromValues(kind string, about *core.Ref, values map[string]any, snoozeUntil *time.Time) (*data.Record, bool) {
+	schema := a.schema(kind)
+	fields := maps.Clone(values)
+	if fields == nil {
+		fields = map[string]any{}
+	}
+	maps.DeleteFunc(fields, func(k string, _ any) bool { return views.IsUniversalField(k) })
+
+	rec, cs, err := a.Store.Create(data.CreateInput{Kind: kind, Fields: fields}, User)
+	if err != nil {
+		a.fail("create "+kind, err)
+		return nil, false
+	}
+	ref := rec.Ref()
+	a.syncManagedFile(rec)
+	if about != nil {
+		if _, _, err := a.Store.Relate(data.RelateInput{From: ref, Kind: data.RelAbout, To: *about}, User); err != nil {
+			a.fail("attach note", err)
+		}
+	}
+	if data.Text(values[data.ColStarStatus]) == data.StarStarred {
+		_, _, _ = a.Store.Star(ref, User)
+	}
+	if data.Text(values[data.ColArchiveStatus]) == data.ArchiveArchived {
+		_, _, _ = a.Store.Archive(ref, User)
+	}
+	if snoozeUntil != nil {
+		_, _, _ = a.Store.Snooze(ref, *snoozeUntil, User)
+	} else if snoozeText := strings.TrimSpace(data.Text(values[data.ColSnoozedUntil])); snoozeText != "" {
+		if t, ok := parseSnoozeTime(snoozeText); ok {
+			_, _, _ = a.Store.Snooze(ref, t, User)
+		}
+	}
+	a.wrote(fmt.Sprintf("created %s %q", strings.ToLower(schema.Title), views.Title(schema, *rec)), cs, nil)
+	return rec, true
+}
+
 func (a *App) create(s core.State, c core.Command) core.StepResult {
 	kind := c.Arg("kind")
 	if kind == "" {
 		kind = data.KindTask
 	}
 	schema := a.schema(kind)
-	fm := views.FormForRecordWith(schema, nil, a.editOptions())
+	shaped := shapeCreateSchema(schema, c.Args)
+	fm := views.FormForRecordWith(shaped, nil, a.editOptions())
+	allowFields := stringListArg(c.Args["fields"])
+	hideFields := stringListArg(c.Args["hideFields"])
+	filterFormFields(fm, allowFields, hideFields)
+
+	hiddenDefaults := map[string]any{}
+	hasSpec := func(name string) bool {
+		return slices.ContainsFunc(fm.Specs, func(sp core.ParamSpec) bool { return sp.Name == name })
+	}
+	setField := func(name string, val any) {
+		if hasSpec(name) {
+			fm.SetValue(name, val)
+		} else {
+			hiddenDefaults[name] = val
+		}
+	}
+	getField := func(name string) any {
+		if v, ok := fm.Values[name]; ok && v != nil && strings.TrimSpace(data.Text(v)) != "" {
+			return v
+		}
+		if v, ok := hiddenDefaults[name]; ok && v != nil && strings.TrimSpace(data.Text(v)) != "" {
+			return v
+		}
+		return nil
+	}
+
 	var about *core.Ref
+	var subject core.Ref
+	var hasSubject bool
 	if ownerRef, ok := c.Args["ownerRef"].(core.Ref); ok && ownerRef.ID != "" {
+		subject, hasSubject = ownerRef, true
 		if field, _ := c.Args["ownerField"].(string); field != "" {
 			if _, hasField := schema.Field(field); hasField {
-				fm.SetValue(field, ownerRef)
+				setField(field, ownerRef)
 			}
 		}
 		if rel, _ := c.Args["ownerRel"].(string); rel == data.RelAbout {
 			r := ownerRef
 			about = &r
 		}
-		if _, hasTask := schema.Field("task"); hasTask && fm.Values["task"] == nil {
+		if _, hasTask := schema.Field("task"); hasTask && getField("task") == nil {
 			task := ownerRef
 			if ownerRef.Kind != data.KindTask {
 				if rec, err := a.Store.Get(ownerRef); err == nil {
@@ -168,41 +510,113 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 				}
 			}
 			if task.Kind == data.KindTask && task.ID != "" {
-				fm.SetValue("task", task)
+				setField("task", task)
 			}
 		}
-		fm.Dirty = false
-		rf := a.newRecordFormModal(kind, nil, about, fm)
-		a.say("new %s · ctrl+s creates · esc closes", strings.ToLower(schema.Title))
-		return core.Next(a.pushModal(s, rf))
-	}
-	subject, has := a.subject(s, c)
-	switch {
-	case kind == data.KindTask:
-		// On a task's Show page (or when targeting a task directly) a new task is its subtask.
-		if cur, ok := a.Showing(); ok && cur.Kind == data.KindTask && s.ActivePage == SpaceWork {
-			fm.SetValue("parent", cur)
-		} else if c.Target != nil && c.Target.Kind == data.KindTask && c.Target.ID != "" {
-			fm.SetValue("parent", *c.Target)
-		}
-	case has:
-		// A note (or anything else with a task) belongs to the focused
-		// record's task, and a note is about the focused record.
-		if kind == data.KindNote {
-			about = &subject
-		}
-		task := subject
-		if subject.Kind != data.KindTask {
-			if rec, err := a.Store.Get(subject); err == nil {
-				task, _ = rec.RefField("task")
+	} else {
+		subject, hasSubject = a.subject(s, c)
+		switch {
+		case kind == data.KindTask:
+			// On a task's Show page (or when targeting a task directly) a new task is its subtask.
+			if cur, ok := a.Showing(); ok && cur.Kind == data.KindTask && s.ActivePage == SpaceWork {
+				setField("parent", cur)
+			} else if c.Target != nil && c.Target.Kind == data.KindTask && c.Target.ID != "" {
+				setField("parent", *c.Target)
+			}
+		case hasSubject:
+			// A note (or anything else with a task) belongs to the focused
+			// record's task, and a note is about the focused record.
+			if kind == data.KindNote {
+				r := subject
+				about = &r
+			}
+			task := subject
+			if subject.Kind != data.KindTask {
+				if rec, err := a.Store.Get(subject); err == nil {
+					task, _ = rec.RefField("task")
+				}
+			}
+			if (task.Kind != data.KindTask || task.ID == "") && s.ActivePage == SpacePanes {
+				if pane, ok := a.SelectedPane(); ok && pane != nil {
+					task, _ = pane.RefField("task")
+				}
+			}
+			if _, ok := schema.Field("task"); ok && task.Kind == data.KindTask && task.ID != "" {
+				setField("task", task)
+			}
+		case s.ActivePage == SpacePanes:
+			if _, ok := schema.Field("task"); ok {
+				if _, projRef, onProj := a.selectedRailProject(); onProj && projRef != nil && projRef.Kind == data.KindTask && projRef.ID != "" {
+					setField("task", *projRef)
+				}
 			}
 		}
-		if _, ok := schema.Field("task"); ok && task.Kind == data.KindTask && task.ID != "" {
-			fm.SetValue("task", task)
+	}
+
+	defaults := objectArg(c.Args["defaults"])
+	for k, v := range defaults {
+		setField(k, v)
+	}
+
+	if _, hasCwd := schema.Field("cwd"); hasCwd && getField("cwd") == nil {
+		if dir := a.inferCreateCwd(s, subject, hasSubject, getField("task")); dir != "" {
+			setField("cwd", dir)
 		}
 	}
+
+	if title := strings.TrimSpace(c.Arg("title")); title != "" {
+		fm.Title = title
+	}
+
+	choices := stringListMapArg(c.Args["choices"])
+	exclude := stringListMapArg(c.Args["excludeChoices"])
+
+	if boolArg(c.Args["submit"]) {
+		finalValues := fm.TypedValues()
+		if finalValues == nil {
+			finalValues = map[string]any{}
+		}
+		for k, v := range fm.Values {
+			if _, exists := finalValues[k]; !exists && v != nil {
+				finalValues[k] = v
+			}
+		}
+		for k, v := range hiddenDefaults {
+			if _, exists := finalValues[k]; !exists {
+				finalValues[k] = v
+			}
+		}
+		summaryField := schema.SummaryField
+		if summaryField == "" {
+			summaryField = "title"
+		}
+		if _, hasSummary := schema.Field(summaryField); hasSummary && strings.TrimSpace(data.Text(finalValues[summaryField])) == "" {
+			finalValues[summaryField] = synthesizeSummaryFallback(schema, finalValues, defaults)
+		}
+		rec, ok := a.createRecordFromValues(kind, about, finalValues, nil)
+		if !ok {
+			return core.Next(s)
+		}
+		if rec.Kind == data.KindPane {
+			a.viewMemo.gen++
+			rail := a.rail()
+			if !selectRow(rail, data.RefText(rec.Ref())) {
+				rail.Query = ""
+				selectRow(rail, data.RefText(rec.Ref()))
+			}
+			a.panes.activePage[rec.ID] = views.ScreenPageID
+			s.ActivePage = SpacePanes
+			s = a.enterScreen(withFocus(withPage(s, SpacePanes, siteScreen, ModeNormal), siteScreen), *rec)
+		}
+		return core.Next(s)
+	}
+
 	fm.Dirty = false
-	rf := a.newRecordFormModal(kind, nil, about, fm)
+	rf := a.newRecordFormModalWith(kind, nil, about, fm, recordFormOptions{
+		hiddenDefaults: hiddenDefaults,
+		choices:        choices,
+		excludeChoices: exclude,
+	})
 	a.say("new %s · ctrl+s creates · esc closes", strings.ToLower(schema.Title))
 	return core.Next(a.pushModal(s, rf))
 }
