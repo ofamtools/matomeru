@@ -68,7 +68,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetModalEscapeGuard: "double", SetWrapInputs: true, SetWrapOutline: true, SetOutlineEnterNewline: true, SetOutlineStartCollapsed: true,
 		SetCardBorderStyle: ui.CardBorderSubtle, SetRailEnterMode: RailEnterModeLive,
 		SetSideTermSplit: true, SetInheritProjectTask: true, SetFocusRailOnExit: true, SetFocusRailOnDetach: true,
-		SetExtensionsShowCatalog: true, SetExtensionsGoPrivate: "ofam.dev"}
+		SetExtensionsShowCatalog: true, SetExtensionsGoPrivate: "ofam.dev",
+		SetFocusHintsStyle: FocusHintsInline, SetFocusHintsDrilldown: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

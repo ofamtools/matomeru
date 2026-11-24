@@ -36,6 +36,9 @@ func clip(s string, w int) string {
 // View builds the whole screen for a state. It is rebuilt only when the
 // state or the app's data changed since the last call.
 func (a *App) View(s core.State) ui.ViewNode {
+	if a.focusHintsActive() {
+		return a.build(s)
+	}
 	key := a.viewKey(s)
 	if key == a.viewMemo.memoKey && key != "" {
 		return a.viewMemo.memo
@@ -69,7 +72,13 @@ func (a *App) viewKey(s core.State) string {
 		b.WriteString("|eg:" + gk)
 	}
 	if a.panes.hints != nil && a.panes.hints.session != nil && a.panes.hints.session.Active() {
-		fmt.Fprintf(&b, "|hints:%t:%s:%d", a.panes.hints.focusJump, a.panes.hints.session.Prefix(), len(a.panes.hints.session.Remaining()))
+		fmt.Fprintf(&b, "|hints:%t:%s:%d:%s:%d",
+			a.panes.hints.focusJump,
+			a.focusHintsStyle(),
+			len(a.panes.hints.focusStack),
+			a.panes.hints.session.Prefix(),
+			len(a.panes.hints.session.Remaining()),
+		)
 	}
 	if s.ActivePage == SpacePanes {
 		if pageID := a.activeSitePageID(); pageID != "" {
@@ -115,8 +124,10 @@ func (a *App) build(s core.State) ui.ViewNode {
 		}
 		overlays = append(overlays, ov)
 	}
-	if a.panes.hints != nil && a.panes.hints.focusJump && a.panes.hints.session != nil && a.panes.hints.session.Active() {
-		overlays = append(overlays, a.panes.hints.session.ViewOverlay("focus.hints.overlay"))
+	if a.focusHintsActive() {
+		if style := a.focusHintsStyle(); style == FocusHintsOverlay || style == FocusHintsBoth {
+			overlays = append(overlays, a.panes.hints.session.ViewOverlay("focus.hints.overlay"))
+		}
 	}
 	if toastOv, ok := a.toastOverlay(); ok {
 		overlays = append(overlays, toastOv)
@@ -135,6 +146,11 @@ func (a *App) build(s core.State) ui.ViewNode {
 	}
 	root.Children = append(append([]ui.ViewNode{tabs}, footer...), overlays...)
 	applyTreeGuides(&root, a.cfg.Settings.Bool(SetTreeGuides, true))
+	if a.focusHintsActive() {
+		if style := a.focusHintsStyle(); style == FocusHintsInline || style == FocusHintsBoth {
+			applyFocusHintBadges(&root, a.panes.hints.session)
+		}
+	}
 	return root
 }
 

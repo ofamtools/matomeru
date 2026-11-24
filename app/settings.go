@@ -163,6 +163,11 @@ const (
 	SetFocusRailOnDetach             = "terminal.focusRailOnDetach"
 	SetExtensionsShowCatalog         = "extensions.showCatalog"
 	SetExtensionsGoPrivate           = "extensions.goPrivate"
+	SetFocusHintsStyle               = "hints.focusStyle"
+	SetFocusHintsDrilldown           = "hints.focusDrilldown"
+	FocusHintsInline                 = "inline"
+	FocusHintsOverlay                = "overlay"
+	FocusHintsBoth                   = "both"
 	RailEnterModeLive                = "live"
 	RailEnterModeTOC                 = "toc"
 	PickerDefaultModeNormal          = "normal"
@@ -266,6 +271,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetFocusRailOnDetach, true, "when detaching from a live terminal (ctrl+a d), move focus back to the left pane rail"),
 		flag(SetExtensionsShowCatalog, true, "show uninstalled OFAM catalog tools as available in 4 Extensions"),
 		{Name: SetExtensionsGoPrivate, Type: core.ParamString, Default: "ofam.dev", Description: "GOPRIVATE value used when installing OFAM extensions via go install"},
+		enum(SetFocusHintsStyle, FocusHintsInline, "how focus jump hints (g f) display labels: inline on screen, overlay picker, or both", FocusHintsInline, FocusHintsOverlay, FocusHintsBoth),
+		flag(SetFocusHintsDrilldown, true, "drill into focus hints from outside in (tabs & rails first, then items inside a chosen rail)"),
 	}
 }
 

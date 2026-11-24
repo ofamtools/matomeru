@@ -466,8 +466,8 @@ func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
 		t.Fatalf("expected at least 2 focus hint targets on 1 Panes, got %+v", targets)
 	}
 	hintsFrame := d.Frame()
-	if !strings.Contains(hintsFrame, "Hints") || !strings.Contains(hintsFrame, "["+targets[0].Label+"]") {
-		t.Fatalf("focus hints overlay not rendered:\n%s", hintsFrame)
+	if !strings.Contains(hintsFrame, "["+targets[0].Label+"]") {
+		t.Fatalf("inline focus hint badges not rendered:\n%s", hintsFrame)
 	}
 
 	// Cancel with esc restores mode and focus.
@@ -476,25 +476,24 @@ func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
 		t.Fatalf("esc did not cancel focus hints cleanly: mode=%q focus=%q", a.Mode(), a.Focus())
 	}
 
-	// Re-open with g f, pick a target whose ID differs from initialFocus, and type its label.
+	// Re-open with g f, pick the Screen panel (single-focus rail), and type its label.
 	d.Keys("g", "f")
-	var pickTargetID, pickLabel string
+	var pickLabel string
 	for _, tgt := range a.panes.hints.session.Targets() {
-		if tgt.ID != initialFocus {
-			pickTargetID = tgt.ID
+		if tgt.ID == "site.content" {
 			pickLabel = tgt.Label
 			break
 		}
 	}
-	if pickTargetID == "" || pickLabel == "" {
-		t.Fatalf("no alternate focus target found among %+v", a.panes.hints.session.Targets())
+	if pickLabel == "" {
+		t.Fatalf("site.content target not found among %+v", a.panes.hints.session.Targets())
 	}
 	d.Type(pickLabel)
 	if a.Mode() != ModeNormal || a.panes.hints != nil {
 		t.Fatalf("typing focus hint label %q did not exit ModeHints: mode=%q", pickLabel, a.Mode())
 	}
-	if a.Focus() != pickTargetID {
-		t.Fatalf("focus after hint %q = %q, want %q", pickLabel, a.Focus(), pickTargetID)
+	if a.Focus() != siteScreen {
+		t.Fatalf("focus after hint %q = %q, want %q", pickLabel, a.Focus(), siteScreen)
 	}
 }
 

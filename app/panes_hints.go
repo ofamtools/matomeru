@@ -21,6 +21,7 @@ type hintsState struct {
 	session     *hints.Session
 	paneID      string
 	focusJump   bool
+	focusStack  []focusHintFrame
 	returnMode  string
 	returnFocus string
 	returnPage  string
@@ -130,6 +131,7 @@ func (a *App) hintsRenderLines(baseLines []string, w, h int) []string {
 func (a *App) exitHints(s core.State) core.State {
 	hs := a.panes.hints
 	a.panes.hints = nil
+	a.viewMemo.gen++
 	if hs == nil {
 		return s
 	}
@@ -170,13 +172,50 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 	if a.panes.hints == nil || a.panes.hints.session == nil || !a.panes.hints.session.Active() {
 		return core.Next(a.exitHints(s))
 	}
+	hs := a.panes.hints
 	key := c.Arg("key")
 	text := c.Arg("text")
+
+	// In hierarchical focus-hints Level 2+, backspace on an empty prefix steps
+	// back out to the parent level and enter stops drilling to focus the panel.
+	if hs.focusJump && len(hs.focusStack) > 1 {
+		switch key {
+		case "backspace", "ctrl+h":
+			if hs.session.Prefix() == "" {
+				hs.focusStack = hs.focusStack[:len(hs.focusStack)-1]
+				parent := &hs.focusStack[len(hs.focusStack)-1]
+				parent.session.Reset()
+				hs.session = parent.session
+				a.viewMemo.gen++
+				a.say("%s", focusHintsLegend(hs))
+				return core.Next(s)
+			}
+		case "enter":
+			cands := hs.session.Remaining()
+			if len(cands) == 0 {
+				cands = hs.session.Targets()
+			}
+			if len(cands) > 0 {
+				chosen := cands[0]
+				for _, cand := range cands {
+					if cand.ID == hs.returnFocus {
+						chosen = cand
+						break
+					}
+				}
+				s = a.exitHints(s)
+				s = withFocus(s, chosen.ID)
+				a.say("focused %s", focusTargetDisplayName(chosen))
+				return core.Next(s)
+			}
+		}
+	}
+
 	var res hints.Result
 	if key != "" {
-		res = a.panes.hints.session.HandleKey(key)
+		res = hs.session.HandleKey(key)
 	} else if r, sz := utf8.DecodeRuneInString(text); text != "" && sz == len(text) && r != utf8.RuneError {
-		res = a.panes.hints.session.HandleRune(r, false)
+		res = hs.session.HandleRune(r, false)
 	}
 	switch res.Status {
 	case hints.StatusCancelled:
@@ -184,22 +223,65 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 		a.say("hints cancelled")
 		return core.Next(s)
 	case hints.StatusActive:
-		a.say("hints: %s_ (%d remaining)", a.panes.hints.session.Prefix(), len(a.panes.hints.session.Remaining()))
+		a.viewMemo.gen++
+		if hs.focusJump {
+			a.say("%s", focusHintsLegend(hs))
+		} else {
+			a.say("hints: %s_ (%d remaining)", hs.session.Prefix(), len(hs.session.Remaining()))
+		}
 		return core.Next(s)
 	case hints.StatusNoMatch:
 		a.say("no hint matches %q · esc/q cancels", key)
 		return core.Next(s)
 	case hints.StatusMatched:
 		target := res.Target
-		paneID := a.panes.hints.paneID
-		focusJump := a.panes.hints.focusJump
-		s = a.exitHints(s)
-		if target == nil {
+		paneID := hs.paneID
+		focusJump := hs.focusJump
+		if focusJump {
+			if target == nil {
+				return core.Next(a.exitHints(s))
+			}
+			var top focusHintFrame
+			if len(hs.focusStack) > 0 {
+				top = hs.focusStack[len(hs.focusStack)-1]
+			}
+			if spaceID, isTab := top.tabSpaceByID[target.ID]; isTab {
+				s = a.exitHints(s)
+				s = a.openSpace(s, spaceID)
+				a.viewMemo.gen++
+				a.say("switched to %s", focusTargetDisplayName(*target))
+				return core.Next(s)
+			}
+			if children, isPanel := top.childrenByPanel[target.ID]; isPanel && len(children) > 0 {
+				if len(children) == 1 {
+					child := children[0]
+					s = a.exitHints(s)
+					s = withFocus(s, child.ID)
+					a.say("focused %s", focusTargetDisplayName(child))
+					return core.Next(s)
+				}
+				fresh := slices.Clone(children)
+				for i := range fresh {
+					fresh[i].Label = ""
+				}
+				childSess := hints.NewSession(fresh)
+				hs.focusStack = append(hs.focusStack, focusHintFrame{
+					session:    childSess,
+					panelID:    target.ID,
+					panelTitle: target.Value,
+				})
+				hs.session = childSess
+				a.viewMemo.gen++
+				a.say("%s", focusHintsLegend(hs))
+				return core.Next(s)
+			}
+			s = a.exitHints(s)
+			s = withFocus(s, target.ID)
+			a.say("focused %s", focusTargetDisplayName(*target))
 			return core.Next(s)
 		}
-		if focusJump {
-			s = withFocus(s, target.ID)
-			a.say("focused %s", target.ID)
+		s = a.exitHints(s)
+		if target == nil {
 			return core.Next(s)
 		}
 		var pane *data.Record
@@ -245,6 +327,7 @@ func (a *App) insertTextIntoPane(pane *data.Record, text string) {
 // focusHints activates focus-jump hint mode over layout.Solved.FocusOrder using
 // the same shared ochazuke/widgets/hints engine and ModeHints as terminal hints.
 func (a *App) focusHints(s core.State, _ core.Command) core.StepResult {
+	tree := a.View(s)
 	solved := s.Layout
 	if len(solved.FocusOrder) == 0 && a.Shell != nil {
 		solved = a.Shell.State.Layout
@@ -254,22 +337,28 @@ func (a *App) focusHints(s core.State, _ core.Command) core.StepResult {
 		if a.Shell != nil && a.Shell.W > 0 && a.Shell.H > 0 {
 			w, h = a.Shell.W, a.Shell.H
 		}
-		_, solved = ui.Render(a.View(s), a.theme(), s.ActiveFrame().FocusID, w, h)
+		_, solved = ui.Render(tree, a.theme(), s.ActiveFrame().FocusID, w, h)
 	}
-	targets := hints.TargetsFromFocusOrder(solved)
-	if len(targets) == 0 {
+	var frame focusHintFrame
+	if a.focusHintsDrilldown() {
+		frame = buildFocusHintRootFrame(tree, solved, len(s.Modals) == 0)
+	} else {
+		frame = focusHintFrame{session: hints.NewSession(focusTargetsFromView(tree, solved))}
+	}
+	if frame.session == nil || !frame.session.Active() {
 		a.say("no focusable regions on screen")
 		return core.Next(s)
 	}
-	sess := hints.NewSession(targets)
 	curFrame := s.ActiveFrame()
 	a.panes.hints = &hintsState{
-		session:     sess,
+		session:     frame.session,
 		focusJump:   true,
+		focusStack:  []focusHintFrame{frame},
 		returnMode:  curFrame.Mode,
 		returnFocus: curFrame.FocusID,
 		returnPage:  s.ActivePage,
 	}
-	a.say("focus hints (%d) · type label to jump · esc/q cancels", len(targets))
+	a.viewMemo.gen++
+	a.say("%s", focusHintsLegend(a.panes.hints))
 	return core.Next(withMode(s, ModeHints))
 }
