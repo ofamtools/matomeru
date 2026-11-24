@@ -59,17 +59,14 @@ func (a *App) panesGroupToggle(s core.State, _ core.Command) core.StepResult {
 	return core.Next(s)
 }
 
-// resolvePaneProject walks a pane's task -> parent chain up to its root project
-// task. Panes without a task (or whose task cannot be found) belong to
-// "Unassigned".
-func (a *App) resolvePaneProject(pane data.Record) (string, *core.Ref) {
-	taskRef, ok := pane.RefField("task")
-	if !ok || taskRef.Kind != data.KindTask || taskRef.ID == "" {
-		return unassignedProjectLabel, nil
+// topLevelTask walks parent refs up to the root top-level task with cycle protection.
+func (a *App) topLevelTask(ref core.Ref) (core.Ref, bool) {
+	if a.Store == nil || ref.Kind != data.KindTask || ref.ID == "" {
+		return core.Ref{}, false
 	}
-	cur, err := a.Store.Get(taskRef)
+	cur, err := a.Store.Get(ref)
 	if err != nil || cur == nil {
-		return unassignedProjectLabel, nil
+		return core.Ref{}, false
 	}
 	seen := map[string]bool{cur.ID: true}
 	for range 32 {
@@ -83,6 +80,56 @@ func (a *App) resolvePaneProject(pane data.Record) (string, *core.Ref) {
 		}
 		seen[parent.ID] = true
 		cur = parent
+	}
+	return cur.Ref(), true
+}
+
+// railActiveProjectTask resolves the active top-level project task from the
+// left rail selection: either the focused project group header or the focused
+// pane's task walked up to its top-level root task.
+func (a *App) railActiveProjectTask(_ core.State) (core.Ref, bool) {
+	if _, projRef, onProj := a.selectedRailProject(); onProj {
+		if projRef == nil {
+			return core.Ref{}, false
+		}
+		if root, ok := a.topLevelTask(*projRef); ok {
+			return root, true
+		}
+		return *projRef, true
+	}
+	if pane, ok := a.SelectedPane(); ok && pane != nil {
+		if taskRef, hasTask := pane.RefField("task"); hasTask {
+			return a.topLevelTask(taskRef)
+		}
+	}
+	return core.Ref{}, false
+}
+
+// projectPageOpen opens the assigned top-level Project's Show page.
+func (a *App) projectPageOpen(s core.State, _ core.Command) core.StepResult {
+	projRef, ok := a.railActiveProjectTask(s)
+	if !ok {
+		a.say("no project task assigned")
+		return core.Next(s)
+	}
+	return core.Next(a.show(s, projRef))
+}
+
+// resolvePaneProject walks a pane's task -> parent chain up to its root project
+// task. Panes without a task (or whose task cannot be found) belong to
+// "Unassigned".
+func (a *App) resolvePaneProject(pane data.Record) (string, *core.Ref) {
+	taskRef, ok := pane.RefField("task")
+	if !ok || taskRef.Kind != data.KindTask || taskRef.ID == "" {
+		return unassignedProjectLabel, nil
+	}
+	rootRef, ok := a.topLevelTask(taskRef)
+	if !ok {
+		return unassignedProjectLabel, nil
+	}
+	cur, err := a.Store.Get(rootRef)
+	if err != nil || cur == nil {
+		return unassignedProjectLabel, nil
 	}
 	ref := cur.Ref()
 	title := views.Title(a.schema(data.KindTask), *cur)
@@ -136,6 +183,7 @@ func (a *App) buildRail() *table.Model {
 	for i := range fresh.Rows {
 		row := &fresh.Rows[i]
 		pane := panes[i]
+		row.Facts["onPane"] = true
 		projTitle, projRef := a.resolvePaneProject(pane)
 		row.Cells["project"] = projTitle
 		groupPanes[projTitle] = append(groupPanes[projTitle], pane)
@@ -349,6 +397,52 @@ func (a *App) projectNotes(projRef *core.Ref, taskIDs map[string]bool, paneIDs m
 	return out
 }
 
+// projectDocuments collects documents associated with a project, its descendant
+// tasks, or its panes.
+func (a *App) projectDocuments(projRef *core.Ref, taskIDs map[string]bool, paneIDs map[string]bool) []data.Record {
+	res, err := a.Store.Query(data.Query{Kind: data.KindDocument, IncludeArchived: a.nav.showArchived})
+	if err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []data.Record
+	add := func(rec data.Record) {
+		if seen[rec.ID] {
+			return
+		}
+		seen[rec.ID] = true
+		out = append(out, rec)
+	}
+	for _, doc := range res.Items {
+		if t, ok := doc.RefField("task"); ok && (taskIDs[t.ID] || (projRef != nil && t.ID == projRef.ID)) {
+			add(doc)
+			continue
+		}
+		for _, relKind := range []string{data.RelCreated, data.RelAbout, data.RelContext} {
+			rels, err := a.Store.Related(doc.Ref(), relKind, data.Both)
+			if err != nil {
+				continue
+			}
+			matched := false
+			for _, r := range rels {
+				other := r.To
+				if other == doc.Ref() {
+					other = r.From
+				}
+				if (projRef != nil && other == *projRef) || (other.Kind == data.KindTask && taskIDs[other.ID]) || (other.Kind == data.KindPane && paneIDs[other.ID]) {
+					add(doc)
+					matched = true
+					break
+				}
+			}
+			if matched {
+				break
+			}
+		}
+	}
+	return out
+}
+
 // projectLinks collects documents, directory/context relations, and URL links
 // associated with a project or its panes.
 func (a *App) projectLinks(projRef *core.Ref, taskIDs map[string]bool, ctxItems []CollectedContextItem) []string {
@@ -486,6 +580,7 @@ func (a *App) projectOverviewView(_ core.State, groupName string, projRef *core.
 	ctxItems := a.projectContextItems(groupName, projRef)
 	lanes := a.projectLanes(projRef, taskIDs, paneIDs)
 	notes := a.projectNotes(projRef, taskIDs, paneIDs)
+	docs := a.projectDocuments(projRef, taskIDs, paneIDs)
 	links := a.projectLinks(projRef, taskIDs, ctxItems)
 
 	badges = append(badges,
@@ -494,6 +589,9 @@ func (a *App) projectOverviewView(_ core.State, groupName string, projRef *core.
 	)
 	if len(lanes) > 0 {
 		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d lanes", len(lanes)), Tone: "info"})
+	}
+	if len(docs) > 0 {
+		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d docs", len(docs)), Tone: "info"})
 	}
 
 	var summaryLines []ui.ViewNode
@@ -559,6 +657,21 @@ func (a *App) projectOverviewView(_ core.State, groupName string, projRef *core.
 		noteSummary = strings.Join(parts, " · ")
 	}
 	summaryLines = append(summaryLines, line("project.overview.notes", fmt.Sprintf(" Notes (%d): %s", len(notes), noteSummary), ""))
+
+	// Documents summary.
+	docSummary := "none"
+	if len(docs) > 0 {
+		var parts []string
+		for i, doc := range docs {
+			if i >= 4 {
+				parts = append(parts, fmt.Sprintf("+%d more", len(docs)-4))
+				break
+			}
+			parts = append(parts, views.Title(a.schema(data.KindDocument), doc))
+		}
+		docSummary = strings.Join(parts, " · ")
+	}
+	summaryLines = append(summaryLines, line("project.overview.docs", fmt.Sprintf(" Documents (%d): %s", len(docs), docSummary), ""))
 
 	// Links summary.
 	linkSummary := "none"

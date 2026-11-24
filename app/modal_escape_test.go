@@ -404,20 +404,20 @@ func TestWrapInputsAndWrapOutlineSettings(t *testing.T) {
 		t.Fatal("expected work task tree Wrap=false when ui.wrapOutline=false")
 	}
 
-	// Verify all 4 new specs are appended at the very end of SettingSpecs().
+	// Verify all 4 specs stay in order (preceding any later appended specs).
 	specs := SettingSpecs()
-	if len(specs) < 4 {
-		t.Fatalf("unexpected SettingSpecs length %d", len(specs))
+	names := make([]string, len(specs))
+	for i, sp := range specs {
+		names[i] = sp.Name
 	}
-	tail := []string{
-		specs[len(specs)-4].Name,
-		specs[len(specs)-3].Name,
-		specs[len(specs)-2].Name,
-		specs[len(specs)-1].Name,
+	idx := slices.Index(names, SetModalEscapeGuard)
+	wantSeq := []string{SetModalEscapeGuard, SetWrapInputs, SetWrapOutline, SetOutlineEnterNewline}
+	if idx < 0 || idx+len(wantSeq) > len(names) || !slices.Equal(names[idx:idx+len(wantSeq)], wantSeq) {
+		t.Fatalf("SettingSpecs missing ordered sequence %v in %v", wantSeq, names)
 	}
-	wantTail := []string{SetModalEscapeGuard, SetWrapInputs, SetWrapOutline, SetOutlineEnterNewline}
-	if !slices.Equal(tail, wantTail) {
-		t.Fatalf("last 4 SettingSpecs = %v, want %v", tail, wantTail)
+	wantTail := []string{SetCardBorderStyle, SetRailEnterMode, SetSideTermSplit, SetInheritProjectTask}
+	if !slices.Equal(names[len(names)-len(wantTail):], wantTail) {
+		t.Fatalf("last 4 SettingSpecs = %v, want %v", names[len(names)-len(wantTail):], wantTail)
 	}
 }
 

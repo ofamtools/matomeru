@@ -78,6 +78,11 @@ func (a *App) viewKey(s core.State) string {
 		if a.panes != nil && a.panes.tocCollapsed["pages"] {
 			b.WriteString("|toc:collapsed")
 		}
+		if pane, ok := a.SelectedPane(); ok && pane != nil && a.panes != nil {
+			if sideID := a.panes.sideSplit[pane.ID]; sideID != "" {
+				b.WriteString("|side:" + sideID)
+			}
+		}
 	}
 	return b.String()
 }
@@ -323,11 +328,22 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 	if node.Scope == "" {
 		node.Scope, node.Ref = data.KindPane, &core.Ref{Kind: data.KindPane}
 	}
+	railEnterLive := a.cfg.Settings.String(SetRailEnterMode, RailEnterModeLive) == RailEnterModeLive
+	onPane := false
+	if it, ok := tbl.Focused(); ok && !it.Header {
+		onPane = true
+	}
+	if node.Facts == nil {
+		node.Facts = map[string]any{}
+	}
+	node.Facts["railEnterLive"] = railEnterLive
+	node.Facts["onPane"] = onPane
 	badges := []ui.Badge{{Text: fmt.Sprint(len(tbl.Filtered()))}}
 	if tbl.Query != "" {
 		badges = append(badges, ui.Badge{Text: "/" + tbl.Query, Tone: "accent"})
 	}
 	rail := ui.ViewNode{ID: "panes.rail", Kind: ui.KindPanel, Scope: ScopeRail, Title: "Panes", Border: true, Badges: badges,
+		Facts:    map[string]any{"railEnterLive": railEnterLive, "onPane": onPane},
 		Children: []ui.ViewNode{node}}
 
 	site := ui.ViewNode{ID: "panes.none", Kind: ui.KindPanel, Border: true, Title: "No pane",
@@ -374,6 +390,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 			site.Children = append(extraTop, site.Children...)
 		}
 		a.rt.live.shown = ""
+		a.rt.live.shownSide = ""
 		if screen := site.Find(siteScreen); screen != nil {
 			var shownLines []string
 			if lines, cursor, badges, ok := a.liveScreen(*pane, siteScreen); ok {
@@ -385,7 +402,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 					content.Title = fmt.Sprintf("Screen · pid %d", f.PID)
 				}
 			} else {
-				typing := s.Pages[SpacePanes].Mode == ModeTerminal
+				typing := s.Pages[SpacePanes].Mode == ModeTerminal && s.Pages[SpacePanes].FocusID != sideScreen
 				shownLines = a.termLines(*pane, typing)
 				screen.Props["lines"] = shownLines
 				site.Find("site.content").Badges = []ui.Badge{{Text: "not attached", Tone: "muted"}}
@@ -400,6 +417,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 				}
 				site.Children = append(site.Children, a.panes.hints.session.View("site.hints.bar"))
 			}
+			a.applySideSplit(&site, *pane, s)
 		}
 	}
 	if a.panes.zoom && site.ID == "site" {

@@ -50,6 +50,10 @@ const (
 	CmdUndo                 = "store.undo"
 	CmdRedo                 = "store.redo"
 	CmdSiteFocus            = "site.focus"
+	CmdPaneEnterLive        = "pane.enter.live"
+	CmdSideSplitSwitch      = "pane.side.switch"
+	CmdSideSplitClose       = "pane.side.close"
+	CmdProjectPageOpen      = "project.page.open"
 	CmdSitePageOpen         = "site.page.open"
 	CmdSiteTOCToggle        = "site.toc.toggle"
 	CmdAnswer               = "question.answer"
@@ -283,7 +287,11 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, "shift+tab", core.CmdFocusPrev, "previous"),
 
 		// Enter opens what is focused; inner scopes say what "open" means there.
-		bind(n, ScopeRail, "enter", CmdSiteFocus, "pane's pages"),
+		when(bind(n, ScopeRail, "enter", CmdPaneEnterLive, "enter live pane"), "facts.onPane && facts.railEnterLive"),
+		when(bind(n, ScopeRail, "enter", CmdSiteFocus, "focus pages"), "!(facts.onPane && facts.railEnterLive)"),
+		bind(n, ScopeRail, "P", CmdProjectPageOpen, "open project page"),
+		bind(n, views.ScopeSite, "P", CmdProjectPageOpen, "open project page"),
+		bind(n, ScopeProjectOverview, "P", CmdProjectPageOpen, "open project page"),
 		bind(n, views.ScopeTOC, "enter", CmdSitePageOpen, "open page"),
 		bind(n, "terminal", "enter", CmdTermAttach, "type in the pane"),
 		hidden(bind(n, "terminal", "i", CmdTermAttach, "type in the pane")),
@@ -422,6 +430,8 @@ func DefaultBindings() []core.Binding {
 		with(bind(ModeTerminalLeader, all, "[", CmdTermPrefix, "copy mode"), map[string]any{"key": "["}),
 		with(bind(ModeTerminalLeader, all, "t", CmdTermPrefix, "side terminal"), map[string]any{"key": "t"}),
 		with(bind(ModeTerminalLeader, all, "v", CmdTermPrefix, "side vim"), map[string]any{"key": "v"}),
+		bind(ModeTerminalLeader, all, "o", CmdSideSplitSwitch, "switch side split"),
+		bind(ModeTerminalLeader, all, "x", CmdSideSplitClose, "close side split"),
 		hidden(with(bind(ModeTerminalLeader, all, "ctrl+a", CmdTermPrefix, "send ctrl+a"), map[string]any{"key": "ctrl+a"})),
 		with(bind(ModeTerminalLeader, all, "S", CmdScratchToggle, "scratch terminal"), map[string]any{"role": data.RoleScratchTerm}),
 		with(bind(ModeTerminalLeader, all, "V", CmdScratchToggle, "scratch notes"), map[string]any{"role": data.RoleScratchVim}),

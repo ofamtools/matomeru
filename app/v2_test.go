@@ -64,7 +64,9 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetSessionUXNotes: true,
 		SetPageLockScroll: true, SetEdgeFocusSpill: false, SetVerboseHookBar: false,
 		SetLaneInTOC: true, SetCompactTOC: true, SetTOCGrouped: true,
-		SetModalEscapeGuard: "double", SetWrapInputs: true, SetWrapOutline: true, SetOutlineEnterNewline: true}
+		SetModalEscapeGuard: "double", SetWrapInputs: true, SetWrapOutline: true, SetOutlineEnterNewline: true,
+		SetCardBorderStyle: ui.CardBorderSubtle, SetRailEnterMode: RailEnterModeLive,
+		SetSideTermSplit: true, SetInheritProjectTask: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -135,7 +137,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 	if w := a.Shell.State.Layout.Rects["panes.rail"].W; w < 45 {
 		t.Fatalf("the focused rail is %d wide, want it widened", w)
 	}
-	d.Keys("enter")
+	d.Keys("l")
 	if w := a.Shell.State.Layout.Rects["panes.rail"].W; w > 40 {
 		t.Fatalf("the rail stays %d wide when it lost the focus", w)
 	}
@@ -448,7 +450,7 @@ func TestAttentionAndLaneKeys(t *testing.T) {
 	if sel, _ := a.SelectedPane(); sel == nil || sel.ID != pane.ID || a.Focus() != railTable {
 		t.Fatalf("W with no open question: focus %s", a.Focus())
 	}
-	d.Keys("enter", "g", "g", "enter") // the pages, the Screen, into the terminal
+	d.Keys("l", "g", "g", "enter") // the pages, the Screen, into the terminal
 	if a.Mode() != ModeTerminal {
 		t.Fatalf("mode %s", a.Mode())
 	}

@@ -65,6 +65,7 @@ type liveState struct {
 
 	frames    map[string]ptyhost.Frame // last snapshot of each pane's session
 	shown     string                   // the session the Screen shows
+	shownSide string                   // the session the side split shows, when active
 	clipboard string                   // the last text yanked
 
 	telemetryMu    sync.RWMutex
@@ -569,13 +570,30 @@ func (a *App) attachSized(pane data.Record, cols, rows int) error {
 	return nil
 }
 
-// screenMoved re-reads the shown session and reports whether its revision or
-// size changed since it was last drawn. When a live session transitions from
-// running to exited, it also returns the exited pane ID and exit code so wakeUp
-// can detach and auto-archive it cleanly.
+// screenMoved re-reads the shown session (and any active side split session)
+// and reports whether its revision or size changed since it was last drawn.
+// When a live session transitions from running to exited, it also returns the
+// exited pane ID and exit code so wakeUp can detach and auto-archive it cleanly.
 func (a *App) screenMoved() (moved bool, exitedID string, exitCode int) {
-	id := a.rt.live.shown
-	if a.panes.Host == nil || id == "" {
+	if a.panes.Host == nil {
+		return false, "", 0
+	}
+	m1, ex1, code1 := a.pollShownSession(a.rt.live.shown)
+	moved, exitedID, exitCode = m1, ex1, code1
+	if side := a.rt.live.shownSide; side != "" && side != a.rt.live.shown {
+		m2, ex2, code2 := a.pollShownSession(side)
+		if m2 {
+			moved = true
+		}
+		if exitedID == "" && ex2 != "" {
+			exitedID, exitCode = ex2, code2
+		}
+	}
+	return moved, exitedID, exitCode
+}
+
+func (a *App) pollShownSession(id string) (moved bool, exitedID string, exitCode int) {
+	if id == "" {
 		return false, "", 0
 	}
 	old, had := a.rt.live.frames[id]
@@ -650,6 +668,17 @@ func (a *App) handlePaneExited(s core.State, paneID string, exitCode int) core.S
 		if a.rt.live.shown == paneID {
 			a.rt.live.shown = ""
 		}
+		if a.rt.live.shownSide == paneID {
+			a.rt.live.shownSide = ""
+		}
+		for parentID, sideID := range a.panes.sideSplit {
+			if sideID == paneID {
+				delete(a.panes.sideSplit, parentID)
+				if s.ActiveFrame().FocusID == sideScreen {
+					s = withFocus(s, siteScreen)
+				}
+			}
+		}
 		if a.panes.Term != nil {
 			a.panes.Term.Forget(paneID)
 		}
@@ -679,7 +708,16 @@ func (a *App) liveScreen(pane data.Record, node string) (lines []string, cursor 
 		return nil, nil, nil, false
 	}
 	f, ok := a.rt.live.frames[pane.ID]
-	if !ok || a.rt.live.shown != pane.ID {
+	if node == sideScreen {
+		if !ok || a.rt.live.shownSide != pane.ID {
+			a.rt.live.shownSide = pane.ID
+			if f, ok = a.panes.Host.Snapshot(pane.ID); ok {
+				a.rt.live.frames[pane.ID] = f
+			} else {
+				delete(a.rt.live.frames, pane.ID)
+			}
+		}
+	} else if !ok || a.rt.live.shown != pane.ID {
 		a.rt.live.shown = pane.ID
 		if f, ok = a.panes.Host.Snapshot(pane.ID); ok {
 			a.rt.live.frames[pane.ID] = f
@@ -780,6 +818,12 @@ func (a *App) termPrefix(s core.State, c core.Command) core.StepResult {
 	switch key := c.Arg("key"); {
 	case !ok:
 		a.say("no pane is selected")
+	case (key == "t" || key == "v") && a.panes.Term == nil:
+		cmd := ""
+		if key == "v" {
+			cmd = editorCommand()
+		}
+		return core.Next(a.spawn(s, *pane, cmd))
 	case a.panes.Term == nil:
 		a.say("no live terminal is attached in this build")
 	case key != "t" && key != "v" && !a.hasSession(pane.ID):
@@ -793,9 +837,14 @@ func (a *App) termPrefix(s core.State, c core.Command) core.StepResult {
 		next, effects, _ := a.act(s, *pane, a.panes.Term.Key(pane.ID, key))
 		if a.panes.Term.Mode(pane.ID) == ptyhost.ModeCopy && a.activeScratch() == nil {
 			// Copy Mode reads its keys on the Screen, wherever it was asked for.
-			a.panes.activePage[pane.ID] = views.ScreenPageID
+			targetFocus := siteScreen
+			if s.ActiveFrame().FocusID == sideScreen {
+				targetFocus = sideScreen
+			} else {
+				a.panes.activePage[pane.ID] = views.ScreenPageID
+			}
 			next.ActivePage = SpacePanes
-			next = withPage(a.dropModals(next), SpacePanes, siteScreen, ModeTerminal)
+			next = withPage(a.dropModals(next), SpacePanes, targetFocus, ModeTerminal)
 		}
 		return core.Next(next, effects...)
 	}
@@ -803,10 +852,12 @@ func (a *App) termPrefix(s core.State, c core.Command) core.StepResult {
 }
 
 // spawn opens a side pane beside from, in its directory and for its task,
-// running command ("" is the shell), and goes into it. The pane's role says
-// what it is (a side terminal or a side editor) and its parentPane which
-// pane it was opened beside.
+// running command ("" is the shell), and goes into it. When panes.sideTermSplit
+// is enabled (default), it opens as a side-by-side split beside the parent pane.
 func (a *App) spawn(s core.State, from data.Record, command string) core.State {
+	if a.sideTermSplitEnabled() {
+		return a.openSideSplit(s, from, command)
+	}
 	name, role := command, data.RoleSideVim
 	if name == "" {
 		name, role = "shell", data.RoleSideTerm

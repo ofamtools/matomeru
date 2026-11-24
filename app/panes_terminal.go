@@ -25,6 +25,7 @@ type PaneController struct {
 	Term            *ptyhost.Controller
 	term            map[string]*termBuf
 	activePage      map[string]string
+	sideSplit       map[string]string
 	pageScroll      map[string]int
 	tocCollapsed    map[string]bool
 	zoom            bool
@@ -54,6 +55,7 @@ func newPaneController() *PaneController {
 	return &PaneController{
 		term:         map[string]*termBuf{},
 		activePage:   map[string]string{},
+		sideSplit:    map[string]string{},
 		pageScroll:   map[string]int{},
 		tocCollapsed: map[string]bool{},
 	}
@@ -137,6 +139,15 @@ func (a *App) sitePageOpen(s core.State, c core.Command) core.StepResult {
 		}
 	}
 	return core.Next(withFocus(s, views.PageScrollID))
+}
+
+func (a *App) paneEnterLive(s core.State, _ core.Command) core.StepResult {
+	pane, ok := a.SelectedPane()
+	if !ok {
+		return a.siteFocus(s, core.Command{})
+	}
+	a.panes.activePage[pane.ID] = views.ScreenPageID
+	return core.Next(a.enterScreen(withFocus(s, siteScreen), *pane))
 }
 
 func (a *App) siteFocus(s core.State, _ core.Command) core.StepResult {

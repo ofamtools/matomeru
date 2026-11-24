@@ -164,7 +164,9 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("the pane has an unread dot and an unread Questions page", k.has("● claude: wave 5B", "● ? Questions") && pages()["questions"].Unread && a.attention(pane.ID))
 	k.check("the other pane, whose pages are read, has no dot", !a.attention(other.ID))
 	k.Keys("enter")
-	k.check("enter goes from the rail to the pane's pages", a.Focus() == tocPrefix+"screen")
+	k.check("enter on rail pane enters live terminal directly", a.Mode() == ModeTerminal && a.Focus() == siteScreen)
+	k.Keys("ctrl+a", "d", "h", "h", "l")
+	k.check("l moves from the rail to the pane's pages", a.Focus() == tocPrefix+"screen")
 	k.Keys("j", "j", "enter")
 	questions := pages()["questions"]
 	k.check("opening Questions marks the page viewed and enters pane-locked reading mode", !questions.Unread && a.Mode() == ModePage && a.Focus() == "q-live-terminal" && k.has("Attach live terminals in this wave?"))

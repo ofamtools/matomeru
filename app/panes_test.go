@@ -460,7 +460,7 @@ func TestWave3LiveTerminalHints(t *testing.T) {
 	}
 
 	// 2. Enter live terminal, trigger via ctrl+a f, then UPPERCASE label inserts into pane!
-	d.Keys("enter", "enter")
+	d.Keys("enter")
 	if a.Mode() != ModeTerminal {
 		t.Fatalf("failed to enter ModeTerminal: mode=%q", a.Mode())
 	}
@@ -722,7 +722,7 @@ func TestWave3BatchedQuestionsUI(t *testing.T) {
 	}
 
 	// Open Questions page.
-	d.Keys("enter", "j", "enter")
+	d.Keys("l", "j", "enter")
 	if a.Focus() != "q-env" {
 		t.Fatalf("opening batched Questions did not focus first question q-env: got %q", a.Focus())
 	}

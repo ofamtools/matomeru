@@ -479,15 +479,19 @@ func (a *App) register() {
 	a.Engine.Handle(CmdWake, a.wakeUp)
 
 	a.handle(CmdSiteFocus, a.siteFocus)
+	a.handle(CmdPaneEnterLive, a.paneEnterLive)
+	a.handle(CmdSideSplitSwitch, a.sideSplitSwitch)
+	a.handle(CmdSideSplitClose, a.sideSplitClose)
+	a.handle(CmdProjectPageOpen, a.projectPageOpen)
 	a.handle(CmdSitePageOpen, a.sitePageOpen)
 	a.handle(CmdSiteTOCToggle, a.siteTOCToggle)
 	a.handle(CmdAnswer, a.answerQuestion)
 	a.handle(CmdTermAttach, func(s core.State, _ core.Command) core.StepResult {
-		if s.ActiveFrame().FocusID != siteScreen {
+		if s.ActiveFrame().FocusID != siteScreen && s.ActiveFrame().FocusID != sideScreen {
 			a.say("no terminal is focused")
 			return core.Next(s)
 		}
-		pane, ok := a.SelectedPane()
+		pane, ok := a.termPane(s)
 		if !ok {
 			a.say("no pane is selected")
 			return core.Next(s)

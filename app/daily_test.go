@@ -559,8 +559,8 @@ func TestGlobalScratches(t *testing.T) {
 	if len(sideVim) != 1 || sideVim[0].Text("command") == "" {
 		t.Fatalf("ctrl+a v: %+v", sideVim)
 	}
-	if ref, _ := sideVim[0].RefField("parentPane"); ref != sideTerm[0].Ref() {
-		t.Fatalf("side editor: parentPane %v", ref)
+	if ref, _ := sideVim[0].RefField("parentPane"); ref != parent.Ref() {
+		t.Fatalf("side editor: parentPane %v, want %v", ref, parent.Ref())
 	}
 }
 

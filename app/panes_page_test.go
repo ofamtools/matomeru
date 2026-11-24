@@ -119,8 +119,8 @@ func TestLiveTerminalPreservesBracketedPaste(t *testing.T) {
 	}
 	a.rt.live.frames[pane.ID] = host.frame
 
-	// Enter Screen terminal mode.
-	d.Keys("enter", "enter")
+	// Enter Screen terminal mode directly from rail.
+	d.Keys("enter")
 	if a.Mode() != ModeTerminal {
 		t.Fatalf("expected ModeTerminal, got %q", a.Mode())
 	}

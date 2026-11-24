@@ -387,11 +387,11 @@ func (d *DataTools) ToolSpecs() []ToolSpec {
 		},
 		{
 			Name:        ToolLogQA,
-			Description: "Log an answered Q&A pair (owner asked the agent, agent answered): creates a KindQuestion record with questionKind \"qa\" and status \"answered\" (no attention/needs_you alert). When page is given (e.g. \"qa\" or \"questions\"), also appends a read Q&A card to that page without unread nagging. Returns {question, page?, cardId?}.",
+			Description: "Log an answered Q&A pair (owner asked the agent, agent answered): creates a KindQuestion record with questionKind \"qa\" and status \"answered\" (no attention/needs_you alert). Format answer as structured Markdown (headings, bullet lists, bold labels, fenced code blocks; never a flat prose wall). When page is given (e.g. \"qa\" or \"questions\"), also appends a read Q&A card to that page without unread nagging. Returns {question, page?, cardId?}.",
 			InputSchema: object([]string{"prompt", "answer"}, props{
 				"id":      text("question ID; generated when omitted"),
 				"prompt":  text("the question the owner asked"),
-				"answer":  text("the agent's answer"),
+				"answer":  text("the agent's answer. Format answer as structured Markdown (headings, bullet lists, bold labels, fenced code blocks; never a flat prose wall)."),
 				"details": text("optional extra context or references"),
 				"page":    text("optional page ID or slug (e.g. \"qa\" or \"questions\") to append a non-unread Q&A card"),
 				"pane":    text("pane ID; auto-bound when omitted"),

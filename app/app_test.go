@@ -276,7 +276,7 @@ func TestListsWorkOnAnyField(t *testing.T) {
 	}
 	d.Keys("esc")
 	// The pane's pages filter too.
-	d.Keys("1", "enter", "/")
+	d.Keys("1", "l", "/")
 	d.Type("arch")
 	d.Keys("enter")
 	if frame := d.Frame(); !strings.Contains(frame, "/arch") || strings.Contains(frame, "Questions") || !strings.HasPrefix(a.Focus(), tocPrefix) {

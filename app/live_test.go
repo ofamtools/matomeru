@@ -297,7 +297,7 @@ func TestScreenIsALiveTerminal(t *testing.T) {
 	}
 
 	wake(d) // the pane was written behind the app's back
-	d.Keys("1", "enter")
+	d.Keys("1", "l")
 	if strings.Contains(d.Frame(), "No live terminal is attached") || !strings.Contains(d.Frame(), "Enter starts one") {
 		t.Fatalf("before attaching:\n%s", d.Frame())
 	}
@@ -340,9 +340,9 @@ func TestScreenIsALiveTerminal(t *testing.T) {
 		t.Fatalf("yank: clipboard %q, effect %v, mode %s", a.rt.live.clipboard, a.Shell.LastEffects, a.panes.Term.Mode(pane.ID))
 	}
 
-	// ctrl+a t: a shell beside the pane, in its directory.
+	// ctrl+a t: a shell beside the pane, in its directory (split view, rail stays on parent).
 	d.Keys("ctrl+a", "t")
-	side, ok := a.SelectedPane()
+	side, ok := a.termPane(a.State())
 	if !ok || side.ID == pane.ID || side.Text("cwd") != cwd || side.Text("harness") != "sh" || !a.hasSession(side.ID) || a.Mode() != ModeTerminal {
 		t.Fatalf("ctrl+a t: %v, status %q", side, a.Status())
 	}
@@ -350,9 +350,9 @@ func TestScreenIsALiveTerminal(t *testing.T) {
 	d.Keys("enter")
 	shows(side.ID, "side-42")
 
-	// ctrl+a v: an editor beside that one.
+	// ctrl+a v: an editor beside the same parent pane.
 	d.Keys("ctrl+a", "v")
-	editor, ok := a.SelectedPane()
+	editor, ok := a.termPane(a.State())
 	if !ok || editor.ID == side.ID || editor.Text("command") != "nvim" || !a.hasSession(editor.ID) {
 		t.Fatalf("ctrl+a v: %v, status %q", editor, a.Status())
 	}
@@ -389,7 +389,7 @@ func TestLivePaneEnvPIDEscapeZoom(t *testing.T) {
 		}
 	}
 	wake(d)
-	d.Keys("1", "enter", "enter")
+	d.Keys("1", "enter")
 	if a.Mode() != ModeTerminal {
 		t.Fatalf("not attached: %s, status %q", a.Mode(), a.Status())
 	}

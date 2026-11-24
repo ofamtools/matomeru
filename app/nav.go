@@ -58,7 +58,7 @@ func newNavController() *NavController {
 
 // regionRoots are the nodes whose focusable descendants form one column: h
 // and l move between regions, j and k walk every focusable in drawing order.
-var regionRoots = []string{"panes.rail", "project.overview", "site.toc", "site.content", showHeader, "show.props", "show.related",
+var regionRoots = []string{"panes.rail", "project.overview", "site.toc", "site.content", "site.side.panel", showHeader, "show.props", "show.related",
 	SpaceWork, SpaceRuns, SpaceExtensions, "runs.detail", "extensions.detail"}
 
 type fnode struct{ id, region string }

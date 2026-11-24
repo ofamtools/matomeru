@@ -182,7 +182,7 @@ func TestViewCyclePanesRailProjectContextSiteAndTables(t *testing.T) {
 	}
 
 	// 4. Pane Site focused: g V delegates to siteTOCToggle.
-	d.Keys("h", "j", "enter") // select first pane, enter its site TOC
+	d.Keys("h", "j", "l") // select first pane, enter its site TOC
 	if !strings.HasPrefix(a.Focus(), "site.") {
 		t.Fatalf("expected site.* focus, got %q", a.Focus())
 	}

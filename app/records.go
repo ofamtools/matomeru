@@ -393,9 +393,12 @@ func (a *App) inferCreateCwd(s core.State, subject core.Ref, hasSubject bool, ta
 		}
 	}
 	if s.ActivePage == SpacePanes {
-		if _, projRef, onProj := a.selectedRailProject(); onProj && projRef != nil {
-			if dir := a.defaultDirForTask(*projRef); dir != "" {
-				return dir
+		inheritProj := a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetInheritProjectTask, true)
+		if inheritProj {
+			if projTask, ok := a.railActiveProjectTask(s); ok {
+				if dir := a.defaultDirForTask(projTask); dir != "" {
+					return dir
+				}
 			}
 		}
 		if pane, ok := a.SelectedPane(); ok && pane != nil {
@@ -515,6 +518,12 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 		}
 	} else {
 		subject, hasSubject = a.subject(s, c)
+		inheritProj := s.ActivePage == SpacePanes && (a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetInheritProjectTask, true))
+		var projTask core.Ref
+		var hasProjTask bool
+		if inheritProj {
+			projTask, hasProjTask = a.railActiveProjectTask(s)
+		}
 		switch {
 		case kind == data.KindTask:
 			// On a task's Show page (or when targeting a task directly) a new task is its subtask.
@@ -522,6 +531,8 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 				setField("parent", cur)
 			} else if c.Target != nil && c.Target.Kind == data.KindTask && c.Target.ID != "" {
 				setField("parent", *c.Target)
+			} else if hasProjTask && getField("parent") == nil {
+				setField("parent", projTask)
 			}
 		case hasSubject:
 			// A note (or anything else with a task) belongs to the focused
@@ -536,7 +547,9 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 					task, _ = rec.RefField("task")
 				}
 			}
-			if (task.Kind != data.KindTask || task.ID == "") && s.ActivePage == SpacePanes {
+			if hasProjTask {
+				task = projTask
+			} else if (task.Kind != data.KindTask || task.ID == "") && s.ActivePage == SpacePanes && inheritProj {
 				if pane, ok := a.SelectedPane(); ok && pane != nil {
 					task, _ = pane.RefField("task")
 				}
@@ -545,10 +558,8 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 				setField("task", task)
 			}
 		case s.ActivePage == SpacePanes:
-			if _, ok := schema.Field("task"); ok {
-				if _, projRef, onProj := a.selectedRailProject(); onProj && projRef != nil && projRef.Kind == data.KindTask && projRef.ID != "" {
-					setField("task", *projRef)
-				}
+			if _, ok := schema.Field("task"); ok && hasProjTask {
+				setField("task", projTask)
 			}
 		}
 	}

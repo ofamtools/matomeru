@@ -207,9 +207,9 @@ func TestPanesTOCToggleAndReaderTOC(t *testing.T) {
 	}
 
 	// Focus into site.toc.* then toggle TOC off with t.
-	d.Keys("enter")
+	d.Keys("l")
 	if !strings.HasPrefix(a.Focus(), tocPrefix) {
-		t.Fatalf("enter on rail did not focus TOC: focus=%q", a.Focus())
+		t.Fatalf("l on rail did not focus TOC: focus=%q", a.Focus())
 	}
 	d.Keys("t")
 	if a.cfg.Settings.Bool(SetShowTOC, true) {

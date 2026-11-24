@@ -256,11 +256,15 @@ func TestSpacePanesInstantTerminalAndAgentForm(t *testing.T) {
 	if !hasTask {
 		t.Fatal("expected initial selected pane to belong to a task")
 	}
+	projRef, hasProj := a.topLevelTask(taskRef)
+	if !hasProj {
+		t.Fatal("expected top-level project task for selected pane")
+	}
 	if _, _, err := a.Store.Patch(data.PatchInput{
-		Ref:    taskRef,
+		Ref:    projRef,
 		Fields: map[string]any{"defaultDir": projDir},
 	}, User); err != nil {
-		t.Fatalf("patch task defaultDir: %v", err)
+		t.Fatalf("patch project defaultDir: %v", err)
 	}
 
 	beforePanes, err := a.Store.Query(data.Query{Kind: data.KindPane})
@@ -306,8 +310,8 @@ func TestSpacePanesInstantTerminalAndAgentForm(t *testing.T) {
 	if created.Text("cwd") != projDir {
 		t.Fatalf("created instant terminal cwd = %q, want inherited %q", created.Text("cwd"), projDir)
 	}
-	if gotTask, ok := created.RefField("task"); !ok || gotTask != taskRef {
-		t.Fatalf("created instant terminal task = %v (ok=%v), want %v", gotTask, ok, taskRef)
+	if gotTask, ok := created.RefField("task"); !ok || gotTask != projRef {
+		t.Fatalf("created instant terminal task = %v (ok=%v), want top-level project %v", gotTask, ok, projRef)
 	}
 	if a.panes.activePage[created.ID] != views.ScreenPageID {
 		t.Fatalf("created pane activePage = %q, want %q", a.panes.activePage[created.ID], views.ScreenPageID)

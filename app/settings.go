@@ -148,6 +148,12 @@ const (
 	SetWrapInputs              = "ui.wrapInputs"
 	SetWrapOutline             = "ui.wrapOutline"
 	SetOutlineEnterNewline     = "outline.enterNewline"
+	SetCardBorderStyle         = "ui.cardBorderStyle"
+	SetRailEnterMode           = "panes.railEnterMode"
+	SetSideTermSplit           = "panes.sideTermSplit"
+	SetInheritProjectTask      = "panes.inheritProjectTask"
+	RailEnterModeLive          = "live"
+	RailEnterModeTOC           = "toc"
 	PickerDefaultModeNormal    = "normal"
 	PickerDefaultModeAllNormal = "all-normal"
 	PickerDefaultModeFilter    = "filter"
@@ -234,6 +240,10 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetWrapInputs, true, "wrap long text in form inputs so overflow stays visible"),
 		flag(SetWrapOutline, true, "wrap long titles and multiline items in trees and outline"),
 		flag(SetOutlineEnterNewline, true, "pressing enter in inline outline edit commits the row and starts a new sibling below"),
+		enum(SetCardBorderStyle, ui.CardBorderSubtle, "how cards are framed (subtle, rounded, minimal, none)", ui.CardBorderSubtle, ui.CardBorderRounded, ui.CardBorderMinimal, ui.CardBorderNone),
+		enum(SetRailEnterMode, RailEnterModeLive, "what enter on a pane in the left rail does (live enters terminal, toc focuses pages)", RailEnterModeLive, RailEnterModeTOC),
+		flag(SetSideTermSplit, true, "open ctrl+a t / ctrl+a v as a side-by-side split beside the active pane"),
+		flag(SetInheritProjectTask, true, "auto-inherit the active top-level project task when creating records in 1 Panes"),
 	}
 }
 
@@ -282,8 +292,24 @@ func (a *App) reloadSettings() {
 	a.syncSessionRecorder()
 }
 
+func cardBorderStyleValue(v string) string {
+	switch v {
+	case ui.CardBorderSubtle:
+		return ui.CardBorderSubtle
+	case ui.CardBorderRounded:
+		return ui.CardBorderRounded
+	case ui.CardBorderMinimal:
+		return ui.CardBorderMinimal
+	case ui.CardBorderNone:
+		return ui.CardBorderNone
+	default:
+		return ui.CardBorderSubtle
+	}
+}
+
 // theme builds the theme the settings ask for: the named preset, the
-// density and border style the user set over it, then the user's themes.json.
+// density, border style and card border style the user set over it, then the
+// user's themes.json.
 func (a *App) theme() ui.Theme {
 	theme := ui.DefaultDarkTheme()
 	name := a.cfg.Settings.String(SetTheme, defaultThemeName)
@@ -297,6 +323,10 @@ func (a *App) theme() ui.Theme {
 	}
 	if v, ok := a.cfg.userSettings[SetBorderStyle].(string); ok && v != "" {
 		theme.BorderStyle = v
+	}
+	theme.CardBorderStyle = cardBorderStyleValue(a.cfg.Settings.String(SetCardBorderStyle, ui.CardBorderSubtle))
+	if v, ok := a.cfg.userSettings[SetCardBorderStyle].(string); ok && v != "" {
+		theme.CardBorderStyle = cardBorderStyleValue(v)
 	}
 	if len(a.cfg.themeOverlay) > 0 {
 		if t, err := config.LoadTheme(a.cfg.themeOverlay, theme); err == nil {
@@ -404,6 +434,7 @@ func (a *App) settingValues() map[string]any {
 	}
 	theme := a.theme()
 	out[SetDensity], out[SetBorderStyle] = theme.EffectiveDensity(), theme.EffectiveBorderStyle()
+	out[SetCardBorderStyle] = cardBorderStyleValue(theme.CardBorderStyle)
 	out[SetMatchMode] = string(a.matchMode())
 	return out
 }
@@ -452,7 +483,7 @@ func (a *App) commitSetting(fm *form.Model, name string) {
 	if !has {
 		return
 	}
-	if old, set := a.cfg.Settings.Raw(name); set && old == value && name != SetDensity && name != SetBorderStyle {
+	if old, set := a.cfg.Settings.Raw(name); set && old == value && name != SetDensity && name != SetBorderStyle && name != SetCardBorderStyle {
 		return
 	}
 	a.cfg.userSettings[name] = value
