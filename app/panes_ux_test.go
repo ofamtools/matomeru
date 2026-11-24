@@ -410,3 +410,65 @@ func TestDataLogQAMarkdownHint(t *testing.T) {
 	}
 	t.Fatal("data.log_qa spec not found")
 }
+
+func TestPanesUXDeadPaneExitClosesSideSplitDetachesFocusesRailAndSelectsNext(t *testing.T) {
+	a, d := demo(t)
+	first, ok := a.SelectedPane()
+	if !ok {
+		t.Fatal("expected initial selected pane")
+	}
+	rows := a.rail().Filtered()
+	if len(rows) < 2 || rows[1].Ref == nil {
+		t.Fatalf("expected at least 2 demo panes in rail, got %d", len(rows))
+	}
+	secondID := rows[1].Ref.ID
+
+	// 1. Side term dies: closes side split, detaches from ModeTerminal, moves focus to left rail.
+	d.Keys("enter")
+	if a.Mode() != ModeTerminal || a.Focus() != siteScreen {
+		t.Fatalf("expected live terminal before side split: mode=%q focus=%q", a.Mode(), a.Focus())
+	}
+	d.Keys("ctrl+a", "t")
+	sideID := a.panes.sideSplit[first.ID]
+	if sideID == "" || a.Focus() != sideScreen || a.Mode() != ModeTerminal {
+		t.Fatalf("expected open side split: sideID=%q focus=%q mode=%q", sideID, a.Focus(), a.Mode())
+	}
+	a.Shell.State = a.handlePaneExited(a.State(), sideID, 0)
+	if a.panes.sideSplit[first.ID] != "" {
+		t.Fatalf("dead side term split was not closed: %v", a.panes.sideSplit)
+	}
+	if a.Mode() != ModeNormal || a.Focus() != railTable {
+		t.Fatalf("dead side term exit: mode=%q focus=%q, want normal / %s", a.Mode(), a.Focus(), railTable)
+	}
+	if sel, ok := a.SelectedPane(); !ok || sel.ID != first.ID {
+		t.Fatalf("after dead side term exit expected parent pane %q selected, got %v", first.ID, sel)
+	}
+
+	// 2. Main pane dies while attached: detaches, archives dead pane, focuses left rail, selects NEXT pane.
+	d.Keys("enter")
+	if a.Mode() != ModeTerminal || a.Focus() != siteScreen {
+		t.Fatalf("expected live terminal on first pane: mode=%q focus=%q", a.Mode(), a.Focus())
+	}
+	a.Shell.State = a.handlePaneExited(a.State(), first.ID, 0)
+	if a.Mode() != ModeNormal || a.Focus() != railTable {
+		t.Fatalf("dead main pane exit: mode=%q focus=%q, want normal / %s", a.Mode(), a.Focus(), railTable)
+	}
+	if sel, ok := a.SelectedPane(); !ok || sel.ID != secondID {
+		t.Fatalf("dead main pane did not advance rail to next pane %q, got %v", secondID, sel)
+	}
+
+	// 3. Opt-out terminal.focusRailOnExit=false keeps focus off railTable while still detaching.
+	a.cfg.userSettings[SetFocusRailOnExit] = false
+	a.reloadSettings()
+	d.Keys("enter")
+	if a.Mode() != ModeTerminal || a.Focus() != siteScreen {
+		t.Fatalf("expected live terminal on second pane: mode=%q focus=%q", a.Mode(), a.Focus())
+	}
+	a.Shell.State = a.handlePaneExited(a.State(), secondID, 0)
+	if a.Mode() != ModeNormal {
+		t.Fatalf("opt-out should still detach to ModeNormal, got %q", a.Mode())
+	}
+	if a.Focus() != siteScreen {
+		t.Fatalf("opt-out terminal.focusRailOnExit=false moved focus to %q, want %q", a.Focus(), siteScreen)
+	}
+}

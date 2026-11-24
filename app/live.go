@@ -22,6 +22,7 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/toast"
 )
 
@@ -630,19 +631,95 @@ func (a *App) shouldHarvestScreen(paneID string) bool {
 	return lastAt.IsZero() || a.now().Sub(lastAt) >= liveScreenHarvestInterval
 }
 
-// handlePaneExited detaches from a dead live session, marks the pane dead in
-// the store (keeping its task link and all pages/questions/docs/context intact),
-// and auto-archives it when terminal.autoArchiveOnExit is enabled.
+// nextRailRowIDBeforeExit picks the pane row in the left rail that should be
+// selected once paneID exits: the next pane row below it, falling back to the
+// pane row above it.
+func (a *App) nextRailRowIDBeforeExit(paneID string) string {
+	rows := a.rail().Filtered()
+	idx := -1
+	for i, r := range rows {
+		if r.Ref != nil && r.Ref.ID == paneID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return ""
+	}
+	if idx+1 < len(rows) {
+		return rows[idx+1].ID
+	}
+	if idx-1 >= 0 {
+		return rows[idx-1].ID
+	}
+	return ""
+}
+
+// handlePaneExited detaches from a dead live session, closes any dead side
+// split or scratch overlay, marks the pane dead in the store (keeping its task
+// link and all pages/questions/docs/context intact), auto-archives it when
+// terminal.autoArchiveOnExit is enabled, and moves focus back to the left pane
+// rail selecting the next item when terminal.focusRailOnExit is enabled.
 func (a *App) handlePaneExited(s core.State, paneID string, exitCode int) core.State {
 	if paneID == "" {
 		return s
 	}
+
+	// If a global scratch overlay's pane died, close the scratch modal cleanly.
+	if sm := a.activeScratch(); sm != nil && sm.paneID == paneID {
+		s, _ = a.modals.Close(s, "scratch", modal.CloseCancel)
+	}
+
+	// Detect whether this exiting pane is a side split and whether the user is
+	// actively viewing or attached to it.
+	isSideSplit := a.rt.live.shownSide == paneID
+	sideParentID := ""
+	for parentID, sideID := range a.panes.sideSplit {
+		if sideID == paneID {
+			isSideSplit = true
+			sideParentID = parentID
+			break
+		}
+	}
+
+	termP, hasTerm := a.termPane(s)
+	termMatches := hasTerm && termP.ID == paneID
+	selP, hasSel := a.SelectedPane()
+	selMatches := s.ActivePage == SpacePanes && hasSel && (selP.ID == paneID || (isSideSplit && sideParentID != "" && selP.ID == sideParentID))
+	isActive := termMatches || selMatches
+
+	nextRailID := ""
+	if isActive {
+		if isSideSplit && sideParentID != "" {
+			nextRailID = data.RefText(core.Ref{Kind: data.KindPane, ID: sideParentID})
+		} else {
+			nextRailID = a.nextRailRowIDBeforeExit(paneID)
+		}
+	}
+
 	// Always detach from live terminal mode so the user is never stuck in a dead PTY.
 	if s.ActiveFrame().Mode == ModeTerminal {
-		if pane, ok := a.termPane(s); !ok || pane.ID == paneID {
+		if !hasTerm || termMatches {
 			s = withMode(s, ModeNormal)
 		}
 	}
+
+	// Always close a dead side split (or detach any side split belonging to a dead parent).
+	if a.rt.live.shownSide == paneID {
+		a.rt.live.shownSide = ""
+	}
+	for parentID, sideID := range a.panes.sideSplit {
+		if sideID == paneID || parentID == paneID {
+			delete(a.panes.sideSplit, parentID)
+			if a.rt.live.shownSide == sideID {
+				a.rt.live.shownSide = ""
+			}
+			if s.ActiveFrame().FocusID == sideScreen {
+				s = withFocus(s, siteScreen)
+			}
+		}
+	}
+
 	if a.Store == nil {
 		return s
 	}
@@ -668,17 +745,6 @@ func (a *App) handlePaneExited(s core.State, paneID string, exitCode int) core.S
 		if a.rt.live.shown == paneID {
 			a.rt.live.shown = ""
 		}
-		if a.rt.live.shownSide == paneID {
-			a.rt.live.shownSide = ""
-		}
-		for parentID, sideID := range a.panes.sideSplit {
-			if sideID == paneID {
-				delete(a.panes.sideSplit, parentID)
-				if s.ActiveFrame().FocusID == sideScreen {
-					s = withFocus(s, siteScreen)
-				}
-			}
-		}
 		if a.panes.Term != nil {
 			a.panes.Term.Forget(paneID)
 		}
@@ -693,6 +759,23 @@ func (a *App) handlePaneExited(s core.State, paneID string, exitCode int) core.S
 		a.say("%s", msg)
 		a.pushToast(msg, toast.Warn)
 	}
+
+	// Refresh rail and return focus to the left pane rail on the next item.
+	a.panes.railCacheKey = ""
+	if isActive && (a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFocusRailOnExit, true)) {
+		rail := a.rail()
+		if nextRailID != "" {
+			if !selectRow(rail, nextRailID) && len(rail.Filtered()) > 0 {
+				selectRow(rail, rail.Filtered()[0].ID)
+			}
+		} else if len(rail.Filtered()) > 0 {
+			selectRow(rail, rail.Filtered()[0].ID)
+		}
+		if s.ActivePage == SpacePanes && len(s.Modals) == 0 {
+			s = withPage(s, SpacePanes, railTable, ModeNormal)
+		}
+	}
+	a.viewMemo.gen++
 	return s
 }
 
