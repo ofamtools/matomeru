@@ -65,7 +65,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetSessionUXNotes: true,
 		SetPageLockScroll: true, SetEdgeFocusSpill: false, SetVerboseHookBar: false,
 		SetLaneInTOC: true, SetCompactTOC: true, SetTOCGrouped: true,
-		SetModalEscapeGuard: "double", SetWrapInputs: true, SetWrapOutline: true, SetOutlineEnterNewline: true,
+		SetModalEscapeGuard: "double", SetWrapInputs: true, SetWrapOutline: true, SetOutlineEnterNewline: true, SetOutlineStartCollapsed: true,
 		SetCardBorderStyle: ui.CardBorderSubtle, SetRailEnterMode: RailEnterModeLive,
 		SetSideTermSplit: true, SetInheritProjectTask: true, SetFocusRailOnExit: true, SetFocusRailOnDetach: true}
 	defaults := DefaultSettings()

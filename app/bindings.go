@@ -87,6 +87,8 @@ const (
 	CmdOutlineEditCancel    = "outline.edit.cancel"
 	CmdOutlineEditNewline   = "outline.edit.newline"
 	CmdOutlineEditLinebreak = "outline.edit.linebreak"
+	CmdOutlineCleanSlate    = "outline.clean_slate"
+	CmdOutlineTriage        = "outline.triage"
 	CmdRecentsPick          = "recents.pick"
 	CmdPagesPick            = "pages.pick"
 	CmdPaletteOpen          = "palette.open"
@@ -322,6 +324,10 @@ func DefaultBindings() []core.Binding {
 		hidden(when(bind(n, views.ScopeIndex, "z c", tree.CmdFoldClose, "fold subtree"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "z R", tree.CmdFoldOpenAll, "unfold all"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "z M", tree.CmdFoldCloseAll, "fold all"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "=", tree.CmdHoistIn, "hoist subtree"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "-", tree.CmdHoistOut, "unhoist"), "facts.isTree && facts.hoisted")),
+		hidden(when(bind(n, views.ScopeIndex, "esc", tree.CmdHoistOut, "unhoist"), "facts.isTree && facts.hoisted")),
+		hidden(when(bind(n, views.ScopeIndex, "X", CmdOutlineTriage, "triage outline with agent"), "facts.isTree")),
 		hidden(bind(n, SpaceWork, "g t", CmdWorkLayoutToggle, "toggle tree/table")),
 		bind(n, ScopeProjectContext, "enter", CmdProjectContextOpen, "open context item"),
 		bind(n, ScopeProjectContext, "y", CmdProjectContextYank, "yank context item"),
@@ -404,6 +410,7 @@ func DefaultBindings() []core.Binding {
 
 		// Overlays, from anywhere.
 		bind(n, all, "T", CmdOutlineOpen, "outline"),
+		bind(n, all, "b", CmdOutlineCleanSlate, "blank outline"),
 		bind(n, all, "'", CmdPagesPick, "pages"),
 		bind(n, all, ";", CmdRecordActions, "record actions"),
 		bind(n, all, ":", CmdPaletteOpen, "commands"),
@@ -658,7 +665,12 @@ func DefaultBindings() []core.Binding {
 		bind(ModeOutline, all, "z c", tree.CmdFoldClose, "fold subtree"),
 		bind(ModeOutline, all, "z R", tree.CmdFoldOpenAll, "unfold all"),
 		bind(ModeOutline, all, "z M", tree.CmdFoldCloseAll, "fold all"),
-		with(bind(ModeOutline, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}),
+		bind(ModeOutline, all, "=", tree.CmdHoistIn, "hoist subtree"),
+		when(bind(ModeOutline, all, "-", tree.CmdHoistOut, "unhoist"), "facts.hoisted"),
+		bind(ModeOutline, all, "b", CmdOutlineCleanSlate, "blank outline"),
+		bind(ModeOutline, all, "X", CmdOutlineTriage, "triage outline with agent"),
+		when(bind(ModeOutline, all, "esc", tree.CmdHoistOut, "unhoist"), "facts.hoisted"),
+		when(with(bind(ModeOutline, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}), "!facts.hoisted"),
 		bind(ModeOutline, all, "q", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "T", CmdModalCancel, "close"),
 

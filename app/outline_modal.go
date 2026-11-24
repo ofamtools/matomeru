@@ -62,6 +62,10 @@ func (m *outlineModal) OnClose(modal.CloseReason) {
 	if m.a.trees.editingOutline() {
 		m.a.trees.clearEdit()
 	}
+	m.a.cleanupCleanSlateDraft(m.a.trees.outlineModel(), data.KindTask, outlineTree)
+	if tm := m.a.trees.outlineModel(); tm != nil {
+		tm.ClearHoist()
+	}
 }
 
 func (m *outlineModal) Handle(cmd core.Command) modal.Result {
@@ -82,6 +86,9 @@ func (m *outlineModal) Handle(cmd core.Command) modal.Result {
 		return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
 	case tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll:
 		m.a.runTreeFold(m.a.trees.outlineModel(), data.KindTask, outlineTree, false, cmd.ID)
+		return modal.Result{Handled: true}
+	case tree.CmdHoistIn, tree.CmdHoistOut, tree.CmdHoistClear:
+		m.a.runTreeHoist(m.a.trees.outlineModel(), data.KindTask, outlineTree, false, cmd)
 		return modal.Result{Handled: true}
 	case CmdOutlineEditStart:
 		m.a.runTreeStartEdit(m.a.trees.outlineModel(), data.KindTask, outlineTree, false, ModeOutline, false)
@@ -295,8 +302,23 @@ func (a *App) runOutlineEditCancel() (string, bool) {
 	if ret == "" {
 		ret = ModeNormal
 	}
+	ed := tm.Edit()
+	wasCleanSlate := ed != nil && ed.Kind == tree.EditRename && a.isCleanSlateDraft(meta.kind, ed.TargetID)
+	treeID := outlineTree
+	if meta.isWorkTree {
+		treeID = workTable
+	}
 	tm.CancelEdit()
 	a.trees.editMeta = nil
+	if wasCleanSlate {
+		if a.cleanupCleanSlateDraft(tm, meta.kind, treeID) {
+			if meta.isWorkTree {
+				a.syncWorkTreeToTable(meta.kind, tm)
+			}
+			a.say("discarded empty clean-slate outline")
+			return ret, true
+		}
+	}
 	a.say("")
 	return ret, true
 }
@@ -337,8 +359,24 @@ func (a *App) runOutlineEditCommit() (string, bool) {
 	if res.Kind == tree.EditRename {
 		ref := core.Ref{Kind: meta.kind, ID: res.TargetID}
 		_ = a.ensureShadow(ref)
+		isDraft := a.isCleanSlateDraft(meta.kind, res.TargetID)
 		if title == "" {
+			if isDraft && a.treeRecordHasChildren(meta.kind, res.TargetID) {
+				a.clearCleanSlateDraft()
+				a.syncTreeModel(tm, meta.kind, treeID)
+				if meta.isWorkTree {
+					a.syncWorkTreeToTable(meta.kind, tm)
+				}
+				a.say("kept outline root (has children)")
+				return ret, true
+			}
+			if isDraft {
+				a.clearCleanSlateDraft()
+			}
 			_, cs, err := a.Store.Archive(ref, User)
+			if tm.HoistID() == res.TargetID {
+				tm.Unhoist()
+			}
 			noun := strings.ToLower(schema.Title)
 			if noun == "" {
 				noun = meta.kind
@@ -349,6 +387,9 @@ func (a *App) runOutlineEditCommit() (string, bool) {
 				a.syncWorkTreeToTable(meta.kind, tm)
 			}
 			return ret, true
+		}
+		if isDraft {
+			a.clearCleanSlateDraft()
 		}
 		_, cs, err := a.Store.Patch(data.PatchInput{
 			Ref:     ref,
@@ -425,10 +466,14 @@ func (a *App) runOutlineEditNewline() (string, bool) {
 	}
 	var prevParentID string
 	var prevDepth int
+	wasEmptyCleanSlate := false
 	if ed := tm.Edit(); ed != nil {
 		prevParentID = ed.ParentID
 		prevDepth = ed.Depth
 		if ed.Kind == tree.EditRename {
+			if a.isCleanSlateDraft(kind, ed.TargetID) && strings.TrimSpace(ed.Value()) == "" {
+				wasEmptyCleanSlate = true
+			}
 			if row, has := tm.Focused(); has {
 				prevParentID = row.ParentID
 				prevDepth = row.Depth
@@ -439,6 +484,9 @@ func (a *App) runOutlineEditNewline() (string, bool) {
 	ret, ok = a.runOutlineEditCommit()
 	if !ok {
 		return "", false
+	}
+	if wasEmptyCleanSlate {
+		return ret, true
 	}
 	a.runTreeStartAdd(tm, kind, treeID, isWork, ret, false)
 	if prevParentID != "" {
@@ -484,9 +532,13 @@ func (a *App) outlineEditLinebreak(s core.State, c core.Command) core.StepResult
 
 func (a *App) outlineMoveSibling(delta int) func(core.State, core.Command) core.StepResult {
 	return func(s core.State, c core.Command) core.StepResult {
-		_, _, schema, loc, ok := a.activeTreeLoc(s)
+		tm, _, schema, loc, ok := a.activeTreeLoc(s)
 		if !ok {
 			a.say("no item selected in tree")
+			return core.Next(s)
+		}
+		if tm != nil && tm.Hoisted() && loc.siblings[loc.index].Record.ID == tm.HoistID() {
+			a.say("cannot reorder hoisted root (- zooms out)")
 			return core.Next(s)
 		}
 		h := schema.EffectiveHierarchy()
@@ -544,6 +596,10 @@ func (a *App) outlineIndent(s core.State, _ core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	cur := loc.siblings[loc.index]
+	if tm != nil && tm.Hoisted() && cur.Record.ID == tm.HoistID() {
+		a.say("cannot indent hoisted root (- zooms out)")
+		return core.Next(s)
+	}
 	prev := loc.siblings[loc.index-1]
 	fields := map[string]any{h.ParentField: prev.Record.Ref()}
 	if h.OrderField != "" {
@@ -564,7 +620,7 @@ func (a *App) outlineIndent(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) outlineOutdent(s core.State, _ core.Command) core.StepResult {
-	_, _, schema, loc, ok := a.activeTreeLoc(s)
+	tm, _, schema, loc, ok := a.activeTreeLoc(s)
 	if !ok {
 		a.say("no item selected in tree")
 		return core.Next(s)
@@ -574,11 +630,18 @@ func (a *App) outlineOutdent(s core.State, _ core.Command) core.StepResult {
 		a.say("%s has no hierarchy", strings.ToLower(schema.Plural))
 		return core.Next(s)
 	}
+	cur := loc.siblings[loc.index]
+	if tm != nil && tm.Hoisted() {
+		hoistID := tm.HoistID()
+		if cur.Record.ID == hoistID || (loc.parent != nil && loc.parent.Record.ID == hoistID) {
+			a.say("already at top of hoisted outline (- zooms out)")
+			return core.Next(s)
+		}
+	}
 	if loc.parent == nil {
 		a.say("already at root")
 		return core.Next(s)
 	}
-	cur := loc.siblings[loc.index]
 	var newParent any // nil removes parent (promotes to root)
 	where := "root"
 	if loc.grandparent != nil {

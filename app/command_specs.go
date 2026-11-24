@@ -100,6 +100,13 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: CmdOutlineEditCancel, Description: "Cancel inline outline edit", Meta: map[string]any{"internal": true}},
 		{ID: CmdOutlineEditNewline, Description: "Commit inline outline edit and start a new sibling below", Meta: map[string]any{"internal": true}},
 		{ID: CmdOutlineEditLinebreak, Description: "Insert a line break in inline outline edit", Meta: map[string]any{"internal": true}},
+		spec(CmdOutlineCleanSlate, "Open a fresh blank outline canvas isolated visually by hoisting", "editing"),
+		{
+			ID:          CmdOutlineTriage,
+			Description: "Send the focused outline subtree to an agent pane for read-only triage into a ui.page proposal",
+			Params:      []core.ParamSpec{{Name: "pane", Type: core.ParamString, Description: "Optional target agent pane ID or title"}},
+			Meta:        map[string]any{"record": true, "kinds": []string{data.KindTask, data.KindLane}},
+		},
 		spec(CmdRecentsPick, "Pick from recently updated records across all nouns"),
 		spec(CmdPagesPick, "Pick a page of any pane"),
 		spec(CmdRecordActions, "Pick an action for the focused record"),
@@ -280,6 +287,13 @@ func CommandSpecs() []core.CommandSpec {
 		spec(tree.CmdFoldClose, "Fold the focused tree subtree"),
 		spec(tree.CmdFoldOpenAll, "Unfold every node in the focused tree"),
 		spec(tree.CmdFoldCloseAll, "Fold every parent node in the focused tree"),
+		{
+			ID:          tree.CmdHoistIn,
+			Description: "Zoom into the focused tree node subtree",
+			Params:      []core.ParamSpec{{Name: "id", Type: core.ParamString, Description: "Optional node ID to hoist (default: focused node)"}},
+		},
+		spec(tree.CmdHoistOut, "Zoom out one level from the hoisted subtree"),
+		spec(tree.CmdHoistClear, "Clear all hoisting and return to the full tree"),
 		spec(CmdWorkLayoutToggle, "Toggle 2 Work between tree and table layout for hierarchical nouns"),
 	}...), append(append(append(append(sessionRecorderSpecs(), uxNotesSpecs()...), pageModeSpecs()...), fdSearchSpecs()...), paneSearchSpecs()...)...)
 }

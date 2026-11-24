@@ -437,11 +437,12 @@ func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
 	if a.Modal() != "outline" {
 		t.Fatalf("T did not open outline: modal=%q", a.Modal())
 	}
+	d.Keys("z", "R")
 	withGuides := d.Frame()
 	if !strings.Contains(withGuides, "└─") && !strings.Contains(withGuides, "├─") {
 		t.Fatalf("outline with ui.treeGuides=true missing box-drawing guides:\n%s", withGuides)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	a.cfg.userSettings[SetTreeGuides] = false
 	a.reloadSettings()
@@ -451,7 +452,7 @@ func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
 	if strings.Contains(withoutGuides, "└─") || strings.Contains(withoutGuides, "├─") {
 		t.Fatalf("outline with ui.treeGuides=false still rendered box-drawing guides:\n%s", withoutGuides)
 	}
-	d.Keys("esc")
+	d.Keys("esc", "esc")
 
 	// 2. Focus jump hints (g f -> focus.hints over layout.Solved.FocusOrder).
 	d.Keys("1")

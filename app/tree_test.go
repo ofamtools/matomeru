@@ -58,13 +58,17 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 	t.Cleanup(func() { a.Close() })
 	d := NewDriver(a, 120, 32)
 
-	// 1. Browse Lanes in 2 Work -> defaults to tree view with guides, icons, and top-level gap.
+	// 1. Browse Lanes in 2 Work -> defaults to tree view (collapsed initially), then z R reveals guides, icons, and top-level gap.
 	d.Keys("g", "n", "/")
 	d.Type("lanes")
 	d.Keys("enter")
 	if !a.inWorkTree(a.State()) || a.workKind() != data.KindLane {
 		t.Fatalf("Lanes should default to tree view: inWorkTree=%v workKind=%q", a.inWorkTree(a.State()), a.workKind())
 	}
+	if !a.trees.folded[data.KindLane][root1.ID] {
+		t.Fatal("Lanes tree should start collapsed by default (outline.startCollapsed=true)")
+	}
+	d.Keys("z", "R")
 	frame := d.Frame()
 	for _, want := range []string{"Lanes", "3 lanes", "tree", "▶ Wave Alpha", "└─ ", "○ Alpha Child", "◉ Wave Beta"} {
 		if !strings.Contains(frame, want) {

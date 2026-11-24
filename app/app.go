@@ -551,6 +551,8 @@ func (a *App) register() {
 	a.handle(CmdOutlineEditCancel, a.outlineEditCancel)
 	a.handle(CmdOutlineEditNewline, a.outlineEditNewline)
 	a.handle(CmdOutlineEditLinebreak, a.outlineEditLinebreak)
+	a.handle(CmdOutlineCleanSlate, a.outlineCleanSlate)
+	a.handle(CmdOutlineTriage, a.outlineTriage)
 	a.handle(CmdRecentsPick, a.recentsPick)
 	a.handle(CmdPagesPick, a.pagesPick)
 	a.handle(CmdRecordActions, a.recordActionsOpen)
@@ -660,6 +662,9 @@ func (a *App) register() {
 	a.handle(CmdTaskFoldToggle, a.treeFoldCommand(tree.CmdFoldToggle))
 	for _, id := range []string{tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll} {
 		a.handle(id, a.treeFoldCommand(id))
+	}
+	for _, id := range []string{tree.CmdHoistIn, tree.CmdHoistOut, tree.CmdHoistClear} {
+		a.handle(id, a.treeHoistCommand(id))
 	}
 	a.handle(CmdWorkLayoutToggle, a.workLayoutToggle)
 	a.handle(CmdViewCycle, a.viewCycle)

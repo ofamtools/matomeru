@@ -7,6 +7,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/tree"
 )
@@ -21,20 +22,24 @@ type treeEditMeta struct {
 // (per-kind tree models and layout overrides) and the T Outline overlay,
 // sharing per-kind fold maps so folding in one reflects in the other.
 type treeController struct {
-	work           map[string]*tree.Model
-	outline        *tree.Model
-	folded         map[string]map[string]bool
-	layoutOverride map[string]string
-	workTableRowID map[string]string
-	editMeta       *treeEditMeta
+	work             map[string]*tree.Model
+	outline          *tree.Model
+	folded           map[string]map[string]bool
+	foldInitialized  map[string]bool
+	layoutOverride   map[string]string
+	workTableRowID   map[string]string
+	editMeta         *treeEditMeta
+	cleanSlateRootID string
+	cleanSlateKind   string
 }
 
 func newTreeController() *treeController {
 	return &treeController{
-		work:           map[string]*tree.Model{},
-		folded:         map[string]map[string]bool{},
-		layoutOverride: map[string]string{},
-		workTableRowID: map[string]string{},
+		work:            map[string]*tree.Model{},
+		folded:          map[string]map[string]bool{},
+		foldInitialized: map[string]bool{},
+		layoutOverride:  map[string]string{},
+		workTableRowID:  map[string]string{},
 	}
 }
 
@@ -193,6 +198,61 @@ func (a *App) recordTreeNodes(kind string) ([]data.TreeNode, error) {
 	return a.Store.RecordTree(kind, a.nav.showArchived)
 }
 
+func (a *App) outlineStartCollapsed() bool {
+	return a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetOutlineStartCollapsed, true)
+}
+
+func collectCollapsibleTreeIDs(nodes []tree.Node) []string {
+	var ids []string
+	var walk func(ns []tree.Node)
+	walk = func(ns []tree.Node) {
+		for _, nd := range ns {
+			if len(nd.Children) > 0 && nd.ID != "" {
+				ids = append(ids, nd.ID)
+			}
+			walk(nd.Children)
+		}
+	}
+	walk(nodes)
+	return ids
+}
+
+func (a *App) applyStartCollapsedSetting() {
+	if a.trees == nil {
+		return
+	}
+	startCollapsed := a.outlineStartCollapsed()
+	clear(a.trees.foldInitialized)
+	if !startCollapsed {
+		clear(a.trees.folded)
+	}
+	for kind, tm := range a.trees.work {
+		if tm == nil {
+			continue
+		}
+		tm.ResetFoldInit()
+		if startCollapsed {
+			tm.FoldAll()
+		} else {
+			tm.UnfoldAll()
+		}
+		if len(tm.Nodes) > 0 || !startCollapsed {
+			a.trees.folded[kind] = tm.Folded
+		}
+	}
+	if tm := a.trees.outline; tm != nil {
+		tm.ResetFoldInit()
+		if startCollapsed {
+			tm.FoldAll()
+		} else {
+			tm.UnfoldAll()
+		}
+		if len(tm.Nodes) > 0 || !startCollapsed {
+			a.trees.folded[data.KindTask] = tm.Folded
+		}
+	}
+}
+
 func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, []data.TreeNode) {
 	schema := a.schema(kind)
 	nodes, err := a.recordTreeNodes(kind)
@@ -215,6 +275,24 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 		},
 	}
 	built := views.TreeFromNodes(schema, nodes, opts)
+	if len(built.Nodes) > 0 && !a.trees.foldInitialized[kind] {
+		a.trees.foldInitialized[kind] = true
+		if a.outlineStartCollapsed() {
+			if collapsible := collectCollapsibleTreeIDs(built.Nodes); len(collapsible) > 0 {
+				initFolded := traits.FoldInitial(traits.FoldConfig{DefaultFolded: true}, collapsible).Collapsed
+				if a.trees.folded[kind] == nil {
+					a.trees.folded[kind] = initFolded
+				} else {
+					for id, v := range initFolded {
+						if v {
+							a.trees.folded[kind][id] = true
+						}
+					}
+				}
+			}
+		}
+	}
+	tm.DefaultFolded = false
 	tm.Folded = a.trees.folded[kind]
 	tm.GapTopLevel = opts.GapTopLevel
 	tm.Guides = opts.Guides
@@ -430,6 +508,70 @@ func (a *App) treeFoldCommand(cmdID string) func(core.State, core.Command) core.
 			return core.Next(s)
 		}
 		a.runTreeFold(tm, kind, treeID, isWork, cmdID)
+		return core.Next(s)
+	}
+}
+
+// --- hoisting -------------------------------------------------------------------
+
+func (a *App) runTreeHoist(tm *tree.Model, kind, treeID string, isWork bool, c core.Command) {
+	a.syncTreeModel(tm, kind, treeID)
+	switch c.ID {
+	case tree.CmdHoistIn:
+		targetID := strings.TrimSpace(c.Arg("id"))
+		if targetID == "" {
+			if row, ok := tm.Focused(); ok && !row.Draft {
+				targetID = row.ID
+			}
+		}
+		if targetID == "" {
+			a.say("no item selected to hoist")
+			return
+		}
+		if !tm.Hoist(targetID) {
+			if tm.HoistID() == targetID {
+				a.say("already hoisted to %s", a.title(core.Ref{Kind: kind, ID: targetID}))
+			} else {
+				a.say("cannot hoist item")
+			}
+			return
+		}
+		a.say("hoisted %s · - or esc zooms out", a.title(core.Ref{Kind: kind, ID: targetID}))
+	case tree.CmdHoistOut:
+		if !tm.Unhoist() {
+			a.say("already at full tree")
+			return
+		}
+		if id := tm.HoistID(); id != "" {
+			a.say("hoisted %s", a.title(core.Ref{Kind: kind, ID: id}))
+		} else {
+			a.say("returned to full tree")
+		}
+	case tree.CmdHoistClear:
+		if !tm.ClearHoist() {
+			a.say("already at full tree")
+			return
+		}
+		a.say("returned to full tree")
+	}
+	a.trees.folded[kind] = tm.Folded
+	if isWork {
+		a.syncWorkTreeToTable(kind, tm)
+	}
+}
+
+func (a *App) treeHoistCommand(cmdID string) func(core.State, core.Command) core.StepResult {
+	return func(s core.State, c core.Command) core.StepResult {
+		c.ID = cmdID
+		if a.Modal() == "outline" {
+			return a.handleModal(s, c)
+		}
+		tm, kind, treeID, isWork, ok := a.activeTree(s)
+		if !ok {
+			a.say("no tree is focused")
+			return core.Next(s)
+		}
+		a.runTreeHoist(tm, kind, treeID, isWork, c)
 		return core.Next(s)
 	}
 }

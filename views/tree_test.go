@@ -216,3 +216,74 @@ func TestTreeFromNodesTasksOptOutsAndGapTopLevel(t *testing.T) {
 		t.Fatalf("GapTopLevel=false expected adjacent Root One (%d) and Root Two (%d):\n%s", r1, r2, outNoGap)
 	}
 }
+
+func TestTreeViewHoistedBreadcrumbAndFacts(t *testing.T) {
+	reg := data.DefaultSchemas()
+	taskSchema, _ := reg.Get(data.KindTask)
+
+	nodes := []data.TreeNode{
+		{
+			Depth: 0,
+			Record: data.Record{
+				Kind:          data.KindTask,
+				ID:            "t-root",
+				Fields:        map[string]any{"title": "Alpha Project", "workStatus": "active"},
+				ArchiveStatus: data.ArchiveActive,
+			},
+			Children: []data.TreeNode{
+				{
+					Depth: 1,
+					Record: data.Record{
+						Kind:          data.KindTask,
+						ID:            "t-child",
+						Fields:        map[string]any{"title": "Brain Dump", "workStatus": "todo"},
+						ArchiveStatus: data.ArchiveActive,
+					},
+					Children: []data.TreeNode{
+						{
+							Depth: 2,
+							Record: data.Record{
+								Kind:          data.KindTask,
+								ID:            "t-leaf",
+								Fields:        map[string]any{"title": "First Bullet", "workStatus": "todo"},
+								ArchiveStatus: data.ArchiveActive,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tm := TreeFromNodes(taskSchema, nodes, DefaultTreeOptions())
+	unhoisted := TreeView(taskSchema, tm, "w", "w.tree", ScopeIndex)
+	if unhoisted.Facts["hoisted"] != false || unhoisted.Facts["hoistDepth"] != 0 {
+		t.Fatalf("unhoisted panel facts = %+v, want hoisted=false hoistDepth=0", unhoisted.Facts)
+	}
+	for _, b := range unhoisted.Badges {
+		if strings.HasPrefix(b.Text, "hoist:") {
+			t.Fatalf("unexpected hoist badge when unhoisted: %+v", unhoisted.Badges)
+		}
+	}
+
+	if !tm.Hoist("t-child") {
+		t.Fatal("Hoist(t-child) returned false")
+	}
+	hoisted := TreeView(taskSchema, tm, "w", "w.tree", ScopeIndex)
+	if hoisted.Facts["hoisted"] != true || hoisted.Facts["hoistDepth"] != 1 {
+		t.Fatalf("hoisted panel facts = %+v, want hoisted=true hoistDepth=1", hoisted.Facts)
+	}
+	wantBadge := ui.Badge{Text: "hoist: Alpha Project › Brain Dump", Tone: "accent"}
+	foundBadge := false
+	for _, b := range hoisted.Badges {
+		if b == wantBadge {
+			foundBadge = true
+			break
+		}
+	}
+	if !foundBadge {
+		t.Fatalf("hoisted panel badges = %+v, want %+v", hoisted.Badges, wantBadge)
+	}
+	out := frame(t, hoisted, "w.tree", 100, 12)
+	wantText(t, out, "hoist: Alpha Project › Brain Dump", "Brain Dump", "First Bullet")
+}

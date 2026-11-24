@@ -222,6 +222,20 @@ func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope st
 	}
 
 	var badges []ui.Badge
+	if tm.Hoisted() {
+		path := tm.HoistPath()
+		parts := make([]string, 0, len(path))
+		for _, nd := range path {
+			lbl := strings.TrimSpace(nd.Label)
+			if lbl == "" {
+				lbl = nd.ID
+			}
+			parts = append(parts, lbl)
+		}
+		if breadcrumb := strings.Join(parts, " › "); breadcrumb != "" {
+			badges = append(badges, ui.Badge{Text: "hoist: " + breadcrumb, Tone: "accent"})
+		}
+	}
 	if h := schema.EffectiveHierarchy(); h != nil && h.RootTitle != "" {
 		badges = append(badges, ui.Badge{Text: count(len(tm.Nodes), strings.ToLower(h.RootTitle))})
 	}
@@ -234,9 +248,11 @@ func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope st
 		title = schema.Kind
 	}
 	facts := map[string]any{
-		"kind":     schema.Kind,
-		"rowCount": total,
-		"isTree":   true,
+		"kind":       schema.Kind,
+		"rowCount":   total,
+		"isTree":     true,
+		"hoisted":    tm.Hoisted(),
+		"hoistDepth": len(tm.HoistStack),
 	}
 	if arch, ok := node.Facts[data.ColArchiveStatus]; ok {
 		facts[data.ColArchiveStatus] = arch

@@ -640,6 +640,12 @@ func TestWaveD2WorkTasksTreeLayoutAndOutlineAddFold(t *testing.T) {
 	}
 
 	d.Keys("2")
+	collapsedFrame := d.Frame()
+	if !strings.Contains(collapsedFrame, "▸") || !strings.Contains(collapsedFrame, "tree") {
+		t.Fatalf("2 Work tree layout should start collapsed by default:\n%s", collapsedFrame)
+	}
+	// Unfold all to verify box-drawing tree guides.
+	d.Keys("z", "R")
 	frame := d.Frame()
 	if !strings.Contains(frame, "├─") || !strings.Contains(frame, "└─") || !strings.Contains(frame, "tree") {
 		t.Fatalf("2 Work tree layout missing box-drawing tree guides:\n%s", frame)

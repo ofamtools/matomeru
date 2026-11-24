@@ -151,6 +151,7 @@ const (
 	SetWrapInputs                    = "ui.wrapInputs"
 	SetWrapOutline                   = "ui.wrapOutline"
 	SetOutlineEnterNewline           = "outline.enterNewline"
+	SetOutlineStartCollapsed         = "outline.startCollapsed"
 	SetCardBorderStyle               = "ui.cardBorderStyle"
 	SetRailEnterMode                 = "panes.railEnterMode"
 	SetSideTermSplit                 = "panes.sideTermSplit"
@@ -248,6 +249,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetWrapInputs, true, "wrap long text in form inputs so overflow stays visible"),
 		flag(SetWrapOutline, true, "wrap long titles and multiline items in trees and outline"),
 		flag(SetOutlineEnterNewline, true, "pressing enter in inline outline edit commits the row and starts a new sibling below"),
+		flag(SetOutlineStartCollapsed, true, "Start outlines and hierarchical trees collapsed to reduce visual noise"),
 		enum(SetCardBorderStyle, ui.CardBorderSubtle, "how cards are framed (subtle, rounded, minimal, none)", ui.CardBorderSubtle, ui.CardBorderRounded, ui.CardBorderMinimal, ui.CardBorderNone),
 		enum(SetRailEnterMode, RailEnterModeLive, "what enter on a pane in the left rail does (live enters terminal, toc focuses pages)", RailEnterModeLive, RailEnterModeTOC),
 		flag(SetSideTermSplit, true, "open ctrl+a t / ctrl+a v as a side-by-side split beside the active pane"),
@@ -523,6 +525,9 @@ func (a *App) commitSetting(fm *form.Model, name string) {
 	}
 	if (name == SetWorkHierarchyLayout || name == SetWorkTasksLayout) && a.trees != nil {
 		clear(a.trees.layoutOverride)
+	}
+	if name == SetOutlineStartCollapsed && a.trees != nil {
+		a.applyStartCollapsedSetting()
 	}
 	if name == SetFormReactiveFields {
 		showAll := !a.cfg.Settings.Bool(SetFormReactiveFields, true)

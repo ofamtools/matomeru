@@ -142,7 +142,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.keep("Panes")
 	k.Keys("2")
 	if a.workTasksLayout() == WorkTasksLayoutTree {
-		k.check("2 opens Work: the task tree", a.Space() == SpaceWork && a.Focus() == workTable && k.has("Tasks", "ochazuke-v2", "matomeru-v2", "tree", "└─"))
+		k.check("2 opens Work: the task tree", a.Space() == SpaceWork && a.Focus() == workTable && k.has("Tasks", "ochazuke-v2", "matomeru-v2", "tree", "▸"))
 	} else {
 		k.check("2 opens Work: the task index", a.Space() == SpaceWork && a.Focus() == workTable && k.has("Tasks", "ochazuke-v2", "matomeru-v2", "Status", "Priority"))
 	}
@@ -411,7 +411,8 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.Keys("/")
 	k.Type("lanes")
 	k.Keys("enter")
-	k.check("picking Lanes opens their tree in Work by default", a.Modal() == "" && a.Space() == SpaceWork && a.nav.browseKind == data.KindLane && a.Focus() == workTable && a.inWorkTree(a.State()) && k.has("Lanes", "Matomeru v2 Step 2", "settings-worker", "binding-editor", "tree", "└─"))
+	k.check("picking Lanes opens their tree in Work by default", a.Modal() == "" && a.Space() == SpaceWork && a.nav.browseKind == data.KindLane && a.Focus() == workTable && a.inWorkTree(a.State()) && k.has("Lanes", "Matomeru v2 Step 2", "tree", "▸"))
+	k.Keys("z", "R")
 	k.keep("Lanes index")
 	k.Keys("g", "t")
 	k.check("g t toggles Lanes to table view", !a.inWorkTree(a.State()) && k.has("Lanes", "Status", "settings-worker", "binding-editor"))
@@ -459,7 +460,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	for range 9 {
 		k.Keys("j")
 	}
-	k.Keys("space", "esc", "esc", "2")
+	k.Keys("space", "esc", "esc", "2", "g", "g")
 	k.Keys("B")
 	k.check("B opens the binding editor", a.Modal() == "bindings" && a.Mode() == ModeBindings && k.has("Bindings", "Key", "Scope", "Mode", "Command", "Filter"))
 	k.Keys("/")
@@ -467,14 +468,14 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.Keys("enter")
 	k.check("/ verb:record.star narrows it to one binding", a.Mode() == ModeBindings && len(a.bind.bindEd.Filtered()) == 1 && k.has("record.star"))
 	k.keep("Binding editor")
-	k.Keys("r", "X", "enter")
-	k.check("r X enter rebinds it, live", a.Mode() == ModeBindings && len(a.bind.userBindings) == 2 && k.has("rebound X record.star"))
-	k.Keys("esc", "esc", "X")
-	k.check("the new key works at once: X stars", starred())
+	k.Keys("r", "*", "enter")
+	k.check("r * enter rebinds it, live", a.Mode() == ModeBindings && len(a.bind.userBindings) == 2 && k.has("rebound * record.star"))
+	k.Keys("esc", "esc", "*")
+	k.check("the new key works at once: * stars", starred())
 	k.Keys("s")
 	k.check("s still unstars: that is another binding", !starred())
 	k.Keys("s")
-	k.check("s no longer stars: that binding moved to X", !starred())
+	k.check("s no longer stars: that binding moved to *", !starred())
 	k.Keys("B", "u", "esc", "esc", "s")
 	k.check("u in the editor takes the rebind back: s stars again", len(a.bind.userBindings) == 0 && starred())
 	k.Keys("s")

@@ -122,7 +122,7 @@ func TestRailFollowsOwnerPrompts(t *testing.T) {
 func TestNewNoteIsAboutTheFocusedRecord(t *testing.T) {
 	a, d := demo(t)
 	task := titled(t, a, data.KindTask, "matomeru-v2")
-	d.Keys("2", "z", "a", "j", "N")
+	d.Keys("2", "j", "N")
 	if a.Modal() != "form" || !strings.Contains(d.Frame(), "New note") {
 		t.Fatalf("N did not open a new note form (modal %q)", a.Modal())
 	}
@@ -299,7 +299,7 @@ func TestUserConfig(t *testing.T) {
 		"startSpace": "work", "snoozeHours": 168,
 	}`)
 	write("bindings.json", `[
-		{"mode": "normal", "keys": ["X"], "command": "record.star", "hint": "star"}, // a new key
+		{"mode": "normal", "keys": ["*"], "command": "record.star", "hint": "star"}, // a new key
 		{"mode": "normal", "keys": ["s"], "unbind": true},
 	]`)
 	write("themes.json", `{"name": "mine", "roles": {"accent": "#ff8800"}}`)
@@ -325,7 +325,7 @@ func TestUserConfig(t *testing.T) {
 	if rec, _ := store.Get(task.Ref()); rec.IsStarred() {
 		t.Fatal("the unbound key still stars")
 	}
-	d.Keys("X", "Z")
+	d.Keys("*", "Z")
 	rec, _ := store.Get(task.Ref())
 	if !rec.IsStarred() || rec.SnoozedUntil == nil || !rec.SnoozedUntil.Equal(fixed.Add(168*time.Hour)) {
 		t.Fatalf("starred %v, snoozed until %v", rec.IsStarred(), rec.SnoozedUntil)
