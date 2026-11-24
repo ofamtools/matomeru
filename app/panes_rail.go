@@ -173,9 +173,16 @@ func (a *App) buildRail() *table.Model {
 	paneSchema := a.schema(data.KindPane)
 	styleOpts := a.styleOptions()
 	fresh := views.TableFromRecordsWith(paneSchema, panes, styleOpts)
-	fresh.Columns = []table.Column{
-		{Key: "rail", Title: "Pane"},
-		{Key: "runStatus", Title: "State", Width: 11},
+	showStateCol := a.cfg != nil && a.cfg.Settings != nil && a.cfg.Settings.Bool(SetRailStateColumn, false)
+	if showStateCol {
+		fresh.Columns = []table.Column{
+			{Key: "rail", Title: "Pane"},
+			{Key: "runStatus", Title: "State", Width: 11},
+		}
+	} else {
+		fresh.Columns = []table.Column{
+			{Key: "rail", Title: "Pane"},
+		}
 	}
 
 	projRefs := map[string]core.Ref{}
@@ -193,11 +200,19 @@ func (a *App) buildRail() *table.Model {
 			row.Facts["projectTitle"] = projTitle
 		}
 
-		mark := "  "
+		title := views.Title(paneSchema, pane)
 		if a.attention(row.Ref.ID) {
-			mark, row.Unread = "● ", true
+			row.Unread = true
+			if showStateCol {
+				row.Cells["rail"] = "● " + title
+			} else {
+				row.Cells["rail"] = "● " + title
+			}
+		} else if showStateCol {
+			row.Cells["rail"] = "  " + title
+		} else {
+			row.Cells["rail"] = title
 		}
-		row.Cells["rail"] = mark + views.Title(paneSchema, pane)
 
 		baseState := pane.Text("runStatus")
 		icon, label, baseTone, _ := views.StatusIndicator(paneSchema, "runStatus", baseState)
@@ -210,6 +225,38 @@ func (a *App) buildRail() *table.Model {
 		}
 		row.Facts["statusTone"] = baseTone
 		a.decorateRailRow(row, pane)
+		if !showStateCol {
+			stateIcon := ""
+			if row.CellIcons != nil {
+				stateIcon = row.CellIcons["runStatus"]
+			}
+			if stateIcon == "" {
+				stateIcon = icon
+			}
+			if stateIcon != "" {
+				if row.CellIcons == nil {
+					row.CellIcons = map[string]string{}
+				}
+				row.CellIcons["rail"] = stateIcon
+				if styleOpts.RowSemanticStyling {
+					stateTone := ""
+					if row.IconTones != nil {
+						stateTone = row.IconTones["runStatus"]
+					}
+					if stateTone == "" {
+						if t, ok := row.Facts["statusTone"].(string); ok {
+							stateTone = t
+						}
+					}
+					if stateTone != "" {
+						if row.IconTones == nil {
+							row.IconTones = map[string]string{}
+						}
+						row.IconTones["rail"] = stateTone
+					}
+				}
+			}
+		}
 		if _, hasTask := pane.RefField("task"); !hasTask {
 			if cur, ok := row.Cells["rail"].(string); ok {
 				row.Cells["rail"] = cur + " [unlinked]"

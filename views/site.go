@@ -101,7 +101,7 @@ func compactTOCRow(page data.Record, isActive, isUnread bool) ui.ViewNode {
 	marker := " "
 	switch {
 	case isActive:
-		marker = "▸"
+		marker = "◆"
 	case isUnread:
 		marker = "●"
 	}
@@ -118,8 +118,10 @@ func compactTOCRow(page data.Record, isActive, isUnread bool) ui.ViewNode {
 	}
 	title := page.Text("title")
 	lineText := fmt.Sprintf("%s %s %s", marker, icon, title)
+	focusedText := fmt.Sprintf("▸ %s %s", icon, title)
 	if page.IsStarred() && icon != "★" {
 		lineText += " ★"
+		focusedText += " ★"
 	}
 	tone := ""
 	switch {
@@ -139,7 +141,7 @@ func compactTOCRow(page data.Record, isActive, isUnread bool) ui.ViewNode {
 		Unread:    isUnread,
 		Tone:      tone,
 		Box:       layout.Constraints{FixedH: 1},
-		Props:     map[string]any{"text": lineText},
+		Props:     map[string]any{"text": lineText, "focusedText": focusedText},
 		Facts: map[string]any{
 			"pageKind":            page.Text("pageKind"),
 			"unread":              isUnread,
@@ -364,7 +366,11 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 		content.Children = []ui.ViewNode{root}
 	}
 
-	paneBody := ui.ViewNode{ID: "site.pane", Kind: ui.KindSplit, Scope: data.KindPane, Ref: &paneRef, Ratio: 0.28, Gap: 1,
+	tocRatio := 0.28
+	if opts.CompactTOC {
+		tocRatio = 0.24
+	}
+	paneBody := ui.ViewNode{ID: "site.pane", Kind: ui.KindSplit, Scope: data.KindPane, Ref: &paneRef, Ratio: tocRatio, Gap: 1,
 		Children: []ui.ViewNode{toc, content}}
 	if opts.HideTOC {
 		paneBody = ui.ViewNode{ID: "site.pane", Kind: ui.KindVStack, Scope: data.KindPane, Ref: &paneRef,

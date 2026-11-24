@@ -54,7 +54,7 @@ func TestTutorial(t *testing.T) {
 // once, is saved to settings.json, and is there on the next start.
 func TestSettingsApplyAndPersist(t *testing.T) {
 	want := map[string]any{SetTheme: "ochazuke-dark", SetDensity: "balanced", SetBorderStyle: "rounded", SetShowMetadata: true, SetShowEmpty: true,
-		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: false, SetRailAutoWiden: false, SetShowTOC: true,
+		SetFlagsColumn: true, SetMatchMode: "substring", SetEditUniversal: true, SetEditExtra: true, SetLaneBar: false, SetRailAutoWiden: false, SetRailStateColumn: false, SetShowTOC: true,
 		SetPanesGroup: PanesGroupProjectPane, SetToast: true, SetTreeGuides: true, SetRowSemanticStyling: true, SetStatusIcons: true, SetTreeTopLevelGap: true,
 		SetConfirmQuit: true, SetConfirmDaemonReset: true, SetWorkTasksLayout: WorkTasksLayoutTree, SetWorkHierarchyLayout: WorkHierarchyLayoutAuto,
 		SetAutoArchiveExited: true, SetScrollOff: 5, SetPickerDefaultMode: PickerDefaultModeNormal,
@@ -63,7 +63,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetToolsFDBinary: "", SetSearchFDMaxResults: 200,
 		SetSearchPanesIncludeTranscripts: true, SetSearchPanesIncludeArchived: false, SetSearchPanesMaxLogKB: 2048,
 		SetSessionUXNotes: true,
-		SetPageLockScroll: true, SetEdgeFocusSpill: false, SetVerboseHookBar: false,
+		SetPageLockScroll: true, SetInteractiveCanvas: true, SetEdgeFocusSpill: false, SetVerboseHookBar: false,
 		SetLaneInTOC: true, SetCompactTOC: true, SetTOCGrouped: true,
 		SetModalEscapeGuard: "double", SetWrapInputs: true, SetWrapOutline: true, SetOutlineEnterNewline: true, SetOutlineStartCollapsed: true,
 		SetCardBorderStyle: ui.CardBorderSubtle, SetRailEnterMode: RailEnterModeLive,

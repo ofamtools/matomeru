@@ -116,6 +116,7 @@ const (
 	SetEditExtra                     = "edit.showExtraFields"
 	SetLaneBar                       = "panes.laneProgressBar"
 	SetRailAutoWiden                 = "panes.railAutoWiden"
+	SetRailStateColumn               = "panes.railStateColumn"
 	SetShowTOC                       = "panes.showTOC"
 	SetPanesGroup                    = "panes.group"
 	SetToast                         = "ui.toast"
@@ -142,6 +143,7 @@ const (
 	SetSearchPanesMaxLogKB           = "search.panesMaxLogKB"
 	SetSessionUXNotes                = "session.uxNotes"
 	SetPageLockScroll                = "panes.pageLockScroll"
+	SetInteractiveCanvas             = "panes.interactiveCanvas"
 	SetEdgeFocusSpill                = "nav.edgeFocusSpill"
 	SetVerboseHookBar                = "panes.verboseHookBar"
 	SetLaneInTOC                     = "panes.laneInTOC"
@@ -181,8 +183,8 @@ const (
 	// factOpenable is set on a row whose record "o" can open.
 	factOpenable      = "openable"
 	themesFileName    = "themes.json"
-	railRatio         = 0.33
-	railRatioWidened  = 0.42
+	railRatio         = 0.23
+	railRatioWidened  = 0.39
 	laneBarHint       = "ctrl+a L"
 	legacyMatchModeID = "matchMode"
 )
@@ -217,6 +219,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetEditExtra, true, "Edit forms offer fields the schema does not declare"),
 		flag(SetLaneBar, false, "the lane progress bar above a pane's site (opt-in; lane appears in TOC by default)"),
 		flag(SetRailAutoWiden, false, "the pane rail widens while it has the focus"),
+		flag(SetRailStateColumn, false, "show a separate spelled-out State column in the left pane rail instead of an inline status icon"),
 		flag(SetShowTOC, true, "the pane's Pages table of contents rail"),
 		enum(SetPanesGroup, PanesGroupProjectPane, "how panes are grouped in the rail", PanesGroupProjectPane, PanesGroupFlat),
 		flag(SetToast, true, "show transient toast notifications"),
@@ -242,6 +245,7 @@ func SettingSpecs() []core.ParamSpec {
 		{Name: SetSearchPanesMaxLogKB, Type: core.ParamInt, Default: defaultPaneSearchMaxLogKB, Description: "maximum tail size in KiB read per session transcript during global pane search"},
 		flag(SetSessionUXNotes, true, "enable zero-interruption in-context UX note capture (alt+n) and session note replay"),
 		flag(SetPageLockScroll, true, "lock reading and scrolling inside a ui.page until explicit detach (esc/q/ctrl+a d)"),
+		flag(SetInteractiveCanvas, true, "make canvas tables, Markdown links, and checkboxes interactive in reading mode"),
 		flag(SetEdgeFocusSpill, false, "allow j/k at list or pane edges to silently spill focus to adjacent panes"),
 		flag(SetVerboseHookBar, false, "show verbose tool, subagent, and summary text in the pane hook indicator"),
 		flag(SetLaneInTOC, true, "show the pane's active lane and progress counter inside the pane TOC"),

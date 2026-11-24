@@ -162,7 +162,7 @@ func (a *App) attention(pane string) bool {
 func (a *App) rail() *table.Model {
 	if a.Store != nil {
 		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
-			key := fmt.Sprintf("%d|%d|%t|%s|%t|%s|%t",
+			key := fmt.Sprintf("%d|%d|%t|%s|%t|%s|%t|%t",
 				rev,
 				a.rt.live.telemetrySeq.Load(),
 				a.nav.showArchived,
@@ -170,6 +170,7 @@ func (a *App) rail() *table.Model {
 				a.panes.railGroupSet,
 				a.panes.railCustomGroup,
 				a.cfg.Settings.Bool(SetFlagsColumn, true),
+				a.cfg.Settings.Bool(SetRailStateColumn, false),
 			)
 			if key == a.panes.railCacheKey && a.nav.tables[railTable] != nil {
 				a.pageSize(a.nav.tables[railTable], railTable)

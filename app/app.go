@@ -522,6 +522,11 @@ func (a *App) register() {
 	a.handle(CmdPageLeave, a.pageLeave)
 	a.handle(CmdPageItemNext, a.pageStepItem(1))
 	a.handle(CmdPageItemPrev, a.pageStepItem(-1))
+	a.handle(CmdCanvasActivate, a.canvasActivate)
+	a.handle(CmdCanvasToggleCheck, a.canvasToggleCheck)
+	a.handle(CmdCanvasLinkNext, a.canvasStepLink(1))
+	a.handle(CmdCanvasLinkPrev, a.canvasStepLink(-1))
+	a.handle(CmdCanvasYank, a.canvasYank)
 	a.handle(CmdTOCGroupToggle, a.tocGroupToggle)
 	a.handle(CmdTermInput, a.termInput)
 

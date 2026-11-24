@@ -257,7 +257,7 @@ func LaneTOCEntry(store *data.Store, pane data.Record) (ui.ViewNode, string, boo
 		Focusable: true,
 		Tone:      "accent",
 		Box:       layout.Constraints{FixedH: 1},
-		Props:     map[string]any{"text": label},
+		Props:     map[string]any{"text": "  " + label, "focusedText": "▸ " + label},
 		Facts: map[string]any{
 			"isLane":  true,
 			"lane":    ref.ID,

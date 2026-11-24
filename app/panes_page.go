@@ -22,43 +22,57 @@ const (
 )
 
 func pageModeSpecs() []core.CommandSpec {
-	return []core.CommandSpec{
-		spec(CmdPageLeave, "Leave the locked ui.page reading view and return to the pane TOC"),
-		spec(CmdPageItemNext, "Focus the next interactive control inside the active ui.page"),
-		spec(CmdPageItemPrev, "Focus the previous interactive control inside the active ui.page"),
+	out := []core.CommandSpec{
+		spec(CmdPageLeave, "Leave the locked canvas reading view and return to the pane TOC"),
+		spec(CmdPageItemNext, "Focus the next interactive block or control inside the active canvas"),
+		spec(CmdPageItemPrev, "Focus the previous interactive block or control inside the active canvas"),
 		spec(CmdTOCGroupToggle, "Collapse or expand the focused pane TOC group"),
 	}
+	return append(out, canvasSpecs()...)
 }
 
 func pageModeBindings() []core.Binding {
 	all := ""
 	return []core.Binding{
-		// Pane-locked reading & scrolling inside ui.page (zero g-prefixed keys).
-		bind(ModePage, all, "j", "motion.down", "scroll down"),
-		bind(ModePage, all, "k", "motion.up", "scroll up"),
-		hidden(bind(ModePage, all, "down", "motion.down", "scroll down")),
-		hidden(bind(ModePage, all, "up", "motion.up", "scroll up")),
+		// Pane-locked canvas interaction & scrolling (zero g-prefixed keys).
+		bind(ModePage, all, "j", "motion.down", "next row / scroll down"),
+		bind(ModePage, all, "k", "motion.up", "prev row / scroll up"),
+		hidden(bind(ModePage, all, "down", "motion.down", "next row / scroll down")),
+		hidden(bind(ModePage, all, "up", "motion.up", "prev row / scroll up")),
+		when(bind(ModePage, all, "l", CmdCanvasLinkNext, "next link"), "facts.canvasMarkdown && facts.hasLinks"),
+		when(bind(ModePage, all, "h", CmdCanvasLinkPrev, "prev link"), "facts.canvasMarkdown && facts.hasLinks"),
+		hidden(when(bind(ModePage, all, "right", CmdCanvasLinkNext, "next link"), "facts.canvasMarkdown && facts.hasLinks")),
+		hidden(when(bind(ModePage, all, "left", CmdCanvasLinkPrev, "prev link"), "facts.canvasMarkdown && facts.hasLinks")),
 		bind(ModePage, all, "ctrl+e", "motion.scroll.down", "scroll down"),
 		bind(ModePage, all, "ctrl+y", "motion.scroll.up", "scroll up"),
 		bind(ModePage, all, "ctrl+d", "motion.half.down", "half page down"),
 		bind(ModePage, all, "ctrl+u", "motion.half.up", "half page up"),
 		bind(ModePage, all, "ctrl+f", "motion.page.down", "page down"),
 		bind(ModePage, all, "ctrl+b", "motion.page.up", "page up"),
-		hidden(bind(ModePage, all, "space", "motion.page.down", "page down")),
+		when(bind(ModePage, all, "space", CmdCanvasToggleCheck, "toggle checkbox"), "facts.canvasMarkdown && facts.onCheckbox"),
+		hidden(when(bind(ModePage, all, "space", "motion.page.down", "page down"), "!(facts.canvasMarkdown && facts.onCheckbox)")),
+		when(bind(ModePage, all, "x", CmdCanvasToggleCheck, "toggle checkbox"), "facts.canvasMarkdown && facts.hasCheckboxes"),
 		bind(ModePage, all, "T", "motion.top", "top"),
 		hidden(bind(ModePage, all, "home", "motion.top", "top")),
 		bind(ModePage, all, "G", "motion.bottom", "bottom"),
 		hidden(bind(ModePage, all, "end", "motion.bottom", "bottom")),
-		bind(ModePage, all, "tab", CmdPageItemNext, "next control"),
-		bind(ModePage, all, "shift+tab", CmdPageItemPrev, "previous control"),
-		bind(ModePage, all, "n", CmdQuestionNext, "next question"),
-		bind(ModePage, all, "p", CmdQuestionPrev, "previous question"),
-		bind(ModePage, all, "enter", CmdAnswer, "answer"),
-		bind(ModePage, all, "a", CmdAnswer, "answer"),
-		bind(ModePage, all, "ctrl+s", CmdQuestionSubmitAll, "submit all answers"),
-		bind(ModePage, all, "esc", CmdPageLeave, "leave page"),
-		bind(ModePage, all, "q", CmdPageLeave, "leave page"),
-		hidden(bind(ModePage, all, "backspace", CmdPageLeave, "leave page")),
+		bind(ModePage, all, "tab", CmdPageItemNext, "next block"),
+		bind(ModePage, all, "shift+tab", CmdPageItemPrev, "prev block"),
+		when(bind(ModePage, all, "n", CmdQuestionNext, "next question"), "facts.hasQuestions"),
+		when(bind(ModePage, all, "p", CmdQuestionPrev, "prev question"), "facts.hasQuestions"),
+		when(bind(ModePage, all, "n", CmdCanvasLinkNext, "next link"), "!facts.hasQuestions && facts.canvasMarkdown && facts.hasLinks"),
+		when(bind(ModePage, all, "p", CmdCanvasLinkPrev, "prev link"), "!facts.hasQuestions && facts.canvasMarkdown && facts.hasLinks"),
+		bind(ModePage, "question", "enter", CmdAnswer, "answer"),
+		bind(ModePage, "question", "a", CmdAnswer, "answer"),
+		when(bind(ModePage, all, "enter", CmdCanvasActivate, "open / inspect"), "facts.canvasTable || facts.canvasMarkdown || facts.canvasTree"),
+		when(bind(ModePage, all, "o", CmdCanvasActivate, "open / inspect"), "facts.canvasTable || facts.canvasMarkdown || facts.canvasTree"),
+		when(bind(ModePage, all, "y", CmdCanvasYank, "yank"), "facts.canvasTable || facts.canvasMarkdown || facts.canvasTree"),
+		when(bind(ModePage, all, "enter", CmdAnswer, "answer"), "facts.hasQuestions && !facts.canvasTable && !facts.canvasMarkdown && !facts.canvasTree"),
+		when(bind(ModePage, all, "a", CmdAnswer, "answer"), "facts.hasQuestions"),
+		when(bind(ModePage, all, "ctrl+s", CmdQuestionSubmitAll, "submit all answers"), "facts.hasQuestions"),
+		bind(ModePage, all, "esc", CmdPageLeave, "leave canvas"),
+		bind(ModePage, all, "q", CmdPageLeave, "leave canvas"),
+		hidden(bind(ModePage, all, "backspace", CmdPageLeave, "leave canvas")),
 		{Mode: ModePage, Keys: keys("ctrl+a"), Layer: &leader, Hint: "leader"},
 
 		// Collapsible TOC group toggle.
@@ -121,6 +135,9 @@ func (a *App) scrollPageReveal(s core.State, pageID, targetID string) {
 }
 
 func (a *App) pageScrollMotion(s core.State, c core.Command) core.StepResult {
+	if res, handled := a.canvasMotion(s, c); handled {
+		return res
+	}
 	pageID := a.activeSitePageID()
 	if pageID == "" || pageID == views.ScreenPageID {
 		return core.Next(s)

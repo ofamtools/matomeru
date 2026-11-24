@@ -28,6 +28,7 @@ type PaneController struct {
 	activePage      map[string]string
 	sideSplit       map[string]string
 	pageScroll      map[string]int
+	canvasState     map[string]*canvasState
 	tocCollapsed    map[string]bool
 	zoom            bool
 	escapes         int
@@ -60,6 +61,7 @@ func newPaneController() *PaneController {
 		activePage:   map[string]string{},
 		sideSplit:    map[string]string{},
 		pageScroll:   map[string]int{},
+		canvasState:  map[string]*canvasState{},
 		tocCollapsed: map[string]bool{},
 		searchCache:  panesearch.NewCache(),
 	}
@@ -162,8 +164,14 @@ func (a *App) sitePageOpen(s core.State, c core.Command) core.StepResult {
 					break
 				}
 			}
+		} else if first := a.firstCanvasWidgetID(s); first != "" {
+			focus = first
 		}
-		a.say("%s · j/k/ctrl+d/ctrl+u scroll · tab/n/p controls · esc leaves", page.Text("title"))
+		if focus != views.PageScrollID && page.Text("pageKind") != "questions" {
+			a.say("%s · j/k move · h/l links · space/x check · enter/o open · tab blocks · esc leaves", page.Text("title"))
+		} else {
+			a.say("%s · j/k/ctrl+d/ctrl+u scroll · tab/n/p controls · esc leaves", page.Text("title"))
+		}
 		return core.Next(withMode(withFocus(s, focus), ModePage))
 	}
 	for _, n := range a.focusables(s) {

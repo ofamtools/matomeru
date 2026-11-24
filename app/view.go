@@ -74,6 +74,9 @@ func (a *App) viewKey(s core.State) string {
 	if s.ActivePage == SpacePanes {
 		if pageID := a.activeSitePageID(); pageID != "" {
 			fmt.Fprintf(&b, "|ps:%s:%d", pageID, a.pageScrollOffset(pageID))
+			if ck := a.canvasViewKey(pageID); ck != "" {
+				b.WriteString(ck)
+			}
 		}
 		if a.panes != nil && a.panes.tocCollapsed["pages"] {
 			b.WriteString("|toc:collapsed")
@@ -375,6 +378,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 		}
 		site = views.PaneSiteViewWith(*pane, res.Items, a.panes.activePage[pane.ID], a.nav.tocFilter, opts)
 		a.enhanceQuestionsSite(&site, *pane, res.Items)
+		a.enhanceCanvasSite(&site, a.activeSitePageID())
 		var extraTop []ui.ViewNode
 		if strip, ok := a.paneHeaderStrip(*pane); ok {
 			extraTop = append(extraTop, strip)

@@ -536,3 +536,35 @@ func TestNoteShowsWhatItIsAbout(t *testing.T) {
 		t.Fatalf("filter on any field = %v", rows)
 	}
 }
+
+func TestCompactTOCFocusContrastAndMovingCursor(t *testing.T) {
+	w := build(t)
+	site := PaneSiteViewWith(w.pane, w.all(t, data.KindPage), ScreenPageID, "", SiteOptions{
+		CompactTOC: true,
+		TOCGrouped: true,
+	})
+	th := ui.DefaultDarkTheme()
+	// Focus on page2 while Screen remains the active (open) page.
+	f, solved := ui.Render(site, th, "site.toc.page2", 130, 30)
+	plain := stripANSI(f.ANSI)
+	if !strings.Contains(plain, "◆ ▣ Screen") {
+		t.Fatalf("active unfocused Screen row should show ◆ marker, got:\n%s", plain)
+	}
+	if strings.Contains(plain, "▸ ▣ Screen") {
+		t.Fatalf("unfocused Screen row must not show focus cursor ▸, got:\n%s", plain)
+	}
+	if !strings.Contains(plain, "▸ ? Questions") {
+		t.Fatalf("focused compact TOC row should show ▸ cursor, got:\n%s", plain)
+	}
+	rScreen := solved.Rects["site.toc.screen"]
+	rPage2 := solved.Rects["site.toc.page2"]
+	ansiRows := strings.Split(f.ANSI, "\n")
+	// DefaultDarkTheme selection color is #3b4f87 -> 48;2;59;79;135.
+	const selBg = "48;2;59;79;135"
+	if !strings.Contains(ansiRows[rPage2.Y], selBg) {
+		t.Fatalf("focused compact TOC row missing selection background %q: %q", selBg, ansiRows[rPage2.Y])
+	}
+	if strings.Contains(ansiRows[rScreen.Y], selBg) {
+		t.Fatalf("unfocused compact TOC row must not carry selection background: %q", ansiRows[rScreen.Y])
+	}
+}
