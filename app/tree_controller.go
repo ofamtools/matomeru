@@ -202,7 +202,7 @@ func (a *App) recordTreeNodes(kind string) ([]data.TreeNode, error) {
 		}
 		return data.BuildTree(recs, parentField, orderField, a.nav.showArchived), nil
 	}
-	return a.Store.RecordTree(kind, a.nav.showArchived)
+	return a.recordTreeNodesWithAnimating(kind)
 }
 
 func (a *App) outlineStartCollapsed() bool {
@@ -340,6 +340,7 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 				}
 				nd.Facts[factOpenable] = true
 			}
+			a.applyArchiveAnimToTreeNode(rec, nd)
 		},
 	}
 	built := views.TreeFromNodes(schema, nodes, opts)

@@ -71,6 +71,9 @@ func (a *App) viewKey(s core.State) string {
 	if gk := a.escapeGuardViewKey(); gk != "" {
 		b.WriteString("|eg:" + gk)
 	}
+	if ak := a.archiveAnimCacheKey(); ak != "" {
+		b.WriteString("|aa:" + ak)
+	}
 	if a.panes.hints != nil && a.panes.hints.session != nil && a.panes.hints.session.Active() {
 		fmt.Fprintf(&b, "|hints:%t:%s:%d:%s:%d",
 			a.panes.hints.focusJump,

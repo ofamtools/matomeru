@@ -46,6 +46,38 @@ func (a *App) onRecord(what string, do func(core.Ref, core.Actor) (*data.Record,
 	}
 }
 
+func (a *App) archiveRecord(s core.State, c core.Command) core.StepResult {
+	ref, ok := a.subject(s, c)
+	if !ok {
+		a.say("nothing here to archive")
+		return core.Next(s)
+	}
+	_ = a.ensureShadow(ref)
+	_, cs, err := a.Store.Archive(ref, User)
+	a.wrote("archive "+a.title(ref), cs, err)
+	if err == nil && cs != nil && a.archiveAnimEnabled() && !a.nav.showArchived {
+		if eff := a.startArchiveAnim(ref); eff != nil {
+			return core.StepResult{State: s, Effects: []core.Effect{eff}}
+		}
+	}
+	return core.Next(s)
+}
+
+func (a *App) restoreRecord(s core.State, c core.Command) core.StepResult {
+	ref, ok := a.subject(s, c)
+	if !ok {
+		a.say("nothing here to restore")
+		return core.Next(s)
+	}
+	_ = a.ensureShadow(ref)
+	_, cs, err := a.Store.Restore(ref, User)
+	if err == nil {
+		a.cancelArchiveAnim(ref)
+	}
+	a.wrote("restore "+a.title(ref), cs, err)
+	return core.Next(s)
+}
+
 func (a *App) undo(redo bool) func(core.State, core.Command) core.StepResult {
 	return func(s core.State, _ core.Command) core.StepResult {
 		do, word := a.Store.UndoLast, "undid"
@@ -66,6 +98,7 @@ func (a *App) undo(redo bool) func(core.State, core.Command) core.StepResult {
 				a.say("%s · %s", a.status, cs.Conflicts[0].Message)
 			}
 		}
+		a.reconcileArchiveAnims()
 		a.reloadForm()
 		return core.Next(s)
 	}

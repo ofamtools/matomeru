@@ -165,6 +165,10 @@ const (
 	SetExtensionsGoPrivate           = "extensions.goPrivate"
 	SetFocusHintsStyle               = "hints.focusStyle"
 	SetFocusHintsDrilldown           = "hints.focusDrilldown"
+	SetComposerCompact               = "panes.composerCompact"
+	SetComposerWrap                  = "panes.composerWrap"
+	SetArchiveAnimation              = "ui.archiveAnimation"
+	SetArchiveAnimationMs            = "ui.archiveAnimationMs"
 	FocusHintsInline                 = "inline"
 	FocusHintsOverlay                = "overlay"
 	FocusHintsBoth                   = "both"
@@ -273,6 +277,10 @@ func SettingSpecs() []core.ParamSpec {
 		{Name: SetExtensionsGoPrivate, Type: core.ParamString, Default: "ofam.dev", Description: "GOPRIVATE value used when installing OFAM extensions via go install"},
 		enum(SetFocusHintsStyle, FocusHintsInline, "how focus jump hints (g f) display labels: inline on screen, overlay picker, or both", FocusHintsInline, FocusHintsOverlay, FocusHintsBoth),
 		flag(SetFocusHintsDrilldown, true, "drill into focus hints from outside in (tabs & rails first, then items inside a chosen rail)"),
+		flag(SetComposerCompact, true, "use a compact, focused modal size for the prompt composer (false uses the large modal)"),
+		flag(SetComposerWrap, true, "soft-wrap long lines inside the prompt composer input"),
+		flag(SetArchiveAnimation, true, "animate archived rows with a color-fade dissolve before removing them from lists"),
+		{Name: SetArchiveAnimationMs, Type: core.ParamInt, Default: 2500, Description: "duration in milliseconds for the archive dissolve animation"},
 	}
 }
 

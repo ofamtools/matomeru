@@ -235,12 +235,19 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 	if a.tickEscapeGuard() {
 		changed = true
 	}
+	var extraEffects []core.Effect
+	if animChanged, eff := a.tickArchiveAnim(); animChanged {
+		changed = true
+		if eff != nil {
+			extraEffects = append(extraEffects, eff)
+		}
+	}
 	if !changed {
 		return core.Next(s)
 	}
 	l.refreshes++
 	a.viewMemo.gen++
-	return core.Next(a.settle(s))
+	return core.StepResult{State: a.settle(s), Effects: extraEffects}
 }
 
 // Start runs the app's background loops until stop is called: the wake pump

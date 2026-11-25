@@ -156,6 +156,7 @@ type App struct {
 	modals        *modal.Stack
 	escGuard      traits.EscapeGuardState
 	escGuardModal string
+	archiveAnim   *archiveAnimController
 	pendingState  []func(core.State) core.State
 	trees         *treeController
 	viewMemo      viewMemoState
@@ -177,18 +178,19 @@ func (a *App) WantReload() bool { return a.rt.wantReload }
 // reported in Warnings and left out.
 func New(store *data.Store, opts Options) (*App, error) {
 	a := &App{
-		Store:  store,
-		Router: mcpui.New(store),
-		opts:   opts,
-		modals: modal.NewStack(),
-		trees:  newTreeController(),
-		cfg:    newConfigController(),
-		bind:   newBindingsController(),
-		nav:    newNavController(),
-		panes:  newPaneController(),
-		rt:     newRuntimeController(),
-		ext:    newExtensionController(),
-		ctx:    newContextController(),
+		Store:       store,
+		Router:      mcpui.New(store),
+		opts:        opts,
+		modals:      modal.NewStack(),
+		archiveAnim: newArchiveAnimController(),
+		trees:       newTreeController(),
+		cfg:         newConfigController(),
+		bind:        newBindingsController(),
+		nav:         newNavController(),
+		panes:       newPaneController(),
+		rt:          newRuntimeController(),
+		ext:         newExtensionController(),
+		ctx:         newContextController(),
 	}
 	a.bind.specs = CommandSpecs()
 	a.bind.bindings = a.baseBindings()
@@ -246,6 +248,10 @@ func New(store *data.Store, opts Options) (*App, error) {
 				return tea.SetClipboard(text)
 			}
 		case effectEscapeGuardTick:
+			if delay, ok := e.Data.(time.Duration); ok && delay > 0 && a.opts.Now == nil {
+				return tea.Tick(delay, func(time.Time) tea.Msg { return wakeMsg() })
+			}
+		case effectArchiveAnimTick:
 			if delay, ok := e.Data.(time.Duration); ok && delay > 0 && a.opts.Now == nil {
 				return tea.Tick(delay, func(time.Time) tea.Msg { return wakeMsg() })
 			}
@@ -460,8 +466,8 @@ func (a *App) register() {
 	a.handle(CmdTermEscape, a.termEscape)
 	a.handle(views.CmdStar, a.onRecord("star", a.Store.Star))
 	a.handle(views.CmdUnstar, a.onRecord("unstar", a.Store.Unstar))
-	a.handle(views.CmdArchive, a.onRecord("archive", a.Store.Archive))
-	a.handle(views.CmdRestore, a.onRecord("restore", a.Store.Restore))
+	a.handle(views.CmdArchive, a.archiveRecord)
+	a.handle(views.CmdRestore, a.restoreRecord)
 	a.handle(views.CmdSnooze, a.onRecord("snooze", func(ref core.Ref, actor core.Actor) (*data.Record, *data.ChangeSet, error) {
 		hours := a.cfg.Settings.Float("snoozeHours", 24)
 		return a.Store.Snooze(ref, a.now().Add(time.Duration(hours*float64(time.Hour))), actor)
@@ -527,6 +533,10 @@ func (a *App) register() {
 	a.handle(CmdCanvasLinkNext, a.canvasStepLink(1))
 	a.handle(CmdCanvasLinkPrev, a.canvasStepLink(-1))
 	a.handle(CmdCanvasYank, a.canvasYank)
+	a.handle(CmdCanvasTabSelect, a.canvasTabSelect)
+	a.handle(CmdCanvasHeadingNext, a.canvasHeadingStep(1))
+	a.handle(CmdCanvasHeadingPrev, a.canvasHeadingStep(-1))
+	a.handle(CmdCanvasHeadingPick, a.canvasHeadingPick)
 	a.handle(CmdTOCGroupToggle, a.tocGroupToggle)
 	a.handle(CmdTermInput, a.termInput)
 

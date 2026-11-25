@@ -301,11 +301,21 @@ func (m *composerModal) View(_, _ int) ui.ViewNode {
 	}
 	modeBar := line("composer.modes", " Delivery: "+strings.Join(modeParts, "  ")+"   (shift+tab cycles)", "accent")
 
+	compact := m.a == nil || m.a.cfg == nil || m.a.cfg.Settings == nil || m.a.cfg.Settings.Bool(SetComposerCompact, true)
+	wrap := m.a == nil || m.a.cfg == nil || m.a.cfg.Settings == nil || m.a.cfg.Settings.Bool(SetComposerWrap, true)
+
 	inNode := m.in.View(composerInput)
 	inNode.Border = true
 	inNode.Title = "Prompt"
 	inNode.Props["placeholder"] = "Type prompt… (@file, $skill, /command · enter newline · ctrl+s submit)"
-	inNode.Box = layout.Constraints{Flex: 1, MinH: 6}
+	inNode.Props["wrap"] = wrap
+	widthPct, heightPct, gap, compMaxH := 80, 70, 1, 8
+	if compact {
+		inNode.Box = layout.Constraints{Flex: 1, MinH: 4}
+		widthPct, heightPct, gap, compMaxH = 62, 34, 0, 4
+	} else {
+		inNode.Box = layout.Constraints{Flex: 1, MinH: 6}
+	}
 
 	children := []ui.ViewNode{modeBar, inNode}
 
@@ -326,7 +336,7 @@ func (m *composerModal) View(_, _ int) ui.ViewNode {
 			Kind:     ui.KindPanel,
 			Title:    fmt.Sprintf("Completions (%s)", m.compTrigger),
 			Border:   true,
-			Box:      layout.Constraints{FixedH: min(len(compLines)+2, 8)},
+			Box:      layout.Constraints{FixedH: min(len(compLines)+2, compMaxH)},
 			Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: compLines}},
 		}
 		children = append(children, compPanel)
@@ -354,10 +364,10 @@ func (m *composerModal) View(_, _ int) ui.ViewNode {
 		ID:        "composer",
 		Scope:     "composer",
 		Title:     "Compose · " + m.paneTitle,
-		WidthPct:  80,
-		HeightPct: 70,
+		WidthPct:  widthPct,
+		HeightPct: heightPct,
 		Badges:    badges,
-		Children:  []ui.ViewNode{{Kind: ui.KindVStack, Gap: 1, Children: children}},
+		Children:  []ui.ViewNode{{Kind: ui.KindVStack, Gap: gap, Children: children}},
 	})
 }
 

@@ -166,6 +166,9 @@ func (a *App) buildRail() *table.Model {
 		a.fail("read panes", err)
 	}
 	panes := res.Items
+	if !a.nav.showArchived {
+		panes = a.appendAnimatingRecords(data.KindPane, panes)
+	}
 	slices.SortStableFunc(panes, func(x, y data.Record) int {
 		return y.Time("promptedAt").Compare(x.Time("promptedAt"))
 	})
@@ -274,6 +277,7 @@ func (a *App) buildRail() *table.Model {
 		if a.openable(pane) {
 			row.Facts[factOpenable] = true
 		}
+		a.applyArchiveAnimToRow(row, "rail", data.Text(row.Cells["rail"]), pane.Ref())
 	}
 	a.panes.railProjectRefs = projRefs
 	a.panes.railGroupPanes = groupPanes

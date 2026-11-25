@@ -39,17 +39,20 @@ type canvasWidgetState struct {
 }
 
 type canvasState struct {
-	widgets map[string]*canvasWidgetState
+	widgets    map[string]*canvasWidgetState
+	tabsActive map[string]any
+	headingIdx int
 }
 
 func canvasSpecs() []core.CommandSpec {
-	return []core.CommandSpec{
+	out := []core.CommandSpec{
 		spec(CmdCanvasActivate, "Open the active link, toggle the focused checkbox, or inspect the selected canvas table row"),
 		spec(CmdCanvasToggleCheck, "Toggle and persist the focused Markdown checkbox on the active canvas"),
-		spec(CmdCanvasLinkNext, "Focus the next Markdown link on the active canvas"),
-		spec(CmdCanvasLinkPrev, "Focus the previous Markdown link on the active canvas"),
+		spec(CmdCanvasLinkNext, "Focus the next inline or Markdown link on the active canvas"),
+		spec(CmdCanvasLinkPrev, "Focus the previous inline or Markdown link on the active canvas"),
 		spec(CmdCanvasYank, "Yank the active link URL, selected table row, or code block from the active canvas"),
 	}
+	return append(out, canvasLinkSpecs()...)
 }
 
 func (a *App) interactiveCanvasEnabled() bool {
@@ -68,7 +71,11 @@ func (a *App) canvasStateFor(pageID string) *canvasState {
 	}
 	cs := a.panes.canvasState[pageID]
 	if cs == nil {
-		cs = &canvasState{widgets: map[string]*canvasWidgetState{}}
+		cs = &canvasState{
+			widgets:    map[string]*canvasWidgetState{},
+			tabsActive: map[string]any{},
+			headingIdx: -1,
+		}
 		a.panes.canvasState[pageID] = cs
 	}
 	return cs
@@ -92,18 +99,33 @@ func (a *App) canvasViewKey(pageID string) string {
 		return ""
 	}
 	cs := a.panes.canvasState[pageID]
-	if cs == nil || len(cs.widgets) == 0 {
+	if cs == nil || (len(cs.widgets) == 0 && len(cs.tabsActive) == 0 && cs.headingIdx < 0) {
 		return ""
 	}
-	keys := make([]string, 0, len(cs.widgets))
-	for k := range cs.widgets {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
 	var b strings.Builder
-	for _, k := range keys {
-		ws := cs.widgets[k]
-		fmt.Fprintf(&b, "|cw:%s:%d:%d:%d", k, ws.row, ws.activeLink, ws.activeCheck)
+	if len(cs.widgets) > 0 {
+		keys := make([]string, 0, len(cs.widgets))
+		for k := range cs.widgets {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		for _, k := range keys {
+			ws := cs.widgets[k]
+			fmt.Fprintf(&b, "|cw:%s:%d:%d:%d", k, ws.row, ws.activeLink, ws.activeCheck)
+		}
+	}
+	if len(cs.tabsActive) > 0 {
+		keys := make([]string, 0, len(cs.tabsActive))
+		for k := range cs.tabsActive {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		for _, k := range keys {
+			fmt.Fprintf(&b, "|ct:%s:%v", k, cs.tabsActive[k])
+		}
+	}
+	if cs.headingIdx >= 0 {
+		fmt.Fprintf(&b, "|ch:%d", cs.headingIdx)
 	}
 	return b.String()
 }
@@ -129,7 +151,13 @@ func canvasTreeItemsLen(n *ui.ViewNode) int {
 	if n == nil || n.Props == nil {
 		return 0
 	}
-	if xs, ok := n.Props["items"].([]any); ok {
+	if cnt := canvasTreeNodesLen(n.Props["nodes"]); cnt > 0 {
+		return cnt
+	}
+	switch xs := n.Props["items"].(type) {
+	case []any:
+		return len(xs)
+	case []string:
 		return len(xs)
 	}
 	return 0
@@ -162,6 +190,19 @@ func (a *App) enhanceCanvasSite(site *ui.ViewNode, pageID string) {
 			hasQuestions = true
 			return
 		}
+		if n.Kind == ui.KindTabs && n.ID != views.PageScrollID {
+			id := ensureCanvasNodeID(n, path)
+			if a.panes != nil && a.panes.canvasState != nil {
+				if cs := a.panes.canvasState[pageID]; cs != nil {
+					if act, ok := cs.tabsActive[id]; ok {
+						if n.Props == nil {
+							n.Props = map[string]any{}
+						}
+						n.Props["active"] = act
+					}
+				}
+			}
+		}
 		if interactive && n.ID != views.PageScrollID {
 			switch n.Kind {
 			case ui.KindTable:
@@ -184,6 +225,22 @@ func (a *App) enhanceCanvasSite(site *ui.ViewNode, pageID string) {
 					n.Facts["canvasTable"] = true
 					n.Facts["rowCount"] = rows
 					n.Facts["selectedRow"] = ws.row
+					syncCanvasWidgetLinks(n, ws, ui.NodeLinks(n, ws.row))
+				}
+			case ui.KindText:
+				if links := ui.NodeLinks(n, -1); len(links) > 0 {
+					id := ensureCanvasNodeID(n, path)
+					ws := a.canvasWidgetStateFor(pageID, id)
+					ws.initialized = true
+					n.Focusable = true
+					if n.Scope == "" {
+						n.Scope = ScopeCanvasText
+					}
+					if n.Facts == nil {
+						n.Facts = map[string]any{}
+					}
+					n.Facts["canvasText"] = true
+					syncCanvasWidgetLinks(n, ws, links)
 				}
 			case ui.KindMarkdown:
 				md, _ := n.Props["markdown"].(string)
@@ -240,7 +297,10 @@ func (a *App) enhanceCanvasSite(site *ui.ViewNode, pageID string) {
 					n.Facts["onLink"] = ws.activeLink >= 0
 					if ws.activeLink >= 0 && ws.activeLink < len(links) {
 						n.Facts["activeLinkUrl"] = links[ws.activeLink].Href
+						n.Facts["activeLinkLabel"] = links[ws.activeLink].Label
 					}
+				} else if len(ui.MarkdownHeadings(md)) > 0 {
+					ensureCanvasNodeID(n, path)
 				}
 			case ui.KindTree:
 				if items := canvasTreeItemsLen(n); items > 0 {
@@ -261,6 +321,7 @@ func (a *App) enhanceCanvasSite(site *ui.ViewNode, pageID string) {
 					}
 					n.Facts["canvasTree"] = true
 					n.Facts["rowCount"] = items
+					syncCanvasWidgetLinks(n, ws, ui.NodeLinks(n, ws.row))
 				}
 			}
 		}
@@ -298,7 +359,7 @@ func (a *App) firstCanvasWidgetID(s core.State) string {
 			return
 		}
 		if n.Focusable && n.ID != "" && n.ID != views.PageScrollID {
-			if n.Facts["canvasTable"] == true || n.Facts["canvasMarkdown"] == true || n.Facts["canvasTree"] == true {
+			if n.Facts["canvasTable"] == true || n.Facts["canvasMarkdown"] == true || n.Facts["canvasTree"] == true || n.Facts["canvasText"] == true {
 				found = n.ID
 				return
 			}
@@ -464,9 +525,30 @@ func (a *App) canvasMotion(s core.State, c core.Command) (core.StepResult, bool)
 		case "motion.bottom":
 			ws.row = count - 1
 		}
+		ws.activeLink = 0
 		a.canvasRevealNodeLine(s, pageID, focusID, ws.row+2)
-		a.say("row %d/%d · enter inspects · y yanks · tab next block", ws.row+1, count)
+		if links := ui.NodeLinks(node, ws.row); len(links) > 0 {
+			a.canvasSayInlineLink(links, 0)
+		} else {
+			ws.activeLink = -1
+			a.say("row %d/%d · enter inspects · y yanks · tab next block", ws.row+1, count)
+		}
 		return core.Next(s), true
+
+	case node.Facts["canvasText"] == true:
+		switch c.ID {
+		case "motion.down":
+			if nextID, ok := a.canvasAdjacentWidget(s, focusID, 1); ok {
+				a.scrollPageReveal(s, pageID, nextID)
+				return core.Next(withFocus(s, nextID)), true
+			}
+		case "motion.up":
+			if prevID, ok := a.canvasAdjacentWidget(s, focusID, -1); ok {
+				a.scrollPageReveal(s, pageID, prevID)
+				return core.Next(withFocus(s, prevID)), true
+			}
+		}
+		return core.Next(s), false
 
 	case node.Facts["canvasMarkdown"] == true:
 		md, _ := node.Props["markdown"].(string)
@@ -529,18 +611,41 @@ func (a *App) canvasStepLink(delta int) func(core.State, core.Command) core.Step
 		focusID := s.ActiveFrame().FocusID
 		root := a.View(s)
 		node := root.Find(focusID)
-		if node == nil || node.Facts["canvasMarkdown"] != true {
+		if node == nil {
 			return core.Next(s)
 		}
-		md, _ := node.Props["markdown"].(string)
-		links := ui.MarkdownLinks(md)
+		ws := a.canvasWidgetStateFor(pageID, focusID)
+		if ws == nil {
+			return core.Next(s)
+		}
+		step := delta * max(c.Times(), 1)
+		if node.Facts["canvasMarkdown"] == true {
+			md, _ := node.Props["markdown"].(string)
+			links := ui.MarkdownLinks(md)
+			if len(links) == 0 {
+				a.say("no links in this block")
+				return core.Next(s)
+			}
+			checks := ui.MarkdownCheckboxes(md)
+			if ws.activeLink < 0 {
+				if delta >= 0 {
+					ws.activeLink = 0
+				} else {
+					ws.activeLink = len(links) - 1
+				}
+			} else {
+				ws.activeLink = ((ws.activeLink+step)%len(links) + len(links)) % len(links)
+			}
+			ws.activeCheck = -1
+			a.canvasRevealNodeLine(s, pageID, focusID, links[ws.activeLink].Line)
+			a.canvasSayMarkdownFocus(links, checks, ws)
+			return core.Next(s)
+		}
+		links := ui.NodeLinks(node, canvasNodeRowForLinks(node, ws))
 		if len(links) == 0 {
 			a.say("no links in this block")
 			return core.Next(s)
 		}
-		checks := ui.MarkdownCheckboxes(md)
-		ws := a.canvasWidgetStateFor(pageID, focusID)
-		step := delta * max(c.Times(), 1)
 		if ws.activeLink < 0 {
 			if delta >= 0 {
 				ws.activeLink = 0
@@ -550,9 +655,7 @@ func (a *App) canvasStepLink(delta int) func(core.State, core.Command) core.Step
 		} else {
 			ws.activeLink = ((ws.activeLink+step)%len(links) + len(links)) % len(links)
 		}
-		ws.activeCheck = -1
-		a.canvasRevealNodeLine(s, pageID, focusID, links[ws.activeLink].Line)
-		a.canvasSayMarkdownFocus(links, checks, ws)
+		a.canvasSayInlineLink(links, ws.activeLink)
 		return core.Next(s)
 	}
 }
@@ -692,7 +795,7 @@ func tableRowValues(node *ui.ViewNode, rowIdx int) ([]string, []string) {
 	case map[string]any:
 		if cells, ok := x["cells"].([]any); ok {
 			for _, v := range cells {
-				vals = append(vals, fmt.Sprint(v))
+				vals = append(vals, inlineCellPlain(v))
 			}
 		} else if rawCols, ok := node.Props["columns"].([]any); ok {
 			for _, c := range rawCols {
@@ -707,7 +810,7 @@ func tableRowValues(node *ui.ViewNode, rowIdx int) ([]string, []string) {
 					key = fmt.Sprint(c)
 				}
 				if v, exists := x[key]; exists && v != nil {
-					vals = append(vals, fmt.Sprint(v))
+					vals = append(vals, inlineCellPlain(v))
 				} else {
 					vals = append(vals, "")
 				}
@@ -715,7 +818,7 @@ func tableRowValues(node *ui.ViewNode, rowIdx int) ([]string, []string) {
 		}
 	case []any:
 		for _, v := range x {
-			vals = append(vals, fmt.Sprint(v))
+			vals = append(vals, inlineCellPlain(v))
 		}
 	}
 	return cols, vals
@@ -766,6 +869,13 @@ func (a *App) canvasActivate(s core.State, c core.Command) core.StepResult {
 
 	case node.Facts["canvasTable"] == true:
 		ws := a.canvasWidgetStateFor(pageID, focusID)
+		if links := ui.NodeLinks(node, ws.row); len(links) > 0 {
+			idx := ws.activeLink
+			if idx < 0 || idx >= len(links) {
+				idx = 0
+			}
+			return a.activateInlineLink(s, links[idx])
+		}
 		cols, vals := tableRowValues(node, ws.row)
 		for _, v := range vals {
 			if u := canvasURLRe.FindString(v); u != "" {
@@ -785,6 +895,16 @@ func (a *App) canvasActivate(s core.State, c core.Command) core.StepResult {
 			fmt.Fprintf(&sb, "- **%s:** %s\n", label, v)
 		}
 		return core.Next(a.openReader(s, openTarget{title: fmt.Sprintf("Row %d", ws.row+1), body: sb.String()}))
+
+	case node.Facts["canvasTree"] == true || node.Facts["canvasText"] == true:
+		ws := a.canvasWidgetStateFor(pageID, focusID)
+		if links := ui.NodeLinks(node, canvasNodeRowForLinks(node, ws)); len(links) > 0 {
+			idx := ws.activeLink
+			if idx < 0 || idx >= len(links) {
+				idx = 0
+			}
+			return a.activateInlineLink(s, links[idx])
+		}
 	}
 	return core.Next(s)
 }
@@ -811,6 +931,10 @@ func (a *App) canvasYank(s core.State, _ core.Command) core.StepResult {
 
 	case node.Facts["canvasTable"] == true:
 		ws := a.canvasWidgetStateFor(pageID, focusID)
+		if links := ui.NodeLinks(node, ws.row); len(links) > 0 && ws.activeLink >= 0 && ws.activeLink < len(links) {
+			a.yank(canvasLinkTargetDesc(links[ws.activeLink]), "link")
+			return core.Next(s)
+		}
 		cols, vals := tableRowValues(node, ws.row)
 		if len(vals) == 0 {
 			return core.Next(s)
@@ -825,6 +949,17 @@ func (a *App) canvasYank(s core.State, _ core.Command) core.StepResult {
 		}
 		a.yank(strings.Join(parts, " | "), "table row")
 		return core.Next(s)
+
+	case node.Facts["canvasTree"] == true || node.Facts["canvasText"] == true:
+		ws := a.canvasWidgetStateFor(pageID, focusID)
+		if links := ui.NodeLinks(node, canvasNodeRowForLinks(node, ws)); len(links) > 0 {
+			idx := ws.activeLink
+			if idx < 0 || idx >= len(links) {
+				idx = 0
+			}
+			a.yank(canvasLinkTargetDesc(links[idx]), "link")
+			return core.Next(s)
+		}
 	}
 	return core.Next(s)
 }

@@ -68,7 +68,7 @@ func (a *App) records(id, kind string) *table.Model {
 	styleOpts := a.styleOptions()
 	if _, isExt := a.ext.extCatalogs[kind]; !isExt && a.Store != nil {
 		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
-			key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog())
+			key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t|%s", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog(), a.archiveAnimCacheKey())
 			if a.nav.recCacheKeys != nil && a.nav.recCacheKeys[id] == key && a.nav.tables[id] != nil {
 				a.pageSize(a.nav.tables[id], id)
 				return a.nav.tables[id]
@@ -90,6 +90,9 @@ func (a *App) records(id, kind string) *table.Model {
 			a.fail("read "+kind, err)
 		}
 		items = res.Items
+		if !a.nav.showArchived {
+			items = a.appendAnimatingRecords(kind, items)
+		}
 	}
 	items = a.filterExtensionItems(kind, items)
 	schema := a.schema(kind)
@@ -111,11 +114,20 @@ func (a *App) records(id, kind string) *table.Model {
 			fresh.Rows[i].Cells[f.Name] = names[ref]
 		}
 	}
+	titleCol := schema.SummaryField
+	if titleCol == "" {
+		titleCol = "title"
+	}
 	for i, rec := range items {
 		if a.openable(rec) {
 			fresh.Rows[i].Facts[factOpenable] = true // "o" opens it; a row without the fact sorts
 		}
 		a.applyExtensionFacts(rec, fresh.Rows[i].Facts)
+		col := titleCol
+		if _, hasCol := fresh.Rows[i].Cells[col]; !hasCol && len(fresh.Columns) > 0 {
+			col = fresh.Columns[0].Key
+		}
+		a.applyArchiveAnimToRow(&fresh.Rows[i], col, data.Text(fresh.Rows[i].Cells[col]), rec.Ref())
 	}
 	for _, sp := range spaces {
 		if sp.table == id && sp.columns != nil {
@@ -162,7 +174,7 @@ func (a *App) attention(pane string) bool {
 func (a *App) rail() *table.Model {
 	if a.Store != nil {
 		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
-			key := fmt.Sprintf("%d|%d|%t|%s|%t|%s|%t|%t",
+			key := fmt.Sprintf("%d|%d|%t|%s|%t|%s|%t|%t|%s",
 				rev,
 				a.rt.live.telemetrySeq.Load(),
 				a.nav.showArchived,
@@ -171,6 +183,7 @@ func (a *App) rail() *table.Model {
 				a.panes.railCustomGroup,
 				a.cfg.Settings.Bool(SetFlagsColumn, true),
 				a.cfg.Settings.Bool(SetRailStateColumn, false),
+				a.archiveAnimCacheKey(),
 			)
 			if key == a.panes.railCacheKey && a.nav.tables[railTable] != nil {
 				a.pageSize(a.nav.tables[railTable], railTable)

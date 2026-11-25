@@ -312,9 +312,13 @@ func RunSmoke(out io.Writer, dump bool) error {
 	listed := func() bool {
 		return slices.ContainsFunc(a.nav.tables[workTable].Rows, func(r table.Row) bool { return r.ID == data.RefText(project.Ref()) })
 	}
-	k.check("d/a archives; the row leaves the list", archived() && !listed())
+	k.check("d/a archives and starts dissolve animation", archived() && a.archiveAnimActive(project.Ref()))
+	a.opts.Now = func() time.Time { return time.Now().Add(5 * time.Second) }
+	k.Send(wakeMsg())
+	a.opts.Now = nil
+	k.check("dissolve completes; the row leaves the list", archived() && !listed())
 	k.Keys("u")
-	k.check("u brings it back", !archived() && listed())
+	k.check("u brings it back", !archived() && !a.archiveAnimActive(project.Ref()) && listed())
 	k.Keys("/")
 	k.Type("rail")
 	k.check("/ filters on any field as you type", a.Mode() == ModeFilter && len(a.nav.tables[workTable].Filtered()) == 1 && k.has("Pane rail sorted"))
