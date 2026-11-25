@@ -6,7 +6,7 @@ require (
 	charm.land/bubbletea/v2 v2.1.0
 	github.com/creack/pty v1.1.24
 	modernc.org/sqlite v1.60.1
-	ofam.dev/ochazuke v1.15.0
+	ofam.dev/ochazuke v1.16.0
 	ofam.dev/oden v1.1.0
 	tuios.dev/vt v0.3.3-0.20261030005101-f3383d2005bd
 )

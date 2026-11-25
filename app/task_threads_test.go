@@ -30,13 +30,16 @@ func TestTaskThreadBindingsAndSettingsSpecs(t *testing.T) {
 	if defs[SetTasksLockThreadEdits] != false {
 		t.Fatalf("%s default = %v, want false", SetTasksLockThreadEdits, defs[SetTasksLockThreadEdits])
 	}
+	if defs[SetOutlineGutter] != true {
+		t.Fatalf("%s default = %v, want true", SetOutlineGutter, defs[SetOutlineGutter])
+	}
 
 	specs := SettingSpecs()
 	names := make([]string, len(specs))
 	for i, sp := range specs {
 		names[i] = sp.Name
 	}
-	for _, want := range []string{SetTasksShowNoteIndicators, SetTasksInlineNoteThreads, SetTasksLockThreadEdits} {
+	for _, want := range []string{SetTasksShowNoteIndicators, SetTasksInlineNoteThreads, SetTasksLockThreadEdits, SetOutlineGutter} {
 		if !slices.Contains(names, want) {
 			t.Fatalf("SettingSpecs missing %q", want)
 		}
@@ -317,5 +320,159 @@ func TestTaskAgentFlagReplyAppendAndQueueDispatch(t *testing.T) {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("dispatched queue prompt missing %q:\n%s", want, prompt)
 		}
+	}
+}
+
+func TestTaskOutlineGutterQueueDispatchAgentPickupAndOptOut(t *testing.T) {
+	store, err := data.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	seed := core.Actor{Kind: "system", ID: "seed"}
+	now := time.Date(2026, 11, 25, 14, 0, 0, 0, time.UTC)
+
+	proj, _, err := store.Create(data.CreateInput{
+		Kind:   data.KindTask,
+		ID:     "proj-gutter",
+		Fields: map[string]any{"title": "Outline Gutter Project", "workStatus": "active", "order": int64(1)},
+	}, seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queuedTask, _, err := store.Create(data.CreateInput{
+		Kind: data.KindTask,
+		ID:   "sub-queue",
+		Fields: map[string]any{
+			"title":      "Queued worker task",
+			"parent":     proj.Ref(),
+			"workStatus": "todo",
+			"order":      int64(1),
+		},
+	}, seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unreadTask, _, err := store.Create(data.CreateInput{
+		Kind: data.KindTask,
+		ID:   "sub-unread",
+		Fields: map[string]any{
+			"title":      "Non-queued task with unread note",
+			"parent":     proj.Ref(),
+			"workStatus": "todo",
+			"order":      int64(2),
+		},
+	}, seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AppendTaskNote(data.AppendTaskNoteInput{
+		TaskID:      unreadTask.ID,
+		Body:        "Agent left a reply",
+		AuthorKind:  "agent",
+		AuthorLabel: "claude",
+	}, seed); err != nil {
+		t.Fatal(err)
+	}
+	agentPane, _, err := store.Create(data.CreateInput{
+		Kind: data.KindPane,
+		ID:   "pane-gutter",
+		Fields: map[string]any{
+			"title":      "claude: gutter",
+			"harness":    "claude",
+			"runStatus":  "running",
+			"task":       proj.Ref(),
+			"promptedAt": now.Format(data.TimeFormat),
+		},
+	}, seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	a, err := New(store, Options{Now: func() time.Time { return now }, FS: smokeFS()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { a.Close() })
+	d := NewDriver(a, 120, 36)
+
+	findNode := func(id string) (string, string, bool) {
+		tm := a.trees.workModel(data.KindTask)
+		a.syncTreeModel(tm, data.KindTask, workTable)
+		for _, row := range tm.Flatten() {
+			if row.ID == id {
+				return row.Node.Gutter, row.Node.GutterTone, tm.ShowGutter
+			}
+		}
+		return "", "", tm.ShowGutter
+	}
+
+	// Open 2 Work tree, unfold all, focus queuedTask.
+	d.Keys("2", "z", "R", "j")
+
+	// Unread agent note fallback on non-queued task shows • (icon.unread).
+	if g, tone, show := findNode(unreadTask.ID); !show || g != "•" || tone != "icon.unread" {
+		t.Fatalf("unread non-queued task gutter = (%q, %q, show=%v), want (\"•\", \"icon.unread\", true)", g, tone, show)
+	}
+
+	// 1. Queue task with `w` -> queued NOT dispatched (◇, muted).
+	d.Keys("w")
+	if g, tone, show := findNode(queuedTask.ID); !show || g != "◇" || tone != "muted" {
+		t.Fatalf("queued-not-dispatched gutter = (%q, %q, show=%v), want (\"◇\", \"muted\", true)", g, tone, show)
+	}
+	if frame := d.Frame(); !strings.Contains(frame, "◇") || !strings.Contains(frame, "agent:queued") {
+		t.Fatalf("expected ◇ gutter and agent:queued badge before dispatch:\n%s", frame)
+	}
+
+	// 2. Dispatch via `D` -> queued AND dispatched (↗, accent), store stamped.
+	d.Keys("D")
+	rec, err := store.Get(queuedTask.Ref())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Text("agentDispatchedAt") == "" {
+		t.Fatal("sendTaskQueueDispatch did not stamp agentDispatchedAt")
+	}
+	if paneRef, ok := rec.RefField("agentDispatchedPane"); !ok || paneRef != agentPane.Ref() {
+		t.Fatalf("agentDispatchedPane = (%+v, %v), want %+v", paneRef, ok, agentPane.Ref())
+	}
+	if g, tone, show := findNode(queuedTask.ID); !show || g != "↗" || tone != "accent" {
+		t.Fatalf("queued-and-dispatched gutter = (%q, %q, show=%v), want (\"↗\", \"accent\", true)", g, tone, show)
+	}
+	if frame := d.Frame(); !strings.Contains(frame, "↗") || !strings.Contains(frame, "agent:queued") {
+		t.Fatalf("expected ↗ gutter and preserved agent:queued badge after dispatch:\n%s", frame)
+	}
+
+	// 3. Agent pickup (working -> ●), blocked (needs_you -> ?), finished (done -> ✓).
+	for _, tc := range []struct {
+		status string
+		glyph  string
+		tone   string
+	}{
+		{data.AgentStatusWorking, "●", "state.working"},
+		{data.AgentStatusNeedsYou, "?", "state.needs-input"},
+		{data.AgentStatusDone, "✓", "state.done"},
+	} {
+		if _, err := store.SetTaskAgentFlag(queuedTask.Ref(), true, tc.status, "claude", seed); err != nil {
+			t.Fatalf("SetTaskAgentFlag(%s): %v", tc.status, err)
+		}
+		if g, tone, show := findNode(queuedTask.ID); !show || g != tc.glyph || tone != tc.tone {
+			t.Fatalf("status %s gutter = (%q, %q, show=%v), want (%q, %q, true)", tc.status, g, tone, show, tc.glyph, tc.tone)
+		}
+	}
+
+	// 4. Opt-out outline.gutter = false disables gutter cleanly across tree & fallback.
+	a.cfg.userSettings[SetOutlineGutter] = false
+	a.reloadSettings()
+	a.applySettings()
+	wake(d)
+	if g, tone, show := findNode(queuedTask.ID); show || g != "" || tone != "" {
+		t.Fatalf("outline.gutter=false on queuedTask = (%q, %q, show=%v), want (\"\", \"\", false)", g, tone, show)
+	}
+	if g, tone, show := findNode(unreadTask.ID); show || g != "" || tone != "" {
+		t.Fatalf("outline.gutter=false on unreadTask = (%q, %q, show=%v), want (\"\", \"\", false)", g, tone, show)
+	}
+	if frame := d.Frame(); !strings.Contains(frame, "agent:done") {
+		t.Fatalf("outline.gutter=false should preserve inline agent:done badge:\n%s", frame)
 	}
 }

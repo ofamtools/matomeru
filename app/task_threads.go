@@ -48,6 +48,10 @@ func (a *App) autoInjectProjectContextEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetContextAutoInject, true)
 }
 
+func (a *App) outlineGutterEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetOutlineGutter, true)
+}
+
 // enrichTaskTreeNode adds note-thread facts and metadata indicators to a task
 // tree.Node during tree construction.
 func (a *App) enrichTaskTreeNode(rec data.Record, nd *tree.Node, threads map[string][]data.Record) {
@@ -79,6 +83,11 @@ func (a *App) enrichTaskTreeNode(rec data.Record, nd *tree.Node, threads map[str
 	nd.Facts["hasUnreadAgentNotes"] = unreadAgentNotes > 0
 	nd.Facts["threadExpanded"] = threadExpanded
 	nd.Facts["hasAttachments"] = totalAttachments > 0
+
+	if a.outlineGutterEnabled() && nd.Gutter == "" && unreadAgentNotes > 0 {
+		nd.Gutter = "•"
+		nd.GutterTone = "icon.unread"
+	}
 
 	if a.showNoteIndicatorsEnabled() {
 		if len(notes) > 0 {
@@ -565,6 +574,15 @@ func (a *App) taskNoteReply(s core.State, c core.Command) core.StepResult {
 func (a *App) sendTaskQueueDispatch(items []data.AgentQueueItem, pane data.Record) {
 	prompt := data.FormatAgentQueuePrompt(items, "")
 	a.deliverComposerPrompt(pane, prompt, ComposerModeQueue)
+	if a.Store != nil && len(items) > 0 {
+		ids := make([]string, 0, len(items))
+		for _, it := range items {
+			if it.Task.ID != "" {
+				ids = append(ids, it.Task.ID)
+			}
+		}
+		_, _ = a.Store.MarkTasksDispatched(ids, pane.ID, a.now(), User)
+	}
 	paneTitle := views.Title(a.schema(data.KindPane), pane)
 	msg := fmt.Sprintf("Dispatched %d queued task(s) to %s", len(items), paneTitle)
 	a.say("%s", msg)

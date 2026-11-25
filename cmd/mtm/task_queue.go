@@ -552,6 +552,13 @@ func mtmTaskDispatchSubcmd(g globalOpts) oden.Command {
 				if err := client.Write(c.Context, paneID, []byte(payload)); err != nil {
 					return fmt.Errorf("deliver prompt to pane %s: %w", paneID, err)
 				}
+				ids := make([]string, 0, len(items))
+				for _, it := range items {
+					if it.Task.ID != "" {
+						ids = append(ids, it.Task.ID)
+					}
+				}
+				_, _ = store.MarkTasksDispatched(ids, paneID, time.Now().UTC(), cliActor)
 				out.PaneID = paneID
 				out.Delivered = true
 			}

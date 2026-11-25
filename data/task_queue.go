@@ -425,6 +425,10 @@ func (s *Store) SetTaskAgentFlag(taskRef core.Ref, forAgent bool, status string,
 		"forAgent":    forAgent,
 		"agentStatus": status,
 	}
+	if status == AgentStatusNone || status == AgentStatusQueued {
+		fields["agentDispatchedAt"] = nil
+		fields["agentDispatchedPane"] = nil
+	}
 	if assignee != "" {
 		fields["agentAssignee"] = assignee
 	}
@@ -437,6 +441,51 @@ func (s *Store) SetTaskAgentFlag(taskRef core.Ref, forAgent bool, status string,
 		return Record{}, err
 	}
 	return *rec, nil
+}
+
+// MarkTasksDispatched stamps agentDispatchedAt (and agentDispatchedPane when
+// paneID is non-empty) on the given task IDs in one atomic batch, ignoring
+// empty or duplicate IDs, and returns the count of tasks stamped.
+func (s *Store) MarkTasksDispatched(taskIDs []string, paneID string, at time.Time, actor core.Actor) (int, error) {
+	if len(taskIDs) == 0 {
+		return 0, nil
+	}
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	stamp := at.UTC().Format(TimeFormat)
+	paneID = strings.TrimSpace(paneID)
+
+	seen := make(map[string]bool, len(taskIDs))
+	patches := make([]PatchInput, 0, len(taskIDs))
+	for _, rawID := range taskIDs {
+		id := strings.TrimSpace(rawID)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		fields := map[string]any{
+			"agentDispatchedAt": stamp,
+		}
+		if paneID != "" {
+			fields["agentDispatchedPane"] = core.Ref{Kind: KindPane, ID: paneID}
+		}
+		patches = append(patches, PatchInput{
+			Ref:    core.Ref{Kind: KindTask, ID: id},
+			Fields: fields,
+		})
+	}
+	if len(patches) == 0 {
+		return 0, nil
+	}
+	summary := fmt.Sprintf("dispatch %d queued task(s)", len(patches))
+	if paneID != "" {
+		summary = fmt.Sprintf("dispatch %d queued task(s) to pane:%s", len(patches), paneID)
+	}
+	if _, err := s.PatchMany(patches, "task.queue.dispatch", summary, actor); err != nil {
+		return 0, err
+	}
+	return len(patches), nil
 }
 
 // AppendTaskNote appends a new KindNote record to a task's thread, writes a

@@ -250,14 +250,15 @@ func TestSchedulerAgentQueueCommandAndNilDispatcherFallback(t *testing.T) {
 	owner := core.Actor{Kind: "user", ID: "owner"}
 	now := time.Date(2026, 11, 25, 10, 0, 0, 0, time.UTC)
 
-	if _, _, err := store.Create(data.CreateInput{
+	queuedTask, _, err := store.Create(data.CreateInput{
 		Kind: data.KindTask,
 		Fields: map[string]any{
 			"title":       "Queued task A",
 			"forAgent":    true,
 			"agentStatus": data.AgentStatusQueued,
 		},
-	}, owner); err != nil {
+	}, owner)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -319,6 +320,16 @@ func TestSchedulerAgentQueueCommandAndNilDispatcherFallback(t *testing.T) {
 	if len(sigs.Items) != 1 || !strings.Contains(sigs.Items[0].Text("title"), "queued") {
 		t.Fatalf("signals = %+v, want 1 queued signal", sigs.Items)
 	}
+	gotTask, err := store.Get(queuedTask.Ref())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := gotTask.Text("agentDispatchedAt"); got != now.UTC().Format(data.TimeFormat) {
+		t.Fatalf("command schedule agentDispatchedAt = %q, want %q", got, now.UTC().Format(data.TimeFormat))
+	}
+	if _, ok := gotTask.RefField("agentDispatchedPane"); ok {
+		t.Fatal("command schedule should not set agentDispatchedPane")
+	}
 }
 
 func TestServerQueueDispatcherNoIdlePaneFallback(t *testing.T) {
@@ -357,7 +368,7 @@ func TestServerQueueDispatcherNoIdlePaneFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := store.Create(data.CreateInput{
+	waitingTask, _, err := store.Create(data.CreateInput{
 		Kind: data.KindTask,
 		Fields: map[string]any{
 			"title":       "Fix queue retry",
@@ -365,7 +376,8 @@ func TestServerQueueDispatcherNoIdlePaneFallback(t *testing.T) {
 			"forAgent":    true,
 			"agentStatus": data.AgentStatusQueued,
 		},
-	}, owner); err != nil {
+	}, owner)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -441,6 +453,13 @@ func TestServerQueueDispatcherNoIdlePaneFallback(t *testing.T) {
 	defer mu.Unlock()
 	if len(notified) != 1 || !strings.Contains(notified[0], "waiting in queue") {
 		t.Fatalf("notified = %v, want 1 waiting notification", notified)
+	}
+	gotWaiting, err := store.Get(waitingTask.Ref())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := gotWaiting.Text("agentDispatchedAt"); got != "" {
+		t.Fatalf("waiting signal fallback must NOT stamp agentDispatchedAt, got %q", got)
 	}
 }
 
@@ -574,6 +593,18 @@ func TestServerQueueDispatcherDeliversToIdlePaneWithoutMovingPromptedAt(t *testi
 	}
 	if len(sigs.Items) != 0 {
 		t.Fatalf("unexpected waiting signals = %+v", sigs.Items)
+	}
+
+	// Real dispatch must stamp agentDispatchedAt and agentDispatchedPane.
+	updatedTask, err := store.Get(task.Ref())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedTask.Text("agentDispatchedAt"); got != now.UTC().Format(data.TimeFormat) {
+		t.Fatalf("agentDispatchedAt = %q, want %q", got, now.UTC().Format(data.TimeFormat))
+	}
+	if paneRef, ok := updatedTask.RefField("agentDispatchedPane"); !ok || paneRef != idlePane.Ref() {
+		t.Fatalf("agentDispatchedPane = (%+v, %v), want %+v", paneRef, ok, idlePane.Ref())
 	}
 }
 

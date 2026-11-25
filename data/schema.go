@@ -165,6 +165,14 @@ type BadgeRule struct {
 	Tone string `json:"tone,omitempty"`
 }
 
+// GutterRule declaratively assigns a 1-character left gutter glyph and tone
+// when an expression holds. The first matching rule wins.
+type GutterRule struct {
+	When  string `json:"when"`
+	Glyph string `json:"glyph"`
+	Tone  string `json:"tone,omitempty"`
+}
+
 // StatusValue is one value of a status column.
 type StatusValue struct {
 	Name     string `json:"name"`
@@ -243,6 +251,7 @@ type Schema struct {
 	UnreadField  string         `json:"unreadField,omitempty"`
 	FactFields   []string       `json:"factFields,omitempty"`
 	BadgeRules   []BadgeRule    `json:"badgeRules,omitempty"`
+	GutterRules  []GutterRule   `json:"gutterRules,omitempty"`
 	StyleRules   []StyleRule    `json:"styleRules,omitempty"`
 	Hierarchy    *HierarchySpec `json:"hierarchy,omitempty"`
 }
@@ -507,6 +516,8 @@ func DefaultSchemas() *Registry {
 				{Name: "forAgent", Type: core.ParamBool, Default: false, Description: "flagged for agent queue pickup"},
 				statusField(agentStatus, "agent workflow state for this task"),
 				str("agentAssignee", "agent harness or worker assigned to this task"),
+				str("agentDispatchedAt", "when the queued task was last dispatched to an agent pane (RFC 3339)"),
+				refTo("agentDispatchedPane", KindPane, "agent pane the task was last dispatched to"),
 				{Name: "attachments", Type: core.ParamList, Description: "attached files, images, URLs, or context references"},
 				{Name: "threadLocked", Type: core.ParamBool, Default: false, Description: "prevent automatic agent replies in this task's note thread"},
 			},
@@ -516,12 +527,19 @@ func DefaultSchemas() *Registry {
 				RelationSpec{Kind: RelDirectory, Title: "Directories", Direction: DirectionOutgoing},
 			),
 			Hierarchy:  &HierarchySpec{ParentField: "parent", OrderField: "order", RootTitle: "Project", DefaultView: "tree"},
-			FactFields: []string{"forAgent", "agentStatus", "threadLocked"},
+			FactFields: []string{"forAgent", "agentStatus", "agentDispatchedAt", "threadLocked"},
 			BadgeRules: []BadgeRule{
 				{When: `fields.agentStatus == "queued"`, Text: "agent:queued", Tone: "accent"},
 				{When: `fields.agentStatus == "working"`, Text: "agent:working", Tone: "state.working"},
 				{When: `fields.agentStatus == "needs_you"`, Text: "agent:needs you", Tone: "state.needs-input"},
 				{When: `fields.agentStatus == "done"`, Text: "agent:done", Tone: "state.done.dim"},
+			},
+			GutterRules: []GutterRule{
+				{When: `fields.agentStatus == "needs_you"`, Glyph: "?", Tone: "state.needs-input"},
+				{When: `fields.agentStatus == "working"`, Glyph: "●", Tone: "state.working"},
+				{When: `fields.agentStatus == "done"`, Glyph: "✓", Tone: "state.done"},
+				{When: `fields.agentStatus == "queued" && fields.agentDispatchedAt`, Glyph: "↗", Tone: "accent"},
+				{When: `fields.agentStatus == "queued" && !fields.agentDispatchedAt`, Glyph: "◇", Tone: "muted"},
 			},
 			StyleRules: []StyleRule{
 				{When: `fields.priority == "P0"`, Target: "priority", Tone: "error"},

@@ -95,6 +95,10 @@ func TestTaskQueueCLIWorkflow(t *testing.T) {
 	if !strings.Contains(dryText, "# Agent Task Queue") {
 		t.Fatalf("dispatch dry-run text:\n%s", dryText)
 	}
+	afterDry := decode[record](t, c.ok("task", "get", t1.ID, "--json"))
+	if afterDry.Fields["agentDispatchedAt"] != nil && afterDry.Fields["agentDispatchedAt"] != "" {
+		t.Fatalf("dry-run dispatch must NOT stamp agentDispatchedAt: %+v", afterDry.Fields)
+	}
 
 	// 6. mtm task dispatch live delivery via fake daemon Unix socket (verifying bracketed paste + sole pane discovery)
 	sock := shortTestSocket(t)
@@ -148,6 +152,13 @@ func TestTaskQueueCLIWorkflow(t *testing.T) {
 	gotPayload := string(writeReq.Data)
 	if !strings.HasPrefix(gotPayload, "\x1b[200~") || !strings.HasSuffix(gotPayload, "\x1b[201~\r") || !strings.Contains(gotPayload, "Wire MCP task tools") {
 		t.Fatalf("unexpected bracketed paste payload: %q", gotPayload)
+	}
+	afterLive := decode[record](t, c.ok("task", "get", t1.ID, "--json"))
+	if afterLive.Fields["agentDispatchedAt"] == nil || afterLive.Fields["agentDispatchedAt"] == "" {
+		t.Fatalf("live dispatch did not stamp agentDispatchedAt: %+v", afterLive.Fields)
+	}
+	if paneRef, _ := afterLive.Fields["agentDispatchedPane"].(map[string]any); paneRef["id"] != "pane-solo" {
+		t.Fatalf("live dispatch agentDispatchedPane = %v, want pane-solo", afterLive.Fields["agentDispatchedPane"])
 	}
 
 	// 7. mtm schedule preset agent-queue

@@ -17,6 +17,7 @@ type TreeOptions struct {
 	GapTopLevel   bool
 	Guides        bool
 	ShowFoldCount bool
+	ShowGutter    bool
 	ResolveRef    func(core.Ref) string
 	EnrichNode    func(rec data.Record, nd *tree.Node)
 }
@@ -28,6 +29,7 @@ func DefaultTreeOptions() TreeOptions {
 		GapTopLevel:   true,
 		Guides:        true,
 		ShowFoldCount: true,
+		ShowGutter:    true,
 	}
 }
 
@@ -59,9 +61,12 @@ func TreeFromNodes(schema data.Schema, nodes []data.TreeNode, opts TreeOptions) 
 			}
 			st := ResolveRecordStyle(schema, rec, opts.Style)
 
+			var env map[string]any
+			if len(schema.BadgeRules) > 0 || (opts.ShowGutter && len(schema.GutterRules) > 0) {
+				env = RecordExprEnv(schema, rec, now)
+			}
 			var badges []ui.Badge
 			if len(schema.BadgeRules) > 0 {
-				env := RecordExprEnv(schema, rec, now)
 				for _, rule := range schema.BadgeRules {
 					if rule.Text == "" {
 						continue
@@ -73,6 +78,22 @@ func TreeFromNodes(schema data.Schema, nodes []data.TreeNode, opts TreeOptions) 
 			}
 			if st.Unread {
 				badges = append(badges, ui.Badge{Text: "unread", Tone: "warning"})
+			}
+
+			var gutter, gutterTone string
+			if opts.ShowGutter && len(schema.GutterRules) > 0 {
+				for _, rule := range schema.GutterRules {
+					if rule.Glyph == "" {
+						continue
+					}
+					if ok, err := EvalExpr(rule.When, env); err == nil && ok {
+						gutter = rule.Glyph
+						if opts.Style.RowSemanticStyling {
+							gutterTone = rule.Tone
+						}
+						break
+					}
+				}
 			}
 
 			var meta []ui.TreeMeta
@@ -158,17 +179,19 @@ func TreeFromNodes(schema data.Schema, nodes []data.TreeNode, opts TreeOptions) 
 				facts[strings.ToLower(rootTitle)] = n.IsRoot()
 			}
 			nd := tree.Node{
-				ID:       rec.ID,
-				Label:    Title(schema, rec),
-				Ref:      &ref,
-				Scope:    kind,
-				Tone:     st.RowTone,
-				Icon:     st.Icon,
-				IconTone: st.IconTone,
-				Badges:   badges,
-				Meta:     meta,
-				Unread:   st.Unread,
-				Facts:    facts,
+				ID:         rec.ID,
+				Label:      Title(schema, rec),
+				Ref:        &ref,
+				Scope:      kind,
+				Tone:       st.RowTone,
+				Gutter:     gutter,
+				GutterTone: gutterTone,
+				Icon:       st.Icon,
+				IconTone:   st.IconTone,
+				Badges:     badges,
+				Meta:       meta,
+				Unread:     st.Unread,
+				Facts:      facts,
 			}
 			if opts.EnrichNode != nil {
 				opts.EnrichNode(rec, &nd)
@@ -185,6 +208,7 @@ func TreeFromNodes(schema data.Schema, nodes []data.TreeNode, opts TreeOptions) 
 	tm.GapTopLevel = opts.GapTopLevel
 	tm.Guides = opts.Guides
 	tm.ShowFoldCount = opts.ShowFoldCount
+	tm.ShowGutter = opts.ShowGutter && len(schema.GutterRules) > 0
 	tm.Clamp()
 	return tm
 }

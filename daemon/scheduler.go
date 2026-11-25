@@ -604,6 +604,15 @@ func (s *Scheduler) evalAgentQueueSchedule(ctx context.Context, rec data.Record,
 		if err := s.runAgentQueueCommand(ctx, cmd, len(items), prompt); err != nil {
 			return "failed", fmt.Sprintf("agent_queue command failed: %v", err)
 		}
+		if s.store != nil {
+			ids := make([]string, 0, len(items))
+			for _, it := range items {
+				if it.Task.ID != "" {
+					ids = append(ids, it.Task.ID)
+				}
+			}
+			_, _ = s.store.MarkTasksDispatched(ids, "", now, daemonActor)
+		}
 		return "done", fmt.Sprintf("ran agent_queue command for %s", formatAgentTaskCount(len(items)))
 	}
 	if s.dispatcher != nil {

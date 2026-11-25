@@ -33,18 +33,21 @@ func TestSchemaAgentQueueFieldsAndRules(t *testing.T) {
 	if !slices.Equal(agentCol.Names(), wantNames) {
 		t.Fatalf("agentStatus values = %v, want %v", agentCol.Names(), wantNames)
 	}
-	for _, field := range []string{"forAgent", "agentStatus", "agentAssignee", "attachments", "threadLocked"} {
+	for _, field := range []string{"forAgent", "agentStatus", "agentAssignee", "agentDispatchedAt", "agentDispatchedPane", "attachments", "threadLocked"} {
 		if _, ok := taskSchema.Field(field); !ok {
 			t.Errorf("KindTask missing field %q", field)
 		}
 	}
-	for _, fact := range []string{"forAgent", "agentStatus", "threadLocked"} {
+	for _, fact := range []string{"forAgent", "agentStatus", "agentDispatchedAt", "threadLocked"} {
 		if !slices.Contains(taskSchema.FactFields, fact) {
 			t.Errorf("KindTask missing FactField %q", fact)
 		}
 	}
 	if len(taskSchema.BadgeRules) < 4 {
 		t.Fatalf("KindTask BadgeRules = %+v, want >= 4 agent rules", taskSchema.BadgeRules)
+	}
+	if len(taskSchema.GutterRules) != 5 {
+		t.Fatalf("KindTask GutterRules = %+v, want 5 gutter rules", taskSchema.GutterRules)
 	}
 
 	noteSchema, ok := reg.Get(KindNote)
@@ -142,6 +145,113 @@ func TestSetTaskAgentFlagTransitions(t *testing.T) {
 	}
 	if _, err := s.SetTaskAgentFlag(core.Ref{Kind: KindTask, ID: "missing"}, true, AgentStatusQueued, "", actor); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for missing task, got %v", err)
+	}
+}
+
+func TestMarkTasksDispatchedAndFlagTransitions(t *testing.T) {
+	s, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	owner := core.Actor{Kind: "user", ID: "owner"}
+	agent := core.Actor{Kind: "agent", ID: "claude"}
+
+	t1, _, err := s.Create(CreateInput{Kind: KindTask, Fields: map[string]any{"title": "Task one"}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t2, _, err := s.Create(CreateInput{Kind: KindTask, Fields: map[string]any{"title": "Task two"}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetTaskAgentFlag(t1.Ref(), true, AgentStatusQueued, "", owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetTaskAgentFlag(t2.Ref(), true, AgentStatusQueued, "", owner); err != nil {
+		t.Fatal(err)
+	}
+
+	// Empty / blank input is a no-op.
+	if n, err := s.MarkTasksDispatched([]string{"", "   "}, "pane-1", time.Now(), owner); err != nil || n != 0 {
+		t.Fatalf("MarkTasksDispatched(empty) = (%d, %v), want (0, nil)", n, err)
+	}
+
+	// Deduplicates and ignores empty IDs while stamping agentDispatchedAt + agentDispatchedPane.
+	dispatchedAt := time.Date(2026, 11, 25, 14, 30, 0, 0, time.UTC)
+	n, err := s.MarkTasksDispatched([]string{"", t1.ID, t2.ID, t1.ID, " "}, "pane-worker", dispatchedAt, owner)
+	if err != nil {
+		t.Fatalf("MarkTasksDispatched: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("stamped count = %d, want 2", n)
+	}
+	wantStamp := dispatchedAt.UTC().Format(TimeFormat)
+	wantPaneRef := core.Ref{Kind: KindPane, ID: "pane-worker"}
+	for _, id := range []string{t1.ID, t2.ID} {
+		rec, err := s.Get(core.Ref{Kind: KindTask, ID: id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := rec.Text("agentDispatchedAt"); got != wantStamp {
+			t.Fatalf("task %s agentDispatchedAt = %q, want %q", id, got, wantStamp)
+		}
+		if gotPane, ok := rec.RefField("agentDispatchedPane"); !ok || gotPane != wantPaneRef {
+			t.Fatalf("task %s agentDispatchedPane = (%+v, %v), want %+v", id, gotPane, ok, wantPaneRef)
+		}
+	}
+
+	// Transitions to working / needs_you / done preserve dispatch audit fields.
+	for _, st := range []string{AgentStatusWorking, AgentStatusNeedsYou, AgentStatusDone} {
+		got, err := s.SetTaskAgentFlag(t1.Ref(), true, st, "claude", agent)
+		if err != nil {
+			t.Fatalf("SetTaskAgentFlag(%s): %v", st, err)
+		}
+		if got.Text("agentDispatchedAt") != wantStamp {
+			t.Fatalf("status %s cleared agentDispatchedAt: got %q, want %q", st, got.Text("agentDispatchedAt"), wantStamp)
+		}
+		if gotPane, ok := got.RefField("agentDispatchedPane"); !ok || gotPane != wantPaneRef {
+			t.Fatalf("status %s cleared agentDispatchedPane: got (%+v, %v)", st, gotPane, ok)
+		}
+	}
+
+	// Re-queuing clears agentDispatchedAt and agentDispatchedPane.
+	requeued, err := s.SetTaskAgentFlag(t1.Ref(), true, AgentStatusQueued, "", owner)
+	if err != nil {
+		t.Fatalf("SetTaskAgentFlag(queued): %v", err)
+	}
+	if requeued.Text("agentDispatchedAt") != "" {
+		t.Fatalf("re-queued task still has agentDispatchedAt=%q", requeued.Text("agentDispatchedAt"))
+	}
+	if _, ok := requeued.RefField("agentDispatchedPane"); ok {
+		t.Fatalf("re-queued task still has agentDispatchedPane")
+	}
+
+	// Unflagging (none) also clears agentDispatchedAt and agentDispatchedPane.
+	cleared, err := s.SetTaskAgentFlag(t2.Ref(), false, AgentStatusNone, "", owner)
+	if err != nil {
+		t.Fatalf("SetTaskAgentFlag(none): %v", err)
+	}
+	if cleared.Text("agentDispatchedAt") != "" {
+		t.Fatalf("unflagged task still has agentDispatchedAt=%q", cleared.Text("agentDispatchedAt"))
+	}
+	if _, ok := cleared.RefField("agentDispatchedPane"); ok {
+		t.Fatalf("unflagged task still has agentDispatchedPane")
+	}
+
+	// Dispatching without paneID stamps timestamp only.
+	if n, err := s.MarkTasksDispatched([]string{t1.ID}, "", dispatchedAt.Add(time.Minute), owner); err != nil || n != 1 {
+		t.Fatalf("MarkTasksDispatched(no pane) = (%d, %v)", n, err)
+	}
+	gotNoPane, err := s.Get(t1.Ref())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotNoPane.Text("agentDispatchedAt") == "" {
+		t.Fatal("expected agentDispatchedAt without paneID")
+	}
+	if _, ok := gotNoPane.RefField("agentDispatchedPane"); ok {
+		t.Fatal("unexpected agentDispatchedPane when paneID is empty")
 	}
 }
 

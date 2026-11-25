@@ -183,6 +183,7 @@ const (
 	SetProjectsDynamicTabs           = "projects.dynamicTabs.enabled"
 	SetProjectsChildPaneView         = "projects.childPaneView.enabled"
 	SetProjectsNavTree               = "projects.navTree"
+	SetOutlineGutter                 = "outline.gutter"
 	SetSelfHostedFeaturesEnabled     = "selfHosted.featuresPage.enabled"
 	SetSelfHostedFeaturesRepoPath    = "selfHosted.featuresPage.repoPath"
 	SelfHostedFeaturesAuto           = "auto"
@@ -316,6 +317,7 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetSelfHostedFeaturesEnabled, SelfHostedFeaturesAuto, "enable the self-hosted Features page (auto detects local matomeru checkout, on forces visible, off hides)", SelfHostedFeaturesAuto, SelfHostedFeaturesOn, SelfHostedFeaturesOff),
 		{Name: SetSelfHostedFeaturesRepoPath, Type: core.ParamString, Default: "", Description: "override path to local matomeru checkout for Features page auto-detection"},
 		flag(SetProjectsNavTree, true, "allow expanding Project left-nav sections into interactive inline trees with live right-pane preview"),
+		flag(SetOutlineGutter, true, "show a 1-character left gutter column on task outlines for queue, dispatch, and agent status indicators"),
 	}
 }
 

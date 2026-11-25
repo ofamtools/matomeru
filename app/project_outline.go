@@ -98,6 +98,7 @@ func (a *App) syncProjectTaskTree(tm *tree.Model, projectID, treeID string) (dat
 	tm.GapTopLevel = opts.GapTopLevel
 	tm.Guides = opts.Guides
 	tm.ShowFoldCount = opts.ShowFoldCount
+	tm.ShowGutter = opts.ShowGutter && len(schema.GutterRules) > 0
 	tm.Wrap = a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetWrapOutline, true)
 	tm.ScrollOff = a.scrollOff()
 	tm.PageSize = a.treeViewportHeight(treeID)

@@ -410,6 +410,7 @@ func (a *App) buildTreeNodes(schema data.Schema, kind string, nodes []data.TreeN
 		GapTopLevel:   a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeTopLevelGap, true),
 		Guides:        a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeGuides, true),
 		ShowFoldCount: true,
+		ShowGutter:    a.outlineGutterEnabled(),
 		ResolveRef:    a.title,
 		EnrichNode: func(rec data.Record, nd *tree.Node) {
 			if a.openable(rec) {
@@ -474,6 +475,7 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 	tm.GapTopLevel = opts.GapTopLevel
 	tm.Guides = opts.Guides
 	tm.ShowFoldCount = opts.ShowFoldCount
+	tm.ShowGutter = opts.ShowGutter && len(schema.GutterRules) > 0
 	tm.Wrap = a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetWrapOutline, true)
 	tm.ScrollOff = a.scrollOff()
 	tm.PageSize = a.treeViewportHeight(treeID)

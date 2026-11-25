@@ -43,6 +43,15 @@ func (d *ServerQueueDispatcher) DispatchQueue(ctx context.Context, sched data.Re
 	if err := d.srv.host.Write(targetID, bracketedPastePrompt(prompt)); err != nil {
 		return "", fmt.Errorf("daemon: write agent queue prompt to pane %s: %w", targetID, err)
 	}
+	if d.srv.cfg.Store != nil {
+		ids := make([]string, 0, len(items))
+		for _, it := range items {
+			if it.Task.ID != "" {
+				ids = append(ids, it.Task.ID)
+			}
+		}
+		_, _ = d.srv.cfg.Store.MarkTasksDispatched(ids, targetID, d.srv.clock(), daemonActor)
+	}
 
 	detail := fmt.Sprintf("dispatched %s to pane %s", formatQueuedTaskCount(len(items)), targetID)
 	d.recordDispatchAudit(targetID, targetHarness, detail)

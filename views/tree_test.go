@@ -287,3 +287,151 @@ func TestTreeViewHoistedBreadcrumbAndFacts(t *testing.T) {
 	out := frame(t, hoisted, "w.tree", 100, 12)
 	wantText(t, out, "hoist: Alpha Project › Brain Dump", "Brain Dump", "First Bullet")
 }
+
+func TestTreeFromNodesTaskGutterRulesAndOptOut(t *testing.T) {
+	reg := data.DefaultSchemas()
+	taskSchema, ok := reg.Get(data.KindTask)
+	if !ok {
+		t.Fatal("missing task schema")
+	}
+	laneSchema, ok := reg.Get(data.KindLane)
+	if !ok {
+		t.Fatal("missing lane schema")
+	}
+
+	makeTask := func(id, title string, extra map[string]any) data.TreeNode {
+		fields := map[string]any{
+			"title":      title,
+			"workStatus": "todo",
+		}
+		for k, v := range extra {
+			fields[k] = v
+		}
+		return data.TreeNode{
+			Depth: 0,
+			Record: data.Record{
+				Kind:          data.KindTask,
+				ID:            id,
+				Fields:        fields,
+				ArchiveStatus: data.ArchiveActive,
+				StarStatus:    data.StarUnstarred,
+			},
+		}
+	}
+
+	nodes := []data.TreeNode{
+		makeTask("t-plain", "Plain task", nil),
+		makeTask("t-queued", "Queued local", map[string]any{
+			"forAgent":    true,
+			"agentStatus": data.AgentStatusQueued,
+		}),
+		makeTask("t-dispatched", "Queued dispatched", map[string]any{
+			"forAgent":          true,
+			"agentStatus":       data.AgentStatusQueued,
+			"agentDispatchedAt": "2026-11-25T14:00:00Z",
+		}),
+		makeTask("t-working", "Agent working", map[string]any{
+			"forAgent":          true,
+			"agentStatus":       data.AgentStatusWorking,
+			"agentDispatchedAt": "2026-11-25T14:00:00Z",
+		}),
+		makeTask("t-needs-you", "Agent needs you", map[string]any{
+			"forAgent":          true,
+			"agentStatus":       data.AgentStatusNeedsYou,
+			"agentDispatchedAt": "2026-11-25T14:00:00Z",
+		}),
+		makeTask("t-done", "Agent done", map[string]any{
+			"forAgent":          true,
+			"agentStatus":       data.AgentStatusDone,
+			"agentDispatchedAt": "2026-11-25T14:00:00Z",
+		}),
+	}
+
+	tm := TreeFromNodes(taskSchema, nodes, DefaultTreeOptions())
+	if !tm.ShowGutter {
+		t.Fatal("expected ShowGutter=true for KindTask with DefaultTreeOptions")
+	}
+
+	want := []struct {
+		id         string
+		gutter     string
+		gutterTone string
+		badge      string
+	}{
+		{"t-plain", "", "", ""},
+		{"t-queued", "◇", "muted", "agent:queued"},
+		{"t-dispatched", "↗", "accent", "agent:queued"},
+		{"t-working", "●", "state.working", "agent:working"},
+		{"t-needs-you", "?", "state.needs-input", "agent:needs you"},
+		{"t-done", "✓", "state.done", "agent:done"},
+	}
+	for i, w := range want {
+		nd := tm.Nodes[i]
+		if nd.ID != w.id {
+			t.Fatalf("node[%d].ID = %q, want %q", i, nd.ID, w.id)
+		}
+		if nd.Gutter != w.gutter || nd.GutterTone != w.gutterTone {
+			t.Errorf("%s: got gutter=(%q, %q), want (%q, %q)", w.id, nd.Gutter, nd.GutterTone, w.gutter, w.gutterTone)
+		}
+		if w.gutter != "" && len([]rune(nd.Gutter)) != 1 {
+			t.Errorf("%s: gutter %q must be a single 1-cell rune", w.id, nd.Gutter)
+		}
+		hasBadge := false
+		for _, b := range nd.Badges {
+			if b.Text == w.badge {
+				hasBadge = true
+				break
+			}
+		}
+		if w.badge != "" && !hasBadge {
+			t.Errorf("%s: missing preserved inline badge %q in %+v", w.id, w.badge, nd.Badges)
+		}
+		if w.badge == "" && len(nd.Badges) != 0 {
+			t.Errorf("%s: unexpected badges %+v", w.id, nd.Badges)
+		}
+	}
+
+	// Render panel and verify both gutter glyphs and preserved inline badges appear.
+	tm.GapTopLevel = false
+	panel := TreeView(taskSchema, tm, "tasks", "tasks.tree", ScopeIndex)
+	out := frame(t, panel, "tasks.tree", 100, 12)
+	wantText(t, out, "◇", "↗", "●", "?", "✓", "agent:queued", "agent:working", "agent:needs you", "agent:done")
+
+	// Opt-out ShowGutter=false disables gutter while preserving inline badges.
+	offOpts := DefaultTreeOptions()
+	offOpts.ShowGutter = false
+	tmOff := TreeFromNodes(taskSchema, nodes, offOpts)
+	if tmOff.ShowGutter {
+		t.Fatal("expected ShowGutter=false when opts.ShowGutter=false")
+	}
+	for _, nd := range tmOff.Nodes {
+		if nd.Gutter != "" || nd.GutterTone != "" {
+			t.Errorf("%s: expected empty gutter when ShowGutter=false, got (%q, %q)", nd.ID, nd.Gutter, nd.GutterTone)
+		}
+	}
+	if len(tmOff.Nodes[1].Badges) == 0 || tmOff.Nodes[1].Badges[0].Text != "agent:queued" {
+		t.Errorf("ShowGutter=false must preserve inline badges, got %+v", tmOff.Nodes[1].Badges)
+	}
+
+	// RowSemanticStyling=false keeps gutter glyph but clears GutterTone.
+	noColorOpts := DefaultTreeOptions()
+	noColorOpts.Style.RowSemanticStyling = false
+	tmNoColor := TreeFromNodes(taskSchema, nodes, noColorOpts)
+	if tmNoColor.Nodes[2].Gutter != "↗" || tmNoColor.Nodes[2].GutterTone != "" {
+		t.Errorf("RowSemanticStyling=false got gutter=(%q, %q), want (\"↗\", \"\")", tmNoColor.Nodes[2].Gutter, tmNoColor.Nodes[2].GutterTone)
+	}
+
+	// Schemas without GutterRules leave ShowGutter=false.
+	laneTree := TreeFromNodes(laneSchema, []data.TreeNode{{
+		Depth: 0,
+		Record: data.Record{
+			Kind:          data.KindLane,
+			ID:            "l-1",
+			Fields:        map[string]any{"title": "Lane One", "laneStatus": "running"},
+			ArchiveStatus: data.ArchiveActive,
+		},
+	}}, DefaultTreeOptions())
+	if laneTree.ShowGutter {
+		t.Fatal("expected ShowGutter=false for schema without GutterRules")
+	}
+}
