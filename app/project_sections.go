@@ -30,39 +30,62 @@ type projectWorkspaceData struct {
 }
 
 func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) projectWorkspaceData {
+	projKey, projID := projectKeyFor(groupName, projRef), ""
+	if projRef != nil {
+		projID = projRef.ID
+	}
+	var rev int64
+	if a.Store != nil {
+		rev, _ = a.Store.LatestChangeSetNumber()
+	}
+	pc := a.projectCtrl()
+	ctxGen := a.contextIndexGen()
+	railKey := a.railGroupPanesKey(groupName)
+	if a.Store != nil && pc.wsCache != nil {
+		if c, ok := pc.wsCache[projKey]; ok && c.rev == rev && c.showArchived == a.nav.showArchived && c.ctxGen == ctxGen && c.groupName == groupName && c.projID == projID && c.railPanesKey == railKey {
+			return c.data
+		}
+	}
+
 	ws := projectWorkspaceData{
 		groupName:  groupName,
-		projectKey: projectKeyFor(groupName, projRef),
+		projectKey: projKey,
+		projectID:  projID,
 		projRef:    projRef,
 		taskIDs:    map[string]bool{},
 		paneIDs:    map[string]bool{},
 	}
-	if projRef != nil && projRef.ID != "" {
-		ws.projectID = projRef.ID
-		ws.taskIDs[projRef.ID] = true
-		if rec, err := a.Store.Get(*projRef); err == nil {
-			ws.projRec = rec
-		}
-		if ids, err := a.Store.ProjectTaskIDs(projRef.ID, a.nav.showArchived); err == nil {
-			for id := range ids {
-				ws.taskIDs[id] = true
+	if projID != "" && a.Store != nil {
+		ws.taskIDs[projID] = true
+		if nodes, err := a.recordTreeNodes(data.KindTask); err == nil {
+			if projNode, ok := findProjectTreeNode(nodes, projID); ok {
+				rec := projNode.Record
+				ws.projRec = &rec
+				ws.tasks = flattenTreeDescendants(projNode.Children)
+				for _, t := range ws.tasks {
+					ws.taskIDs[t.ID] = true
+				}
 			}
 		}
-		ws.tasks = a.projectDescendants(projRef.ID)
-		for _, t := range ws.tasks {
-			ws.taskIDs[t.ID] = true
+		if ws.projRec == nil {
+			if rec, err := a.Store.Get(*projRef); err == nil {
+				ws.projRec = rec
+			}
 		}
 	}
 	ws.panes = a.projectPanesList(groupName, ws.taskIDs)
+	paneSchema := a.schema(data.KindPane)
+	paneTitles := make(map[string]string, len(ws.panes))
 	for _, p := range ws.panes {
 		ws.paneIDs[p.ID] = true
+		paneTitles[p.ID] = views.Title(paneSchema, p)
 	}
 	ws.pages, ws.unreadPages = a.projectPagesList(ws.taskIDs, ws.paneIDs)
 	ws.allLanes, ws.activeLanes = a.projectLanesSplit(projRef, ws.taskIDs, ws.paneIDs)
 	if ws.projectID != "" {
-		ws.worktrees, _ = a.Store.ProjectWorktrees(ws.projectID)
+		ws.worktrees = a.projectWorktreesFromWorkspace(ws)
 	}
-	ws.contextItems = a.projectUnifiedContextItems(groupName, projRef)
+	ws.contextItems = a.projectUnifiedContextItems(groupName, projRef, paneTitles)
 	for _, it := range ws.contextItems {
 		if it.Official {
 			ws.officialCount++
@@ -79,6 +102,16 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 	ws.notes = a.projectNotes(projRef, ws.taskIDs, ws.paneIDs)
 	ws.questions, ws.openQuestions = a.projectQuestionsList(ws.taskIDs, ws.paneIDs)
 	ws.commands = a.projectScopedByTaskOrPane(data.KindCommand, ws.taskIDs, ws.paneIDs)
+	if a.Store != nil {
+		if pc.wsCache == nil {
+			pc.wsCache = map[string]cachedProjectWorkspace{}
+		}
+		postRev, _ := a.Store.LatestChangeSetNumber()
+		pc.wsCache[projKey] = cachedProjectWorkspace{
+			rev: postRev, showArchived: a.nav.showArchived, ctxGen: a.contextIndexGen(),
+			groupName: groupName, projID: projID, railPanesKey: railKey, data: ws,
+		}
+	}
 	return ws
 }
 
@@ -280,11 +313,21 @@ func (a *App) projectSectionPages(s core.State, ws projectWorkspaceData) ui.View
 		Facts:  map[string]any{"section": "pages", "projectOutlineEntry": true},
 		Badges: []ui.Badge{{Text: "pinned", Tone: "accent"}},
 	})
+	paneTitles := make(map[string]string, len(ws.panes))
+	paneSchema := a.schema(data.KindPane)
+	for _, p := range ws.panes {
+		paneTitles[p.ID] = views.Title(paneSchema, p)
+	}
 	for _, p := range ws.pages {
 		ref := p.Ref()
 		paneLabel := "project"
 		if pRef, ok := p.RefField("pane"); ok {
-			paneLabel = a.title(pRef)
+			if t, found := paneTitles[pRef.ID]; found {
+				paneLabel = t
+			} else {
+				paneLabel = a.title(pRef)
+				paneTitles[pRef.ID] = paneLabel
+			}
 		}
 		unread := p.IsUnread()
 		var flags []string
@@ -557,8 +600,17 @@ func (a *App) syncProjectSectionTree(treeID string, schema data.Schema, nodes []
 		tm = tree.New(nil)
 		pc.trees[treeID] = tm
 	}
+	refTitles := map[core.Ref]string{}
+	resolveRef := func(ref core.Ref) string {
+		if t, ok := refTitles[ref]; ok {
+			return t
+		}
+		t := a.title(ref)
+		refTitles[ref] = t
+		return t
+	}
 	opts := views.TreeOptions{
-		Style: a.styleOptions(), GapTopLevel: false, ShowFoldCount: true, ResolveRef: a.title,
+		Style: a.styleOptions(), GapTopLevel: false, ShowFoldCount: true, ResolveRef: resolveRef,
 		Guides: a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeGuides, true),
 		EnrichNode: func(rec data.Record, nd *tree.Node) {
 			if a.openable(rec) {
@@ -574,31 +626,6 @@ func (a *App) syncProjectSectionTree(treeID string, schema data.Schema, nodes []
 	tm.ScrollOff, tm.PageSize = a.scrollOff(), a.treeViewportHeight(treeID)
 	tm.SetNodes(built.Nodes)
 	return tm
-}
-
-func (a *App) projectDescendants(rootID string) []data.Record {
-	if rootID == "" || a.Store == nil {
-		return nil
-	}
-	nodes, err := a.Store.TaskTree(a.nav.showArchived)
-	if err != nil {
-		return nil
-	}
-	var out []data.Record
-	var collect func([]data.TaskNode)
-	collect = func(ns []data.TaskNode) {
-		for _, n := range ns {
-			out = append(out, n.Record)
-			collect(n.Children)
-		}
-	}
-	for _, root := range nodes {
-		if root.Record.ID == rootID {
-			collect(root.Children)
-			break
-		}
-	}
-	return out
 }
 
 func (a *App) projectPanesList(groupName string, taskIDs map[string]bool) []data.Record {
@@ -752,7 +779,7 @@ func (a *App) projectLanesSplit(projRef *core.Ref, taskIDs, paneIDs map[string]b
 	return all, active
 }
 
-func (a *App) projectUnifiedContextItems(groupName string, projRef *core.Ref) []CollectedContextItem {
+func (a *App) projectUnifiedContextItems(groupName string, projRef *core.Ref, paneTitles map[string]string) []CollectedContextItem {
 	items := a.projectContextItems(groupName, projRef)
 	if a.Store == nil || projRef == nil || projRef.ID == "" {
 		return items
@@ -788,7 +815,14 @@ func (a *App) projectUnifiedContextItems(groupName string, projRef *core.Ref) []
 			Notes: rec.Text("notes"), SeenAt: rec.UpdatedAt,
 		}
 		if pRef, ok := rec.RefField("pane"); ok {
-			item.PaneID, item.PaneTitle = pRef.ID, a.title(pRef)
+			title, found := paneTitles[pRef.ID]
+			if !found {
+				title = a.title(pRef)
+				if paneTitles != nil {
+					paneTitles[pRef.ID] = title
+				}
+			}
+			item.PaneID, item.PaneTitle = pRef.ID, title
 		}
 		if idx, found := byVal["id:"+rec.ID]; found {
 			items[idx] = mergeContextItem(items[idx], item)

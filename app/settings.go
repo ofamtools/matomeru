@@ -184,6 +184,7 @@ const (
 	SetProjectsChildPaneView         = "projects.childPaneView.enabled"
 	SetProjectsNavTree               = "projects.navTree"
 	SetOutlineGutter                 = "outline.gutter"
+	SetChromeSystemStats             = "ui.chromeSystemStats"
 	SetSelfHostedFeaturesEnabled     = "selfHosted.featuresPage.enabled"
 	SetSelfHostedFeaturesRepoPath    = "selfHosted.featuresPage.repoPath"
 	SelfHostedFeaturesAuto           = "auto"
@@ -318,6 +319,7 @@ func SettingSpecs() []core.ParamSpec {
 		{Name: SetSelfHostedFeaturesRepoPath, Type: core.ParamString, Default: "", Description: "override path to local matomeru checkout for Features page auto-detection"},
 		flag(SetProjectsNavTree, true, "allow expanding Project left-nav sections into interactive inline trees with live right-pane preview"),
 		flag(SetOutlineGutter, true, "show a 1-character left gutter column on task outlines for queue, dispatch, and agent status indicators"),
+		flag(SetChromeSystemStats, true, "show non-blocking CPU, RAM, and disk stats in the bottom chrome bar"),
 	}
 }
 
@@ -476,6 +478,7 @@ func (a *App) applySettings() {
 	a.syncSessionRecorder()
 	a.nav.recCacheKeys = map[string]string{}
 	a.panes.railCacheKey = ""
+	a.viewMemo.tabsKey = ""
 	if a.features != nil {
 		a.features.invalidateDetection()
 	}

@@ -77,7 +77,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetEnterOpensShow: false, SetTreeHLFolds: true, SetHintsModifierActions: true,
 		SetProjectsTopNavTab: true, SetProjectsDynamicTabs: true, SetProjectsChildPaneView: true,
 		SetSelfHostedFeaturesEnabled: SelfHostedFeaturesAuto, SetSelfHostedFeaturesRepoPath: "",
-		SetProjectsNavTree: true, SetOutlineGutter: true}
+		SetProjectsNavTree: true, SetOutlineGutter: true, SetChromeSystemStats: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

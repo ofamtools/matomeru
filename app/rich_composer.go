@@ -749,55 +749,72 @@ func (a *App) contextRecordCompletions(contextTaskID string) []composerCompletio
 	if a == nil || a.Store == nil {
 		return nil
 	}
+	rev, _ := a.Store.LatestChangeSetNumber()
+	idx := a.ensureContextIndex()
+	idx.mu.RLock()
+	if idx.compLoaded && idx.compRev == rev && idx.compTaskID == contextTaskID {
+		cached := idx.compItems
+		idx.mu.RUnlock()
+		return cached
+	}
+	idx.mu.RUnlock()
+
 	res, err := a.Store.Query(data.Query{Kind: data.KindContext})
-	if err != nil || len(res.Items) == 0 {
+	if err != nil {
 		return nil
 	}
-	var rootTaskID string
-	if contextTaskID != "" {
-		if rec, err := a.Store.Get(core.Ref{Kind: data.KindTask, ID: contextTaskID}); err == nil && rec != nil {
-			_, rootRef := a.resolveTaskRoot(*rec)
-			rootTaskID = rootRef.ID
-		}
-	}
-	var prioritized, rest []composerCompletion
-	for _, rec := range res.Items {
-		title := strings.TrimSpace(rec.Text("title"))
-		if title == "" {
-			title = strings.TrimSpace(rec.Text("value"))
-		}
-		if title == "" {
-			title = rec.ID
-		}
-		detail := strings.TrimSpace(rec.Text("value"))
-		if detail == "" {
-			detail = rec.Text("contextKind")
-		}
-		if detail == "" {
-			detail = "context"
-		}
-		item := composerCompletion{
-			Trigger: "@",
-			Label:   "@ctx:" + clip(title, 32),
-			Insert:  "@context:" + rec.ID,
-			Detail:  detail,
-			Kind:    "context",
-		}
-		matchedTask := false
+	var items []composerCompletion
+	if len(res.Items) > 0 {
+		var rootTaskID string
 		if contextTaskID != "" {
-			if tRef, ok := rec.RefField("task"); ok && tRef.Kind == data.KindTask {
-				if tRef.ID == contextTaskID || (rootTaskID != "" && tRef.ID == rootTaskID) {
-					matchedTask = true
-				}
+			if rec, err := a.Store.Get(core.Ref{Kind: data.KindTask, ID: contextTaskID}); err == nil && rec != nil {
+				_, rootRef := a.resolveTaskRoot(*rec)
+				rootTaskID = rootRef.ID
 			}
 		}
-		if matchedTask {
-			prioritized = append(prioritized, item)
-		} else {
-			rest = append(rest, item)
+		var prioritized, rest []composerCompletion
+		for _, rec := range res.Items {
+			title := strings.TrimSpace(rec.Text("title"))
+			if title == "" {
+				title = strings.TrimSpace(rec.Text("value"))
+			}
+			if title == "" {
+				title = rec.ID
+			}
+			detail := strings.TrimSpace(rec.Text("value"))
+			if detail == "" {
+				detail = rec.Text("contextKind")
+			}
+			if detail == "" {
+				detail = "context"
+			}
+			item := composerCompletion{
+				Trigger: "@",
+				Label:   "@ctx:" + clip(title, 32),
+				Insert:  "@context:" + rec.ID,
+				Detail:  detail,
+				Kind:    "context",
+			}
+			matchedTask := false
+			if contextTaskID != "" {
+				if tRef, ok := rec.RefField("task"); ok && tRef.Kind == data.KindTask {
+					if tRef.ID == contextTaskID || (rootTaskID != "" && tRef.ID == rootTaskID) {
+						matchedTask = true
+					}
+				}
+			}
+			if matchedTask {
+				prioritized = append(prioritized, item)
+			} else {
+				rest = append(rest, item)
+			}
 		}
+		items = append(prioritized, rest...)
 	}
-	return append(prioritized, rest...)
+	idx.mu.Lock()
+	idx.compRev, idx.compTaskID, idx.compItems, idx.compLoaded = rev, contextTaskID, items, true
+	idx.mu.Unlock()
+	return items
 }
 
 func (a *App) agentHarnessCompletions() []composerCompletion {

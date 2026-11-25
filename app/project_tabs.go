@@ -216,15 +216,28 @@ func (a *App) sortedProjectsDirEntries() []projectDirEntry {
 	if a.Store == nil {
 		return nil
 	}
-	roots, err := a.Store.TaskTree(a.nav.showArchived)
+	rev, _ := a.Store.LatestChangeSetNumber()
+	pc := a.projectCtrl()
+	if pc.dirCacheValid && pc.dirCacheRev == rev && pc.dirCacheArch == a.nav.showArchived && pc.dirCacheGen == pc.lastUsedGen {
+		return pc.dirCache
+	}
+	var (
+		roots []data.TaskNode
+		err   error
+	)
+	if !a.hasAnimatingKind(data.KindTask) {
+		roots, err = a.recordTreeNodes(data.KindTask)
+	} else {
+		roots, err = a.Store.TaskTree(a.nav.showArchived)
+	}
 	if err != nil {
 		a.fail("read projects", err)
 		return nil
 	}
 	if len(roots) == 0 {
+		pc.dirCache, pc.dirCacheRev, pc.dirCacheArch, pc.dirCacheGen, pc.dirCacheValid = nil, rev, a.nav.showArchived, pc.lastUsedGen, true
 		return nil
 	}
-	pc := a.projectCtrl()
 	entries := make([]projectDirEntry, len(roots))
 	idxByProj := make(map[string]int, len(roots))
 	taskToProj := make(map[string]string, len(roots)*4)
@@ -275,7 +288,17 @@ func (a *App) sortedProjectsDirEntries() []projectDirEntry {
 			}
 		}
 	}
-	if notesRes, err := a.Store.Query(data.Query{Kind: data.KindNote, IncludeArchived: a.nav.showArchived}); err == nil {
+	if !a.nav.showArchived {
+		if threads, err := a.taskNoteThreads(); err == nil {
+			for tid, notes := range threads {
+				if pid, ok := taskToProj[tid]; ok {
+					for _, n := range notes {
+						bump(pid, n.UpdatedAt)
+					}
+				}
+			}
+		}
+	} else if notesRes, err := a.Store.Query(data.Query{Kind: data.KindNote, IncludeArchived: true}); err == nil {
 		for _, n := range notesRes.Items {
 			matched := false
 			if tRef, ok := n.RefField("task"); ok && tRef.Kind == data.KindTask {
@@ -311,6 +334,7 @@ func (a *App) sortedProjectsDirEntries() []projectDirEntry {
 			strings.ToLower(views.Title(taskSchema, y.rec)),
 		)
 	})
+	pc.dirCache, pc.dirCacheRev, pc.dirCacheArch, pc.dirCacheGen, pc.dirCacheValid = entries, rev, a.nav.showArchived, pc.lastUsedGen, true
 	return entries
 }
 
@@ -472,6 +496,7 @@ func (a *App) touchProjectUsed(projectID string) {
 		pc.lastUsedAt = map[string]time.Time{}
 	}
 	pc.lastUsedAt[projectID] = a.now()
+	pc.lastUsedGen++
 }
 
 func (a *App) ensureProjectTabOpen(projectID string) {

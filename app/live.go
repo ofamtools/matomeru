@@ -75,6 +75,10 @@ type liveState struct {
 	telemetrySeq   atomic.Uint64
 	telemetryDrawn uint64
 	mcpURL         string
+
+	sysStats      *sysStatsSampler
+	sysStatsSeq   atomic.Uint64
+	sysStatsDrawn uint64
 }
 
 func (a *App) setupLive(opts Options) {
@@ -117,6 +121,11 @@ func (a *App) setupLive(opts Options) {
 	if opts.Live {
 		a.startHarnessDiscovery()
 		a.ensureAICatalogAsync()
+		l.sysStats = newSysStatsSampler("", DefaultSysStatsInterval, func() {
+			l.sysStatsSeq.Add(1)
+			a.Notify()
+		})
+		l.sysStats.Start(l.bgCtx)
 	}
 	if a.tracking() {
 		if n, err := a.Store.LatestChangeSetNumber(); err == nil {
@@ -228,6 +237,9 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 		if a.flushAllQueuedPrompts() > 0 {
 			changed = true
 		}
+	}
+	if seq := l.sysStatsSeq.Load(); seq != l.sysStatsDrawn {
+		l.sysStatsDrawn, changed = seq, true
 	}
 	if a.tickToasts() {
 		changed = true

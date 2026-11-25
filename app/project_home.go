@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -72,6 +73,16 @@ var defaultProjectNavSections = []projectNavDef{
 	{Key: "commands", Label: "Commands", Icon: "$", Group: "Knowledge"},
 }
 
+type cachedProjectWorkspace struct {
+	rev          int64
+	showArchived bool
+	ctxGen       uint64
+	groupName    string
+	projID       string
+	railPanesKey string
+	data         projectWorkspaceData
+}
+
 // ProjectController owns per-project workspace navigation state: active left
 // nav section, expandable nav tree state, locked/previewed right-pane target,
 // open inline ui.page, and per-section table/tree models.
@@ -87,8 +98,15 @@ type ProjectController struct {
 	navTargets           map[string]map[string]projectNavTarget
 	openTabs             []string
 	lastUsedAt           map[string]time.Time
+	lastUsedGen          uint64
 	tables               map[string]*table.Model
 	trees                map[string]*tree.Model
+	wsCache              map[string]cachedProjectWorkspace
+	dirCache             []projectDirEntry
+	dirCacheRev          int64
+	dirCacheArch         bool
+	dirCacheGen          uint64
+	dirCacheValid        bool
 	activeProjectKey     string
 	activeProjectID      string
 	activeGroupName      string
@@ -109,7 +127,25 @@ func newProjectController() *ProjectController {
 		lastUsedAt:           map[string]time.Time{},
 		tables:               map[string]*table.Model{},
 		trees:                map[string]*tree.Model{},
+		wsCache:              map[string]cachedProjectWorkspace{},
 	}
+}
+
+func sortedTrueKeys(m map[string]bool) string {
+	if len(m) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(m))
+	for k, v := range m {
+		if v {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return ""
+	}
+	slices.Sort(keys)
+	return strings.Join(keys, ",")
 }
 
 func (a *App) projectCtrl() *ProjectController {
@@ -787,4 +823,120 @@ func (a *App) handleProjectTreeMotion(s core.State, c core.Command) bool {
 	}
 	tm.HandleCommand(c)
 	return true
+}
+
+func (a *App) railGroupPanesKey(groupName string) string {
+	if a.panes == nil {
+		return ""
+	}
+	ps := a.panes.railGroupPanes[groupName]
+	if len(ps) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for i, p := range ps {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(p.ID)
+	}
+	return b.String()
+}
+
+func flattenTreeDescendants(children []data.TreeNode) []data.Record {
+	var out []data.Record
+	var collect func([]data.TreeNode)
+	collect = func(ns []data.TreeNode) {
+		for _, n := range ns {
+			out = append(out, n.Record)
+			collect(n.Children)
+		}
+	}
+	collect(children)
+	return out
+}
+
+func (a *App) projectWorktreesFromWorkspace(ws projectWorkspaceData) []data.ProjectWorktree {
+	byPath := map[string]data.ProjectWorktree{}
+	add := func(wt data.ProjectWorktree) {
+		p := strings.TrimSpace(wt.Path)
+		if p == "" {
+			return
+		}
+		p = filepath.Clean(p)
+		wt.Path = p
+		if cur, exists := byPath[p]; exists {
+			if cur.Branch == "" {
+				cur.Branch = wt.Branch
+			}
+			if cur.Repo == "" {
+				cur.Repo = wt.Repo
+			}
+			byPath[p] = cur
+			return
+		}
+		byPath[p] = wt
+	}
+	activeTaskIDs := map[string]bool{}
+	var activeTasks []data.Record
+	if ws.projRec != nil && !ws.projRec.IsArchived() {
+		activeTaskIDs[ws.projRec.ID] = true
+		activeTasks = append(activeTasks, *ws.projRec)
+	}
+	for _, t := range ws.tasks {
+		if !t.IsArchived() {
+			activeTaskIDs[t.ID] = true
+			activeTasks = append(activeTasks, t)
+		}
+	}
+	for _, lane := range ws.allLanes {
+		if lane.IsArchived() {
+			continue
+		}
+		if tRef, ok := lane.RefField("task"); !ok || tRef.Kind != data.KindTask || !activeTaskIDs[tRef.ID] {
+			continue
+		}
+		if p := strings.TrimSpace(lane.Text("worktree")); p != "" {
+			add(data.ProjectWorktree{Path: p, Branch: strings.TrimSpace(lane.Text("branch")), Repo: strings.TrimSpace(lane.Text("repo")), Source: "lane", Ref: lane.Ref()})
+		}
+	}
+	for _, t := range activeTasks {
+		if p := strings.TrimSpace(t.Text("defaultDir")); p != "" {
+			add(data.ProjectWorktree{Path: p, Repo: strings.TrimSpace(t.Text("repo")), Source: "task", Ref: t.Ref()})
+		}
+		if a.Store != nil {
+			if rels, err := a.Store.Related(t.Ref(), data.RelDirectory, data.Outgoing); err == nil {
+				for _, rel := range rels {
+					p := strings.TrimSpace(rel.To.ID)
+					if rel.To.Kind != "directory" {
+						if rec, gerr := a.Store.Get(rel.To); gerr == nil && rec != nil {
+							for _, field := range []string{"path", "cwd", "worktree", "defaultDir"} {
+								if v := strings.TrimSpace(rec.Text(field)); v != "" {
+									p = v
+									break
+								}
+							}
+						}
+					}
+					if p != "" {
+						add(data.ProjectWorktree{Path: p, Source: "directory", Ref: rel.To})
+					}
+				}
+			}
+		}
+	}
+	out := make([]data.ProjectWorktree, 0, len(byPath))
+	for _, wt := range byPath {
+		out = append(out, wt)
+	}
+	slices.SortStableFunc(out, func(x, y data.ProjectWorktree) int {
+		if c := strings.Compare(x.Path, y.Path); c != 0 {
+			return c
+		}
+		if c := strings.Compare(x.Source, y.Source); c != 0 {
+			return c
+		}
+		return strings.Compare(data.RefText(x.Ref), data.RefText(y.Ref))
+	})
+	return out
 }

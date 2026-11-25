@@ -140,6 +140,8 @@ type viewMemoState struct {
 	gen     uint64
 	memoKey string
 	memo    ui.ViewNode
+	tabsKey string
+	tabs    ui.ViewNode
 }
 
 // App is the application state around the engine. Handlers change it and the

@@ -135,40 +135,82 @@ func (a *App) viewKey(s core.State) string {
 	if fk := a.featuresViewKey(s); fk != "" {
 		b.WriteString("|feat:" + fk)
 	}
+	if ss := a.chromeSysStatsKey(); ss != "" {
+		b.WriteString("|sys:" + ss)
+	}
+	return b.String()
+}
+
+func (a *App) chromeSystemStatsEnabled() bool {
+	return a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetChromeSystemStats, true)
+}
+
+func (a *App) chromeSysStatsKey() string {
+	if !a.chromeSystemStatsEnabled() || a.rt.live.sysStats == nil {
+		return ""
+	}
+	return FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), 200)
+}
+
+func (a *App) tabsMemoKey(s core.State) string {
+	var rev int64
+	if a.Store != nil {
+		rev, _ = a.Store.LatestChangeSetNumber()
+	}
+	f := s.Pages[s.ActivePage]
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d|%s|%s|%s|%t|", rev, s.ActivePage, f.FocusID, f.Mode, a.nav.showArchived)
+	if a.Shell != nil {
+		fmt.Fprintf(&b, "%dx%d|", a.Shell.W, a.Shell.H)
+	}
+	if ak := a.archiveAnimCacheKey(); ak != "" {
+		b.WriteString("aa:" + ak + "|")
+	}
+	if a.proj != nil {
+		fmt.Fprintf(&b, "pt:%s:%s|", strings.Join(a.proj.openTabs, ","), a.proj.activeProjectKey)
+	}
 	return b.String()
 }
 
 func (a *App) build(s core.State) ui.ViewNode {
-	topTabs := a.topTabs()
-	active := slices.IndexFunc(topTabs, func(tb topTabDef) bool { return tb.id == s.ActivePage })
-	if active < 0 {
-		active = 0
-	}
-	tabs := ui.ViewNode{ID: "spaces", Kind: ui.KindTabs, Props: map[string]any{"active": active}, Box: layout.Constraints{Flex: 1}}
-	for i, tb := range topTabs {
-		tab := ui.ViewNode{ID: "space." + tb.id, Kind: ui.KindVStack, Scope: tb.id, Title: fmt.Sprintf("%d %s", i+1, tb.title)}
-		if i == active {
-			child := a.spaceForTab(s, tb)
-			if tb.dynamic {
-				inChild := a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled()
-				child = ui.ViewNode{
-					ID:       "project.tab." + tb.projectID,
-					Kind:     ui.KindVStack,
-					Scope:    views.ScopeProjectTab,
-					Box:      layout.Constraints{Flex: 1},
-					Facts:    map[string]any{"isProjectTab": true, "canCloseTab": true, "inChildPaneView": inChild, "projectId": tb.projectID},
-					Children: []ui.ViewNode{child},
+	var tabs ui.ViewNode
+	canReuseTabs := len(s.Modals) > 0 && s.Modals[len(s.Modals)-1].ID != "settings"
+	tKey := a.tabsMemoKey(s)
+	if canReuseTabs && tKey != "" && tKey == a.viewMemo.tabsKey && a.viewMemo.tabs.ID != "" {
+		tabs = a.viewMemo.tabs
+	} else {
+		topTabs := a.topTabs()
+		active := slices.IndexFunc(topTabs, func(tb topTabDef) bool { return tb.id == s.ActivePage })
+		if active < 0 {
+			active = 0
+		}
+		tabs = ui.ViewNode{ID: "spaces", Kind: ui.KindTabs, Props: map[string]any{"active": active}, Box: layout.Constraints{Flex: 1}}
+		for i, tb := range topTabs {
+			tab := ui.ViewNode{ID: "space." + tb.id, Kind: ui.KindVStack, Scope: tb.id, Title: fmt.Sprintf("%d %s", i+1, tb.title)}
+			if i == active {
+				child := a.spaceForTab(s, tb)
+				if tb.dynamic {
+					inChild := a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled()
+					child = ui.ViewNode{
+						ID:       "project.tab." + tb.projectID,
+						Kind:     ui.KindVStack,
+						Scope:    views.ScopeProjectTab,
+						Box:      layout.Constraints{Flex: 1},
+						Facts:    map[string]any{"isProjectTab": true, "canCloseTab": true, "inChildPaneView": inChild, "projectId": tb.projectID},
+						Children: []ui.ViewNode{child},
+					}
+				}
+				tab.Children = []ui.ViewNode{child}
+			}
+			if tb.id == SpacePanes {
+				tab.Unread = slices.ContainsFunc(a.rail().Rows, func(r table.Row) bool { return r.Unread })
+				if pane, ok := a.SelectedPane(); ok && len(a.pendingApprovalsFor(pane.ID)) > 0 {
+					tab.Facts = map[string]any{"hasPendingApproval": true}
 				}
 			}
-			tab.Children = []ui.ViewNode{child}
+			tabs.Children = append(tabs.Children, tab)
 		}
-		if tb.id == SpacePanes {
-			tab.Unread = slices.ContainsFunc(a.rail().Rows, func(r table.Row) bool { return r.Unread })
-			if pane, ok := a.SelectedPane(); ok && len(a.pendingApprovalsFor(pane.ID)) > 0 {
-				tab.Facts = map[string]any{"hasPendingApproval": true}
-			}
-		}
-		tabs.Children = append(tabs.Children, tab)
+		a.viewMemo.tabsKey, a.viewMemo.tabs = tKey, tabs
 	}
 	root := ui.ViewNode{
 		ID:       "root",
@@ -200,8 +242,19 @@ func (a *App) build(s core.State) ui.ViewNode {
 	if a.Shell != nil {
 		w = a.Shell.W - 1
 	}
+	leftStatus := a.statusLine(s, chain)
+	statusText := clip(leftStatus, w)
+	if a.chromeSystemStatsEnabled() && a.rt.live.sysStats != nil {
+		if rightStats := FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), w); rightStats != "" {
+			if w > 0 {
+				statusText = MergeChromeStatusLine(leftStatus, rightStats, w)
+			} else {
+				statusText = leftStatus + "  " + rightStats
+			}
+		}
+	}
 	footer := []ui.ViewNode{
-		line("status", clip(a.statusLine(s, chain), w), "accent"),
+		line("status", statusText, "accent"),
 		line("hints", clip(a.hintLine(s, chain), w), "muted"),
 	}
 	root.Children = append(append([]ui.ViewNode{tabs}, footer...), overlays...)

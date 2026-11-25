@@ -60,6 +60,14 @@ type ContextController struct {
 	persisted       map[string]bool                  // paneID\x00canonKey -> persisted in SQLite
 	loadedStored    bool
 	storedRev       int64
+	syncedStored    bool
+	syncRev         int64
+	syncShowArch    bool
+	gen             uint64
+	compRev         int64
+	compTaskID      string
+	compLoaded      bool
+	compItems       []composerCompletion
 	pageRevs        map[string]int64
 	docRevs         map[string]int64
 	screenRevs      map[string]uint64
@@ -68,13 +76,8 @@ type ContextController struct {
 
 func newContextController() *ContextController {
 	return &ContextController{
-		items:           map[string]*CollectedContextItem{},
-		starred:         map[string]bool{},
-		persisted:       map[string]bool{},
-		pageRevs:        map[string]int64{},
-		docRevs:         map[string]int64{},
-		screenRevs:      map[string]uint64{},
-		screenHarvestAt: map[string]time.Time{},
+		items: map[string]*CollectedContextItem{}, starred: map[string]bool{}, persisted: map[string]bool{},
+		pageRevs: map[string]int64{}, docRevs: map[string]int64{}, screenRevs: map[string]uint64{}, screenHarvestAt: map[string]time.Time{},
 	}
 }
 
@@ -144,12 +147,23 @@ func mapContextRecordSource(src string) string {
 	}
 }
 
+func (a *App) contextIndexGen() uint64 {
+	if a == nil || a.ctx == nil {
+		return 0
+	}
+	a.ctx.mu.RLock()
+	g := a.ctx.gen
+	a.ctx.mu.RUnlock()
+	return g
+}
+
 func (a *App) invalidateContextIndex() {
 	if a.ctx == nil {
 		return
 	}
 	a.ctx.mu.Lock()
-	a.ctx.loadedStored = false
+	a.ctx.loadedStored, a.ctx.syncedStored, a.ctx.compLoaded = false, false, false
+	a.ctx.gen++
 	a.ctx.mu.Unlock()
 }
 
@@ -168,6 +182,59 @@ func (a *App) loadPersistedContextIndex(idx *ContextController) {
 	if err != nil {
 		return
 	}
+	// Preload panes and tasks in 2 bulk queries to avoid O(N) SQLite Store.Get calls.
+	paneSchema, taskSchema := a.schema(data.KindPane), a.schema(data.KindTask)
+	paneTitles := map[string]string{}
+	if panesRes, perr := a.Store.Query(data.Query{Kind: data.KindPane, IncludeArchived: true}); perr == nil {
+		paneTitles = make(map[string]string, len(panesRes.Items))
+		for _, p := range panesRes.Items {
+			paneTitles[p.ID] = views.Title(paneSchema, p)
+		}
+	}
+	taskByID := map[string]data.Record{}
+	if tasksRes, terr := a.Store.Query(data.Query{Kind: data.KindTask, IncludeArchived: true}); terr == nil {
+		taskByID = make(map[string]data.Record, len(tasksRes.Items))
+		for _, t := range tasksRes.Items {
+			taskByID[t.ID] = t
+		}
+	}
+	type rootInfo struct{ id, title string }
+	rootOf := make(map[string]rootInfo, len(taskByID))
+	resolveRoot := func(id string) (string, string, bool) {
+		if r, ok := rootOf[id]; ok {
+			return r.id, r.title, true
+		}
+		cur, ok := taskByID[id]
+		if !ok {
+			return "", "", false
+		}
+		chain, seen := []string{cur.ID}, map[string]bool{cur.ID: true}
+		for range 32 {
+			pRef, has := cur.RefField("parent")
+			if !has || pRef.Kind != data.KindTask || pRef.ID == "" || seen[pRef.ID] {
+				break
+			}
+			if r, cached := rootOf[pRef.ID]; cached {
+				for _, cid := range chain {
+					rootOf[cid] = r
+				}
+				return r.id, r.title, true
+			}
+			parent, exists := taskByID[pRef.ID]
+			if !exists {
+				break
+			}
+			seen[parent.ID] = true
+			chain = append(chain, parent.ID)
+			cur = parent
+		}
+		r := rootInfo{id: cur.ID, title: views.Title(taskSchema, cur)}
+		for _, cid := range chain {
+			rootOf[cid] = r
+		}
+		return r.id, r.title, true
+	}
+
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
 	if idx.loadedStored && idx.storedRev == rev {
@@ -203,14 +270,16 @@ func (a *App) loadPersistedContextIndex(idx *ContextController) {
 		}
 		paneTitle := ""
 		if paneID != "" {
-			paneTitle = a.title(core.Ref{Kind: data.KindPane, ID: paneID})
+			if t, ok := paneTitles[paneID]; ok {
+				paneTitle = t
+			} else {
+				paneTitle = data.RefText(core.Ref{Kind: data.KindPane, ID: paneID})
+			}
 		}
 		projID, projTitle := "", unassignedProjectLabel
-		if tRef, ok := rec.RefField("task"); ok {
-			if taskRec, err := a.Store.Get(tRef); err == nil && taskRec != nil {
-				var root core.Ref
-				projTitle, root = a.resolveTaskRoot(*taskRec)
-				projID = root.ID
+		if tRef, ok := rec.RefField("task"); ok && tRef.Kind == data.KindTask {
+			if rid, rtitle, found := resolveRoot(tRef.ID); found {
+				projID, projTitle = rid, rtitle
 			}
 		}
 		path := ""
@@ -218,29 +287,16 @@ func (a *App) loadPersistedContextIndex(idx *ContextController) {
 			path, _, _ = splitContextFileLoc(val)
 		}
 		idx.items[key] = &CollectedContextItem{
-			RecordID:  rec.ID,
-			Key:       key,
-			CanonKey:  canon,
-			Kind:      kind,
-			Value:     val,
-			Path:      path,
-			Label:     rec.Text("title"),
-			Source:    rec.Text("source"),
-			Line:      recordIntField(rec, "line"),
-			Col:       recordIntField(rec, "col"),
-			PaneID:    paneID,
-			PaneTitle: paneTitle,
-			ProjectID: projID,
-			Project:   projTitle,
-			Starred:   rec.IsStarred() || idx.starred[canon],
-			Official:  rec.Bool("official"),
-			Pinned:    rec.Bool("pinned"),
-			Notes:     rec.Text("notes"),
-			SeenAt:    rec.UpdatedAt,
+			RecordID: rec.ID, Key: key, CanonKey: canon, Kind: kind, Value: val, Path: path,
+			Label: rec.Text("title"), Source: rec.Text("source"), Line: recordIntField(rec, "line"), Col: recordIntField(rec, "col"),
+			PaneID: paneID, PaneTitle: paneTitle, ProjectID: projID, Project: projTitle,
+			Starred: rec.IsStarred() || idx.starred[canon], Official: rec.Bool("official"), Pinned: rec.Bool("pinned"),
+			Notes: rec.Text("notes"), SeenAt: rec.UpdatedAt,
 		}
 	}
 	idx.storedRev = rev
 	idx.loadedStored = true
+	idx.gen++
 }
 
 func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, extracted []contextitems.Item) {
@@ -305,21 +361,10 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 			p, _, _ = splitContextFileLoc(it.Value)
 		}
 		collected := CollectedContextItem{
-			Key:       key,
-			CanonKey:  canon,
-			Kind:      it.Kind,
-			Value:     it.Value,
-			Path:      p,
-			Line:      it.Line,
-			Col:       it.Col,
-			Label:     it.Label,
-			Source:    it.Source,
-			PaneID:    paneID,
-			PaneTitle: paneTitle,
-			ProjectID: projID,
-			Project:   projTitle,
-			Starred:   idx.starred[canon],
-			SeenAt:    now,
+			Key: key, CanonKey: canon, Kind: it.Kind, Value: it.Value, Path: p,
+			Line: it.Line, Col: it.Col, Label: it.Label, Source: it.Source,
+			PaneID: paneID, PaneTitle: paneTitle, ProjectID: projID, Project: projTitle,
+			Starred: idx.starred[canon], SeenAt: now,
 		}
 		idx.items[key] = &collected
 		if !idx.persisted[key] {
@@ -327,22 +372,22 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 			toPersist = append(toPersist, collected)
 		}
 	}
+	idx.gen++
 	idx.mu.Unlock()
 
 	if a.Store == nil || len(toPersist) == 0 {
 		return
 	}
+	beforeRev, _ := a.Store.LatestChangeSetNumber()
+	persistedN := 0
 	for _, item := range toPersist {
 		title := strings.TrimSpace(item.Label)
 		if title == "" {
 			title = item.Value
 		}
 		fields := map[string]any{
-			"title":       title,
-			"value":       item.Value,
-			"contextKind": mapContextRecordKind(item.Kind),
-			"source":      mapContextRecordSource(item.Source),
-			"canonKey":    item.CanonKey,
+			"title": title, "value": item.Value, "contextKind": mapContextRecordKind(item.Kind),
+			"source": mapContextRecordSource(item.Source), "canonKey": item.CanonKey,
 		}
 		if item.Line > 0 {
 			fields["line"] = item.Line
@@ -356,14 +401,24 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 		if taskRef != nil {
 			fields["task"] = *taskRef
 		}
-		created, _, err := a.Store.Create(data.CreateInput{Kind: data.KindContext, Fields: fields}, contextHarvestActor)
-		if err == nil && created != nil {
+		if created, _, err := a.Store.Create(data.CreateInput{Kind: data.KindContext, Fields: fields}, contextHarvestActor); err == nil && created != nil {
+			persistedN++
 			idx.mu.Lock()
 			if cur, ok := idx.items[item.Key]; ok && cur.RecordID == "" {
 				cur.RecordID = created.ID
 			}
 			idx.mu.Unlock()
 		}
+	}
+	if persistedN > 0 {
+		afterRev, _ := a.Store.LatestChangeSetNumber()
+		idx.mu.Lock()
+		if idx.loadedStored && idx.storedRev == beforeRev && afterRev == beforeRev+int64(persistedN) {
+			idx.storedRev = afterRev
+		}
+		idx.compLoaded = false
+		idx.gen++
+		idx.mu.Unlock()
 	}
 }
 
@@ -495,84 +550,96 @@ func (a *App) syncContextItems() {
 	idx := a.ensureContextIndex()
 	a.loadPersistedContextIndex(idx)
 
-	// 1. Agent response / UI pages.
-	if pages, err := a.Store.Query(data.Query{Kind: data.KindPage, IncludeArchived: a.nav.showArchived}); err == nil {
-		for _, page := range pages.Items {
-			idx.mu.RLock()
-			seenRev, ok := idx.pageRevs[page.ID]
-			idx.mu.RUnlock()
-			if ok && seenRev == page.ChangeSetNumber {
-				continue
-			}
-			var sb strings.Builder
-			if root, err := mcpui.PageRoot(page); err == nil {
-				collectViewNodeText(&root, &sb)
-			}
-			var pane *data.Record
-			if paneRef, hasPane := page.RefField("pane"); hasPane {
-				if rec, err := a.Store.Get(paneRef); err == nil {
-					pane = rec
+	rev, _ := a.Store.LatestChangeSetNumber()
+	idx.mu.RLock()
+	synced := idx.syncedStored && idx.syncRev == rev && idx.syncShowArch == a.nav.showArchived
+	idx.mu.RUnlock()
+	if !synced {
+		// 1. Agent response / UI pages.
+		if pages, err := a.Store.Query(data.Query{Kind: data.KindPage, IncludeArchived: a.nav.showArchived}); err == nil {
+			for _, page := range pages.Items {
+				idx.mu.RLock()
+				seenRev, ok := idx.pageRevs[page.ID]
+				idx.mu.RUnlock()
+				if ok && seenRev == page.ChangeSetNumber {
+					continue
 				}
-			}
-			projID, projTitle := "", ""
-			if pane == nil {
-				if taskRef, hasTask := page.RefField("task"); hasTask {
-					if rec, err := a.Store.Get(taskRef); err == nil {
-						projTitle, ref := a.resolveTaskRoot(*rec)
-						projID = ref.ID
-						_ = projTitle
+				var sb strings.Builder
+				if root, err := mcpui.PageRoot(page); err == nil {
+					collectViewNodeText(&root, &sb)
+				}
+				var pane *data.Record
+				if paneRef, hasPane := page.RefField("pane"); hasPane {
+					if rec, err := a.Store.Get(paneRef); err == nil {
+						pane = rec
 					}
 				}
-			}
-			if text := sb.String(); text != "" {
-				extracted := contextitems.Extract(text, contextitems.Options{Source: contextitems.SourceResponse})
-				a.indexContextItems(pane, projID, projTitle, extracted)
-			}
-			idx.mu.Lock()
-			idx.pageRevs[page.ID] = page.ChangeSetNumber
-			idx.mu.Unlock()
-		}
-	}
-
-	// 2. Documents with filePath / path.
-	if docs, err := a.Store.Query(data.Query{Kind: data.KindDocument, IncludeArchived: a.nav.showArchived}); err == nil {
-		for _, doc := range docs.Items {
-			idx.mu.RLock()
-			seenRev, ok := idx.docRevs[doc.ID]
-			idx.mu.RUnlock()
-			if ok && seenRev == doc.ChangeSetNumber {
-				continue
-			}
-			fp := strings.TrimSpace(doc.Text("filePath"))
-			if fp == "" {
-				fp = strings.TrimSpace(doc.Text("path"))
-			}
-			if fp != "" {
-				projID, projTitle := "", unassignedProjectLabel
-				if taskRef, hasTask := doc.RefField("task"); hasTask {
-					if rec, err := a.Store.Get(taskRef); err == nil {
-						var root core.Ref
-						projTitle, root = a.resolveTaskRoot(*rec)
-						projID = root.ID
+				projID, projTitle := "", ""
+				if pane == nil {
+					if taskRef, hasTask := page.RefField("task"); hasTask {
+						if rec, err := a.Store.Get(taskRef); err == nil {
+							var ref core.Ref
+							projTitle, ref = a.resolveTaskRoot(*rec)
+							projID = ref.ID
+						}
 					}
 				}
-				a.indexContextItems(nil, projID, projTitle, []contextitems.Item{{
-					Kind:   contextitems.KindFile,
-					Value:  fp,
-					Path:   fp,
-					Label:  views.Title(a.schema(data.KindDocument), doc),
-					Source: contextitems.SourceCreatedFile,
-				}})
+				if text := sb.String(); text != "" {
+					a.indexContextItems(pane, projID, projTitle, contextitems.Extract(text, contextitems.Options{Source: contextitems.SourceResponse}))
+				}
+				idx.mu.Lock()
+				idx.pageRevs[page.ID] = page.ChangeSetNumber
+				idx.mu.Unlock()
 			}
-			idx.mu.Lock()
-			idx.docRevs[doc.ID] = doc.ChangeSetNumber
-			idx.mu.Unlock()
 		}
+		// 2. Documents with filePath / path.
+		if docs, err := a.Store.Query(data.Query{Kind: data.KindDocument, IncludeArchived: a.nav.showArchived}); err == nil {
+			for _, doc := range docs.Items {
+				idx.mu.RLock()
+				seenRev, ok := idx.docRevs[doc.ID]
+				idx.mu.RUnlock()
+				if ok && seenRev == doc.ChangeSetNumber {
+					continue
+				}
+				fp := strings.TrimSpace(doc.Text("filePath"))
+				if fp == "" {
+					fp = strings.TrimSpace(doc.Text("path"))
+				}
+				if fp != "" {
+					projID, projTitle := "", unassignedProjectLabel
+					if taskRef, hasTask := doc.RefField("task"); hasTask {
+						if rec, err := a.Store.Get(taskRef); err == nil {
+							var root core.Ref
+							projTitle, root = a.resolveTaskRoot(*rec)
+							projID = root.ID
+						}
+					}
+					a.indexContextItems(nil, projID, projTitle, []contextitems.Item{{
+						Kind: contextitems.KindFile, Value: fp, Path: fp,
+						Label: views.Title(a.schema(data.KindDocument), doc), Source: contextitems.SourceCreatedFile,
+					}})
+				}
+				idx.mu.Lock()
+				idx.docRevs[doc.ID] = doc.ChangeSetNumber
+				idx.mu.Unlock()
+			}
+		}
+		postRev, _ := a.Store.LatestChangeSetNumber()
+		idx.mu.Lock()
+		idx.syncRev, idx.syncShowArch, idx.syncedStored = postRev, a.nav.showArchived, true
+		idx.mu.Unlock()
 	}
 
-	// 3. Cached live terminal screen frames.
+	// 3. Cached live terminal screen frames (skip SQLite Get when frame already harvested).
+	now := a.now()
 	for paneID, frame := range a.rt.live.frames {
 		if len(frame.Lines) == 0 {
+			continue
+		}
+		idx.mu.RLock()
+		lastRev, lastAt := idx.screenRevs[paneID], idx.screenHarvestAt[paneID]
+		idx.mu.RUnlock()
+		if (frame.Revision > 0 && lastRev == frame.Revision) || (a.opts.Live && !lastAt.IsZero() && now.Sub(lastAt) < liveScreenHarvestInterval) {
 			continue
 		}
 		if pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID}); err == nil {
@@ -600,24 +667,24 @@ func (a *App) resolveTaskRoot(task data.Record) (string, core.Ref) {
 }
 
 func sortCollectedContext(items []CollectedContextItem) {
+	boolCmp := func(a, b bool) int {
+		if a == b {
+			return 0
+		}
+		if a {
+			return -1
+		}
+		return 1
+	}
 	slices.SortStableFunc(items, func(x, y CollectedContextItem) int {
-		if x.Official != y.Official {
-			if x.Official {
-				return -1
-			}
-			return 1
+		if c := boolCmp(x.Official, y.Official); c != 0 {
+			return c
 		}
-		if x.Pinned != y.Pinned {
-			if x.Pinned {
-				return -1
-			}
-			return 1
+		if c := boolCmp(x.Pinned, y.Pinned); c != 0 {
+			return c
 		}
-		if x.Starred != y.Starred {
-			if x.Starred {
-				return -1
-			}
-			return 1
+		if c := boolCmp(x.Starred, y.Starred); c != 0 {
+			return c
 		}
 		if c := y.SeenAt.Compare(x.SeenAt); c != 0 {
 			return c
@@ -643,6 +710,22 @@ func (a *App) paneContextItems(paneID string) []CollectedContextItem {
 	return out
 }
 
+func mergeCollectedByCanon(byCanon map[string]CollectedContextItem, cp CollectedContextItem) {
+	if existing, dup := byCanon[cp.CanonKey]; !dup || (cp.Official && !existing.Official) || (cp.Official == existing.Official && cp.SeenAt.After(existing.SeenAt)) {
+		if dup {
+			if cp.RecordID == "" {
+				cp.RecordID = existing.RecordID
+			}
+			cp.Pinned = cp.Pinned || existing.Pinned
+			cp.Starred = cp.Starred || existing.Starred
+			if cp.Notes == "" {
+				cp.Notes = existing.Notes
+			}
+		}
+		byCanon[cp.CanonKey] = cp
+	}
+}
+
 func (a *App) projectContextItems(groupName string, projRef *core.Ref) []CollectedContextItem {
 	a.syncContextItems()
 	paneSet := map[string]bool{}
@@ -654,32 +737,12 @@ func (a *App) projectContextItems(groupName string, projRef *core.Ref) []Collect
 	defer idx.mu.RUnlock()
 	byCanon := map[string]CollectedContextItem{}
 	for _, it := range idx.items {
-		match := false
-		if it.PaneID != "" && paneSet[it.PaneID] {
-			match = true
-		} else if projRef != nil && it.ProjectID == projRef.ID {
-			match = true
-		} else if projRef == nil && it.Project == groupName {
-			match = true
-		}
-		if !match {
+		if !((it.PaneID != "" && paneSet[it.PaneID]) || (projRef != nil && it.ProjectID == projRef.ID) || (projRef == nil && it.Project == groupName)) {
 			continue
 		}
 		cp := *it
 		cp.Starred = cp.Starred || idx.starred[cp.CanonKey]
-		if existing, dup := byCanon[cp.CanonKey]; !dup || (cp.Official && !existing.Official) || (cp.Official == existing.Official && cp.SeenAt.After(existing.SeenAt)) {
-			if dup {
-				if cp.RecordID == "" {
-					cp.RecordID = existing.RecordID
-				}
-				cp.Pinned = cp.Pinned || existing.Pinned
-				cp.Starred = cp.Starred || existing.Starred
-				if cp.Notes == "" {
-					cp.Notes = existing.Notes
-				}
-			}
-			byCanon[cp.CanonKey] = cp
-		}
+		mergeCollectedByCanon(byCanon, cp)
 	}
 	out := make([]CollectedContextItem, 0, len(byCanon))
 	for _, it := range byCanon {
@@ -698,19 +761,7 @@ func (a *App) allContextItems() []CollectedContextItem {
 	for _, it := range idx.items {
 		cp := *it
 		cp.Starred = cp.Starred || idx.starred[cp.CanonKey]
-		if existing, dup := byCanon[cp.CanonKey]; !dup || (cp.Official && !existing.Official) || (cp.Official == existing.Official && cp.SeenAt.After(existing.SeenAt)) {
-			if dup {
-				if cp.RecordID == "" {
-					cp.RecordID = existing.RecordID
-				}
-				cp.Pinned = cp.Pinned || existing.Pinned
-				cp.Starred = cp.Starred || existing.Starred
-				if cp.Notes == "" {
-					cp.Notes = existing.Notes
-				}
-			}
-			byCanon[cp.CanonKey] = cp
-		}
+		mergeCollectedByCanon(byCanon, cp)
 	}
 	out := make([]CollectedContextItem, 0, len(byCanon))
 	for _, it := range byCanon {
@@ -739,6 +790,7 @@ func (a *App) toggleContextStar(kind, value string) bool {
 			it.Starred = next
 		}
 	}
+	idx.gen++
 	return next
 }
 
@@ -868,15 +920,11 @@ func (a *App) contextPick(s core.State, c core.Command) core.StepResult {
 	}
 	items := make([]picker.Item, len(all))
 	for i, it := range all {
-		subParts := []string{}
-		if it.Label != "" && it.Label != it.Value {
-			subParts = append(subParts, it.Label)
-		}
-		if it.PaneTitle != "" {
-			subParts = append(subParts, it.PaneTitle)
-		}
-		if it.Project != "" {
-			subParts = append(subParts, it.Project)
+		var subParts []string
+		for _, s := range []string{it.Label, it.PaneTitle, it.Project} {
+			if s != "" && s != it.Value {
+				subParts = append(subParts, s)
+			}
 		}
 		badges := []ui.Badge{{Text: it.Kind, Tone: "accent"}}
 		if it.Source != "" {
@@ -886,12 +934,8 @@ func (a *App) contextPick(s core.State, c core.Command) core.StepResult {
 			badges = append(badges, ui.Badge{Text: "★", Tone: "warning"})
 		}
 		items[i] = picker.Item{
-			ID:       it.Key,
-			Title:    it.Value,
-			Subtitle: strings.Join(subParts, " · "),
-			Badges:   badges,
-			Keywords: []string{it.Kind, it.Source, it.PaneTitle, it.Project, it.Label, it.Path},
-			Data:     it,
+			ID: it.Key, Title: it.Value, Subtitle: strings.Join(subParts, " · "), Badges: badges,
+			Keywords: []string{it.Kind, it.Source, it.PaneTitle, it.Project, it.Label, it.Path}, Data: it,
 		}
 	}
 	pm := picker.New("Context Items", items)

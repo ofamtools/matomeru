@@ -14,14 +14,22 @@ import (
 )
 
 type treeEditMeta struct {
-	kind       string
-	returnMode string
-	isWorkTree bool
+	kind, returnMode string
+	isWorkTree       bool
 }
-
 type cleanSlateState struct {
 	active bool
 	roots  map[string]bool
+}
+type cachedRecordTree struct {
+	rev          int64
+	showArchived bool
+	animKey      string
+	nodes        []data.TreeNode
+}
+type treeSyncEntry struct {
+	key   string
+	nodes []data.TreeNode
 }
 
 // treeController owns the universal schema-driven tree state for 2 Work
@@ -42,18 +50,18 @@ type treeController struct {
 	featuresCleanSlate cleanSlateState
 	workCleanSlate     map[string]*cleanSlateState
 	expandedThreads    map[string]bool
+	threadsRev         int64
+	threadsCache       map[string][]data.Record
+	nodeCache          map[string]cachedRecordTree
+	syncCache          map[*tree.Model]treeSyncEntry
 }
 
 func newTreeController() *treeController {
 	return &treeController{
-		work:            map[string]*tree.Model{},
-		projectTrees:    map[string]*tree.Model{},
-		folded:          map[string]map[string]bool{},
-		foldInitialized: map[string]bool{},
-		layoutOverride:  map[string]string{},
-		workTableRowID:  map[string]string{},
-		workCleanSlate:  map[string]*cleanSlateState{},
-		expandedThreads: map[string]bool{},
+		work: map[string]*tree.Model{}, projectTrees: map[string]*tree.Model{},
+		folded: map[string]map[string]bool{}, foldInitialized: map[string]bool{},
+		layoutOverride: map[string]string{}, workTableRowID: map[string]string{},
+		workCleanSlate: map[string]*cleanSlateState{}, expandedThreads: map[string]bool{},
 	}
 }
 
@@ -61,12 +69,10 @@ func (tc *treeController) workModel(kind string) *tree.Model {
 	if tc.work == nil {
 		tc.work = map[string]*tree.Model{}
 	}
-	tm := tc.work[kind]
-	if tm == nil {
-		tm = tree.New(nil)
-		tc.work[kind] = tm
+	if tc.work[kind] == nil {
+		tc.work[kind] = tree.New(nil)
 	}
-	return tm
+	return tc.work[kind]
 }
 
 func (tc *treeController) outlineModel() *tree.Model {
@@ -81,12 +87,10 @@ func (tc *treeController) projectModel(projectID string) *tree.Model {
 		tc.projectTrees = map[string]*tree.Model{}
 	}
 	projectID = strings.TrimSpace(projectID)
-	tm := tc.projectTrees[projectID]
-	if tm == nil {
-		tm = tree.New(nil)
-		tc.projectTrees[projectID] = tm
+	if tc.projectTrees[projectID] == nil {
+		tc.projectTrees[projectID] = tree.New(nil)
 	}
-	return tm
+	return tc.projectTrees[projectID]
 }
 
 func (tc *treeController) projectIDForModel(tm *tree.Model) string {
@@ -130,8 +134,8 @@ func (tc *treeController) clearEdit() {
 			tm.CancelEdit()
 		}
 	} else {
-		if tm := tc.outline; tm != nil {
-			tm.CancelEdit()
+		if tc.outline != nil {
+			tc.outline.CancelEdit()
 		}
 		for _, tm := range tc.projectTrees {
 			if tm != nil && tm.Editing() {
@@ -147,8 +151,7 @@ func (tc *treeController) editing() bool {
 		return false
 	}
 	if tc.editMeta.isWorkTree {
-		tm := tc.work[tc.editMeta.kind]
-		return tm != nil && tm.Editing()
+		return tc.work[tc.editMeta.kind] != nil && tc.work[tc.editMeta.kind].Editing()
 	}
 	if tm, _ := tc.editingProjectModel(); tm != nil {
 		return true
@@ -180,14 +183,10 @@ func (tc *treeController) activeEdit() *tree.EditState {
 }
 
 func (tc *treeController) workFocusedIndex(kind string) int {
-	if tc == nil {
+	if tc == nil || tc.work[kind] == nil {
 		return -1
 	}
-	tm := tc.work[kind]
-	if tm == nil {
-		return -1
-	}
-	if row, ok := tm.Focused(); ok {
+	if row, ok := tc.work[kind].Focused(); ok {
 		return row.Index
 	}
 	return -1
@@ -230,12 +229,11 @@ func (a *App) workLayoutFor(kind string) string {
 		return WorkTasksLayoutTable
 	case WorkHierarchyLayoutTree:
 		return WorkTasksLayoutTree
-	default:
-		if h.DefaultView == WorkTasksLayoutTable {
-			return WorkTasksLayoutTable
-		}
-		return WorkTasksLayoutTree
 	}
+	if h.DefaultView == WorkTasksLayoutTable {
+		return WorkTasksLayoutTable
+	}
+	return WorkTasksLayoutTree
 }
 
 func (a *App) workTasksLayout() string {
@@ -258,6 +256,21 @@ func (a *App) inWorkTree(s core.State) bool {
 	return true
 }
 
+func (a *App) taskNoteThreads() (map[string][]data.Record, error) {
+	if a.Store == nil {
+		return nil, nil
+	}
+	rev, _ := a.Store.LatestChangeSetNumber()
+	if a.trees != nil && a.trees.threadsCache != nil && a.trees.threadsRev == rev {
+		return a.trees.threadsCache, nil
+	}
+	threads, err := a.Store.TaskNoteThreads()
+	if err == nil && a.trees != nil {
+		a.trees.threadsRev, a.trees.threadsCache = rev, threads
+	}
+	return threads, err
+}
+
 func (a *App) recordTreeNodes(kind string) ([]data.TreeNode, error) {
 	if a.isExternalKind(kind) {
 		recs, _ := a.externalRecords(kind)
@@ -267,7 +280,24 @@ func (a *App) recordTreeNodes(kind string) ([]data.TreeNode, error) {
 		}
 		return data.BuildTree(recs, parentField, orderField, a.nav.showArchived), nil
 	}
-	return a.recordTreeNodesWithAnimating(kind)
+	if a.Store == nil {
+		return nil, nil
+	}
+	rev, _ := a.Store.LatestChangeSetNumber()
+	animKey := a.archiveAnimCacheKey()
+	if a.trees != nil {
+		if c, ok := a.trees.nodeCache[kind]; ok && c.rev == rev && c.showArchived == a.nav.showArchived && c.animKey == animKey {
+			return c.nodes, nil
+		}
+	}
+	nodes, err := a.recordTreeNodesWithAnimating(kind)
+	if err == nil && a.trees != nil {
+		if a.trees.nodeCache == nil {
+			a.trees.nodeCache = map[string]cachedRecordTree{}
+		}
+		a.trees.nodeCache[kind] = cachedRecordTree{rev: rev, showArchived: a.nav.showArchived, animKey: animKey, nodes: nodes}
+	}
+	return nodes, err
 }
 
 func (a *App) outlineStartCollapsed() bool {
@@ -330,30 +360,29 @@ func (a *App) applyStartCollapsedSetting() {
 	}
 	startCollapsed := a.outlineStartCollapsed()
 	clear(a.trees.foldInitialized)
+	clear(a.trees.syncCache)
 	if !startCollapsed {
 		clear(a.trees.folded)
+	}
+	applyFold := func(tm *tree.Model) {
+		tm.ResetFoldInit()
+		if startCollapsed {
+			tm.FoldAll()
+		} else {
+			tm.UnfoldAll()
+		}
 	}
 	for kind, tm := range a.trees.work {
 		if tm == nil {
 			continue
 		}
-		tm.ResetFoldInit()
-		if startCollapsed {
-			tm.FoldAll()
-		} else {
-			tm.UnfoldAll()
-		}
+		applyFold(tm)
 		if len(tm.Nodes) > 0 || !startCollapsed {
 			a.trees.folded[kind] = tm.Folded
 		}
 	}
 	if tm := a.trees.outline; tm != nil {
-		tm.ResetFoldInit()
-		if startCollapsed {
-			tm.FoldAll()
-		} else {
-			tm.UnfoldAll()
-		}
+		applyFold(tm)
 		if len(tm.Nodes) > 0 || !startCollapsed {
 			a.trees.folded[data.KindTask] = tm.Folded
 		}
@@ -362,14 +391,9 @@ func (a *App) applyStartCollapsedSetting() {
 		if tm == nil {
 			continue
 		}
-		tm.ResetFoldInit()
-		if startCollapsed {
-			tm.FoldAll()
-			if projID != "" {
-				delete(tm.Folded, projID)
-			}
-		} else {
-			tm.UnfoldAll()
+		applyFold(tm)
+		if startCollapsed && projID != "" {
+			delete(tm.Folded, projID)
 		}
 		a.saveTreeFolded(data.KindTask, projectOutlineTree, tm)
 	}
@@ -402,16 +426,21 @@ func (a *App) initTreeFoldState(kind string, allNodes []data.TreeNode) {
 func (a *App) buildTreeNodes(schema data.Schema, kind string, nodes []data.TreeNode) ([]tree.Node, views.TreeOptions) {
 	var taskThreads map[string][]data.Record
 	if kind == data.KindTask && a.Store != nil {
-		taskThreads, _ = a.Store.TaskNoteThreads()
+		taskThreads, _ = a.taskNoteThreads()
 	}
-
+	refTitles := map[core.Ref]string{}
+	resolveRef := func(ref core.Ref) string {
+		if t, ok := refTitles[ref]; ok {
+			return t
+		}
+		t := a.title(ref)
+		refTitles[ref] = t
+		return t
+	}
 	opts := views.TreeOptions{
-		Style:         a.styleOptions(),
-		GapTopLevel:   a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeTopLevelGap, true),
-		Guides:        a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeGuides, true),
-		ShowFoldCount: true,
-		ShowGutter:    a.outlineGutterEnabled(),
-		ResolveRef:    a.title,
+		Style: a.styleOptions(), ShowFoldCount: true, ShowGutter: a.outlineGutterEnabled(), ResolveRef: resolveRef,
+		GapTopLevel: a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeTopLevelGap, true),
+		Guides:      a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeGuides, true),
 		EnrichNode: func(rec data.Record, nd *tree.Node) {
 			if a.openable(rec) {
 				if nd.Facts == nil {
@@ -432,21 +461,53 @@ func (a *App) buildTreeNodes(schema data.Schema, kind string, nodes []data.TreeN
 	return built.Nodes, opts
 }
 
+func (a *App) treeSyncKey(rev int64, kind, treeID string, cs *cleanSlateState) string {
+	st := a.styleOptions()
+	s := a.cfg != nil && a.cfg.Settings != nil
+	gap := !s || a.cfg.Settings.Bool(SetTreeTopLevelGap, true)
+	guides := !s || a.cfg.Settings.Bool(SetTreeGuides, true)
+	wrap := !s || a.cfg.Settings.Bool(SetWrapOutline, true)
+	expFP, csFP := "", ""
+	if kind == data.KindTask && a.trees != nil {
+		expFP = fmt.Sprintf("%v:%v:%v:%s", a.inlineNoteThreadsEnabled(), a.showNoteIndicatorsEnabled(), a.outlineGutterEnabled(), sortedTrueKeys(a.trees.expandedThreads))
+	}
+	if cs != nil {
+		csFP = "1:" + sortedTrueKeys(cs.roots)
+	}
+	return fmt.Sprintf("%d|%s|%s|%v|%s|%s|%s|%v:%v:%v:%v:%v:%v", rev, kind, treeID, a.nav.showArchived, a.archiveAnimCacheKey(), expFP, csFP, st.RowSemanticStyling, st.StatusIcons, gap, guides, wrap, a.outlineStartCollapsed())
+}
+
 func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, []data.TreeNode) {
 	if kind == data.KindTask && a.trees != nil {
-		if wid := a.featuresWishlistTaskID(); wid != "" {
-			if treeID == featuresCaptureTree || a.trees.projectIDForModel(tm) == wid {
+		projID := a.trees.projectIDForModel(tm)
+		if treeID == featuresCaptureTree || projID != "" {
+			if wid := a.featuresWishlistTaskID(); wid != "" && (treeID == featuresCaptureTree || projID == wid) {
 				return a.syncFeaturesCaptureTree(tm, wid)
 			}
-		}
-		if projID := a.trees.projectIDForModel(tm); projID != "" {
-			return a.syncProjectTaskTree(tm, projID, projectOutlineTree)
+			if projID != "" {
+				return a.syncProjectTaskTree(tm, projID, projectOutlineTree)
+			}
 		}
 		if treeID == projectOutlineTree && a.trees.activeProjectID != "" {
 			return a.syncProjectTaskTree(tm, a.trees.activeProjectID, projectOutlineTree)
 		}
 	}
 	schema := a.schema(kind)
+	cs := a.activeCleanSlate(kind, treeID)
+	syncKey := ""
+	if !a.isExternalKind(kind) && a.Store != nil && a.trees != nil {
+		rev, _ := a.Store.LatestChangeSetNumber()
+		syncKey = a.treeSyncKey(rev, kind, treeID, cs)
+		if entry, ok := a.trees.syncCache[tm]; ok && entry.key == syncKey && (a.trees.foldInitialized[kind] || len(entry.nodes) == 0) {
+			if cs != nil {
+				tm.Folded = maps.Clone(a.trees.folded[kind])
+			} else if a.trees.folded[kind] != nil {
+				tm.Folded = a.trees.folded[kind]
+			}
+			tm.ScrollOff, tm.PageSize = a.scrollOff(), a.treeViewportHeight(treeID)
+			return schema, entry.nodes
+		}
+	}
 	allNodes, err := a.recordTreeNodes(kind)
 	if err != nil {
 		a.fail(kind, err)
@@ -454,7 +515,6 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 	a.initTreeFoldState(kind, allNodes)
 
 	nodes := allNodes
-	cs := a.activeCleanSlate(kind, treeID)
 	if cs != nil {
 		filtered := make([]data.TreeNode, 0, len(cs.roots))
 		for _, nd := range allNodes {
@@ -472,15 +532,18 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 	} else {
 		tm.Folded = a.trees.folded[kind]
 	}
-	tm.GapTopLevel = opts.GapTopLevel
-	tm.Guides = opts.Guides
-	tm.ShowFoldCount = opts.ShowFoldCount
+	tm.GapTopLevel, tm.Guides, tm.ShowFoldCount = opts.GapTopLevel, opts.Guides, opts.ShowFoldCount
 	tm.ShowGutter = opts.ShowGutter && len(schema.GutterRules) > 0
 	tm.Wrap = a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetWrapOutline, true)
-	tm.ScrollOff = a.scrollOff()
-	tm.PageSize = a.treeViewportHeight(treeID)
+	tm.ScrollOff, tm.PageSize = a.scrollOff(), a.treeViewportHeight(treeID)
 	tm.SetNodes(builtNodes)
 	a.saveTreeFolded(kind, treeID, tm)
+	if syncKey != "" && a.trees != nil {
+		if a.trees.syncCache == nil {
+			a.trees.syncCache = map[*tree.Model]treeSyncEntry{}
+		}
+		a.trees.syncCache[tm] = treeSyncEntry{key: syncKey, nodes: nodes}
+	}
 	return schema, nodes
 }
 
@@ -563,20 +626,18 @@ func (a *App) outlineTreeMove(c core.Command) {
 }
 
 func (a *App) activeTree(s core.State) (tm *tree.Model, kind, treeID string, isWorkTree bool, ok bool) {
-	if a.Modal() == "outline" {
+	switch {
+	case a.Modal() == "outline":
 		return a.trees.outlineModel(), data.KindTask, outlineTree, false, true
-	}
-	if a.inFeaturesCaptureTree(&s) {
+	case a.inFeaturesCaptureTree(&s):
 		if wid := a.featuresWishlistTaskID(); wid != "" {
 			return a.trees.projectModel(wid), data.KindTask, featuresCaptureTree, false, true
 		}
-	}
-	if a.inProjectOutlineTree(&s) {
+	case a.inProjectOutlineTree(&s):
 		if projID := a.activeProjectOutlineID(s); projID != "" {
 			return a.trees.projectModel(projID), data.KindTask, projectOutlineTree, false, true
 		}
-	}
-	if a.inWorkTree(s) {
+	case a.inWorkTree(s):
 		k := a.workKind()
 		return a.trees.workModel(k), k, workTable, true, true
 	}
@@ -863,25 +924,24 @@ func (a *App) positionCreatedTreeRecord(nodes []data.TreeNode, created data.Reco
 	if !ok {
 		return
 	}
-	others := make([]data.TreeNode, 0, len(siblings))
+	ordered := make([]data.Record, 0, len(siblings)+1)
 	for _, sib := range siblings {
-		if sib.Record.ID == created.ID {
-			continue
+		if sib.Record.ID != created.ID {
+			ordered = append(ordered, sib.Record)
 		}
-		others = append(others, sib)
 	}
-	insertAt := len(others)
+	insertAt := len(ordered)
 	switch {
 	case res.BeforeID != "":
-		for i, sib := range others {
-			if sib.Record.ID == res.BeforeID {
+		for i, rec := range ordered {
+			if rec.ID == res.BeforeID {
 				insertAt = i
 				break
 			}
 		}
 	case res.AfterID != "":
-		for i, sib := range others {
-			if sib.Record.ID == res.AfterID {
+		for i, rec := range ordered {
+			if rec.ID == res.AfterID {
 				insertAt = i + 1
 				break
 			}
@@ -889,14 +949,9 @@ func (a *App) positionCreatedTreeRecord(nodes []data.TreeNode, created data.Reco
 	case res.Kind == tree.EditAddAbove:
 		insertAt = 0
 	}
-	ordered := make([]data.Record, 0, len(others)+1)
-	for i := 0; i < insertAt; i++ {
-		ordered = append(ordered, others[i].Record)
-	}
-	ordered = append(ordered, created)
-	for i := insertAt; i < len(others); i++ {
-		ordered = append(ordered, others[i].Record)
-	}
+	ordered = append(ordered, data.Record{})
+	copy(ordered[insertAt+1:], ordered[insertAt:])
+	ordered[insertAt] = created
 	patches := make([]data.PatchInput, len(ordered))
 	for i, rec := range ordered {
 		patches[i] = data.PatchInput{Ref: rec.Ref(), Fields: map[string]any{orderField: int64(i + 1)}}
@@ -905,25 +960,15 @@ func (a *App) positionCreatedTreeRecord(nodes []data.TreeNode, created data.Reco
 }
 
 type treeNodeLoc struct {
-	siblings    []data.TreeNode
-	index       int
-	parent      *data.TreeNode
-	parentSibs  []data.TreeNode
-	parentIndex int
-	grandparent *data.TreeNode
+	siblings, parentSibs []data.TreeNode
+	index, parentIndex   int
+	parent, grandparent  *data.TreeNode
 }
 
 func findTreeNodeLoc(nodes []data.TreeNode, id string, parent *data.TreeNode, parentSibs []data.TreeNode, parentIdx int, grandparent *data.TreeNode) (treeNodeLoc, bool) {
 	for i := range nodes {
 		if nodes[i].Record.ID == id {
-			return treeNodeLoc{
-				siblings:    nodes,
-				index:       i,
-				parent:      parent,
-				parentSibs:  parentSibs,
-				parentIndex: parentIdx,
-				grandparent: grandparent,
-			}, true
+			return treeNodeLoc{siblings: nodes, index: i, parent: parent, parentSibs: parentSibs, parentIndex: parentIdx, grandparent: grandparent}, true
 		}
 		if loc, ok := findTreeNodeLoc(nodes[i].Children, id, &nodes[i], nodes, i, parent); ok {
 			return loc, true
