@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -771,7 +772,37 @@ func contextTargetPath(kind, value string, pane *data.Record) string {
 	}
 }
 
-// openContextValue opens a context item target through App.Handlers.
+// systemOpenTarget opens target directly via the OS opener (`open` on macOS,
+// `xdg-open` elsewhere).
+func (a *App) systemOpenTarget(s core.State, target string) core.StepResult {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		a.say("empty context target")
+		return core.Next(s)
+	}
+	return core.Next(a.startShell(s, "open "+target, systemOpener()+" "+handlers.Quote(target), ""))
+}
+
+// revealContextValue reveals a local path in the OS file manager (`open -R` on
+// macOS, opening the parent directory elsewhere), falling back to opening URLs.
+func (a *App) revealContextValue(s core.State, kind, value string, pane *data.Record) core.StepResult {
+	target := contextTargetPath(kind, value, pane)
+	if target == "" {
+		a.say("empty context target")
+		return core.Next(s)
+	}
+	if handlers.IsURL(target) {
+		return a.systemOpenTarget(s, target)
+	}
+	cmd := systemOpener() + " " + handlers.Quote(filepath.Dir(target))
+	if runtime.GOOS == "darwin" {
+		cmd = "open -R " + handlers.Quote(target)
+	}
+	return core.Next(a.startShell(s, "reveal "+target, cmd, ""))
+}
+
+// openContextValue opens a context item target through App.Handlers, falling
+// back to the OS opener when no explicit handler rule matches.
 func (a *App) openContextValue(s core.State, kind, value string, pane *data.Record) core.StepResult {
 	target := contextTargetPath(kind, value, pane)
 	if target == "" {
@@ -780,8 +811,7 @@ func (a *App) openContextValue(s core.State, kind, value string, pane *data.Reco
 	}
 	rules := a.cfg.Handlers.Match(target)
 	if len(rules) == 0 {
-		a.say("no handler opens %s", target)
-		return core.Next(s)
+		return a.systemOpenTarget(s, target)
 	}
 	var from *core.Ref
 	if pane != nil {

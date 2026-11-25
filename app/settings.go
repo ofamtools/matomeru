@@ -165,6 +165,7 @@ const (
 	SetExtensionsGoPrivate           = "extensions.goPrivate"
 	SetFocusHintsStyle               = "hints.focusStyle"
 	SetFocusHintsDrilldown           = "hints.focusDrilldown"
+	SetHintsModifierActions          = "hints.modifierActions"
 	SetComposerCompact               = "panes.composerCompact"
 	SetComposerWrap                  = "panes.composerWrap"
 	SetArchiveAnimation              = "ui.archiveAnimation"
@@ -299,6 +300,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetContextAutoInject, true, "automatically include curated official project context in prompts and agent task dispatch"),
 		flag(SetEnterOpensShow, false, "pressing enter on plain lists and tables opens the record's Show page (E always opens Show)"),
 		flag(SetTreeHLFolds, true, "use h/l to smart-fold/unfold trees, outlines, and grouped headers (spilling to regions at the edge)"),
+		flag(SetHintsModifierActions, true, "allow ctrl (open), Shift (insert into active/main input), and alt (reveal in Finder) modifiers on hint labels"),
 	}
 }
 

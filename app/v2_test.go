@@ -74,7 +74,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetArchiveAnimation: true, SetArchiveAnimationMs: 2500,
 		SetTasksShowNoteIndicators: true, SetTasksInlineNoteThreads: true, SetTasksLockThreadEdits: false,
 		SetProjectWorkspaceInPanes: true, SetProjectOutlineAsPage: true, SetProjectNavSections: "", SetContextAutoInject: true,
-		SetEnterOpensShow: false, SetTreeHLFolds: true}
+		SetEnterOpensShow: false, SetTreeHLFolds: true, SetHintsModifierActions: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

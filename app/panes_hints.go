@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"ofam.dev/matomeru/contextitems"
@@ -13,20 +14,45 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/commandline"
+	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/hints"
+	"ofam.dev/ochazuke/widgets/input"
+	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/toast"
 )
 
 type hintsState struct {
-	session     *hints.Session
-	paneID      string
-	focusJump   bool
-	focusStack  []focusHintFrame
-	returnMode  string
-	returnFocus string
-	returnPage  string
-	inScratch   bool
-	lines       []string
+	session       *hints.Session
+	paneID        string
+	focusJump     bool
+	focusStack    []focusHintFrame
+	returnMode    string
+	returnFocus   string
+	returnPage    string
+	inScratch     bool
+	pendingOpen   bool
+	pendingReveal bool
+	lines         []string
+}
+
+func (a *App) hintsModifierActions() bool {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return true
+	}
+	return a.cfg.Settings.Bool(SetHintsModifierActions, true)
+}
+
+func hintsHasCandidatePrefix(sess *hints.Session, nextPrefix string) bool {
+	if sess == nil {
+		return false
+	}
+	for _, t := range sess.Remaining() {
+		if strings.HasPrefix(t.Label, nextPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 var hintsStripSGR = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`)
@@ -84,18 +110,23 @@ func (a *App) paneHints(s core.State, _ core.Command) core.StepResult {
 		paneID:      pane.ID,
 		returnMode:  curFrame.Mode,
 		returnFocus: curFrame.FocusID,
+		returnPage:  s.ActivePage,
 		inScratch:   inScratch,
 		lines:       lines,
 	}
 
-	if !inScratch {
+	if inScratch || len(s.Modals) > 0 {
+		s = withMode(s, ModeHints)
+	} else {
 		a.panes.activePage[pane.ID] = views.ScreenPageID
 		s.ActivePage = SpacePanes
 		s = withPage(s, SpacePanes, siteScreen, ModeHints)
-	} else {
-		s = withMode(s, ModeHints)
 	}
-	a.say("hints (%d) · lowercase copies · ctrl opens · UPPERCASE types · esc/q cancels", len(targets))
+	if a.hintsModifierActions() {
+		a.say("hints (%d) · lowercase copies · ctrl opens · Shift inserts · alt reveals · esc/q cancels", len(targets))
+	} else {
+		a.say("hints (%d) · lowercase copies · esc/q cancels", len(targets))
+	}
 	return core.Next(s)
 }
 
@@ -135,6 +166,8 @@ func (a *App) exitHints(s core.State) core.State {
 	if hs == nil {
 		return s
 	}
+	hs.pendingOpen = false
+	hs.pendingReveal = false
 	if hs.session != nil {
 		hs.session.Cancel()
 	}
@@ -142,10 +175,10 @@ func (a *App) exitHints(s core.State) core.State {
 	if retMode == "" {
 		retMode = ModeNormal
 	}
+	if len(s.Modals) > 0 {
+		return withMode(s, retMode)
+	}
 	if hs.focusJump {
-		if len(s.Modals) > 0 {
-			return withMode(s, retMode)
-		}
 		page := hs.returnPage
 		if page == "" {
 			page = s.ActivePage
@@ -155,11 +188,16 @@ func (a *App) exitHints(s core.State) core.State {
 	if hs.inScratch {
 		return withMode(s, retMode)
 	}
+	retPage := hs.returnPage
+	if retPage == "" {
+		retPage = SpacePanes
+	}
 	retFocus := hs.returnFocus
 	if retFocus == "" {
 		retFocus = siteScreen
 	}
-	return withPage(s, SpacePanes, retFocus, retMode)
+	s.ActivePage = retPage
+	return withPage(s, retPage, retFocus, retMode)
 }
 
 func (a *App) hintsCancel(s core.State, _ core.Command) core.StepResult {
@@ -211,11 +249,55 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 		}
 	}
 
+	modifiers := !hs.focusJump && a.hintsModifierActions()
 	var res hints.Result
-	if key != "" {
+	var revealMatch, openMatch bool
+
+	if !hs.focusJump && strings.HasPrefix(key, "alt+") {
+		rest := key[len("alt+"):]
+		if r, sz := utf8.DecodeRuneInString(rest); rest != "" && sz == len(rest) && r != utf8.RuneError {
+			res = hs.session.HandleKey(string(unicode.ToLower(r)))
+			if modifiers {
+				switch res.Status {
+				case hints.StatusActive:
+					hs.pendingReveal = true
+					hs.pendingOpen = false
+				case hints.StatusMatched:
+					revealMatch = true
+				}
+			}
+		} else {
+			res = hints.Result{Status: hints.StatusNoMatch, Handled: true}
+		}
+	} else if modifiers && key == "ctrl+h" && hintsHasCandidatePrefix(hs.session, hs.session.Prefix()+"h") {
+		res = hs.session.HandleRune('h', false)
+		switch res.Status {
+		case hints.StatusActive:
+			hs.pendingOpen = true
+			hs.pendingReveal = false
+		case hints.StatusMatched:
+			openMatch = true
+		}
+	} else if key != "" {
 		res = hs.session.HandleKey(key)
+		if (key == "backspace" || key == "ctrl+h") && hs.session.Prefix() == "" {
+			hs.pendingReveal = false
+			hs.pendingOpen = false
+		} else if modifiers {
+			if strings.HasPrefix(key, "ctrl+") && key != "ctrl+h" && key != "ctrl+c" {
+				hs.pendingReveal = false
+				hs.pendingOpen = false
+			} else if r, sz := utf8.DecodeRuneInString(key); sz == len(key) && r != utf8.RuneError && unicode.IsUpper(r) {
+				hs.pendingReveal = false
+				hs.pendingOpen = false
+			}
+		}
 	} else if r, sz := utf8.DecodeRuneInString(text); text != "" && sz == len(text) && r != utf8.RuneError {
 		res = hs.session.HandleRune(r, false)
+		if modifiers && unicode.IsUpper(r) {
+			hs.pendingReveal = false
+			hs.pendingOpen = false
+		}
 	}
 	switch res.Status {
 	case hints.StatusCancelled:
@@ -280,30 +362,162 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 			a.say("focused %s", focusTargetDisplayName(*target))
 			return core.Next(s)
 		}
+		pendingReveal := hs.pendingReveal
+		pendingOpen := hs.pendingOpen
 		s = a.exitHints(s)
 		if target == nil {
 			return core.Next(s)
 		}
 		var pane *data.Record
-		if rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID}); err == nil {
-			pane = rec
+		if paneID != "" {
+			if rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID}); err == nil {
+				pane = rec
+			}
 		}
-		switch res.Action {
-		case hints.ActionAlt:
-			// ctrl+label opens the target via handlers.
-			return a.openContextValue(s, target.Kind, target.Value, pane)
-		case hints.ActionSecondary:
-			// UPPERCASE label types/inserts the target into the pane.
-			a.insertTextIntoPane(pane, target.Value)
+		if !a.hintsModifierActions() {
+			a.yank(target.Value, target.Kind)
+			a.pushToast("Copied "+clip(target.Value, 40), toast.Ok)
 			return core.Next(s)
+		}
+		switch {
+		case revealMatch || pendingReveal:
+			return a.revealContextValue(s, target.Kind, target.Value, pane)
+		case openMatch || pendingOpen || res.Action == hints.ActionAlt:
+			return a.systemOpenTarget(s, contextTargetPath(target.Kind, target.Value, pane))
+		case res.Action == hints.ActionSecondary:
+			return core.Next(a.insertHintTarget(s, hs, pane, target.Kind, target.Value))
 		default:
-			// lowercase label copies the target to clipboard + registers.
 			a.yank(target.Value, target.Kind)
 			a.pushToast("Copied "+clip(target.Value, 40), toast.Ok)
 			return core.Next(s)
 		}
 	}
 	return core.Next(s)
+}
+
+func formModelOfModal(m modal.Modal) *form.Model {
+	switch fm := m.(type) {
+	case *modal.FormModal:
+		return fm.Model()
+	case *recordFormModal:
+		if fm.FormModal != nil {
+			return fm.FormModal.Model()
+		}
+	case *answerFormModal:
+		if fm.FormModal != nil {
+			return fm.FormModal.Model()
+		}
+	}
+	return nil
+}
+
+// insertHintTarget inserts a Shift-matched hint value into the currently active
+// input field (modal input, inline filter/outline edit, or active terminal pane),
+// falling back to copying to the clipboard when no input target is active.
+func (a *App) insertHintTarget(s core.State, hs *hintsState, pane *data.Record, kind, value string) core.State {
+	if value == "" {
+		return s
+	}
+	// 1. Active modal input.
+	if a.modals != nil {
+		if top := a.modals.Top(); top != nil {
+			switch m := top.(type) {
+			case *richComposerModal:
+				res := m.Handle(core.Command{ID: CmdComposerInsert, Args: map[string]any{"text": value}})
+				s = a.applyModalResult(s, res).State
+				a.viewMemo.gen++
+				a.say("inserted %s into composer", clip(value, 44))
+				a.pushToast("Inserted into composer: "+clip(value, 36), toast.Ok)
+				return s
+			case *modal.FormModal, *recordFormModal, *answerFormModal:
+				if fm := formModelOfModal(m); fm != nil && fm.Editable() {
+					fm.HandleCommand(core.Command{ID: input.CmdInsert, Args: map[string]any{"text": value}})
+					a.viewMemo.gen++
+					a.say("inserted %s into form", clip(value, 44))
+					a.pushToast("Inserted into form: "+clip(value, 36), toast.Ok)
+					return s
+				}
+			case *modal.CommandLineModal:
+				res := m.Handle(core.Command{ID: commandline.CmdInsert, Args: map[string]any{"text": value}})
+				s = a.applyModalResult(s, res).State
+				a.viewMemo.gen++
+				a.say("inserted %s into command line", clip(value, 44))
+				a.pushToast("Inserted into command line: "+clip(value, 36), toast.Ok)
+				return s
+			case *modal.PickerModal:
+				if m.Model() != nil && m.Model().Filtering {
+					res := m.Handle(core.Command{ID: modal.CmdPickerInsert, Args: map[string]any{"text": value}})
+					s = a.applyModalResult(s, res).State
+					a.viewMemo.gen++
+					a.say("inserted %s into filter", clip(value, 44))
+					a.pushToast("Inserted into filter: "+clip(value, 36), toast.Ok)
+					return s
+				}
+			case *modal.PaletteModal:
+				if pal := m.Model(); pal != nil {
+					if pal.FocusForm && pal.ActiveForm != nil && pal.ActiveForm.Editable() {
+						pal.ActiveForm.HandleCommand(core.Command{ID: input.CmdInsert, Args: map[string]any{"text": value}})
+						a.viewMemo.gen++
+						a.say("inserted %s into form", clip(value, 44))
+						a.pushToast("Inserted into form: "+clip(value, 36), toast.Ok)
+						return s
+					}
+					if !pal.FocusForm && pal.Picker != nil && pal.Picker.Filtering {
+						res := m.Handle(core.Command{ID: modal.CmdPickerInsert, Args: map[string]any{"text": value}})
+						s = a.applyModalResult(s, res).State
+						a.viewMemo.gen++
+						a.say("inserted %s into filter", clip(value, 44))
+						a.pushToast("Inserted into filter: "+clip(value, 36), toast.Ok)
+						return s
+					}
+				}
+			case *modal.PathPickerModal:
+				if m.Model() != nil && m.Model().Filtering() {
+					res := m.Handle(core.Command{ID: modal.CmdPickerInsert, Args: map[string]any{"text": value}})
+					s = a.applyModalResult(s, res).State
+					a.viewMemo.gen++
+					a.say("inserted %s into filter", clip(value, 44))
+					a.pushToast("Inserted into filter: "+clip(value, 36), toast.Ok)
+					return s
+				}
+			}
+		}
+	}
+
+	// 2. Inline view inputs (filter bar or inline outline edit).
+	if hs != nil {
+		switch hs.returnMode {
+		case ModeFilter:
+			s = a.filterEdit(s, core.Command{ID: CmdFilterInsert, Args: map[string]any{"text": value}}).State
+			a.viewMemo.gen++
+			a.say("inserted %s into filter", clip(value, 44))
+			a.pushToast("Inserted into filter: "+clip(value, 36), toast.Ok)
+			return s
+		case ModeOutlineEdit:
+			s = a.outlineEditInsert(s, core.Command{ID: CmdOutlineEditInsert, Args: map[string]any{"text": value}}).State
+			a.viewMemo.gen++
+			a.say("inserted %s into outline", clip(value, 44))
+			a.pushToast("Inserted into outline: "+clip(value, 36), toast.Ok)
+			return s
+		}
+	}
+
+	// 3. Main input for current view (active terminal pane / scratch / side split).
+	targetPane := pane
+	if targetPane == nil {
+		if tp, ok := a.termPane(s); ok {
+			targetPane = tp
+		}
+	}
+	if targetPane != nil {
+		a.insertTextIntoPane(targetPane, value)
+		return s
+	}
+
+	// 4. Graceful fallback when view has no active/main input.
+	a.yank(value, kind)
+	a.pushToast("No active input · copied "+clip(value, 32), toast.Info)
+	return s
 }
 
 // insertTextIntoPane types/inserts text directly into pane (live PTY or synthetic).
