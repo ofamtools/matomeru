@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"ofam.dev/matomeru/contextitems"
@@ -19,40 +18,124 @@ import (
 	"ofam.dev/ochazuke/widgets/hints"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/modal"
+	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/toast"
 )
 
-type hintsState struct {
-	session       *hints.Session
-	paneID        string
-	focusJump     bool
-	focusStack    []focusHintFrame
-	returnMode    string
-	returnFocus   string
-	returnPage    string
-	inScratch     bool
-	pendingOpen   bool
-	pendingReveal bool
-	lines         []string
+const hintsActionPick hints.Action = HintsActionPick
+
+var hintsCycleOrder = []hints.Action{
+	hints.ActionDefault,
+	hints.ActionSecondary,
+	hints.ActionAlt,
+	hints.ActionMeta,
 }
 
-func (a *App) hintsModifierActions() bool {
+type hintsState struct {
+	session     *hints.Session
+	paneID      string
+	focusJump   bool
+	focusStack  []focusHintFrame
+	returnMode  string
+	returnFocus string
+	returnPage  string
+	inScratch   bool
+	lines       []string
+}
+
+func (a *App) hintsModifierActionsEnabled() bool {
 	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
 		return true
 	}
 	return a.cfg.Settings.Bool(SetHintsModifierActions, true)
 }
 
-func hintsHasCandidatePrefix(sess *hints.Session, nextPrefix string) bool {
-	if sess == nil {
-		return false
+func hintActionFromName(name string) (hints.Action, bool) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case HintsActionCopy:
+		return hints.ActionDefault, true
+	case HintsActionInsert:
+		return hints.ActionSecondary, true
+	case HintsActionOpen:
+		return hints.ActionAlt, true
+	case HintsActionReveal:
+		return hints.ActionMeta, true
+	case HintsActionPick:
+		return hintsActionPick, true
+	default:
+		return "", false
 	}
-	for _, t := range sess.Remaining() {
-		if strings.HasPrefix(t.Label, nextPrefix) {
-			return true
+}
+
+func hintActionName(a hints.Action) string {
+	switch a {
+	case hints.ActionSecondary:
+		return HintsActionInsert
+	case hints.ActionAlt:
+		return HintsActionOpen
+	case hints.ActionMeta:
+		return HintsActionReveal
+	case hintsActionPick:
+		return HintsActionPick
+	default:
+		return HintsActionCopy
+	}
+}
+
+func hintActionVerbLabel(a hints.Action) string {
+	switch a {
+	case hints.ActionSecondary:
+		return "inserts"
+	case hints.ActionAlt:
+		return "opens"
+	case hints.ActionMeta:
+		return "reveals"
+	case hintsActionPick:
+		return "picks action"
+	default:
+		return "copies"
+	}
+}
+
+func hintsActionLegend(modifiers bool) []hints.ActionLegend {
+	if modifiers {
+		return []hints.ActionLegend{
+			{Key: "a-z", Label: HintsActionCopy, Action: hints.ActionDefault},
+			{Key: "Shift", Label: HintsActionInsert, Action: hints.ActionSecondary},
+			{Key: "ctrl", Label: HintsActionOpen, Action: hints.ActionAlt},
+			{Key: "alt", Label: HintsActionReveal, Action: hints.ActionMeta},
+			{Key: "tab", Label: "cycle"},
+			{Key: "esc", Label: "cancel"},
 		}
 	}
-	return false
+	return []hints.ActionLegend{
+		{Label: HintsActionCopy, Action: hints.ActionDefault},
+		{Label: HintsActionInsert, Action: hints.ActionSecondary},
+		{Label: HintsActionOpen, Action: hints.ActionAlt},
+		{Label: HintsActionReveal, Action: hints.ActionMeta},
+		{Key: "tab", Label: "cycle"},
+		{Key: "esc", Label: "cancel"},
+	}
+}
+
+func hintsStatusLine(sess *hints.Session) string {
+	if sess == nil {
+		return "hints"
+	}
+	act := sess.ActiveAction()
+	count := len(sess.Remaining())
+	if sess.ModifiersEnabled() {
+		if act == hints.ActionDefault {
+			return fmt.Sprintf("hints (%d) · lowercase copies · ctrl opens · Shift inserts · alt reveals · tab cycles · esc/q cancels", count)
+		}
+		return fmt.Sprintf("hints (%d) [%s] · lowercase %s · ctrl opens · Shift inserts · alt reveals · tab cycles · esc/q cancels",
+			count, hintActionName(act), hintActionVerbLabel(act))
+	}
+	if act == hints.ActionDefault {
+		return fmt.Sprintf("hints (%d) · lowercase copies · tab cycles · esc/q cancels", count)
+	}
+	return fmt.Sprintf("hints (%d) [%s] · lowercase %s · tab cycles · esc/q cancels",
+		count, hintActionName(act), hintActionVerbLabel(act))
 }
 
 var hintsStripSGR = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`)
@@ -78,7 +161,7 @@ func (a *App) paneVisibleLines(pane data.Record, live bool) []string {
 
 // paneHints activates live terminal hint mode using contextitems.ExtractVisibleMatches
 // and ochazuke/widgets/hints.
-func (a *App) paneHints(s core.State, _ core.Command) core.StepResult {
+func (a *App) paneHints(s core.State, c core.Command) core.StepResult {
 	pane, ok := a.termPane(s)
 	if !ok {
 		a.say("no pane is selected")
@@ -103,7 +186,23 @@ func (a *App) paneHints(s core.State, _ core.Command) core.StepResult {
 			Value: m.Value,
 		}
 	}
-	sess := hints.NewSession(targets)
+
+	actionName := strings.TrimSpace(c.Arg("action"))
+	if actionName == "" {
+		actionName = a.hintsDefaultAction()
+	}
+	defaultAct, ok := hintActionFromName(actionName)
+	if !ok {
+		defaultAct, _ = hintActionFromName(a.hintsDefaultAction())
+	}
+	mods := a.hintsModifierActionsEnabled()
+	sess := hints.NewSession(
+		targets,
+		hints.WithDefaultAction(defaultAct),
+		hints.WithModifiers(mods),
+		hints.WithActionLegend(hintsActionLegend(mods)),
+	)
+
 	curFrame := s.ActiveFrame()
 	a.panes.hints = &hintsState{
 		session:     sess,
@@ -118,15 +217,20 @@ func (a *App) paneHints(s core.State, _ core.Command) core.StepResult {
 	if inScratch || len(s.Modals) > 0 {
 		s = withMode(s, ModeHints)
 	} else {
-		a.panes.activePage[pane.ID] = views.ScreenPageID
-		s.ActivePage = SpacePanes
-		s = withPage(s, SpacePanes, siteScreen, ModeHints)
+		targetSpace := SpacePanes
+		if isProjectTab(s.ActivePage) {
+			targetSpace = s.ActivePage
+		}
+		targetFocus := siteScreen
+		if curFrame.FocusID == sideScreen {
+			targetFocus = sideScreen
+		} else {
+			a.panes.activePage[pane.ID] = views.ScreenPageID
+		}
+		s.ActivePage = targetSpace
+		s = withPage(s, targetSpace, targetFocus, ModeHints)
 	}
-	if a.hintsModifierActions() {
-		a.say("hints (%d) · lowercase copies · ctrl opens · Shift inserts · alt reveals · esc/q cancels", len(targets))
-	} else {
-		a.say("hints (%d) · lowercase copies · esc/q cancels", len(targets))
-	}
+	a.say("%s", hintsStatusLine(sess))
 	return core.Next(s)
 }
 
@@ -159,6 +263,32 @@ func (a *App) hintsRenderLines(baseLines []string, w, h int) []string {
 	return strings.Split(overlaid, "\n")
 }
 
+// applyTerminalHints overlays active hint badges onto screen when a terminal
+// hints session targets paneID, returning optional panel badges and the live
+// hints status bar node (nil when inactive or targeting another pane).
+func (a *App) applyTerminalHints(paneID string, screen *ui.ViewNode, shownLines []string, w, h int, barID string) ([]ui.Badge, *ui.ViewNode) {
+	if a == nil || a.panes == nil || a.panes.hints == nil || a.panes.hints.focusJump {
+		return nil, nil
+	}
+	sess := a.panes.hints.session
+	if sess == nil || !sess.Active() || a.panes.hints.paneID != paneID {
+		return nil, nil
+	}
+	if screen != nil {
+		if screen.Props == nil {
+			screen.Props = map[string]any{}
+		}
+		screen.Props["lines"] = a.hintsRenderLines(shownLines, w, h)
+		delete(screen.Props, "cursor")
+	}
+	bar := sess.View(barID)
+	badges := []ui.Badge{{
+		Text: fmt.Sprintf("hints %d · %s", len(sess.Remaining()), hintActionName(sess.ActiveAction())),
+		Tone: "accent",
+	}}
+	return badges, &bar
+}
+
 func (a *App) exitHints(s core.State) core.State {
 	hs := a.panes.hints
 	a.panes.hints = nil
@@ -166,8 +296,6 @@ func (a *App) exitHints(s core.State) core.State {
 	if hs == nil {
 		return s
 	}
-	hs.pendingOpen = false
-	hs.pendingReveal = false
 	if hs.session != nil {
 		hs.session.Cancel()
 	}
@@ -203,6 +331,35 @@ func (a *App) exitHints(s core.State) core.State {
 func (a *App) hintsCancel(s core.State, _ core.Command) core.StepResult {
 	s = a.exitHints(s)
 	a.say("hints cancelled")
+	return core.Next(s)
+}
+
+func (a *App) hintsActionCycle(s core.State, _ core.Command) core.StepResult {
+	hs := a.panes.hints
+	if hs == nil || hs.focusJump || hs.session == nil || !hs.session.Active() {
+		return core.Next(s)
+	}
+	hs.session.CycleAction(hintsCycleOrder)
+	a.viewMemo.gen++
+	a.say("%s", hintsStatusLine(hs.session))
+	return core.Next(s)
+}
+
+func (a *App) hintsActionSet(s core.State, c core.Command) core.StepResult {
+	hs := a.panes.hints
+	if hs == nil || hs.focusJump || hs.session == nil || !hs.session.Active() {
+		a.say("no active terminal hints session")
+		return core.Next(s)
+	}
+	raw := strings.TrimSpace(c.Arg("action"))
+	act, ok := hintActionFromName(raw)
+	if !ok {
+		a.say("unknown hint action %q (want copy, insert, open, reveal, or pick)", raw)
+		return core.Next(s)
+	}
+	hs.session.SetAction(act)
+	a.viewMemo.gen++
+	a.say("%s", hintsStatusLine(hs.session))
 	return core.Next(s)
 }
 
@@ -249,56 +406,13 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 		}
 	}
 
-	modifiers := !hs.focusJump && a.hintsModifierActions()
 	var res hints.Result
-	var revealMatch, openMatch bool
-
-	if !hs.focusJump && strings.HasPrefix(key, "alt+") {
-		rest := key[len("alt+"):]
-		if r, sz := utf8.DecodeRuneInString(rest); rest != "" && sz == len(rest) && r != utf8.RuneError {
-			res = hs.session.HandleKey(string(unicode.ToLower(r)))
-			if modifiers {
-				switch res.Status {
-				case hints.StatusActive:
-					hs.pendingReveal = true
-					hs.pendingOpen = false
-				case hints.StatusMatched:
-					revealMatch = true
-				}
-			}
-		} else {
-			res = hints.Result{Status: hints.StatusNoMatch, Handled: true}
-		}
-	} else if modifiers && key == "ctrl+h" && hintsHasCandidatePrefix(hs.session, hs.session.Prefix()+"h") {
-		res = hs.session.HandleRune('h', false)
-		switch res.Status {
-		case hints.StatusActive:
-			hs.pendingOpen = true
-			hs.pendingReveal = false
-		case hints.StatusMatched:
-			openMatch = true
-		}
-	} else if key != "" {
+	if key != "" {
 		res = hs.session.HandleKey(key)
-		if (key == "backspace" || key == "ctrl+h") && hs.session.Prefix() == "" {
-			hs.pendingReveal = false
-			hs.pendingOpen = false
-		} else if modifiers {
-			if strings.HasPrefix(key, "ctrl+") && key != "ctrl+h" && key != "ctrl+c" {
-				hs.pendingReveal = false
-				hs.pendingOpen = false
-			} else if r, sz := utf8.DecodeRuneInString(key); sz == len(key) && r != utf8.RuneError && unicode.IsUpper(r) {
-				hs.pendingReveal = false
-				hs.pendingOpen = false
-			}
-		}
 	} else if r, sz := utf8.DecodeRuneInString(text); text != "" && sz == len(text) && r != utf8.RuneError {
 		res = hs.session.HandleRune(r, false)
-		if modifiers && unicode.IsUpper(r) {
-			hs.pendingReveal = false
-			hs.pendingOpen = false
-		}
 	}
+
 	switch res.Status {
 	case hints.StatusCancelled:
 		s = a.exitHints(s)
@@ -308,8 +422,10 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 		a.viewMemo.gen++
 		if hs.focusJump {
 			a.say("%s", focusHintsLegend(hs))
+		} else if hs.session.Prefix() == "" {
+			a.say("%s", hintsStatusLine(hs.session))
 		} else {
-			a.say("hints: %s_ (%d remaining)", hs.session.Prefix(), len(hs.session.Remaining()))
+			a.say("hints [%s]: %s_ (%d remaining)", hintActionName(hs.session.ActiveAction()), hs.session.Prefix(), len(hs.session.Remaining()))
 		}
 		return core.Next(s)
 	case hints.StatusNoMatch:
@@ -318,8 +434,7 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 	case hints.StatusMatched:
 		target := res.Target
 		paneID := hs.paneID
-		focusJump := hs.focusJump
-		if focusJump {
+		if hs.focusJump {
 			if target == nil {
 				return core.Next(a.exitHints(s))
 			}
@@ -362,8 +477,6 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 			a.say("focused %s", focusTargetDisplayName(*target))
 			return core.Next(s)
 		}
-		pendingReveal := hs.pendingReveal
-		pendingOpen := hs.pendingOpen
 		s = a.exitHints(s)
 		if target == nil {
 			return core.Next(s)
@@ -374,25 +487,84 @@ func (a *App) hintsKey(s core.State, c core.Command) core.StepResult {
 				pane = rec
 			}
 		}
-		if !a.hintsModifierActions() {
-			a.yank(target.Value, target.Kind)
-			a.pushToast("Copied "+clip(target.Value, 40), toast.Ok)
-			return core.Next(s)
-		}
-		switch {
-		case revealMatch || pendingReveal:
-			return a.revealContextValue(s, target.Kind, target.Value, pane)
-		case openMatch || pendingOpen || res.Action == hints.ActionAlt:
-			return a.systemOpenTarget(s, contextTargetPath(target.Kind, target.Value, pane))
-		case res.Action == hints.ActionSecondary:
-			return core.Next(a.insertHintTarget(s, hs, pane, target.Kind, target.Value))
-		default:
-			a.yank(target.Value, target.Kind)
-			a.pushToast("Copied "+clip(target.Value, 40), toast.Ok)
-			return core.Next(s)
-		}
+		return a.executeHintAction(s, hs, pane, *target, res.Action)
 	}
 	return core.Next(s)
+}
+
+func (a *App) executeHintAction(s core.State, hs *hintsState, pane *data.Record, target hints.Target, action hints.Action) core.StepResult {
+	switch action {
+	case hintsActionPick:
+		return a.openHintActionPicker(s, hs, pane, target)
+	case hints.ActionMeta:
+		return a.revealContextValue(s, target.Kind, target.Value, pane)
+	case hints.ActionAlt:
+		return a.systemOpenTarget(s, contextTargetPath(target.Kind, target.Value, pane))
+	case hints.ActionSecondary:
+		return core.Next(a.insertHintTarget(s, hs, pane, target.Kind, target.Value))
+	default:
+		a.yank(target.Value, target.Kind)
+		a.pushToast("Copied "+clip(target.Value, 40), toast.Ok)
+		return core.Next(s)
+	}
+}
+
+func (a *App) openHintActionPicker(s core.State, hs *hintsState, pane *data.Record, target hints.Target) core.StepResult {
+	resolvedPath := contextTargetPath(target.Kind, target.Value, pane)
+	items := []picker.Item{
+		{
+			ID:       HintsActionCopy,
+			Title:    "Copy",
+			Subtitle: clip(target.Value, 64),
+			Badges:   []ui.Badge{{Text: "a-z", Tone: "muted"}},
+			Keywords: []string{"copy", "yank", "clipboard"},
+			Data:     hints.ActionDefault,
+		},
+		{
+			ID:       HintsActionInsert,
+			Title:    "Paste in input",
+			Subtitle: "Insert into active input or terminal",
+			Badges:   []ui.Badge{{Text: "Shift", Tone: "muted"}},
+			Keywords: []string{"paste", "insert", "input", "type"},
+			Data:     hints.ActionSecondary,
+		},
+		{
+			ID:       HintsActionOpen,
+			Title:    "Open",
+			Subtitle: clip(resolvedPath, 64),
+			Badges:   []ui.Badge{{Text: "ctrl", Tone: "muted"}},
+			Keywords: []string{"open", "launch", "browser"},
+			Data:     hints.ActionAlt,
+		},
+		{
+			ID:       HintsActionReveal,
+			Title:    "Reveal in Finder",
+			Subtitle: "open -R " + clip(resolvedPath, 56),
+			Badges:   []ui.Badge{{Text: "alt", Tone: "muted"}},
+			Keywords: []string{"reveal", "finder", "folder", "dir"},
+			Data:     hints.ActionMeta,
+		},
+	}
+	pm := picker.New("Hint Action · "+clip(target.Value, 40), items)
+	pm.Placeholder = "choose action · enter runs · esc cancels"
+	m := a.newPickerModal(pm, modal.PickerOptions{
+		ID:       "hints.action.picker",
+		Scope:    "hints.action",
+		PageSize: 4,
+		OnConfirm: func(picked picker.Item) modal.Result {
+			act, _ := picked.Data.(hints.Action)
+			a.afterModal(func(st core.State) core.State {
+				return a.executeHintAction(st, hs, pane, target, act).State
+			})
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
+	a.say("pick hint action for %s · enter runs · esc cancels", clip(target.Value, 44))
+	return core.Next(a.pushModal(s, m))
+}
+
+type hintInsertable interface {
+	InsertHintText(text string) (label string, ok bool)
 }
 
 func formModelOfModal(m modal.Modal) *form.Model {
@@ -411,76 +583,72 @@ func formModelOfModal(m modal.Modal) *form.Model {
 	return nil
 }
 
-// insertHintTarget inserts a Shift-matched hint value into the currently active
+func (a *App) insertIntoTopModal(s core.State, top modal.Modal, value string) (core.State, string, bool) {
+	if top == nil {
+		return s, "", false
+	}
+	if custom, ok := top.(hintInsertable); ok {
+		if label, inserted := custom.InsertHintText(value); inserted {
+			return s, label, true
+		}
+		return s, "", false
+	}
+	if fm := formModelOfModal(top); fm != nil {
+		if fm.Editable() {
+			fm.HandleCommand(core.Command{ID: input.CmdInsert, Args: map[string]any{"text": value}})
+			return s, "form", true
+		}
+		return s, "", false
+	}
+	insertVia := func(cmdID, label string) (core.State, string, bool) {
+		res := top.Handle(core.Command{ID: cmdID, Args: map[string]any{"text": value}})
+		return a.applyModalResult(s, res).State, label, true
+	}
+	switch m := top.(type) {
+	case *richComposerModal:
+		return insertVia(CmdComposerInsert, "composer")
+	case *modal.CommandLineModal:
+		return insertVia(commandline.CmdInsert, "command line")
+	case *modal.PickerModal:
+		if m.Model() != nil && m.Model().Filtering {
+			return insertVia(modal.CmdPickerInsert, "filter")
+		}
+	case *modal.PaletteModal:
+		if pal := m.Model(); pal != nil {
+			if pal.FocusForm && pal.ActiveForm != nil && pal.ActiveForm.Editable() {
+				pal.ActiveForm.HandleCommand(core.Command{ID: input.CmdInsert, Args: map[string]any{"text": value}})
+				return s, "form", true
+			}
+			if !pal.FocusForm && pal.Picker != nil && pal.Picker.Filtering {
+				return insertVia(modal.CmdPickerInsert, "filter")
+			}
+		}
+	case *modal.PathPickerModal:
+		if m.Model() != nil && m.Model().Filtering() {
+			return insertVia(modal.CmdPickerInsert, "filter")
+		}
+	}
+	return s, "", false
+}
+
+// insertHintTarget inserts a matched hint value into the currently active
 // input field (modal input, inline filter/outline edit, or active terminal pane),
 // falling back to copying to the clipboard when no input target is active.
 func (a *App) insertHintTarget(s core.State, hs *hintsState, pane *data.Record, kind, value string) core.State {
 	if value == "" {
 		return s
 	}
+	notifyInsert := func(label string) {
+		a.viewMemo.gen++
+		a.say("inserted %s into %s", clip(value, 44), label)
+		a.pushToast("Inserted into "+label+": "+clip(value, 36), toast.Ok)
+	}
+
 	// 1. Active modal input.
 	if a.modals != nil {
-		if top := a.modals.Top(); top != nil {
-			switch m := top.(type) {
-			case *richComposerModal:
-				res := m.Handle(core.Command{ID: CmdComposerInsert, Args: map[string]any{"text": value}})
-				s = a.applyModalResult(s, res).State
-				a.viewMemo.gen++
-				a.say("inserted %s into composer", clip(value, 44))
-				a.pushToast("Inserted into composer: "+clip(value, 36), toast.Ok)
-				return s
-			case *modal.FormModal, *recordFormModal, *answerFormModal:
-				if fm := formModelOfModal(m); fm != nil && fm.Editable() {
-					fm.HandleCommand(core.Command{ID: input.CmdInsert, Args: map[string]any{"text": value}})
-					a.viewMemo.gen++
-					a.say("inserted %s into form", clip(value, 44))
-					a.pushToast("Inserted into form: "+clip(value, 36), toast.Ok)
-					return s
-				}
-			case *modal.CommandLineModal:
-				res := m.Handle(core.Command{ID: commandline.CmdInsert, Args: map[string]any{"text": value}})
-				s = a.applyModalResult(s, res).State
-				a.viewMemo.gen++
-				a.say("inserted %s into command line", clip(value, 44))
-				a.pushToast("Inserted into command line: "+clip(value, 36), toast.Ok)
-				return s
-			case *modal.PickerModal:
-				if m.Model() != nil && m.Model().Filtering {
-					res := m.Handle(core.Command{ID: modal.CmdPickerInsert, Args: map[string]any{"text": value}})
-					s = a.applyModalResult(s, res).State
-					a.viewMemo.gen++
-					a.say("inserted %s into filter", clip(value, 44))
-					a.pushToast("Inserted into filter: "+clip(value, 36), toast.Ok)
-					return s
-				}
-			case *modal.PaletteModal:
-				if pal := m.Model(); pal != nil {
-					if pal.FocusForm && pal.ActiveForm != nil && pal.ActiveForm.Editable() {
-						pal.ActiveForm.HandleCommand(core.Command{ID: input.CmdInsert, Args: map[string]any{"text": value}})
-						a.viewMemo.gen++
-						a.say("inserted %s into form", clip(value, 44))
-						a.pushToast("Inserted into form: "+clip(value, 36), toast.Ok)
-						return s
-					}
-					if !pal.FocusForm && pal.Picker != nil && pal.Picker.Filtering {
-						res := m.Handle(core.Command{ID: modal.CmdPickerInsert, Args: map[string]any{"text": value}})
-						s = a.applyModalResult(s, res).State
-						a.viewMemo.gen++
-						a.say("inserted %s into filter", clip(value, 44))
-						a.pushToast("Inserted into filter: "+clip(value, 36), toast.Ok)
-						return s
-					}
-				}
-			case *modal.PathPickerModal:
-				if m.Model() != nil && m.Model().Filtering() {
-					res := m.Handle(core.Command{ID: modal.CmdPickerInsert, Args: map[string]any{"text": value}})
-					s = a.applyModalResult(s, res).State
-					a.viewMemo.gen++
-					a.say("inserted %s into filter", clip(value, 44))
-					a.pushToast("Inserted into filter: "+clip(value, 36), toast.Ok)
-					return s
-				}
-			}
+		if nextState, label, ok := a.insertIntoTopModal(s, a.modals.Top(), value); ok {
+			notifyInsert(label)
+			return nextState
 		}
 	}
 
@@ -489,15 +657,11 @@ func (a *App) insertHintTarget(s core.State, hs *hintsState, pane *data.Record, 
 		switch hs.returnMode {
 		case ModeFilter:
 			s = a.filterEdit(s, core.Command{ID: CmdFilterInsert, Args: map[string]any{"text": value}}).State
-			a.viewMemo.gen++
-			a.say("inserted %s into filter", clip(value, 44))
-			a.pushToast("Inserted into filter: "+clip(value, 36), toast.Ok)
+			notifyInsert("filter")
 			return s
 		case ModeOutlineEdit:
 			s = a.outlineEditInsert(s, core.Command{ID: CmdOutlineEditInsert, Args: map[string]any{"text": value}}).State
-			a.viewMemo.gen++
-			a.say("inserted %s into outline", clip(value, 44))
-			a.pushToast("Inserted into outline: "+clip(value, 36), toast.Ok)
+			notifyInsert("outline")
 			return s
 		}
 	}

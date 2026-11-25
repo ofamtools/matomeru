@@ -97,6 +97,7 @@ type ProjectController struct {
 	expandedNodes        map[string]map[string]bool
 	activeItemByProject  map[string]*projectNavTarget
 	navTargets           map[string]map[string]projectNavTarget
+	homeTargets          map[string]map[string]projectHomeTarget
 	ownerCreated         map[core.Ref]bool
 	openTabs             []string
 	lastUsedAt           map[string]time.Time
@@ -126,6 +127,7 @@ func newProjectController() *ProjectController {
 		expandedNodes:        map[string]map[string]bool{},
 		activeItemByProject:  map[string]*projectNavTarget{},
 		navTargets:           map[string]map[string]projectNavTarget{},
+		homeTargets:          map[string]map[string]projectHomeTarget{},
 		ownerCreated:         map[core.Ref]bool{},
 		lastUsedAt:           map[string]time.Time{},
 		tables:               map[string]*table.Model{},
@@ -260,7 +262,7 @@ func projectHomeSpecs() []core.CommandSpec {
 // workspace regions so work.table and panes.rail footer hints stay clean.
 func projectHomeBindings() []core.Binding {
 	n := ModeNormal
-	return []core.Binding{
+	return append([]core.Binding{
 		bind(n, views.ScopeProjectNav, "enter", CmdProjectSectionSelect, "open section"),
 		when(bind(n, views.ScopeProjectNav, "space", CmdProjectNavToggle, "expand / collapse"), "facts.navExpandable"),
 		when(bind(n, views.ScopeProjectNav, "r", CmdProjectNavMarkRead, "mark read"), "facts.unread || facts.sectionUnread"),
@@ -277,15 +279,15 @@ func projectHomeBindings() []core.Binding {
 		when(bind(n, views.ScopeProjectContent, "N", CmdContextAddOfficial, "add official context"), "facts.section == \"context\" || facts.section == \"pinned\" || facts.contextItem"),
 		hidden(bind(n, ScopeProjectOverview, "N", CmdContextAddOfficial, "add official context")),
 		hidden(bind(n, SpacePanes, "P", CmdProjectPageOpen, "project page")),
-	}
+	}, projectHomeDashboardBindings()...)
 }
 
 // registerProjectHomeHandlers registers all Project Page command handlers.
 func (a *App) registerProjectHomeHandlers() {
 	a.handle(CmdProjectSectionSelect, a.projectSectionSelect)
 	a.handle(CmdProjectNavToggle, a.projectNavToggle)
-	a.handle(CmdProjectNavMarkRead, a.projectNavMarkRead)
-	a.handle(CmdProjectNavMarkSectionRead, a.projectNavMarkSectionRead)
+	a.handle(CmdProjectNavMarkRead, a.projectMarkRead)
+	a.handle(CmdProjectNavMarkSectionRead, a.projectMarkSectionRead)
 	a.handle(CmdProjectPageBack, a.projectPageBack)
 	a.handle(CmdProjectContentOpen, a.projectContentOpen)
 	a.handle(CmdContextOfficialToggle, a.contextOfficialToggle)
@@ -633,6 +635,9 @@ func (a *App) projectPageBack(s core.State, _ core.Command) core.StepResult {
 
 func (a *App) projectContentOpen(s core.State, c core.Command) core.StepResult {
 	focus, pc := s.ActiveFrame().FocusID, a.projectCtrl()
+	if a.isProjectHomeFocus(focus) {
+		return a.projectHomeItemOpen(s, c)
+	}
 	switch focus {
 	case projectPagesTable:
 		tbl := a.nav.tables[projectPagesTable]

@@ -251,7 +251,9 @@ func (a *App) applySideSplit(site *ui.ViewNode, pane data.Record, s core.State) 
 	}
 	roleBadge := ui.Badge{Text: roleLabel, Tone: "info"}
 	var sideBadges []ui.Badge
+	var sideLines []string
 	if lines, cursor, live, hasLive := a.liveScreen(*side, sideScreen); hasLive {
+		sideLines = lines
 		sideTerm.Props["lines"], sideTerm.Props["cursor"] = lines, cursor
 		sideBadges = append([]ui.Badge{roleBadge}, live...)
 		if f := a.rt.live.frames[side.ID]; f.PID > 0 && !f.Exited {
@@ -263,8 +265,14 @@ func (a *App) applySideSplit(site *ui.ViewNode, pane data.Record, s core.State) 
 			frame = s.Pages[s.ActivePage]
 		}
 		typing := frame.Mode == ModeTerminal && frame.FocusID == sideScreen
-		sideTerm.Props["lines"] = a.termLines(*side, typing)
+		sideLines = a.termLines(*side, typing)
+		sideTerm.Props["lines"] = sideLines
 		sideBadges = []ui.Badge{roleBadge, {Text: "not attached", Tone: "muted"}}
+	}
+	sw, sh := a.sideScreenSize()
+	hintBadges, hintBar := a.applyTerminalHints(side.ID, &sideTerm, sideLines, sw, sh, "site.hints.bar")
+	if len(hintBadges) > 0 {
+		sideBadges = append(sideBadges, hintBadges...)
 	}
 
 	sideRef := side.Ref()
@@ -292,5 +300,8 @@ func (a *App) applySideSplit(site *ui.ViewNode, pane data.Record, s core.State) 
 			Gap:      1,
 			Children: []ui.ViewNode{mainPanel, sidePanel},
 		},
+	}
+	if hintBar != nil {
+		site.Children = append(site.Children, *hintBar)
 	}
 }

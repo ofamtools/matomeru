@@ -81,15 +81,26 @@ func (m *scratchModal) View(_, _ int) ui.ViewNode {
 	screen := ui.ViewNode{ID: scratchScreen, Kind: ui.KindTerminal, Scope: "terminal", Focusable: true, Props: map[string]any{"streamId": pane.ID}}
 	badges := []ui.Badge{{Text: "not attached", Tone: "muted"}}
 	title := pane.Text("title")
+	var shownLines []string
 	if lines, cursor, live, ok := m.a.liveScreen(*pane, scratchScreen); ok {
+		shownLines = lines
 		screen.Props["lines"], screen.Props["cursor"] = lines, cursor
 		badges = live
 		if f := m.a.rt.live.frames[pane.ID]; f.PID > 0 && !f.Exited {
 			title = fmt.Sprintf("%s · pid %d", title, f.PID)
 		}
 	} else {
-		screen.Props["lines"] = m.a.termLines(*pane, true)
+		shownLines = m.a.termLines(*pane, true)
+		screen.Props["lines"] = shownLines
 	}
+	w, h := m.a.scratchSize()
+	hintBadges, hintBar := m.a.applyTerminalHints(pane.ID, &screen, shownLines, w, h, "scratch.hints.bar")
+	children := []ui.ViewNode{screen}
+	if hintBar != nil {
+		children = append(children, *hintBar)
+	}
+	allBadges := append(badges, ui.Badge{Text: "global scratch", Tone: "accent"})
+	allBadges = append(allBadges, hintBadges...)
 	return modal.Overlay(modal.OverlaySpec{
 		ID:        "scratch",
 		Scope:     data.KindPane,
@@ -98,8 +109,8 @@ func (m *scratchModal) View(_, _ int) ui.ViewNode {
 		HeightPct: 85,
 		Ref:       &ref,
 		Facts:     map[string]any{"role": pane.Text("role"), "scratch": true},
-		Badges:    append(badges, ui.Badge{Text: "global scratch", Tone: "accent"}),
-		Children:  []ui.ViewNode{screen},
+		Badges:    allBadges,
+		Children:  children,
 	})
 }
 

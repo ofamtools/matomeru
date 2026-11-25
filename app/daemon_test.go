@@ -413,16 +413,38 @@ func TestWave2LiveTelemetryAndBlockingApprovals(t *testing.T) {
 		t.Fatalf("hook telemetry reordered pane list: got %v, want [%s %s]", got, p1.ID, p2.ID)
 	}
 
-	// Select p2 and verify minimal hook indicator (hook fired + which hook, NO verbose tool/summary dump)
+	// Select p2 and verify concise hook indicator (panes.compactTopArea=true drops "Hook: ")
 	// plus rail metadata renders cleanly.
 	d.Keys("1", "j")
 	frame := d.Frame()
-	if !strings.Contains(frame, "Hook: ") || !strings.Contains(frame, "[Bash +2]") {
-		t.Fatalf("1 Panes missing minimal hook indicator or rail metadata:\n%s", frame)
+	if !strings.Contains(frame, "● subagent (running)") || !strings.Contains(frame, "[Bash +2]") {
+		t.Fatalf("1 Panes missing concise hook indicator or rail metadata:\n%s", frame)
 	}
-	if strings.Contains(frame, "tool: Bash") || strings.Contains(frame, "2 subagents") {
-		t.Fatalf("minimal hook indicator should strip verbose tool/subagent dumps by default:\n%s", frame)
+	if strings.Contains(frame, "Hook: ") || strings.Contains(frame, "tool: Bash") || strings.Contains(frame, "2 subagents") {
+		t.Fatalf("compact hook indicator should drop redundant Hook: prefix and verbose tool/subagent dumps:\n%s", frame)
 	}
+
+	// Opt-out (panes.compactTopArea=false) restores legacy "● Hook: " strip verbatim.
+	a.cfg.userSettings[SetPanesCompactTopArea] = false
+	a.reloadSettings()
+	a.applySettings()
+	wake(d)
+	if legacyFrame := d.Frame(); !strings.Contains(legacyFrame, "● Hook: subagent (running)") {
+		t.Fatalf("opt-out panes.compactTopArea=false missing legacy Hook: strip:\n%s", legacyFrame)
+	}
+	// panes.verboseHookBar=true preserves full verbose Hook strip verbatim.
+	a.cfg.userSettings[SetPanesCompactTopArea] = true
+	a.cfg.userSettings[SetVerboseHookBar] = true
+	a.reloadSettings()
+	a.applySettings()
+	wake(d)
+	if verboseFrame := d.Frame(); !strings.Contains(verboseFrame, "Hook: running · tool: Bash · 2 subagents") {
+		t.Fatalf("verboseHookBar=true missing full Hook strip:\n%s", verboseFrame)
+	}
+	a.cfg.userSettings[SetVerboseHookBar] = false
+	a.reloadSettings()
+	a.applySettings()
+	wake(d)
 
 	// Select p1 and trigger a real blocking PermissionRequest approval call on the test daemon.
 	d.Keys("k")
@@ -512,6 +534,40 @@ func TestWave2LiveTelemetryAndBlockingApprovals(t *testing.T) {
 	}
 	if pt := a.paneTelemetry(p1.ID); pt == nil || pt.State != daemon.StateIdle {
 		t.Fatalf("telemetry after deny = %+v, want state=idle", pt)
+	}
+
+	// Verify paneResolveApproval resolves the embedded child pane via activePane(s)
+	// even when focus is on a child pane inside a Project Tab (different from the 1 Panes rail selection).
+	proj, _, err := store.Create(data.CreateInput{Kind: data.KindTask, ID: "proj-appr", Fields: map[string]any{"title": "Appr Project"}}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	childCh := make(chan hookRes, 1)
+	go func() {
+		r, err := client.HookEvent(context.Background(), daemon.HookEvent{
+			PaneID:    p2.ID,
+			Harness:   "codex",
+			Kind:      daemon.HookKindApproval,
+			Tool:      "Edit",
+			Summary:   "edit views/lane.go",
+			RequestID: "req-child-3",
+			TimeoutMs: 5000,
+		})
+		childCh <- hookRes{res: r, err: err}
+	}()
+	eventually(t, "pending approval req-child-3", func() bool {
+		a.WatchCheck()
+		return len(a.pendingApprovalsFor(p2.ID)) == 1
+	})
+	childState := a.openProjectChildPane(a.State(), proj.ID, p2.ID, false)
+	a.paneResolveApproval(daemon.DecisionAllow)(childState, core.Command{ID: CmdPaneApprove})
+	select {
+	case got := <-childCh:
+		if got.err != nil || got.res == nil || got.res.Decision != daemon.DecisionAllow {
+			t.Fatalf("embedded child pane.approve result = %+v, err = %v", got.res, got.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for embedded child pane approval to unblock")
 	}
 }
 

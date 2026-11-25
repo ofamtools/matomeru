@@ -171,6 +171,15 @@ func (s *Store) ProjectTaskIDs(projectID string, includeArchived bool) (map[stri
 	return ids, nil
 }
 
+const sqlInBatchSize = 400
+
+func placeholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.Repeat("?,", n-1) + "?"
+}
+
 func (s *Store) projectScopedContext(projectID string) ([]Record, error) {
 	projectID = strings.TrimSpace(projectID)
 	if projectID == "" {
@@ -180,38 +189,122 @@ func (s *Store) projectScopedContext(projectID string) ([]Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.Query(Query{Kind: KindContext})
-	if err != nil {
-		return nil, err
+	if len(taskIDs) == 0 {
+		return nil, nil
 	}
-	rels, err := queryRelations(s.db, "from_kind = ? AND kind = ? AND to_kind = ?", KindTask, RelContext, KindContext)
-	if err != nil {
-		return nil, err
+	taskIDList := make([]string, 0, len(taskIDs))
+	for id := range taskIDs {
+		taskIDList = append(taskIDList, id)
 	}
+	slices.Sort(taskIDList)
+
 	relLinked := map[string]bool{}
-	for _, rel := range rels {
-		if taskIDs[rel.From.ID] && rel.To.ID != "" {
-			relLinked[rel.To.ID] = true
+	for start := 0; start < len(taskIDList); start += sqlInBatchSize {
+		end := min(start+sqlInBatchSize, len(taskIDList))
+		batch := taskIDList[start:end]
+		args := make([]any, 0, len(batch)+3)
+		args = append(args, KindTask)
+		for _, id := range batch {
+			args = append(args, id)
 		}
-	}
-	seen := map[string]bool{}
-	var out []Record
-	for _, rec := range res.Items {
-		if rec.IsArchived() || seen[rec.ID] {
-			continue
+		args = append(args, RelContext, KindContext)
+		rels, err := queryRelations(s.db, "from_kind = ? AND from_id IN ("+placeholders(len(batch))+") AND kind = ? AND to_kind = ?", args...)
+		if err != nil {
+			return nil, err
 		}
-		inScope := relLinked[rec.ID]
-		if !inScope {
-			if tRef, ok := rec.RefField("task"); ok && tRef.Kind == KindTask && taskIDs[tRef.ID] {
-				inScope = true
+		for _, rel := range rels {
+			if taskIDs[rel.From.ID] && rel.To.ID != "" {
+				relLinked[rel.To.ID] = true
 			}
 		}
-		if !inScope {
-			continue
-		}
-		seen[rec.ID] = true
-		out = append(out, rec)
 	}
+
+	local, err := loadLocal(s.db, KindContext, "")
+	if err != nil {
+		return nil, err
+	}
+	fetchIDSet := make(map[string]bool, len(relLinked))
+	for id := range relLinked {
+		fetchIDSet[id] = true
+	}
+	for ref, fields := range local {
+		if ref.Kind == KindContext {
+			if _, hasTask := fields["task"]; hasTask {
+				fetchIDSet[ref.ID] = true
+			}
+		}
+	}
+
+	seen := map[string]bool{}
+	var out []Record
+	appendRows := func(query string, args ...any) error {
+		rows, err := s.db.Query(query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			rec, err := scanRecord(rows)
+			if err != nil {
+				return err
+			}
+			rec.Local = local[rec.Ref()]
+			s.coerce(&rec)
+			if rec.IsArchived() || seen[rec.ID] {
+				continue
+			}
+			inScope := relLinked[rec.ID]
+			if !inScope {
+				if tRef, ok := rec.RefField("task"); ok && tRef.Kind == KindTask && taskIDs[tRef.ID] {
+					inScope = true
+				}
+			}
+			if !inScope {
+				continue
+			}
+			seen[rec.ID] = true
+			out = append(out, rec)
+		}
+		return rows.Err()
+	}
+
+	for start := 0; start < len(taskIDList); start += sqlInBatchSize {
+		end := min(start+sqlInBatchSize, len(taskIDList))
+		batch := taskIDList[start:end]
+		args := make([]any, 0, len(batch)+3)
+		args = append(args, KindContext, ArchiveActive, KindTask)
+		for _, id := range batch {
+			args = append(args, id)
+		}
+		q := "SELECT " + recordCols + " FROM records WHERE kind = ? AND +archive_status = ? AND json_extract(fields, '$.task.kind') = ? AND json_extract(fields, '$.task.id') IN (" + placeholders(len(batch)) + ") ORDER BY created_at, seq"
+		if err := appendRows(q, args...); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(fetchIDSet) > 0 {
+		fetchIDs := make([]string, 0, len(fetchIDSet))
+		for id := range fetchIDSet {
+			if !seen[id] {
+				fetchIDs = append(fetchIDs, id)
+			}
+		}
+		slices.Sort(fetchIDs)
+		for start := 0; start < len(fetchIDs); start += sqlInBatchSize {
+			end := min(start+sqlInBatchSize, len(fetchIDs))
+			batch := fetchIDs[start:end]
+			args := make([]any, 0, len(batch)+2)
+			args = append(args, KindContext, ArchiveActive)
+			for _, id := range batch {
+				args = append(args, id)
+			}
+			q := "SELECT " + recordCols + " FROM records WHERE kind = ? AND +archive_status = ? AND id IN (" + placeholders(len(batch)) + ") ORDER BY created_at, seq"
+			if err := appendRows(q, args...); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return out, nil
 }
 

@@ -187,7 +187,7 @@ func projectTabsBindings() []core.Binding {
 		when(bind(n, views.ScopeTOC, "h", CmdProjectChildPaneClose, "back to panes"), "facts.inChildPaneView"),
 
 		when(bind(n, views.ScopeProjectOverview, "n", CmdProjectAddNote, "add note"), "(facts.section == \"home\" || facts.section == \"notes\") && !facts.inChildPaneView"),
-		when(bind(n, views.ScopeProjectOverview, "r", CmdProjectAddNote, "add note"), "facts.section == \"home\" && !facts.inChildPaneView"),
+		when(bind(n, views.ScopeProjectOverview, "r", CmdProjectAddNote, "add note"), "facts.section == \"home\" && !facts.inChildPaneView && !facts.unread"),
 
 		when(bind(n, views.ScopeProjectTab, "c", CmdPaneCompose, "compose prompt"), "facts.inChildPaneView"),
 		when(bind(n, views.ScopeProjectTab, "t", CmdSiteTOCToggle, "toggle pages"), "layer == nil && facts.inChildPaneView"),
@@ -431,7 +431,7 @@ func (a *App) projectsSpace(_ core.State) ui.ViewNode {
 		pc.activeProjectRef = &r
 
 		ws := a.collectProjectWorkspaceData(title, &projRef)
-		previewNode = a.projectSectionHome(ws)
+		previewNode = a.buildProjectHomeSection(ws, false)
 		previewNode.Title = title
 		previewNode.Ref = &r
 		hint := "enter open tab"

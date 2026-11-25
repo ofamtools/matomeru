@@ -1,12 +1,82 @@
 package data
 
 import (
+	"database/sql"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
 
 	"ofam.dev/ochazuke/core"
 )
+
+var queryIndexes = []string{
+	`CREATE INDEX IF NOT EXISTS idx_records_kind_task_id ON records (kind, json_extract(fields, '$.task.id'))`,
+	`CREATE INDEX IF NOT EXISTS idx_records_kind_pane_id ON records (kind, json_extract(fields, '$.pane.id'))`,
+	`CREATE INDEX IF NOT EXISTS idx_records_kind_parent_id ON records (kind, json_extract(fields, '$.parent.id'))`,
+	`CREATE INDEX IF NOT EXISTS idx_records_kind_parent_lane_id ON records (kind, json_extract(fields, '$.parentLane.id'))`,
+	`CREATE INDEX IF NOT EXISTS idx_records_kind_changeset ON records (kind, change_set)`,
+}
+
+var indexedParentFields = map[string]bool{
+	"task":       true,
+	"pane":       true,
+	"parent":     true,
+	"parentLane": true,
+}
+
+// ensureQueryIndexes creates expression and revision indexes used by indexed
+// Query pushdown, ProjectContextAll, and MaxChangeSet.
+func ensureQueryIndexes(db *sql.DB) error {
+	for _, stmt := range queryIndexes {
+		if _, err := db.Exec(stmt); err != nil {
+			return fmt.Errorf("data: create query index: %w", err)
+		}
+	}
+	return nil
+}
+
+// MaxChangeSet returns the highest change_set number among records of kind
+// (or across all records when kind is empty), or 0 when none exist.
+func (s *Store) MaxChangeSet(kind string) int64 {
+	if s == nil || s.db == nil {
+		return 0
+	}
+	var maxCS int64
+	var err error
+	if kind != "" {
+		err = s.db.QueryRow("SELECT COALESCE(MAX(change_set), 0) FROM records WHERE kind = ?", kind).Scan(&maxCS)
+	} else {
+		err = s.db.QueryRow("SELECT COALESCE(MAX(change_set), 0) FROM records").Scan(&maxCS)
+	}
+	if err != nil {
+		return 0
+	}
+	return maxCS
+}
+
+// safeJSONField reports whether name is a safe JSON path identifier
+// ([A-Za-z_][A-Za-z0-9_]*) that can be interpolated into json_extract.
+func safeJSONField(name string) bool {
+	if !plainField(name) {
+		return false
+	}
+	return !(name[0] >= '0' && name[0] <= '9')
+}
+
+func (s *Store) resolveParentField(q Query) string {
+	if q.ParentField != "" {
+		return q.ParentField
+	}
+	if q.Kind != "" && s.reg != nil {
+		if schema, ok := s.reg.Get(q.Kind); ok {
+			if h := schema.EffectiveHierarchy(); h != nil && h.ParentField != "" {
+				return h.ParentField
+			}
+		}
+	}
+	return "parent"
+}
 
 // MatchMode selects how Query.Query matches text.
 type MatchMode string
@@ -174,25 +244,67 @@ func (s *Store) relatedSet(fixed core.Ref, relKind string, dir RelationDir) (map
 	return out, nil
 }
 
-// Query returns the records matching q.
-func (s *Store) Query(q Query) (QueryResult, error) {
-	var res QueryResult
+func buildQuerySQL(q Query, parentField string, pushParent bool) (string, []any) {
 	var conds []string
 	var args []any
+	preferParentIdx := pushParent && q.Parent != nil && q.Kind != "" && indexedParentFields[parentField] && safeJSONField(parentField)
 	if q.Kind != "" {
 		conds, args = append(conds, "kind = ?"), append(args, q.Kind)
 	}
 	if !q.IncludeArchived {
-		conds, args = append(conds, "archive_status = ?"), append(args, ArchiveActive)
+		if preferParentIdx {
+			conds, args = append(conds, "+archive_status = ?"), append(args, ArchiveActive)
+		} else {
+			conds, args = append(conds, "archive_status = ?"), append(args, ArchiveActive)
+		}
 	}
 	if q.StarredOnly {
-		conds, args = append(conds, "star_status = ?"), append(args, StarStarred)
+		if preferParentIdx {
+			conds, args = append(conds, "+star_status = ?"), append(args, StarStarred)
+		} else {
+			conds, args = append(conds, "star_status = ?"), append(args, StarStarred)
+		}
+	}
+	if pushParent && safeJSONField(parentField) {
+		if q.Parent != nil {
+			conds = append(conds,
+				"json_extract(fields, '$."+parentField+".id') = ?",
+				"json_extract(fields, '$."+parentField+".kind') = ?",
+			)
+			args = append(args, q.Parent.ID, q.Parent.Kind)
+		}
+		if q.Roots {
+			conds = append(conds,
+				"(json_extract(fields, '$."+parentField+".id') IS NULL OR json_extract(fields, '$."+parentField+".id') = '' OR json_extract(fields, '$."+parentField+".kind') IS NULL OR json_extract(fields, '$."+parentField+".kind') = '')",
+			)
+		}
 	}
 	sqlText := "SELECT " + recordCols + " FROM records"
 	if len(conds) > 0 {
 		sqlText += " WHERE " + strings.Join(conds, " AND ")
 	}
-	rows, err := s.db.Query(sqlText+" ORDER BY created_at, seq", args...)
+	return sqlText + " ORDER BY created_at, seq", args
+}
+
+// Query returns the records matching q.
+func (s *Store) Query(q Query) (QueryResult, error) {
+	var res QueryResult
+	local, err := loadLocal(s.db, q.Kind, "")
+	if err != nil {
+		return res, err
+	}
+	parentField := s.resolveParentField(q)
+	pushParent := true
+	if (q.Parent != nil || q.Roots) && len(local) > 0 {
+		for _, fields := range local {
+			if _, ok := fields[parentField]; ok {
+				pushParent = false
+				break
+			}
+		}
+	}
+	sqlText, args := buildQuerySQL(q, parentField, pushParent)
+	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {
 		return res, err
 	}
@@ -208,16 +320,8 @@ func (s *Store) Query(q Query) (QueryResult, error) {
 	if err := rows.Close(); err != nil {
 		return res, err
 	}
-	local, err := loadLocal(s.db, q.Kind, "")
-	if err != nil {
-		return res, err
-	}
 
 	keep := []func(Record) bool{}
-	parentField := q.ParentField
-	if parentField == "" {
-		parentField = "parent"
-	}
 	if q.Parent != nil {
 		keep = append(keep, func(r Record) bool { ref, ok := r.RefField(parentField); return ok && ref == *q.Parent })
 	}

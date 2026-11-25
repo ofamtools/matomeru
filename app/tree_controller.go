@@ -775,6 +775,10 @@ func (a *App) treeFoldCommand(cmdID string) func(core.State, core.Command) core.
 		}
 		tm, kind, treeID, isWork, ok := a.activeTree(s)
 		if !ok {
+			if ptm, pok := a.projectSectionTree(s.ActiveFrame().FocusID); pok {
+				ptm.HandleCommand(core.Command{ID: cmdID})
+				return core.Next(s)
+			}
 			a.say("no tree is focused")
 			return core.Next(s)
 		}

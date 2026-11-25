@@ -106,9 +106,18 @@ const (
 // TriageActions lists what a triage rule can do to a signal it matches.
 var TriageActions = []string{ActionMarkNoise, ActionMarkActionable, ActionSnooze, ActionTag, ActionRelateTask}
 
+// ShowFormat values declare how a Show page renders a field's full content.
+const (
+	ShowFormatMarkdown = "markdown"
+	ShowFormatCode     = "code"
+	ShowFormatText     = "text"
+	ShowFormatList     = "list"
+)
+
 // FieldSpec declares one field of a Schema. Its flat fields mirror
 // core.ParamSpec and carry declarative schema metadata such as
-// ShowIncludeArchived so views never branch on noun kinds.
+// ShowIncludeArchived, ShowFormat, and ContentFile so views never branch on
+// noun kinds or hardcoded field names.
 type FieldSpec struct {
 	Name                string         `json:"name"`
 	Type                core.ParamType `json:"type"`
@@ -119,6 +128,8 @@ type FieldSpec struct {
 	SourceQuery         string         `json:"sourceQuery,omitempty"`
 	Description         string         `json:"description,omitempty"`
 	ShowIncludeArchived bool           `json:"showIncludeArchived,omitempty"`
+	ShowFormat          string         `json:"showFormat,omitempty"`
+	ContentFile         bool           `json:"contentFile,omitempty"`
 	VisibleWhen         string         `json:"visibleWhen,omitempty"`
 	Repeatable          bool           `json:"repeatable,omitempty"`
 	AddLabel            string         `json:"addLabel,omitempty"`
@@ -402,6 +413,10 @@ func str(name, desc string) FieldSpec {
 	return FieldSpec{Name: name, Type: core.ParamString, Description: desc}
 }
 
+func strFmt(name, desc, format string) FieldSpec {
+	return FieldSpec{Name: name, Type: core.ParamString, Description: desc, ShowFormat: format}
+}
+
 func refTo(name, kind, desc string) FieldSpec {
 	return FieldSpec{Name: name, Type: core.ParamRef, RefKinds: []string{kind}, Description: desc}
 }
@@ -505,7 +520,7 @@ func DefaultSchemas() *Registry {
 			Kind: KindTask, Title: "Task", Plural: "Tasks", SummaryField: "title",
 			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what to do"},
-				str("description", "details"),
+				strFmt("description", "details", ShowFormatMarkdown),
 				statusField(work, "one status set for every task, root or not"),
 				{Name: "priority", Type: core.ParamString, Enum: []string{"P0", "P1", "P2", "P3", "P5"}, Description: "priority"},
 				refTo("parent", KindTask, "parent task; empty for a root task, which displays as a project"),
@@ -518,8 +533,9 @@ func DefaultSchemas() *Registry {
 				str("agentAssignee", "agent harness or worker assigned to this task"),
 				str("agentDispatchedAt", "when the queued task was last dispatched to an agent pane (RFC 3339)"),
 				refTo("agentDispatchedPane", KindPane, "agent pane the task was last dispatched to"),
-				{Name: "attachments", Type: core.ParamList, Description: "attached files, images, URLs, or context references"},
+				{Name: "attachments", Type: core.ParamList, ShowFormat: ShowFormatList, Description: "attached files, images, URLs, or context references"},
 				{Name: "threadLocked", Type: core.ParamBool, Default: false, Description: "prevent automatic agent replies in this task's note thread"},
+				str("readAt", "when the owner read the task (RFC 3339)"),
 			},
 			StatusColumns:  []StatusColumn{work, agentStatus},
 			DefaultColumns: []string{"title", "workStatus", "priority", "parent"},
@@ -553,10 +569,10 @@ func DefaultSchemas() *Registry {
 			Kind: KindLane, Title: "Lane", Plural: "Lanes", SummaryField: "title",
 			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the lane is for"},
-				str("ownerWords", "the owner's own wording of what this lane is for and why it matters"),
-				str("description", "detailed context, scope, and motivation"),
+				strFmt("ownerWords", "the owner's own wording of what this lane is for and why it matters", ShowFormatMarkdown),
+				strFmt("description", "detailed context, scope, and motivation", ShowFormatMarkdown),
 				statusField(laneStatus, "where the work stands"),
-				str("summary", "what happened so far"),
+				strFmt("summary", "what happened so far", ShowFormatMarkdown),
 				refTo("task", KindTask, "task the lane works on"),
 				refTo("parentLane", KindLane, "lane this is a part of; empty for a root lane"),
 				str("repo", "repository"),
@@ -590,7 +606,7 @@ func DefaultSchemas() *Registry {
 				str("lastAgentInputAt", "when an agent last sent input to the pane (RFC 3339)"),
 				str("lastAgentBy", "which agent last sent input to the pane"),
 				{Name: "task", Type: core.ParamRef, RefKinds: []string{KindTask}, Description: "task the pane works on", ShowIncludeArchived: true},
-				str("command", "command line a live session of the pane runs; empty runs $SHELL"),
+				strFmt("command", "command line a live session of the pane runs; empty runs $SHELL", ShowFormatCode),
 				{Name: "role", Type: core.ParamString, Enum: PaneRoles, Description: "what the pane is for: a normal pane, a global scratch, or a side pane of parentPane; empty is normal"},
 				refTo("parentPane", KindPane, "pane a side pane was opened beside"),
 				str("transcriptPath", "path to the agent session transcript log file"),
@@ -624,9 +640,9 @@ func DefaultSchemas() *Registry {
 			Kind: KindDocument, Title: "Document", Plural: "Documents", SummaryField: "title",
 			Fields: []FieldSpec{
 				str("title", "document title"),
-				{Name: "filePath", Type: core.ParamPath, Description: "file on disk"},
-				str("summary", "what the document covers"),
-				str("body", "Markdown body, when the document is kept inline"),
+				{Name: "filePath", Type: core.ParamPath, ContentFile: true, Description: "file on disk"},
+				strFmt("summary", "what the document covers", ShowFormatMarkdown),
+				strFmt("body", "Markdown body, when the document is kept inline", ShowFormatMarkdown),
 				refTo("task", KindTask, "task the document belongs to"),
 			},
 			DefaultColumns: []string{"title", "filePath", "summary", "task"},
@@ -638,13 +654,14 @@ func DefaultSchemas() *Registry {
 			Kind: KindNote, Title: "Note", Plural: "Notes", SummaryField: "title",
 			Fields: []FieldSpec{
 				str("title", "note title"),
-				str("body", "the note"),
+				strFmt("body", "the note", ShowFormatMarkdown),
+				{Name: "filePath", Type: core.ParamPath, ContentFile: true, Description: "file on disk"},
 				refTo("task", KindTask, "task the note belongs to"),
 				{Name: "authorKind", Type: core.ParamString, Enum: []string{"owner", "agent", "system"}, Default: "owner", Description: "who authored the note"},
 				str("authorLabel", "display name of the note author"),
 				refTo("pane", KindPane, "pane the note was written from"),
 				str("readAt", "when the owner read the note (RFC 3339)"),
-				{Name: "attachments", Type: core.ParamList, Description: "attached files, images, URLs, or context references"},
+				{Name: "attachments", Type: core.ParamList, ShowFormat: ShowFormatList, Description: "attached files, images, URLs, or context references"},
 			},
 			DefaultColumns: []string{"title", "body", "task"},
 			Relations: universalRelations(
@@ -664,13 +681,13 @@ func DefaultSchemas() *Registry {
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the schedule is for"},
 				{Name: "scheduleKind", Type: core.ParamString, Enum: []string{"remind", "run", "check", "agent_queue"}, Default: "remind", Description: "remind the owner, run a command, check something, or drain the agent queue"},
 				str("cron", "cron expression"),
-				str("command", "command line, for run and check"),
+				strFmt("command", "command line, for run and check", ShowFormatCode),
 				str("nextDueAt", "when it is next due (RFC 3339)"),
 				{Name: "paused", Type: core.ParamBool, Default: false, Description: "paused schedules do not fire"},
 				refTo("task", KindTask, "task the schedule belongs to"),
 				str("harness", "agent harness for agent_queue schedules"),
 				refTo("pane", KindPane, "pane for agent_queue schedules"),
-				str("prompt", "extra prompt instructions for agent_queue schedules"),
+				strFmt("prompt", "extra prompt instructions for agent_queue schedules", ShowFormatMarkdown),
 			},
 			DefaultColumns: []string{"title", "scheduleKind", "cron", "nextDueAt", "task"},
 			Relations:      universalRelations(),
@@ -698,13 +715,13 @@ func DefaultSchemas() *Registry {
 			Kind: KindRun, Title: "Run", Plural: "Runs", SummaryField: "title",
 			Fields: []FieldSpec{
 				str("title", "label"),
-				str("command", "command line"),
+				strFmt("command", "command line", ShowFormatCode),
 				{Name: "cwd", Type: core.ParamPath, Description: "working directory"},
 				statusField(jobRun, "observed job state"),
 				{Name: "exitCode", Type: core.ParamInt, Description: "exit status"},
-				str("output", "captured output"),
+				strFmt("output", "captured output", ShowFormatCode),
 				refTo("task", KindTask, "task the run belongs to"),
-				{Name: "args", Type: core.ParamList, Description: "argv the run executed directly, when it did not run under a shell"},
+				{Name: "args", Type: core.ParamList, ShowFormat: ShowFormatList, Description: "argv the run executed directly, when it did not run under a shell"},
 				str("startedAt", "when the run started (RFC 3339)"),
 				str("finishedAt", "when the run ended (RFC 3339)"),
 				{Name: "durationMs", Type: core.ParamInt, Description: "how long the run took, in milliseconds"},
@@ -723,9 +740,9 @@ func DefaultSchemas() *Registry {
 				{Name: "name", Type: core.ParamString, Required: true, Description: "extension name"},
 				str("binary", "binary that serves the extension"),
 				statusField(extRun, "observed health"),
-				str("summary", "what the extension adds"),
-				{Name: "capabilities", Type: core.ParamList, Description: "what the extension can do (nouns, pages, MCP tools)"},
-				{Name: "commands", Type: core.ParamList, Description: "extension-specific commands, such as setup"},
+				strFmt("summary", "what the extension adds", ShowFormatMarkdown),
+				{Name: "capabilities", Type: core.ParamList, ShowFormat: ShowFormatList, Description: "what the extension can do (nouns, pages, MCP tools)"},
+				{Name: "commands", Type: core.ParamList, ShowFormat: ShowFormatList, Description: "extension-specific commands, such as setup"},
 				str("version", "version the binary reports"),
 				str("installPkg", "Go module package for go install"),
 				str("category", "catalog group: core or optional"),
@@ -745,7 +762,7 @@ func DefaultSchemas() *Registry {
 				str("eventKind", "what kind of event it is: mention, review_request, failure"),
 				str("author", "who or what caused it"),
 				str("container", "where it happened: a repository, a channel, a thread"),
-				str("body", "the text of the event"),
+				strFmt("body", "the text of the event", ShowFormatMarkdown),
 				str("url", "link to the event"),
 				str("occurredAt", "when it happened (RFC 3339)"),
 				statusField(triage, "where the signal stands in triage"),
@@ -761,7 +778,7 @@ func DefaultSchemas() *Registry {
 			Kind: KindTriageRule, Title: "Triage rule", Plural: "Triage rules", SummaryField: "title",
 			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the rule is for"},
-				str("when", "expression over the signal's fields: source == \"github\" && author == \"dependabot[bot]\""),
+				strFmt("when", "expression over the signal's fields: source == \"github\" && author == \"dependabot[bot]\"", ShowFormatCode),
 				{Name: "action", Type: core.ParamString, Enum: TriageActions, Default: ActionMarkNoise, Description: "what to do with a signal the rule matches"},
 				str("actionValue", "the tag to add, the task ID to relate, or how long to snooze (24h)"),
 				{Name: "priority", Type: core.ParamInt, Default: 0, Description: "rules run from the highest priority to the lowest"},
@@ -774,11 +791,11 @@ func DefaultSchemas() *Registry {
 			// A question asked by an agent (decision) or a Q&A logged for the owner (qa).
 			Kind: KindQuestion, Title: "Question", Plural: "Questions", SummaryField: "prompt",
 			Fields: []FieldSpec{
-				{Name: "prompt", Type: core.ParamString, Required: true, Description: "the question"},
+				{Name: "prompt", Type: core.ParamString, Required: true, ShowFormat: ShowFormatMarkdown, Description: "the question"},
 				{Name: "questionKind", Type: core.ParamString, Enum: []string{"qa", "decision"}, Default: "qa", Description: "qa (owner asked agent, answered) or decision (agent asked owner to decide)"},
-				str("details", "context shown under the question"),
-				{Name: "choices", Type: core.ParamList, Description: "pick-one options (list or JSON)"},
-				str("answer", "recorded answer"),
+				strFmt("details", "context shown under the question", ShowFormatMarkdown),
+				{Name: "choices", Type: core.ParamList, ShowFormat: ShowFormatList, Description: "pick-one options (list or JSON)"},
+				strFmt("answer", "recorded answer", ShowFormatMarkdown),
 				statusField(questionStatus, "whether the question is open, answered or dismissed"),
 				str("answeredAt", "when the question was answered (RFC 3339)"),
 				str("cardId", "ID of the linked ui.page question card"),
@@ -795,10 +812,10 @@ func DefaultSchemas() *Registry {
 			Kind: KindCommand, Title: "Command", Plural: "Commands", SummaryField: "title",
 			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the command does"},
-				{Name: "command", Type: core.ParamString, Required: true, Description: "literal shell command or script invocation"},
+				{Name: "command", Type: core.ParamString, Required: true, ShowFormat: ShowFormatCode, Description: "literal shell command or script invocation"},
 				{Name: "scriptPath", Type: core.ParamPath, Description: "optional script file path"},
 				{Name: "cwd", Type: core.ParamPath, Description: "working directory"},
-				str("notes", "details or caveats"),
+				strFmt("notes", "details or caveats", ShowFormatMarkdown),
 				statusField(commandStatus, "whether the command is pending, ran or dismissed"),
 				refTo("lastRun", KindRun, "most recent run of the command"),
 				refTo("pane", KindPane, "pane that suggested the command"),
@@ -813,12 +830,12 @@ func DefaultSchemas() *Registry {
 			Kind: KindContext, Title: "Context", Plural: "Context", SummaryField: "title",
 			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "display label"},
-				{Name: "value", Type: core.ParamString, Required: true, Description: "URL, PR reference, or file path"},
+				{Name: "value", Type: core.ParamString, Required: true, ShowFormat: ShowFormatText, Description: "URL, PR reference, or file path"},
 				{Name: "contextKind", Type: core.ParamString, Enum: []string{"url", "pr", "file", "doc", "gdoc", "sheet"}, Default: "url", Description: "kind of context item"},
 				{Name: "source", Type: core.ParamString, Enum: []string{"prompt", "response", "screen", "tool", "curated"}, Default: "response", Description: "where the context item came from"},
 				{Name: "official", Type: core.ParamBool, Default: false, Description: "curated official project context automatically included for agents"},
 				{Name: "pinned", Type: core.ParamBool, Default: false, Description: "pinned for quick access on the Project Page"},
-				str("notes", "why this context item matters to agents and humans"),
+				strFmt("notes", "why this context item matters to agents and humans", ShowFormatMarkdown),
 				{Name: "line", Type: core.ParamInt, Description: "optional 1-based line number"},
 				{Name: "col", Type: core.ParamInt, Description: "optional 1-based column number"},
 				str("canonKey", "canonical deduplication key"),

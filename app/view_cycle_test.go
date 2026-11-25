@@ -80,6 +80,7 @@ func TestViewCycleWorkAndShow(t *testing.T) {
 	}
 
 	// 3. Work Show page: ) toggles full <-> compact (hiding metadata & empty relations).
+	d.Send(resize(120, 40))
 	d.Keys("E")
 	if _, showing := a.Showing(); !showing {
 		t.Fatal("E did not open Show page")

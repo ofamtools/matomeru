@@ -66,6 +66,14 @@ type SiteOptions struct {
 	// ShowLaneBar puts the ambient lane progress bar (LaneBar) as one line
 	// above the site when the pane works in an active lane tree.
 	ShowLaneBar bool
+	// CompactTopArea renders the lane progress bar as a prominent, concise
+	// ui.KindProgress bar instead of the legacy verbose text strip.
+	CompactTopArea bool
+	// LaneSuffix appends an optional compact status badge (e.g. "● running")
+	// to the compact lane progress bar suffix so the top area stays 1 line.
+	LaneSuffix string
+	// LaneSuffixTone sets the optional theme tone for the compact lane suffix.
+	LaneSuffixTone string
 	// LaneInTOC renders the pane's active lane as a compact 1-line row inside
 	// the pane's Pages table of contents.
 	LaneInTOC bool
@@ -383,7 +391,14 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 		site.Facts["lane"] = laneID
 	}
 	if opts.ShowLaneBar {
-		if bar, ok := LaneBar(opts.Store, pane, opts.LaneHint, opts.Width); ok {
+		var bar ui.ViewNode
+		var ok bool
+		if opts.CompactTopArea {
+			bar, ok = LaneBarCompact(opts.Store, pane, opts.LaneSuffix, opts.LaneSuffixTone)
+		} else {
+			bar, ok = LaneBar(opts.Store, pane, opts.LaneHint, opts.Width)
+		}
+		if ok {
 			site.Facts["lane"] = bar.Facts["lane"]
 			site.Children = append([]ui.ViewNode{bar}, site.Children...)
 		}

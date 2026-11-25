@@ -274,8 +274,8 @@ func TestMinimalHookBarLaneInTOCAndCompactScalableTOC(t *testing.T) {
 	d.Send(resize(120, 36))
 
 	frame := d.Frame()
-	if !strings.Contains(frame, "Hook: PreToolUse") {
-		t.Fatalf("expected minimal hook indicator 'Hook: PreToolUse':\n%s", frame)
+	if !strings.Contains(frame, "● PreToolUse") {
+		t.Fatalf("expected compact minimal hook indicator '● PreToolUse':\n%s", frame)
 	}
 	if strings.Contains(frame, "SECRET_PROMPT_DUMP_SHOULD_NOT_APPEAR") || strings.Contains(frame, "tool: Bash") {
 		t.Fatalf("minimal hook indicator leaked verbose summary/tool dump:\n%s", frame)

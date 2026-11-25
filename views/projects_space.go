@@ -106,16 +106,27 @@ func ProjectsSpaceView(spec ProjectsSpaceSpec) ui.ViewNode {
 	}
 }
 
-// ChildPaneBannerView renders a compact 1-line non-focusable banner above an
-// embedded child pane site inside an open Project Tab.
+// ChildPaneBannerView renders a 1-line non-focusable banner above an
+// embedded child pane site inside an open Project Tab with the legacy hint text.
 func ChildPaneBannerView(paneTitle, backHint string) ui.ViewNode {
+	return ChildPaneBannerViewWith(paneTitle, backHint, false)
+}
+
+// ChildPaneBannerViewWith renders a 1-line non-focusable banner above an
+// embedded child pane site inside an open Project Tab. When compact is true,
+// verbose key-hint boilerplate is omitted in favor of concise "← Panes · <title>".
+func ChildPaneBannerViewWith(paneTitle, backHint string, compact bool) ui.ViewNode {
 	title := strings.TrimSpace(paneTitle)
 	if title == "" {
 		title = "Pane"
 	}
-	hint := strings.TrimSpace(backHint)
-	if hint == "" {
-		hint = "esc/h back to project"
+	line := "← Panes · " + title
+	if !compact {
+		hint := strings.TrimSpace(backHint)
+		if hint == "" {
+			hint = "esc/h back to project"
+		}
+		line += " · " + hint
 	}
 	return ui.ViewNode{
 		ID:        "project.child_pane.banner",
@@ -123,7 +134,7 @@ func ChildPaneBannerView(paneTitle, backHint string) ui.ViewNode {
 		Tone:      "accent",
 		Focusable: false,
 		Box:       layout.Constraints{FixedH: 1},
-		Props:     map[string]any{"text": "← Panes · " + title + " · " + hint},
-		Facts:     map[string]any{"inChildPaneView": true},
+		Props:     map[string]any{"text": line},
+		Facts:     map[string]any{"inChildPaneView": true, "compact": compact},
 	}
 }

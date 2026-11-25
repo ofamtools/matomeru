@@ -522,6 +522,15 @@ func hookEventLabel(state string, pt *daemon.PaneTelemetry) string {
 	return "active"
 }
 
+func (a *App) compactHookBadge(pane data.Record) (string, string, bool) {
+	state, pt, pending := a.effectiveHookState(pane.ID)
+	if state == "" && pt == nil && len(pending) == 0 {
+		return "", "", false
+	}
+	_, _, tone, _ := views.StatusIndicator(a.schema(data.KindPane), "runStatus", state)
+	return "● " + hookEventLabel(state, pt), tone, true
+}
+
 func (a *App) paneHeaderStrip(pane data.Record) (ui.ViewNode, bool) {
 	state, pt, pending := a.effectiveHookState(pane.ID)
 	if state == "" && pt == nil && len(pending) == 0 {
@@ -530,6 +539,9 @@ func (a *App) paneHeaderStrip(pane data.Record) (ui.ViewNode, bool) {
 	_, _, tone, _ := views.StatusIndicator(a.schema(data.KindPane), "runStatus", state)
 	verbose := a.cfg != nil && a.cfg.Settings != nil && a.cfg.Settings.Bool(SetVerboseHookBar, false)
 	if !verbose {
+		if a.panesCompactTopAreaEnabled() {
+			return line("site.telemetry", " ● "+hookEventLabel(state, pt), tone), true
+		}
 		return line("site.telemetry", " ● Hook: "+hookEventLabel(state, pt), tone), true
 	}
 	var parts []string
@@ -600,7 +612,7 @@ func (a *App) paneResolveApproval(decision string) func(core.State, core.Command
 			paneID := ""
 			if ref, ok := a.subject(s, c); ok && ref.Kind == data.KindPane {
 				paneID = ref.ID
-			} else if pane, ok := a.SelectedPane(); ok {
+			} else if pane, ok := a.activePane(s); ok {
 				paneID = pane.ID
 			}
 			if paneID == "" {

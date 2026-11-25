@@ -1,6 +1,7 @@
 package views
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -146,9 +147,10 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 	return out, nil
 }
 
-// propsPanel is the left side of a Show page: every schema field as a row,
-// then one focusable link card per reference field that points somewhere.
-func propsPanel(store *data.Store, schema data.Schema, rec data.Record, opts ShowOptions) ui.ViewNode {
+// propsPanel is the left side of a Show page: every schema field as a row
+// (omitting fields already rendered in full show.content.* panels), then one
+// focusable link card per reference field that points somewhere.
+func propsPanel(store *data.Store, schema data.Schema, rec data.Record, opts ShowOptions, omitted map[string]bool) ui.ViewNode {
 	merged := rec.MergedFields()
 	names := make([]string, 0, len(schema.Fields))
 	for _, f := range schema.Fields {
@@ -165,6 +167,9 @@ func propsPanel(store *data.Store, schema data.Schema, rec data.Record, opts Sho
 	var rows []any
 	var links []ui.ViewNode
 	for _, name := range append(names, extra...) {
+		if omitted[name] {
+			continue
+		}
 		v, has := merged[name]
 		shown := "—"
 		if target, ok := data.AsRef(v); ok {
@@ -203,8 +208,16 @@ func propsPanel(store *data.Store, schema data.Schema, rec data.Record, opts Sho
 		"columns": []any{map[string]any{"key": "field", "title": "Field", "width": 16}, map[string]any{"key": "value", "title": "Value"}},
 		"rows":    rows,
 	}}, 2+len(rows))
+	scroll := ui.ViewNode{
+		ID:       "show.props.scroll",
+		Kind:     ui.KindScroll,
+		Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: append([]ui.ViewNode{tbl}, links...)}},
+	}
+	if opts.PropsScrollOffset > 0 {
+		scroll.Props = map[string]any{"offset": opts.PropsScrollOffset}
+	}
 	return ui.ViewNode{ID: "show.props", Kind: ui.KindPanel, Title: "Props", Border: true,
-		Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: append([]ui.ViewNode{tbl}, links...)}}}
+		Children: []ui.ViewNode{scroll}}
 }
 
 // ShowView renders the Show page of any record: a header with its title,
@@ -229,6 +242,15 @@ type ShowOptions struct {
 	// ShowContent renders full Markdown body and multi-line/long-text fields
 	// in dedicated readable panels at the top of the right column.
 	ShowContent bool
+	// ResolvedFiles supplies disk contents loaded by the caller for fields
+	// annotated with ContentFile (or keyed by "body").
+	ResolvedFiles map[string]string
+	// RelatedScrollOffset is the manual vertical scroll offset for show.related.
+	// When <= 0, automatic focus-following applies.
+	RelatedScrollOffset int
+	// PropsScrollOffset is the manual vertical scroll offset for show.props.scroll.
+	// When <= 0, automatic focus-following applies.
+	PropsScrollOffset int
 }
 
 // DefaultShowOptions shows everything.
@@ -236,39 +258,185 @@ func DefaultShowOptions() ShowOptions {
 	return ShowOptions{ShowMetadata: true, ShowEmptyRelations: true, ShowContent: true}
 }
 
-var proseContentFields = map[string]bool{
-	"body":        true,
-	"description": true,
-	"content":     true,
-	"summary":     true,
-	"answer":      true,
-	"prompt":      true,
-	"output":      true,
-	"notes":       true,
-	"details":     true,
-}
-
-func isPathLikeField(name string, f *data.FieldSpec) bool {
-	if f != nil && (f.Type == core.ParamPath || f.Type == core.ParamRef || len(f.Enum) > 0) {
-		return true
+func formatListItem(item any) string {
+	m, ok := item.(map[string]any)
+	if !ok {
+		if s := strings.TrimSpace(data.Text(item)); s != "" {
+			return "• " + s
+		}
+		return ""
 	}
-	low := strings.ToLower(name)
-	return low == "path" || low == "filepath" || low == "cwd" || low == "defaultdir" || low == "url" || low == "canonicalurl" || low == "transcriptpath"
+	pick := func(exclude map[string]bool, keys ...string) (string, string) {
+		for _, k := range keys {
+			if exclude[k] {
+				continue
+			}
+			if s := strings.TrimSpace(data.Text(m[k])); s != "" {
+				return k, s
+			}
+		}
+		return "", ""
+	}
+	used := map[string]bool{}
+	pk, primary := pick(used, "label", "title", "name", "id", "text", "value", "path", "url")
+	if pk != "" {
+		used[pk] = true
+	}
+	kk, kind := pick(used, "kind")
+	if kk != "" && kind != primary {
+		used[kk] = true
+	} else {
+		kind = ""
+	}
+	dk, detail := pick(used, "description", "detail", "summary", "notes")
+	if dk != "" && detail != primary {
+		used[dk] = true
+	} else {
+		detail = ""
+	}
+	lk, loc := pick(used, "path", "url", "value")
+	if lk != "" && loc != primary && loc != detail {
+		used[lk] = true
+	} else {
+		loc = ""
+	}
+	var line string
+	switch {
+	case kind != "" && primary != "":
+		line = fmt.Sprintf("[%s] %s", kind, primary)
+	case primary != "":
+		line = primary
+	case kind != "":
+		line = kind
+	}
+	if loc != "" {
+		if line != "" {
+			line += " (" + loc + ")"
+		} else {
+			line = loc
+		}
+	}
+	if detail != "" {
+		if line != "" {
+			line += " — " + detail
+		} else {
+			line = detail
+		}
+	}
+	if line == "" {
+		keys := make([]string, 0, len(m))
+		for k := range m {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			if s := strings.TrimSpace(data.Text(m[k])); s != "" {
+				parts = append(parts, k+": "+s)
+			}
+		}
+		line = strings.Join(parts, ", ")
+	}
+	if line == "" {
+		return ""
+	}
+	return "• " + line
 }
 
-// contentPanels builds readable Markdown panels for a record's prose/body and
-// multi-line or long-text fields so the owner can read the full content on the
-// Show page without opening the edit modal.
-func contentPanels(schema data.Schema, rec data.Record) []ui.ViewNode {
+func formatListContent(v any) string {
+	var items []any
+	switch x := v.(type) {
+	case []any:
+		items = x
+	case []string:
+		items = make([]any, len(x))
+		for i, s := range x {
+			items[i] = s
+		}
+	case []map[string]any:
+		items = make([]any, len(x))
+		for i, m := range x {
+			items[i] = m
+		}
+	case string:
+		trimmed := strings.TrimSpace(x)
+		if trimmed == "" {
+			return ""
+		}
+		if strings.HasPrefix(trimmed, "[") {
+			var parsed []any
+			if err := json.Unmarshal([]byte(trimmed), &parsed); err == nil {
+				items = parsed
+			}
+		}
+		if len(items) == 0 {
+			return "• " + trimmed
+		}
+	default:
+		return ""
+	}
+	var lines []string
+	for _, it := range items {
+		if ln := formatListItem(it); ln != "" {
+			lines = append(lines, ln)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func buildContentPanel(schema data.Schema, name, format, raw string) ui.ViewNode {
+	var child ui.ViewNode
+	switch format {
+	case data.ShowFormatMarkdown:
+		child = ui.ViewNode{
+			ID:    "show.content." + name + ".md",
+			Kind:  ui.KindMarkdown,
+			Props: map[string]any{"markdown": raw, "wrap": true},
+		}
+	case data.ShowFormatCode:
+		child = ui.ViewNode{
+			ID:    "show.content." + name + ".code",
+			Kind:  ui.KindText,
+			Tone:  "md.code",
+			Props: map[string]any{"text": raw, "wrap": true},
+		}
+	case data.ShowFormatList:
+		child = ui.ViewNode{
+			ID:    "show.content." + name + ".list",
+			Kind:  ui.KindText,
+			Props: map[string]any{"text": raw, "wrap": true},
+		}
+	default:
+		child = ui.ViewNode{
+			ID:    "show.content." + name + ".text",
+			Kind:  ui.KindText,
+			Props: map[string]any{"text": raw, "wrap": true},
+		}
+	}
+	return ui.ViewNode{
+		ID:       "show.content." + name,
+		Kind:     ui.KindPanel,
+		Title:    fieldTitle(schema, name),
+		Border:   true,
+		Facts:    map[string]any{"contentField": name, "showFormat": format},
+		Children: []ui.ViewNode{child},
+	}
+}
+
+// contentPanels builds readable full-content panels from declarative schema
+// FieldSpec.ShowFormat / ContentFile metadata, with a generic fallback for
+// undeclared/extension string fields. It also returns the set of field names
+// rendered so Props and show.header do not show abbreviated duplicates.
+func contentPanels(schema data.Schema, rec data.Record, opts ShowOptions) ([]ui.ViewNode, map[string]bool) {
 	merged := rec.MergedFields()
-	if len(merged) == 0 {
-		return nil
+	if len(merged) == 0 && len(opts.ResolvedFiles) == 0 {
+		return nil, nil
 	}
 	recTitle := strings.TrimSpace(Title(schema, rec))
 
 	byName := make(map[string]*data.FieldSpec, len(schema.Fields))
-	order := make([]string, 0, len(merged))
-	seen := make(map[string]bool, len(merged))
+	order := make([]string, 0, len(schema.Fields)+len(merged))
+	seen := make(map[string]bool, len(schema.Fields)+len(merged))
 	for i := range schema.Fields {
 		f := &schema.Fields[i]
 		byName[f.Name] = f
@@ -284,21 +452,66 @@ func contentPanels(schema data.Schema, rec data.Record) []ui.ViewNode {
 	slices.Sort(extras)
 	order = append(order, extras...)
 
+	fallbackFile := strings.TrimSpace(opts.ResolvedFiles["body"])
+	fallbackRaw := opts.ResolvedFiles["body"]
+	if fallbackFile == "" {
+		for _, f := range schema.Fields {
+			if f.ContentFile {
+				if raw := opts.ResolvedFiles[f.Name]; strings.TrimSpace(raw) != "" {
+					fallbackFile = strings.TrimSpace(raw)
+					fallbackRaw = raw
+					break
+				}
+			}
+		}
+	}
+
 	var out []ui.ViewNode
+	rendered := map[string]bool{}
+	usedFile := false
+
 	for _, name := range order {
-		if name == "title" || name == "name" || name == "id" || name == "legacyHash" || name == "legacyId" {
+		if name == "id" || name == "legacyHash" || name == "legacyId" {
+			continue
+		}
+		f := byName[name]
+		if f != nil && f.ContentFile {
 			continue
 		}
 		v, ok := merged[name]
+		format := ""
+		if f != nil {
+			format = f.ShowFormat
+		}
+
+		// File-backed body fallback: prefer non-empty inline body, fall back to resolved file.
+		if name == "body" {
+			inlineStr, _ := v.(string)
+			if strings.TrimSpace(inlineStr) == "" && fallbackFile != "" {
+				out = append(out, buildContentPanel(schema, name, data.ShowFormatMarkdown, fallbackRaw))
+				rendered[name] = true
+				usedFile = true
+				continue
+			}
+		}
 		if !ok || v == nil {
 			continue
 		}
 		if _, isRef := data.AsRef(v); isRef {
 			continue
 		}
-		if isPathLikeField(name, byName[name]) {
+		if f != nil && f.Type == core.ParamRef {
 			continue
 		}
+
+		if format == data.ShowFormatList {
+			if formatted := formatListContent(v); formatted != "" {
+				out = append(out, buildContentPanel(schema, name, data.ShowFormatList, formatted))
+				rendered[name] = true
+			}
+			continue
+		}
+
 		raw, isStr := v.(string)
 		if !isStr {
 			continue
@@ -308,29 +521,67 @@ func contentPanels(schema data.Schema, rec data.Record) []ui.ViewNode {
 			continue
 		}
 		multiline := strings.Contains(trimmed, "\n")
-		longText := len([]rune(trimmed)) > 80
-		isProse := proseContentFields[strings.ToLower(name)]
-		if !multiline && !longText {
-			if !isProse || trimmed == recTitle {
+
+		if format != "" {
+			if name == schema.SummaryField && !multiline && len([]rune(trimmed)) <= 80 && trimmed == recTitle {
 				continue
 			}
+			out = append(out, buildContentPanel(schema, name, format, raw))
+			rendered[name] = true
+			continue
 		}
-		out = append(out, ui.ViewNode{
-			ID:     "show.content." + name,
-			Kind:   ui.KindPanel,
-			Title:  fieldTitle(schema, name),
-			Border: true,
-			Facts:  map[string]any{"contentField": name},
-			Children: []ui.ViewNode{
-				{
-					ID:    "show.content." + name + ".md",
-					Kind:  ui.KindMarkdown,
-					Props: map[string]any{"markdown": raw, "wrap": true},
-				},
-			},
-		})
+
+		// Generic fallback for undeclared/extension string fields (and long plain strings).
+		if name == "title" || name == "name" || name == schema.SummaryField {
+			continue
+		}
+		if f != nil && len(f.Enum) > 0 {
+			continue
+		}
+		longText := len([]rune(trimmed)) > 40
+		if !multiline && !longText {
+			continue
+		}
+		fallbackFormat := data.ShowFormatMarkdown
+		if f != nil && f.Type == core.ParamPath {
+			fallbackFormat = data.ShowFormatText
+		}
+		out = append(out, buildContentPanel(schema, name, fallbackFormat, raw))
+		rendered[name] = true
 	}
-	return out
+
+	// If the schema has a ContentFile field (or caller supplied ResolvedFiles["body"])
+	// and no body panel consumed it yet, render the resolved file content directly.
+	if !usedFile && len(opts.ResolvedFiles) > 0 {
+		for _, f := range schema.Fields {
+			if f.ContentFile {
+				if raw := opts.ResolvedFiles[f.Name]; strings.TrimSpace(raw) != "" && !rendered["body"] {
+					out = append(out, buildContentPanel(schema, f.Name, data.ShowFormatMarkdown, raw))
+					usedFile = true
+					break
+				}
+			}
+		}
+		if !usedFile && !rendered["body"] {
+			if raw := opts.ResolvedFiles["body"]; strings.TrimSpace(raw) != "" {
+				out = append(out, buildContentPanel(schema, "body", data.ShowFormatMarkdown, raw))
+				rendered["body"] = true
+			}
+		}
+	}
+	return out, rendered
+}
+
+func headerSummary(schema data.Schema, rec data.Record, rendered map[string]bool) string {
+	for _, field := range []string{"description", "summary", "body", "command", "filePath", "cwd", "cron", "outcomeStatus"} {
+		if field == schema.SummaryField || rendered[field] {
+			continue
+		}
+		if s := firstLine(rec.Text(field), 120); s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 // ShowViewWith is ShowView with options. A lane's page leads its related
@@ -348,8 +599,11 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 	}
 
 	var panels []ui.ViewNode
+	var renderedFields map[string]bool
 	if opts.ShowContent {
-		panels = append(panels, contentPanels(schema, *rec)...)
+		var contentNodes []ui.ViewNode
+		contentNodes, renderedFields = contentPanels(schema, *rec, opts)
+		panels = append(panels, contentNodes...)
 	}
 	if schema.ShowTimeline {
 		timeline, err := timelinePanel(store, ref)
@@ -402,9 +656,13 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 		panel.Children = []ui.ViewNode{{Kind: ui.KindVStack, Children: body}}
 		panels = append(panels, panel)
 	}
+	related := ui.ViewNode{ID: "show.related", Kind: ui.KindScroll, Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: panels}}}
+	if opts.RelatedScrollOffset > 0 {
+		related.Props = map[string]any{"offset": opts.RelatedScrollOffset}
+	}
 	body := ui.ViewNode{ID: "show.body", Kind: ui.KindSplit, Ratio: 0.42, Gap: 1, Children: []ui.ViewNode{
-		propsPanel(store, schema, *rec, opts),
-		{ID: "show.related", Kind: ui.KindScroll, Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: panels}}},
+		propsPanel(store, schema, *rec, opts, renderedFields),
+		related,
 	}}
 
 	badges := append([]ui.Badge{
@@ -443,7 +701,7 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 	// The header takes focus: with it focused, the subject is the page's own record.
 	header := ui.ViewNode{ID: "show.header", Kind: ui.KindCard, Border: true, Focusable: true, Title: Title(schema, *rec), Badges: badges,
 		Actions: []ui.ActionHint{{Key: "e", Label: "edit", Command: CmdEdit}, star, archive, snooze, open}}
-	if s := summaryOf(schema, *rec); s != "" {
+	if s := headerSummary(schema, *rec, renderedFields); s != "" {
 		header.Props = map[string]any{"summary": s}
 	}
 

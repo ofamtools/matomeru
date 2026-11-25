@@ -458,7 +458,7 @@ func TestWaveD2UnlinkedPaneWarningContextPersistAndAssociateBackfill(t *testing.
 	// Verify active Lanes show in the Project header overview on 1 Panes!
 	d.Keys("1", "g", "g")
 	projFrame := d.Frame()
-	if !strings.Contains(projFrame, "Lanes (") || !strings.Contains(projFrame, "Matomeru v2 Step 2") {
+	if !strings.Contains(projFrame, "ACTIVE LANES (") || !strings.Contains(projFrame, "Matomeru v2 Step 2") {
 		t.Fatalf("Project overview missing active Lanes section:\n%s", projFrame)
 	}
 }

@@ -138,7 +138,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("starts on Panes with the tab bar", a.Space() == SpacePanes && k.has("1 Panes", "2 Work", "3 Runs", "4 Extensions"))
 	k.check("panes: rail, table of contents and the Screen page", k.has("claude: wave 5B", "nvim: core/keymap.go", "Pages", "Screen", "Questions", "Architecture"))
 	k.check("the pane's lane shows compactly inside the TOC, not the top bar by default",
-		k.has("◈ 3/6 Matomeru") && !k.has2("Lane: Matomeru v2 Step 2"))
+		k.has("◈ 3/6 Matomeru") && !k.has2("Matomeru v2 Step 2") && !k.has2("Lane: Matomeru v2 Step 2"))
 	k.keep("Panes")
 	k.Keys("2")
 	if a.workTasksLayout() == WorkTasksLayoutTree {
@@ -463,7 +463,8 @@ func RunSmoke(out io.Writer, dump bool) error {
 		k.Keys("j")
 	}
 	k.Keys("space", "esc", "esc")
-	k.check("panes.laneProgressBar on reveals the opt-in top bar", a.cfg.Settings.Bool(SetLaneBar, false) && k.has("Lane: Matomeru v2 Step 2"))
+	k.check("panes.laneProgressBar on reveals the opt-in top bar",
+		a.cfg.Settings.Bool(SetLaneBar, false) && k.has("Matomeru v2 Step 2", "3/6", "50%") && !k.has2("Lane: Matomeru v2 Step 2"))
 	k.Keys("S")
 	for range 9 {
 		k.Keys("j")

@@ -93,9 +93,24 @@ func (a *App) buildPaneSiteNode(s core.State, pane data.Record, embedded bool) u
 		a.fail("read pages", err)
 	}
 	shownPageID, previewing := a.displayedSitePageIDFor(s, pane.ID, res.Items)
+	compactTop := a.panesCompactTopAreaEnabled()
+	verboseHook := a.cfg != nil && a.cfg.Settings != nil && a.cfg.Settings.Bool(SetVerboseHookBar, false)
+	showLaneBar := a.cfg.Settings.Bool(SetLaneBar, false)
+	hasPendingApproval := len(a.pendingApprovalsFor(pane.ID)) > 0
+	laneSuffix, laneSuffixTone := "", ""
+	foldHookIntoLane := false
+	if compactTop && !verboseHook && showLaneBar && !hasPendingApproval {
+		if badge, tone, ok := a.compactHookBadge(pane); ok {
+			laneSuffix, laneSuffixTone = badge, tone
+			foldHookIntoLane = true
+		}
+	}
 	opts := views.SiteOptions{
 		Store:            a.Store,
-		ShowLaneBar:      a.cfg.Settings.Bool(SetLaneBar, false),
+		ShowLaneBar:      showLaneBar,
+		CompactTopArea:   compactTop,
+		LaneSuffix:       laneSuffix,
+		LaneSuffixTone:   laneSuffixTone,
 		LaneInTOC:        a.cfg.Settings.Bool(SetLaneInTOC, true),
 		CompactTOC:       a.cfg.Settings.Bool(SetCompactTOC, true),
 		TOCGrouped:       a.cfg.Settings.Bool(SetTOCGrouped, true),
@@ -118,8 +133,11 @@ func (a *App) buildPaneSiteNode(s core.State, pane data.Record, embedded bool) u
 		}
 	}
 	var extraTop []ui.ViewNode
-	if strip, ok := a.paneHeaderStrip(pane); ok {
-		extraTop = append(extraTop, strip)
+	hookFolded := foldHookIntoLane && site.Find(views.LaneBarID) != nil
+	if !hookFolded {
+		if strip, ok := a.paneHeaderStrip(pane); ok {
+			extraTop = append(extraTop, strip)
+		}
 	}
 	if banner, ok := a.paneApprovalBanner(pane); ok {
 		extraTop = append(extraTop, banner)
@@ -170,7 +188,7 @@ func (a *App) buildPaneSiteNode(s core.State, pane data.Record, embedded bool) u
 	site.Facts["inChildPaneView"] = true
 	site.Box.Flex = 1
 	paneTitle := views.Title(a.schema(data.KindPane), pane)
-	banner := views.ChildPaneBannerView(paneTitle, childPaneBackHint)
+	banner := views.ChildPaneBannerViewWith(paneTitle, childPaneBackHint, compactTop)
 	return ui.ViewNode{
 		ID:       "project.child_pane.view",
 		Kind:     ui.KindVStack,
@@ -234,7 +252,11 @@ func (a *App) openProjectChildPaneInPlace(s core.State, projKey, paneID, returnF
 	if enterLive {
 		return a.enterScreen(s, *pane)
 	}
-	a.say("%s · %s", views.Title(a.schema(data.KindPane), *pane), childPaneBackHint)
+	if a.panesCompactTopAreaEnabled() {
+		a.say("%s · esc back", views.Title(a.schema(data.KindPane), *pane))
+	} else {
+		a.say("%s · %s", views.Title(a.schema(data.KindPane), *pane), childPaneBackHint)
+	}
 	return s
 }
 

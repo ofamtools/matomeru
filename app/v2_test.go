@@ -77,7 +77,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetEnterOpensShow: false, SetTreeHLFolds: true, SetHintsModifierActions: true,
 		SetProjectsTopNavTab: true, SetProjectsDynamicTabs: true, SetProjectsChildPaneView: true,
 		SetSelfHostedFeaturesEnabled: SelfHostedFeaturesAuto, SetSelfHostedFeaturesRepoPath: "",
-		SetProjectsNavTree: true, SetOutlineGutter: true, SetChromeSystemStats: true, SetProjectsNavSurfaceUnread: true}
+		SetProjectsNavTree: true, SetOutlineGutter: true, SetChromeSystemStats: true, SetProjectsNavSurfaceUnread: true,
+		SetHintsDefaultAction: HintsActionCopy, SetProjectHomeDashboard: true, SetPanesCompactTopArea: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -338,7 +339,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 		}
 		return out
 	}
-	if got := strings.Join(names(), " "); got != "title body task authorKind authorLabel pane readAt attachments starStatus archiveStatus snoozedUntil logKind loggedAt" {
+	if got := strings.Join(names(), " "); got != "title body filePath task authorKind authorLabel pane readAt attachments starStatus archiveStatus snoozedUntil logKind loggedAt" {
 		t.Fatalf("a logged note's form fields = %q", got)
 	}
 	note := *a.activeRecordForm().ref

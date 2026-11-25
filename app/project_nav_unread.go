@@ -39,6 +39,9 @@ func (a *App) projectNavRecordFacts(schema data.Schema, rec data.Record) map[str
 	if a.openable(rec) {
 		facts[factOpenable] = true
 	}
+	if rec.Kind == data.KindPane && rec.ID != "" {
+		facts["hasPendingApproval"] = len(a.pendingApprovalsFor(rec.ID)) > 0
+	}
 	return facts
 }
 
@@ -95,6 +98,14 @@ func (a *App) isNavRecordUnread(kind string, rec data.Record, ws *projectWorkspa
 	case data.KindTask:
 		if ws != nil && ws.unreadNoteTasks != nil && ws.unreadNoteTasks[rec.ID] {
 			return true
+		}
+		return a.isGenericNavRecordUnread(rec)
+	case data.KindContext:
+		if !rec.Bool("official") && !rec.Bool("pinned") {
+			src := strings.ToLower(strings.TrimSpace(rec.Text("source")))
+			if src == "" || src == "screen" || src == "prompt" || src == "response" {
+				return false
+			}
 		}
 		return a.isGenericNavRecordUnread(rec)
 	default:
@@ -178,6 +189,42 @@ func (a *App) populateProjectWorkspaceActivity(ws *projectWorkspaceData) {
 		}
 	}
 
+	countRecs := func(kind string, recs []data.Record) int {
+		n := 0
+		for _, rec := range recs {
+			if a.isNavRecordUnread(kind, rec, ws) {
+				n++
+			}
+		}
+		return n
+	}
+	baseUnread := 0
+	baseUnread += countRecs(data.KindTask, ws.tasks)
+	baseUnread += countRecs(data.KindPage, ws.pages)
+	baseUnread += countRecs(data.KindLane, ws.allLanes)
+	baseUnread += countRecs(data.KindDocument, ws.documents)
+	baseUnread += countRecs(data.KindNote, ws.notes)
+	baseUnread += countRecs(data.KindQuestion, ws.questions)
+	baseUnread += countRecs(data.KindCommand, ws.commands)
+	for _, rec := range ws.contextRecords {
+		if a.isNavRecordUnread(data.KindContext, rec, ws) {
+			baseUnread++
+		}
+	}
+	ws.baseUnreadTotal = baseUnread
+	a.populateProjectLiveTelemetry(ws)
+}
+
+// populateProjectLiveTelemetry refreshes only the in-memory daemon telemetry
+// counts (runningPanes, needsYouPanes, and pane attention contribution to
+// unreadTotal) so telemetrySeq ticks never invalidate SQLite workspace data.
+func (a *App) populateProjectLiveTelemetry(ws *projectWorkspaceData) {
+	if ws == nil {
+		return
+	}
+	ws.runningPanes = 0
+	ws.needsYouPanes = 0
+	unreadPanes := 0
 	for _, p := range ws.panes {
 		hookState, _, pending := a.effectiveHookState(p.ID)
 		effState := hookState
@@ -190,30 +237,11 @@ func (a *App) populateProjectWorkspaceActivity(ws *projectWorkspaceData) {
 		case effState == daemon.StateRunning || effState == "working":
 			ws.runningPanes++
 		}
-	}
-
-	countRecs := func(kind string, recs []data.Record) int {
-		n := 0
-		for _, rec := range recs {
-			if a.isNavRecordUnread(kind, rec, ws) {
-				n++
-			}
-		}
-		return n
-	}
-	ws.unreadTotal += countRecs(data.KindTask, ws.tasks)
-	ws.unreadTotal += countRecs(data.KindPage, ws.pages)
-	ws.unreadTotal += countRecs(data.KindPane, ws.panes)
-	ws.unreadTotal += countRecs(data.KindLane, ws.allLanes)
-	ws.unreadTotal += countRecs(data.KindDocument, ws.documents)
-	ws.unreadTotal += countRecs(data.KindNote, ws.notes)
-	ws.unreadTotal += countRecs(data.KindQuestion, ws.questions)
-	ws.unreadTotal += countRecs(data.KindCommand, ws.commands)
-	for _, rec := range ws.contextRecords {
-		if a.isNavRecordUnread(data.KindContext, rec, ws) {
-			ws.unreadTotal++
+		if a.isNavRecordUnread(data.KindPane, p, ws) {
+			unreadPanes++
 		}
 	}
+	ws.unreadTotal = ws.baseUnreadTotal + unreadPanes
 }
 
 func (a *App) projectTabHasUnread(projectID, title string) bool {
@@ -268,7 +296,7 @@ func isProjectNavAckCommand(cmdID string) bool {
 		CmdProjectTabOpen, CmdProjectTabClose, CmdProjectPageOpen,
 		CmdHelpOpen, CmdSettingsOpen, CmdBindingsOpen, CmdAppAbout,
 		CmdMacroRecord, CmdMacroStop, CmdViewCycle, CmdArchivedToggle, CmdPanesGroupToggle,
-		CmdFocusHints, CmdHintsKey, CmdHintsCancel, CmdPaneHints,
+		CmdFocusHints, CmdHintsKey, CmdHintsCancel, CmdPaneHints, CmdHintsActionCycle, CmdHintsActionSet,
 		CmdSessionNoteCapture, CmdSessionNoteList, CmdSessionRecordStatus, CmdSessionRecordToggle,
 		CmdScratchToggle, CmdPaletteOpen, CmdShellOpen, CmdRecentsPick, CmdPagesPick, CmdNounsPick,
 		CmdFDSearch, CmdPaneSearch,
@@ -295,6 +323,7 @@ func (a *App) invalidateProjectUnreadCaches(projKey string) {
 	if a.trees != nil {
 		a.trees.threadsCache = nil
 	}
+	a.clearProjectSectionCache()
 	a.viewMemo.tabsKey = ""
 	a.viewMemo.gen++
 }

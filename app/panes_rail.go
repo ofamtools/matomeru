@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
@@ -149,6 +150,96 @@ func selectGroupHeader(tbl *table.Model, groupName string) bool {
 	return false
 }
 
+// resolvePaneProjectFromTasks walks a pane's task -> parent chain in memory
+// using a preloaded task map, avoiding per-pane Store.Get round-trips.
+func resolvePaneProjectFromTasks(pane data.Record, taskSchema data.Schema, taskByID map[string]data.Record) (string, *core.Ref) {
+	taskRef, ok := pane.RefField("task")
+	if !ok || taskRef.Kind != data.KindTask || taskRef.ID == "" {
+		return unassignedProjectLabel, nil
+	}
+	cur, ok := taskByID[taskRef.ID]
+	if !ok {
+		return unassignedProjectLabel, nil
+	}
+	seen := map[string]bool{cur.ID: true}
+	for range 32 {
+		parentRef, hasParent := cur.RefField("parent")
+		if !hasParent || parentRef.Kind != data.KindTask || parentRef.ID == "" || seen[parentRef.ID] {
+			break
+		}
+		parent, exists := taskByID[parentRef.ID]
+		if !exists {
+			break
+		}
+		seen[parent.ID] = true
+		cur = parent
+	}
+	ref := cur.Ref()
+	title := views.Title(taskSchema, cur)
+	if strings.TrimSpace(title) == "" {
+		title = cur.ID
+	}
+	return title, &ref
+}
+
+func rawNodeHasUnansweredQuestion(v any) bool {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	if kind, _ := m["kind"].(string); kind == ui.KindCard {
+		if scope, _ := m["scope"].(string); scope == mcpui.ScopeQuestion {
+			answered := false
+			if facts, ok := m["facts"].(map[string]any); ok {
+				answered, _ = facts["answered"].(bool)
+			}
+			if !answered {
+				return true
+			}
+		}
+	}
+	if children, ok := m["children"].([]any); ok {
+		for _, child := range children {
+			if rawNodeHasUnansweredQuestion(child) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func viewNodeHasUnansweredQuestion(n *ui.ViewNode) bool {
+	if n == nil {
+		return false
+	}
+	if n.Kind == ui.KindCard && n.Scope == mcpui.ScopeQuestion {
+		if answered, _ := n.Facts["answered"].(bool); !answered {
+			return true
+		}
+	}
+	for i := range n.Children {
+		if viewNodeHasUnansweredQuestion(&n.Children[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+func pageHasUnansweredQuestion(page data.Record) bool {
+	v, ok := page.Value("root")
+	if !ok || v == nil {
+		return false
+	}
+	if _, isMap := v.(map[string]any); isMap {
+		return rawNodeHasUnansweredQuestion(v)
+	}
+	root, err := mcpui.PageRoot(page)
+	if err != nil {
+		return false
+	}
+	return viewNodeHasUnansweredQuestion(&root)
+}
+
 // buildRail builds the pane rail: panes strictly ordered by the owner's last
 // prompt (promptedAt descending). Agent output, hook telemetry, and needs_you
 // NEVER reorder panes; instead status is shown via row indicator symbols and
@@ -169,6 +260,7 @@ func (a *App) buildRail() *table.Model {
 	})
 
 	paneSchema := a.schema(data.KindPane)
+	taskSchema := a.schema(data.KindTask)
 	styleOpts := a.styleOptions()
 	fresh := views.TableFromRecordsWith(paneSchema, panes, styleOpts)
 	showStateCol := a.cfg != nil && a.cfg.Settings != nil && a.cfg.Settings.Bool(SetRailStateColumn, false)
@@ -183,13 +275,37 @@ func (a *App) buildRail() *table.Model {
 		}
 	}
 
+	// Preload tasks and active pages once so the pane loop does zero per-pane
+	// Store.Get / Router.ListPages round-trips.
+	taskByID := map[string]data.Record{}
+	paneAttention := map[string]bool{}
+	if a.Store != nil {
+		if tres, terr := a.Store.Query(data.Query{Kind: data.KindTask, IncludeArchived: true}); terr == nil {
+			taskByID = make(map[string]data.Record, len(tres.Items))
+			for _, t := range tres.Items {
+				taskByID[t.ID] = t
+			}
+		}
+		if pres, perr := a.Store.Query(data.Query{Kind: data.KindPage, IncludeArchived: false}); perr == nil {
+			for _, p := range pres.Items {
+				paneRef, ok := p.RefField("pane")
+				if !ok || paneRef.Kind != data.KindPane || paneRef.ID == "" || paneAttention[paneRef.ID] {
+					continue
+				}
+				if p.IsUnread() || pageHasUnansweredQuestion(p) {
+					paneAttention[paneRef.ID] = true
+				}
+			}
+		}
+	}
+
 	projRefs := map[string]core.Ref{}
 	groupPanes := map[string][]data.Record{}
 	for i := range fresh.Rows {
 		row := &fresh.Rows[i]
 		pane := panes[i]
 		row.Facts["onPane"] = true
-		projTitle, projRef := a.resolvePaneProject(pane)
+		projTitle, projRef := resolvePaneProjectFromTasks(pane, taskSchema, taskByID)
 		row.Cells["project"] = projTitle
 		groupPanes[projTitle] = append(groupPanes[projTitle], pane)
 		if projRef != nil {
@@ -199,7 +315,7 @@ func (a *App) buildRail() *table.Model {
 		}
 
 		title := views.Title(paneSchema, pane)
-		if a.attention(row.Ref.ID) {
+		if a.paneHasAttention(row.Ref.ID) || paneAttention[row.Ref.ID] {
 			row.Unread = true
 			row.Cells["rail"] = "● " + title
 		} else if showStateCol {

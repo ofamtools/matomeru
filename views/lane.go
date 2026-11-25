@@ -3,6 +3,7 @@ package views
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -53,6 +54,28 @@ type LaneRollup struct {
 
 // Total is the number of lanes counted.
 func (r LaneRollup) Total() int { return r.Done + r.Active + r.Planned }
+
+// Percent is the rounded completion percentage (0-100).
+func (r LaneRollup) Percent() int {
+	total := r.Total()
+	if total <= 0 {
+		return 0
+	}
+	return int(math.Round(float64(r.Done) * 100 / float64(total)))
+}
+
+// CompactSuffix returns an ultra-concise badge for the compact progress bar
+// (e.g. "▶1", "+1", or "▶1 +1"), or "" when nothing extra needs calling out.
+func (r LaneRollup) CompactSuffix() string {
+	var parts []string
+	if r.Active > 0 {
+		parts = append(parts, fmt.Sprintf("▶%d", r.Active))
+	}
+	if r.OtherTrees > 0 {
+		parts = append(parts, fmt.Sprintf("+%d", r.OtherTrees))
+	}
+	return strings.Join(parts, " ")
+}
 
 // IsActive reports whether any counted lane is still open.
 func (r LaneRollup) IsActive() bool { return r.Active+r.Planned > 0 }
@@ -229,7 +252,60 @@ func LaneBar(store *data.Store, pane data.Record, hint string, width int) (ui.Vi
 	ref := roll.Root.Ref()
 	return ui.ViewNode{ID: LaneBarID, Kind: ui.KindText, Tone: "accent", Ref: &ref, Box: layout.Constraints{FixedH: 1},
 		Props: map[string]any{"text": line},
-		Facts: map[string]any{"lane": ref.ID, "done": roll.Done, "running": roll.Active, "planned": roll.Planned, "trees": roll.OtherTrees + 1}}, true
+		Facts: map[string]any{"lane": ref.ID, "done": roll.Done, "running": roll.Active, "planned": roll.Planned, "trees": roll.OtherTrees + 1, "percent": roll.Percent()}}, true
+}
+
+// LaneBarCompact renders the pane's active lane tree as a prominent, concise
+// ui.KindProgress node using ochazuke's progress theme tokens. Optional
+// extraSuffix and suffixTone fold a tiny companion status badge (such as
+// compact hook telemetry) onto the same single line.
+func LaneBarCompact(store *data.Store, pane data.Record, extraSuffix, suffixTone string) (ui.ViewNode, bool) {
+	if store == nil {
+		return ui.ViewNode{}, false
+	}
+	roll, ok, err := ActiveLane(store, pane)
+	if err != nil || !ok {
+		return ui.ViewNode{}, false
+	}
+	title := Title(data.Schema{SummaryField: "title"}, roll.Root)
+	suffix := roll.CompactSuffix()
+	if extra := strings.TrimSpace(extraSuffix); extra != "" {
+		if suffix != "" {
+			suffix += " · " + extra
+		} else {
+			suffix = extra
+		}
+	}
+	props := map[string]any{
+		"label":        title,
+		"done":         roll.Done,
+		"active":       roll.Active,
+		"total":        roll.Total(),
+		"showFraction": true,
+		"showPercent":  true,
+	}
+	if suffix != "" {
+		props["suffix"] = suffix
+	}
+	if tone := strings.TrimSpace(suffixTone); tone != "" {
+		props["suffixTone"] = tone
+	}
+	ref := roll.Root.Ref()
+	return ui.ViewNode{
+		ID:    LaneBarID,
+		Kind:  ui.KindProgress,
+		Ref:   &ref,
+		Box:   layout.Constraints{FixedH: 1},
+		Props: props,
+		Facts: map[string]any{
+			"lane":    ref.ID,
+			"done":    roll.Done,
+			"running": roll.Active,
+			"planned": roll.Planned,
+			"trees":   roll.OtherTrees + 1,
+			"percent": roll.Percent(),
+		},
+	}, true
 }
 
 // LaneTOCEntry renders the pane's active lane as a compact 1-line row inside

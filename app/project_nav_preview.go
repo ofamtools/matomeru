@@ -172,7 +172,7 @@ func (a *App) buildProjectNavItemBody(s core.State, ws projectWorkspaceData, tar
 
 	// 4. Persisted record (tasks, lanes, questions, commands, persisted context, fallback doc/note)
 	if target.Ref != nil && target.Ref.ID != "" && target.Ref.Kind != "" && target.Ref.Kind != "directory" {
-		if node, err := views.ShowViewWith(a.Store, *target.Ref, s.ActiveFrame().FocusID, a.showOptions()); err == nil {
+		if node, err := views.ShowViewWith(a.Store, *target.Ref, s.ActiveFrame().FocusID, a.showOptionsFor(*target.Ref)); err == nil {
 			if node.Facts == nil {
 				node.Facts = map[string]any{}
 			}
@@ -216,7 +216,7 @@ func (a *App) recordMarkdownBody(rec data.Record) (string, bool) {
 		if !strings.HasSuffix(low, ".md") && !strings.HasSuffix(low, ".markdown") {
 			continue
 		}
-		if text, err := a.readFile(expandHome(fp)); err == nil && strings.TrimSpace(text) != "" {
+		if text, err := a.readFileCached(expandHome(fp)); err == nil && strings.TrimSpace(text) != "" {
 			return text, true
 		}
 	}
@@ -283,13 +283,13 @@ func (a *App) buildProjectContextDetailCard(it CollectedContextItem, section str
 	var rows []ui.ViewNode
 	rows = append(rows,
 		line("project.ctx.detail.kind", fmt.Sprintf(" Kind: %s · Source: %s", it.Kind, it.Source), "muted"),
-		line("project.ctx.detail.val", " "+it.Value, ""),
+		ui.ViewNode{ID: "project.ctx.detail.val", Kind: ui.KindText, Props: map[string]any{"text": " " + it.Value, "wrap": true}},
 	)
 	if it.PaneTitle != "" {
 		rows = append(rows, line("project.ctx.detail.pane", " Pane: "+it.PaneTitle, "muted"))
 	}
 	if strings.TrimSpace(it.Notes) != "" {
-		rows = append(rows, line("project.ctx.detail.notes", " Notes: "+it.Notes, ""))
+		rows = append(rows, ui.ViewNode{ID: "project.ctx.detail.notes", Kind: ui.KindText, Props: map[string]any{"text": " Notes: " + it.Notes, "wrap": true}})
 	}
 	badges := []ui.Badge{{Text: it.Kind, Tone: "info"}}
 	if it.Official {

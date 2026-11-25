@@ -109,6 +109,18 @@ func TestChildPaneBannerView(t *testing.T) {
 	if got, _ := fallback.Props["text"].(string); got != "← Panes · Pane · esc/h back to project" {
 		t.Fatalf("fallback banner text = %q", got)
 	}
+
+	compact := ChildPaneBannerViewWith("claude: matomeru", "enter live · ctrl+a d detach · esc/h back to project", true)
+	if got, _ := compact.Props["text"].(string); got != "← Panes · claude: matomeru" {
+		t.Fatalf("compact banner text = %q, want %q", got, "← Panes · claude: matomeru")
+	}
+	if compact.Facts["inChildPaneView"] != true || compact.Facts["compact"] != true {
+		t.Fatalf("compact banner facts = %+v", compact.Facts)
+	}
+	compactFallback := ChildPaneBannerViewWith(" ", "", true)
+	if got, _ := compactFallback.Props["text"].(string); got != "← Panes · Pane" {
+		t.Fatalf("compact fallback banner text = %q, want %q", got, "← Panes · Pane")
+	}
 }
 
 func TestProjectWorkspaceViewNavTitleAndHideHeader(t *testing.T) {

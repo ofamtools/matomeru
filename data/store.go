@@ -158,6 +158,10 @@ func Open(dsn string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := ensureQueryIndexes(db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -422,14 +426,15 @@ func findRelation(q querier, from core.Ref, kind string, to core.Ref) (*Relation
 // txn is one write: every verb expresses itself as FieldChanges and applies
 // them here, so the change set is exactly what happened and can be inverted.
 type txn struct {
-	s         *Store
-	tx        *sql.Tx
-	num       int64
-	now       time.Time
-	check     bool // undo and redo: a change's Old is what we expect to find
-	changes   []FieldChange
-	conflicts []Conflict
-	touched   map[core.Ref]bool // true when the record's content changed
+	s              *Store
+	tx             *sql.Tx
+	num            int64
+	now            time.Time
+	check          bool // undo and redo: a change's Old is what we expect to find
+	changes        []FieldChange
+	conflicts      []Conflict
+	touched        map[core.Ref]bool // true when the record's content changed
+	explicitReadAt map[core.Ref]bool // true when caller explicitly wrote readAt
 }
 
 func (t *txn) touch(ref core.Ref, content bool) { t.touched[ref] = t.touched[ref] || content }
@@ -545,6 +550,7 @@ func (t *txn) applyValue(ch FieldChange) error {
 	if err != nil {
 		return err
 	}
+	t.noteFieldWrite(ch)
 	var cur any
 	var had bool
 	switch ch.Op {
@@ -631,7 +637,7 @@ func (t *txn) applyValue(ch FieldChange) error {
 		return err
 	}
 	t.changes = append(t.changes, ch)
-	t.touch(ch.Ref, ch.Op == OpField)
+	t.touch(ch.Ref, ch.Op == OpField && !isBookkeepingField(ch.Field))
 	return nil
 }
 
@@ -722,14 +728,8 @@ func (s *Store) write(actor core.Actor, action, summary string, undoOf int64, ch
 	if len(t.changes) == 0 && len(t.conflicts) == 0 {
 		return nil, nil
 	}
-	for ref, content := range t.touched {
-		query, args := "UPDATE records SET change_set = ? WHERE kind = ? AND id = ?", []any{t.num, ref.Kind, ref.ID}
-		if content {
-			query, args = "UPDATE records SET change_set = ?, updated_at = ? WHERE kind = ? AND id = ?", []any{t.num, now.UnixNano(), ref.Kind, ref.ID}
-		}
-		if _, err := tx.Exec(query, args...); err != nil {
-			return nil, err
-		}
+	if err := t.flushTouched(actor); err != nil {
+		return nil, err
 	}
 	cs := &ChangeSet{Number: t.num, Actor: actor, Action: action, Summary: summary, UndoOf: undoOf,
 		Changes: t.changes, Conflicts: t.conflicts, CreatedAt: now}
@@ -807,6 +807,7 @@ func (s *Store) Create(in CreateInput, actor core.Actor) (*Record, *ChangeSet, e
 				}
 			}
 		}
+		t.prepareCreateReadState(ref, actor, in.Fields, fields)
 		rec := Record{Kind: ref.Kind, ID: ref.ID, Fields: fields, ReadOnly: in.ReadOnly, CreatedAt: t.now}
 		return t.apply(FieldChange{Ref: ref, Op: OpCreate, New: rec})
 	})

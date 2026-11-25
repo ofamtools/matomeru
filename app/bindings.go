@@ -176,6 +176,8 @@ const (
 	CmdPaneHints               = "pane.hints"
 	CmdHintsKey                = "hints.key"
 	CmdHintsCancel             = "hints.cancel"
+	CmdHintsActionCycle        = "hints.action.cycle"
+	CmdHintsActionSet          = "hints.action.set"
 	CmdPaneCompose             = "pane.compose"
 	CmdComposerInsert          = "composer.insert"
 	CmdComposerBackspace       = "composer.backspace"
@@ -750,6 +752,7 @@ func DefaultBindings() []core.Binding {
 
 		// Live terminal hints overlay.
 		{Mode: ModeHints, Class: core.ClassAny, Command: CmdHintsKey, Args: map[string]any{"key": "$key", "text": "$text"}, Hidden: true},
+		bind(ModeHints, all, "tab", CmdHintsActionCycle, "cycle hint action"),
 		bind(ModeHints, all, "esc", CmdHintsCancel, "cancel hints"),
 		bind(ModeHints, all, "ctrl+c", CmdHintsCancel, "cancel hints"),
 
@@ -804,9 +807,13 @@ func DefaultBindings() []core.Binding {
 	out = append(out, paneSearchBindings()...)
 	out = append(out, projectHomeBindings()...)
 	out = append(out, projectTabsBindings()...)
+	out = append(out, projectPanesSectionBindings()...)
 	out = append(out, featuresPageBindings()...)
 	out = append(out, composerContextBindings()...)
 	out = append(out, insertPickerBindings()...)
+	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeCommandLine, ModeOutlineEdit, ModePickerFilter} {
+		out = append(out, with(bind(mode, all, "alt+h", CmdPaneHints, "paste terminal hint"), map[string]any{"action": HintsActionInsert}))
+	}
 	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {
 		out = appendReadlineBindings(out, mode, all)
 	}

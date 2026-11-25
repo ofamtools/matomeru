@@ -23,7 +23,7 @@ func (a *App) paneAssociate(s core.State, c core.Command) core.StepResult {
 		}
 	}
 	if pane == nil {
-		if sel, ok := a.SelectedPane(); ok {
+		if sel, ok := a.activePane(s); ok {
 			pane = sel
 		}
 	}

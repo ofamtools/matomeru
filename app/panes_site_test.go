@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
@@ -127,8 +128,8 @@ func TestActivePaneAndChildPaneSiteLifecycle(t *testing.T) {
 	if banner == nil || banner.Focusable {
 		t.Fatalf("expected non-focusable project.child_pane.banner, got %+v", banner)
 	}
-	if txt, _ := banner.Props["text"].(string); !strings.Contains(txt, "← Panes · claude: alpha") {
-		t.Fatalf("banner text = %q, want prefix with pane title", txt)
+	if txt, _ := banner.Props["text"].(string); txt != "← Panes · claude: alpha" {
+		t.Fatalf("compact banner text = %q, want %q", txt, "← Panes · claude: alpha")
 	}
 	innerSite := embedded.Find("site")
 	if innerSite == nil || innerSite.Facts["inChildPaneView"] != true {
@@ -247,5 +248,144 @@ func TestProjectOutlineHelpersInProjectTab(t *testing.T) {
 	workState.ActivePage = SpaceWork
 	if a.inProjectOutlineTree(&workState) {
 		t.Fatal("inProjectOutlineTree should be false in SpaceWork")
+	}
+}
+
+func TestPanesSiteCompactTopAreaAndOptOut(t *testing.T) {
+	store, err := data.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	seed := core.Actor{Kind: "system", ID: "seed"}
+	now := time.Date(2026, 11, 25, 15, 0, 0, 0, time.UTC)
+
+	proj, _, err := store.Create(data.CreateInput{
+		Kind:   data.KindTask,
+		ID:     "proj-top",
+		Fields: map[string]any{"title": "Top Area Project", "workStatus": "active"},
+	}, seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pane, _, err := store.Create(data.CreateInput{
+		Kind:   data.KindPane,
+		ID:     "pane-top",
+		Fields: map[string]any{"title": "claude: top", "harness": "claude", "runStatus": "running", "task": proj.Ref()},
+	}, seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootLane, _, err := store.Create(data.CreateInput{
+		Kind:   data.KindLane,
+		ID:     "lane-root",
+		Fields: map[string]any{"title": "Wave 3", "laneStatus": "running", "task": proj.Ref()},
+	}, seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ id, title, status string }{
+		{"lane-c1", "core", "done"},
+		{"lane-c2", "worker", "running"},
+	} {
+		child, _, cerr := store.Create(data.CreateInput{
+			Kind:   data.KindLane,
+			ID:     c.id,
+			Fields: map[string]any{"title": c.title, "laneStatus": c.status, "parentLane": rootLane.Ref()},
+		}, seed)
+		if cerr != nil {
+			t.Fatal(cerr)
+		}
+		if c.status == "running" {
+			if _, _, rerr := store.Relate(data.RelateInput{From: child.Ref(), Kind: data.RelClaim, To: pane.Ref()}, seed); rerr != nil {
+				t.Fatal(rerr)
+			}
+		}
+	}
+
+	a, err := New(store, Options{Now: func() time.Time { return now }, FS: smokeFS()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { a.Close() })
+
+	// Enable lane progress bar and seed live hook telemetry (no blocking approval).
+	a.cfg.userSettings[SetLaneBar] = true
+	a.reloadSettings()
+	a.setTelemetry(&daemon.TelemetryResult{
+		Telemetry: map[string]*daemon.PaneTelemetry{
+			pane.ID: {PaneID: pane.ID, State: daemon.StateRunning, LastKind: daemon.HookKindActivity, Tool: "Bash"},
+		},
+	}, true)
+
+	s := withPage(a.State(), ProjectTabPrefix+proj.ID, siteScreen, ModeNormal)
+	s.ActivePage = ProjectTabPrefix + proj.ID
+
+	// Default panes.compactTopArea=true:
+	// - child-pane banner is concise ("← Panes · claude: top", no verbose key-hint boilerplate)
+	// - lane bar is ui.KindProgress with hook status folded into its suffix (1 clean line, no separate site.telemetry)
+	embedded := a.buildPaneSiteNode(s, *pane, true)
+	banner := embedded.Find("project.child_pane.banner")
+	if banner == nil {
+		t.Fatal("missing project.child_pane.banner")
+	}
+	if got, _ := banner.Props["text"].(string); got != "← Panes · claude: top" {
+		t.Fatalf("compact child banner = %q, want %q", got, "← Panes · claude: top")
+	}
+	bar := embedded.Find(views.LaneBarID)
+	if bar == nil || bar.Kind != ui.KindProgress {
+		t.Fatalf("compact lane bar = %+v, want KindProgress", bar)
+	}
+	if got, _ := bar.Props["label"].(string); got != "Wave 3" {
+		t.Fatalf("compact lane label = %q, want %q", got, "Wave 3")
+	}
+	if got, _ := bar.Props["suffix"].(string); got != "▶1 · ● activity (running)" {
+		t.Fatalf("folded lane suffix = %q, want %q", got, "▶1 · ● activity (running)")
+	}
+	if embedded.Find("site.telemetry") != nil {
+		t.Fatal("expected hook telemetry to fold into compact lane bar instead of stacking a second top line")
+	}
+
+	// When a blocking approval is pending, site.approval stays intact and high priority.
+	a.setTelemetry(&daemon.TelemetryResult{
+		Telemetry: map[string]*daemon.PaneTelemetry{
+			pane.ID: {PaneID: pane.ID, State: daemon.StateNeedsYou, LastKind: daemon.HookKindApproval, Tool: "Bash"},
+		},
+		PendingApprovals: []*daemon.PendingApproval{
+			{RequestID: "req-1", PaneID: pane.ID, Tool: "Bash", Summary: "go test ./..."},
+		},
+	}, true)
+	withAppr := a.buildPaneSiteNode(s, *pane, false)
+	if appr := withAppr.Find("site.approval"); appr == nil || appr.Box.FixedH != 4 {
+		t.Fatalf("blocking approval panel missing or altered: %+v", appr)
+	}
+
+	// Opt-out (panes.compactTopArea=false): restores legacy verbose banner, legacy text lane bar, and "Hook: " strip.
+	a.setTelemetry(&daemon.TelemetryResult{
+		Telemetry: map[string]*daemon.PaneTelemetry{
+			pane.ID: {PaneID: pane.ID, State: daemon.StateRunning, LastKind: daemon.HookKindActivity, Tool: "Bash"},
+		},
+	}, true)
+	a.cfg.userSettings[SetPanesCompactTopArea] = false
+	a.reloadSettings()
+
+	legacy := a.buildPaneSiteNode(s, *pane, true)
+	legacyBanner := legacy.Find("project.child_pane.banner")
+	if got, _ := legacyBanner.Props["text"].(string); !strings.Contains(got, childPaneBackHint) {
+		t.Fatalf("opt-out banner = %q, want legacy hint %q", got, childPaneBackHint)
+	}
+	legacyBar := legacy.Find(views.LaneBarID)
+	if legacyBar == nil || legacyBar.Kind != ui.KindText {
+		t.Fatalf("opt-out lane bar = %+v, want legacy KindText", legacyBar)
+	}
+	if got, _ := legacyBar.Props["text"].(string); !strings.Contains(got, "Lane: Wave 3") {
+		t.Fatalf("opt-out lane text = %q, want legacy Lane: prefix", got)
+	}
+	legacyHook := legacy.Find("site.telemetry")
+	if legacyHook == nil {
+		t.Fatal("opt-out should keep separate site.telemetry strip")
+	}
+	if got, _ := legacyHook.Props["text"].(string); !strings.Contains(got, "● Hook: ") {
+		t.Fatalf("opt-out hook strip = %q, want legacy ● Hook: prefix", got)
 	}
 }

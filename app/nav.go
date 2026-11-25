@@ -32,29 +32,32 @@ const maxJumpHistory = 100
 // Work history, global jump history, focus tracking, filtering, command line,
 // registers, and macros.
 type NavController struct {
-	tables       map[string]*table.Model
-	recCacheKeys map[string]string
-	presets      *table.PresetStore
-	activePreset map[string]string
-	showCompact  bool
-	showArchived bool
-	browseKind   string
-	history      []historyEntry
-	histPos      int
-	jumps        []jumpEntry
-	jumpPos      int
-	jumping      bool
-	indexFocus   string
-	lastFocus    map[string]string
-	focusRegion  string
-	tocFilter    string
-	filterTarget string
-	filterLine   input.Line
-	cmdline      *commandline.Model
-	lastFDSearch map[string]any
-	Registers    core.Registers
-	Macros       core.MacroRecorder
-	replaying    int
+	tables         map[string]*table.Model
+	recCacheKeys   map[string]string
+	presets        *table.PresetStore
+	activePreset   map[string]string
+	showCompact    bool
+	showArchived   bool
+	browseKind     string
+	history        []historyEntry
+	histPos        int
+	showScrollRef  core.Ref
+	showRelatedOff int
+	showPropsOff   int
+	jumps          []jumpEntry
+	jumpPos        int
+	jumping        bool
+	indexFocus     string
+	lastFocus      map[string]string
+	focusRegion    string
+	tocFilter      string
+	filterTarget   string
+	filterLine     input.Line
+	cmdline        *commandline.Model
+	lastFDSearch   map[string]any
+	Registers      core.Registers
+	Macros         core.MacroRecorder
+	replaying      int
 }
 
 func newNavController() *NavController {
@@ -318,6 +321,107 @@ func (a *App) stepBounded(s core.State, delta int, allowSpill bool) core.State {
 	return withFocus(s, scoped[to].id)
 }
 
+func (a *App) activeShowRef(s core.State) (core.Ref, bool) {
+	if s.ActivePage == SpaceWork {
+		return a.Showing()
+	}
+	if isProjectTab(s.ActivePage) {
+		focus := s.ActiveFrame().FocusID
+		if focus == showHeader || strings.HasPrefix(focus, "show.") {
+			if projKey := a.activeProjectWorkspaceKey(s); projKey != "" {
+				if locked := a.projectCtrl().activeNavItem(projKey); locked != nil && locked.Ref != nil {
+					return *locked.Ref, true
+				}
+			}
+		}
+	}
+	return core.Ref{}, false
+}
+
+func (a *App) resetShowScroll(ref core.Ref) {
+	if a.nav == nil {
+		return
+	}
+	if a.nav.showScrollRef != ref || a.nav.showRelatedOff != 0 || a.nav.showPropsOff != 0 {
+		a.nav.showScrollRef = ref
+		a.nav.showRelatedOff = 0
+		a.nav.showPropsOff = 0
+		a.viewMemo.gen++
+	}
+}
+
+func (a *App) showScrollMotion(s core.State, c core.Command) (core.StepResult, bool) {
+	ref, ok := a.activeShowRef(s)
+	if !ok {
+		return core.StepResult{}, false
+	}
+	focus := s.ActiveFrame().FocusID
+	inProps := focus == "show.props" || focus == "show.props.scroll" || strings.HasPrefix(focus, "show.field.")
+	scrollID := "show.related"
+	offPtr := &a.nav.showRelatedOff
+	if inProps {
+		scrollID = "show.props.scroll"
+		offPtr = &a.nav.showPropsOff
+	}
+	if a.nav.showScrollRef != ref {
+		a.nav.showScrollRef = ref
+		a.nav.showRelatedOff = 0
+		a.nav.showPropsOff = 0
+	}
+	info, hasInfo := s.Layout.Scrolls[scrollID]
+	explicitScroll := c.ID == "motion.scroll.down" || c.ID == "motion.scroll.up"
+	pageScroll := c.ID == "motion.half.down" || c.ID == "motion.half.up" || c.ID == "motion.page.down" || c.ID == "motion.page.up"
+	if !explicitScroll {
+		if !pageScroll {
+			return core.StepResult{}, false
+		}
+		if (!inProps && focus != showHeader) || !hasInfo || info.MaxOff <= 0 {
+			return core.StepResult{}, false
+		}
+	}
+	viewH := 20
+	maxOff := 10000
+	cur := *offPtr
+	if hasInfo {
+		if info.ViewH > 0 {
+			viewH = info.ViewH
+		}
+		maxOff = info.MaxOff
+		if cur == 0 && info.Offset > 0 {
+			cur = info.Offset
+		}
+		cur = min(cur, maxOff)
+	}
+	times := max(c.Times(), 1)
+	half := max(1, viewH/2)
+	pageStep := max(1, viewH-2)
+	switch c.ID {
+	case "motion.scroll.down":
+		cur += times
+	case "motion.scroll.up":
+		cur -= times
+	case "motion.half.down":
+		cur += half * times
+	case "motion.half.up":
+		cur -= half * times
+	case "motion.page.down":
+		cur += pageStep * times
+	case "motion.page.up":
+		cur -= pageStep * times
+	}
+	if cur < 0 {
+		cur = 0
+	}
+	if hasInfo && cur > maxOff {
+		cur = maxOff
+	}
+	if *offPtr != cur {
+		*offPtr = cur
+		a.viewMemo.gen++
+	}
+	return core.Next(s), true
+}
+
 func (a *App) motion(s core.State, c core.Command) core.StepResult {
 	if a.Modal() != "" {
 		return a.handleModal(s, c)
@@ -355,6 +459,9 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 		}
 		// At the list's edge with nav.edgeFocusSpill=true, spill into the next thing drawn.
 	}
+	if res, handled := a.showScrollMotion(s, c); handled {
+		return res
+	}
 	switch c.ID {
 	case "motion.down":
 		s = a.stepBounded(s, c.Times(), spill)
@@ -382,6 +489,26 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 		s = a.edge(s, false)
 	case "motion.bottom":
 		s = a.edge(s, true)
+	}
+	if nextFocus := s.ActiveFrame().FocusID; nextFocus != focus && a.nav != nil {
+		switch {
+		case nextFocus == showHeader:
+			if a.nav.showRelatedOff != 0 || a.nav.showPropsOff != 0 {
+				a.nav.showRelatedOff = 0
+				a.nav.showPropsOff = 0
+				a.viewMemo.gen++
+			}
+		case strings.HasPrefix(nextFocus, "show.sec.") || nextFocus == "show.related":
+			if a.nav.showRelatedOff != 0 {
+				a.nav.showRelatedOff = 0
+				a.viewMemo.gen++
+			}
+		case strings.HasPrefix(nextFocus, "show.field.") || nextFocus == "show.props":
+			if a.nav.showPropsOff != 0 {
+				a.nav.showPropsOff = 0
+				a.viewMemo.gen++
+			}
+		}
 	}
 	return core.Next(s)
 }
@@ -536,6 +663,7 @@ func (a *App) show(s core.State, ref core.Ref) core.State {
 		a.leave(s)
 		a.nav.history = append(a.nav.history[:a.nav.histPos+1], historyEntry{ref: ref, focus: showHeader})
 		a.nav.histPos = len(a.nav.history) - 1
+		a.resetShowScroll(ref)
 	}
 	s.ActivePage = SpaceWork
 	a.say("%s", a.title(ref))
@@ -624,6 +752,7 @@ func (a *App) jumpTravel(s core.State, delta int) core.State {
 				focus = showHeader
 			}
 			a.nav.history[a.nav.histPos].focus = focus
+			a.resetShowScroll(entry.ref)
 			a.say("%s", a.title(entry.ref))
 			return withPage(s, SpaceWork, focus, ModeNormal)
 		}
@@ -673,8 +802,10 @@ func (a *App) travel(s core.State, delta int) core.State {
 	a.leave(s)
 	a.nav.histPos = to
 	if ref, ok := a.Showing(); ok {
+		a.resetShowScroll(ref)
 		a.say("%s", a.title(ref))
 	} else {
+		a.resetShowScroll(core.Ref{})
 		a.say("%s", strings.ToLower(a.schema(a.workKind()).Plural))
 	}
 	return a.arrive(s)

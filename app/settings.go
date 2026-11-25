@@ -189,6 +189,14 @@ const (
 	SetChromeSystemStats             = "ui.chromeSystemStats"
 	SetSelfHostedFeaturesEnabled     = "selfHosted.featuresPage.enabled"
 	SetSelfHostedFeaturesRepoPath    = "selfHosted.featuresPage.repoPath"
+	SetHintsDefaultAction            = "hints.defaultAction"
+	SetProjectHomeDashboard          = "project.homeDashboard"
+	SetPanesCompactTopArea           = "panes.compactTopArea"
+	HintsActionCopy                  = "copy"
+	HintsActionInsert                = "insert"
+	HintsActionOpen                  = "open"
+	HintsActionReveal                = "reveal"
+	HintsActionPick                  = "pick"
 	SelfHostedFeaturesAuto           = "auto"
 	SelfHostedFeaturesOn             = "on"
 	SelfHostedFeaturesOff            = "off"
@@ -324,6 +332,9 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetChromeSystemStats, true, "show non-blocking CPU, RAM, and disk stats in the bottom chrome bar"),
 		flag(SetShowContent, true, "Show pages render full Markdown body and long-text fields in readable panels"),
 		flag(SetProjectsNavSurfaceUnread, true, "surface unread/new items visibly underneath collapsed Project left-nav sections and parents"),
+		enum(SetHintsDefaultAction, HintsActionCopy, "default action when activating a lowercase hint label (copy, insert, open, reveal, or pick)", HintsActionCopy, HintsActionInsert, HintsActionOpen, HintsActionReveal, HintsActionPick),
+		flag(SetProjectHomeDashboard, true, "show interactive Project Page Home dashboard with decisions, new items, panes, recent prompts, and recent questions"),
+		flag(SetPanesCompactTopArea, true, "render a concise, prominent lane progress bar and trim verbose top-area chrome above live panes"),
 	}
 }
 
@@ -440,6 +451,26 @@ func (a *App) styleOptions() views.StyleOptions {
 		RowSemanticStyling: a.cfg.Settings.Bool(SetRowSemanticStyling, true),
 		StatusIcons:        a.cfg.Settings.Bool(SetStatusIcons, true),
 	}
+}
+
+func (a *App) hintsDefaultAction() string {
+	if a.cfg == nil || a.cfg.Settings == nil {
+		return HintsActionCopy
+	}
+	switch a.cfg.Settings.String(SetHintsDefaultAction, HintsActionCopy) {
+	case HintsActionInsert, HintsActionOpen, HintsActionReveal, HintsActionPick:
+		return a.cfg.Settings.String(SetHintsDefaultAction, HintsActionCopy)
+	default:
+		return HintsActionCopy
+	}
+}
+
+func (a *App) projectHomeDashboardEnabled() bool {
+	return a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectHomeDashboard, true)
+}
+
+func (a *App) panesCompactTopAreaEnabled() bool {
+	return a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetPanesCompactTopArea, true)
 }
 
 func (a *App) hierarchyLayout() string {

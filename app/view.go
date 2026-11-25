@@ -3,8 +3,10 @@ package app
 import (
 	"fmt"
 	"maps"
+	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
@@ -43,16 +45,29 @@ func (a *App) View(s core.State) ui.ViewNode {
 	if key == a.viewMemo.memoKey && key != "" {
 		return a.viewMemo.memo
 	}
+	prevStatus := a.status
+	prevGen := a.viewMemo.gen
 	root := a.build(s)
-	if key == a.viewKey(s) { // building may itself have noted an error
-		a.viewMemo.memoKey, a.viewMemo.memo = key, root
+	if a.status == prevStatus && a.viewMemo.gen == prevGen {
+		// Save under the post-build key so harmless projection sync (such as
+		// renderProjectWorkspace updating pc.activeSection for the new focus)
+		// lets the subsequent render hit the memoized tree instead of rebuilding.
+		a.viewMemo.memoKey, a.viewMemo.memo = a.viewKey(s), root
 	}
 	return root
 }
 
 func (a *App) viewKey(s core.State) string {
+	var rev int64
+	if a.Store != nil {
+		rev, _ = a.Store.LatestChangeSetNumber()
+	}
+	var telSeq uint64
+	if a.rt != nil {
+		telSeq = a.rt.live.telemetrySeq.Load()
+	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%d|%s|%s|", a.viewMemo.gen, s.ActivePage, a.status)
+	fmt.Fprintf(&b, "%d|%d|%d|%s|%s|", a.viewMemo.gen, rev, telSeq, s.ActivePage, a.status)
 	f := s.Pages[s.ActivePage]
 	fmt.Fprintf(&b, "%s|%s|", f.FocusID, f.Mode)
 	for _, m := range s.Modals {
@@ -75,12 +90,13 @@ func (a *App) viewKey(s core.State) string {
 		b.WriteString("|aa:" + ak)
 	}
 	if a.panes.hints != nil && a.panes.hints.session != nil && a.panes.hints.session.Active() {
-		fmt.Fprintf(&b, "|hints:%t:%s:%d:%s:%d",
+		fmt.Fprintf(&b, "|hints:%t:%s:%d:%s:%d:%s",
 			a.panes.hints.focusJump,
 			a.focusHintsStyle(),
 			len(a.panes.hints.focusStack),
 			a.panes.hints.session.Prefix(),
 			len(a.panes.hints.session.Remaining()),
+			a.panes.hints.session.ActiveAction(),
 		)
 	}
 	if a.proj != nil {
@@ -92,6 +108,11 @@ func (a *App) viewKey(s core.State) string {
 		)
 	}
 	if s.ActivePage == SpacePanes || isProjectTab(s.ActivePage) {
+		if s.ActivePage == SpacePanes && a.nav != nil {
+			if r := a.nav.tables[railTable]; r != nil {
+				fmt.Fprintf(&b, "|rail:%d", r.SelectedIdx)
+			}
+		}
 		if pageID := a.activeSitePageID(); pageID != "" {
 			fmt.Fprintf(&b, "|ps:%s:%d", pageID, a.pageScrollOffset(pageID))
 			if ck := a.canvasViewKey(pageID); ck != "" {
@@ -138,6 +159,9 @@ func (a *App) viewKey(s core.State) string {
 	if ss := a.chromeSysStatsKey(); ss != "" {
 		b.WriteString("|sys:" + ss)
 	}
+	if a.nav != nil && (a.nav.showRelatedOff > 0 || a.nav.showPropsOff > 0) {
+		fmt.Fprintf(&b, "|ss:%s:%d:%d", data.RefText(a.nav.showScrollRef), a.nav.showRelatedOff, a.nav.showPropsOff)
+	}
 	return b.String()
 }
 
@@ -173,6 +197,7 @@ func (a *App) tabsMemoKey(s core.State) string {
 }
 
 func (a *App) build(s core.State) ui.ViewNode {
+	a.viewMemo.builds++
 	var tabs ui.ViewNode
 	canReuseTabs := len(s.Modals) > 0 && s.Modals[len(s.Modals)-1].ID != "settings"
 	tKey := a.tabsMemoKey(s)
@@ -339,7 +364,89 @@ func (a *App) activeKeyBindings(s core.State) []activeBinding {
 	return out
 }
 
+type bindingBucketKey struct {
+	scope, mode string
+}
+
+type compiledBinding struct {
+	keys, command, rawCommand, hint, scope, mode string
+	hidden, hasWhen                              bool
+	cond                                         expr.Expr
+}
+
+type compiledBindingsIndex struct {
+	keymap   *core.Keymap
+	firstPtr *core.Binding
+	length   int
+	buckets  map[bindingBucketKey][]compiledBinding
+}
+
+func (a *App) compiledBindings() *compiledBindingsIndex {
+	var firstPtr *core.Binding
+	if len(a.bind.bindings) > 0 {
+		firstPtr = &a.bind.bindings[0]
+	}
+	if idx := a.viewMemo.binds; idx != nil && idx.keymap == a.bind.Keymap && idx.firstPtr == firstPtr && idx.length == len(a.bind.bindings) {
+		return idx
+	}
+	buckets := make(map[bindingBucketKey][]compiledBinding, 64)
+	for _, b := range a.bind.bindings {
+		if b.Unbind || (b.Command == "" && b.Layer == nil) {
+			continue
+		}
+		var cond expr.Expr
+		hasWhen := strings.TrimSpace(b.When) != ""
+		if hasWhen {
+			var err error
+			cond, err = expr.Parse(b.When)
+			if err != nil {
+				continue
+			}
+		}
+		keys := strings.Join(b.Keys, " ")
+		if keys == "" {
+			keys = "‹" + b.Class + "›"
+		}
+		command := b.Command
+		if b.Layer != nil {
+			command = "layer." + b.Layer.Name
+		}
+		// One fixed argument tells two bindings of a command apart: "record.new note".
+		if len(b.Args) == 1 {
+			for k, v := range b.Args {
+				if k == "via" {
+					continue
+				}
+				if str := fmt.Sprint(v); !strings.HasPrefix(str, "$") {
+					command += " " + str
+				}
+			}
+		}
+		bk := bindingBucketKey{scope: b.Scope, mode: b.Mode}
+		buckets[bk] = append(buckets[bk], compiledBinding{
+			keys:       keys,
+			command:    command,
+			rawCommand: b.Command,
+			hint:       b.Hint,
+			scope:      b.Scope,
+			mode:       b.Mode,
+			hidden:     b.Hidden || b.Class != "",
+			hasWhen:    hasWhen,
+			cond:       cond,
+		})
+	}
+	idx := &compiledBindingsIndex{
+		keymap:   a.bind.Keymap,
+		firstPtr: firstPtr,
+		length:   len(a.bind.bindings),
+		buckets:  buckets,
+	}
+	a.viewMemo.binds = idx
+	return idx
+}
+
 func (a *App) bindingsFor(s core.State, chain []core.ContextFrame, modes, exclude []string, prefix string) []activeBinding {
+	idx := a.compiledBindings()
 	// Facts visible at each level: the level's own over those of the levels outside it.
 	facts := make([]map[string]any, len(chain)+1)
 	for i := len(chain) - 1; i >= 0; i-- {
@@ -355,49 +462,42 @@ func (a *App) bindingsFor(s core.State, chain []core.ContextFrame, modes, exclud
 	if n := len(s.Modals); n > 0 {
 		topModalID = s.Modals[n-1].ID
 	}
-	env := func(level int) map[string]any {
-		return map[string]any{"mode": a.Engine.Mode(s), "scope": chain[level].Scope, "facts": facts[level],
-			"modal": map[string]any{"open": len(s.Modals) > 0, "id": topModalID}, "count": nil, "layer": nil}
+	curMode := a.Engine.Mode(s)
+	overlayState := map[string]any{"open": len(s.Modals) > 0, "id": topModalID}
+	envs := make([]map[string]any, len(chain))
+	envFor := func(level int) map[string]any {
+		if level < 0 || level >= len(chain) {
+			return map[string]any{"mode": curMode, "scope": "", "facts": map[string]any{}, "modal": overlayState, "count": nil, "layer": nil}
+		}
+		if envs[level] == nil {
+			envs[level] = map[string]any{"mode": curMode, "scope": chain[level].Scope, "facts": facts[level],
+				"modal": overlayState, "count": nil, "layer": nil}
+		}
+		return envs[level]
 	}
+	modesWithAny := make([]string, len(modes)+1)
+	copy(modesWithAny, modes)
 	var out []activeBinding
 	seen := map[string]bool{}
+	hasExclude := len(exclude) > 0
 	add := func(level int, scope string) {
-		for _, mode := range append(slices.Clone(modes), "") {
-			for _, b := range a.bind.bindings {
-				if b.Scope != scope || b.Mode != mode || b.Unbind || (b.Command == "" && b.Layer == nil) {
+		for _, mode := range modesWithAny {
+			for _, cb := range idx.buckets[bindingBucketKey{scope: scope, mode: mode}] {
+				if hasExclude && cb.rawCommand != "" && a.bind.Keymap.Commands.HasAnyTag(cb.rawCommand, exclude) {
 					continue
 				}
-				if b.Command != "" && a.bind.Keymap.Commands.HasAnyTag(b.Command, exclude) {
+				if cb.hasWhen && !cb.cond.Eval(envFor(level)) {
 					continue
 				}
-				if cond, err := expr.Parse(b.When); err != nil || !cond.Eval(env(level)) {
+				if seen[cb.keys] {
 					continue
 				}
-				keys := strings.Join(b.Keys, " ")
-				if keys == "" {
-					keys = "‹" + b.Class + "›"
+				seen[cb.keys] = true
+				keys := cb.keys
+				if prefix != "" {
+					keys = prefix + keys
 				}
-				if seen[keys] {
-					continue
-				}
-				seen[keys] = true
-				command := b.Command
-				if b.Layer != nil {
-					command = "layer." + b.Layer.Name
-				}
-				// One fixed argument tells two bindings of a command apart: "record.new note".
-				if len(b.Args) == 1 {
-					for k, v := range b.Args {
-						if k == "via" {
-							continue
-						}
-						if str := fmt.Sprint(v); !strings.HasPrefix(str, "$") {
-							command += " " + str
-						}
-					}
-				}
-				out = append(out, activeBinding{keys: prefix + keys, command: command, hint: b.Hint, scope: scope, mode: mode,
-					hidden: b.Hidden || b.Class != ""})
+				out = append(out, activeBinding{keys: keys, command: cb.command, hint: cb.hint, scope: cb.scope, mode: cb.mode, hidden: cb.hidden})
 			}
 		}
 	}
@@ -560,6 +660,98 @@ func (a *App) termLines(pane data.Record, live bool) []string {
 	return append(lines, prompt)
 }
 
+const maxContentFileCacheEntries = 64
+
+type contentFileCacheEntry struct {
+	modTime time.Time
+	size    int64
+	content string
+}
+
+type contentFileCache struct {
+	entries map[string]contentFileCacheEntry
+	order   []string
+}
+
+func (a *App) readContentFileCached(expanded string) (string, error) {
+	info, statErr := os.Stat(expanded)
+	if statErr != nil {
+		if c := a.viewMemo.fileCache; c != nil {
+			if _, existed := c.entries[expanded]; existed {
+				delete(c.entries, expanded)
+				c.order = slices.DeleteFunc(c.order, func(p string) bool { return p == expanded })
+			}
+		}
+		if a.opts.ReadFile != nil {
+			return a.readFile(expanded)
+		}
+		return "", statErr
+	}
+	modTime, size := info.ModTime(), info.Size()
+	if c := a.viewMemo.fileCache; c != nil {
+		if ent, ok := c.entries[expanded]; ok && ent.modTime.Equal(modTime) && ent.size == size {
+			return ent.content, nil
+		}
+	}
+	content, err := a.readFile(expanded)
+	if err != nil {
+		return "", err
+	}
+	if a.viewMemo.fileCache == nil {
+		a.viewMemo.fileCache = &contentFileCache{entries: make(map[string]contentFileCacheEntry, 16)}
+	}
+	c := a.viewMemo.fileCache
+	if _, existed := c.entries[expanded]; !existed {
+		for len(c.entries) >= maxContentFileCacheEntries && len(c.order) > 0 {
+			evict := c.order[0]
+			c.order = c.order[1:]
+			delete(c.entries, evict)
+		}
+		c.order = append(c.order, expanded)
+	}
+	c.entries[expanded] = contentFileCacheEntry{modTime: modTime, size: size, content: content}
+	return content, nil
+}
+
+func (a *App) resolveContentFiles(schema data.Schema, rec data.Record) map[string]string {
+	var resolved map[string]string
+	for _, f := range schema.Fields {
+		if !f.ContentFile {
+			continue
+		}
+		fp := strings.TrimSpace(rec.Text(f.Name))
+		if fp == "" {
+			continue
+		}
+		content, err := a.readContentFileCached(expandHome(fp))
+		if err != nil || strings.TrimSpace(content) == "" {
+			continue
+		}
+		if resolved == nil {
+			resolved = map[string]string{}
+		}
+		resolved[f.Name] = content
+		if strings.TrimSpace(rec.Text("body")) == "" && resolved["body"] == "" {
+			resolved["body"] = content
+		}
+	}
+	return resolved
+}
+
+func (a *App) showOptionsFor(ref core.Ref) views.ShowOptions {
+	opts := a.showOptions()
+	if a.nav != nil && a.nav.showScrollRef == ref {
+		opts.RelatedScrollOffset = a.nav.showRelatedOff
+		opts.PropsScrollOffset = a.nav.showPropsOff
+	}
+	if opts.ShowContent && a.Store != nil {
+		if rec, err := a.Store.Get(ref); err == nil && rec != nil {
+			opts.ResolvedFiles = a.resolveContentFiles(a.schema(ref.Kind), *rec)
+		}
+	}
+	return opts
+}
+
 func (a *App) workSpace(s core.State) ui.ViewNode {
 	ref, showing := a.Showing()
 	kind := a.workKind()
@@ -580,7 +772,7 @@ func (a *App) workSpace(s core.State) ui.ViewNode {
 	if n := len(a.nav.history) - a.nav.histPos - 1; n > 0 {
 		trail += fmt.Sprintf("   (%d forward)", n)
 	}
-	page, err := views.ShowViewWith(a.Store, ref, s.Pages[SpaceWork].FocusID, a.showOptions())
+	page, err := views.ShowViewWith(a.Store, ref, s.Pages[SpaceWork].FocusID, a.showOptionsFor(ref))
 	if header := page.Find(showHeader); err == nil && header != nil {
 		// The Show page's record opens with "o" as its row in a list does.
 		if rec, gerr := a.Store.Get(ref); gerr == nil {
@@ -627,17 +819,31 @@ func (a *App) detail(sp spaceDef, schema data.Schema, rec data.Record) ui.ViewNo
 			continue
 		}
 		switch {
-		case f.Type == core.ParamList:
-			// Capabilities and commands: one line each.
+		case f.Type == core.ParamList || f.ShowFormat == data.ShowFormatList:
+			// Capabilities, commands, args: one wrapped bullet per item.
 			var items []string
 			if list, ok := v.([]any); ok {
 				for _, e := range list {
-					items = append(items, "• "+data.Text(e))
+					if s := strings.TrimSpace(data.Text(e)); s != "" {
+						items = append(items, "• "+s)
+					}
 				}
 			}
-			long = append(long, text("", views.Label(f.Name), "accent"), text("", strings.Join(items, "\n"), ""))
-		case f.Name == "output" || f.Name == "body":
-			long = append(long, text("", views.Label(f.Name), "accent"), text("", data.Text(v), ""))
+			if len(items) > 0 {
+				long = append(long, text("", views.Label(f.Name), "accent"), ui.ViewNode{Kind: ui.KindText, Props: map[string]any{"text": strings.Join(items, "\n"), "wrap": true}})
+			}
+		case f.ShowFormat == data.ShowFormatMarkdown:
+			if raw := data.Text(v); strings.TrimSpace(raw) != "" {
+				long = append(long, text("", views.Label(f.Name), "accent"), ui.ViewNode{Kind: ui.KindMarkdown, Props: map[string]any{"markdown": raw, "wrap": true}})
+			}
+		case f.ShowFormat == data.ShowFormatCode:
+			if raw := data.Text(v); strings.TrimSpace(raw) != "" {
+				long = append(long, text("", views.Label(f.Name), "accent"), ui.ViewNode{Kind: ui.KindText, Tone: "md.code", Props: map[string]any{"text": raw, "wrap": true}})
+			}
+		case f.ShowFormat == data.ShowFormatText:
+			if raw := data.Text(v); strings.TrimSpace(raw) != "" {
+				long = append(long, text("", views.Label(f.Name), "accent"), ui.ViewNode{Kind: ui.KindText, Props: map[string]any{"text": raw, "wrap": true}})
+			}
 		default:
 			shown := data.Text(v)
 			if ref, ok := data.AsRef(v); ok {

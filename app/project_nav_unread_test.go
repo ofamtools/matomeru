@@ -486,3 +486,136 @@ func TestProjectHeaderActivityBadgesAndDynamicProjectTabUnread(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectNavOwnerCreatedAndEditedTasksNeverSurfaceAsNew(t *testing.T) {
+	f := setupNavUnreadFixture(t)
+	a, d := f.app, f.driver
+
+	// 1. Outline inline task creation under f.proj (exercises User Create + daemonSyncActor outline.order PatchMany on siblings).
+	d.Keys("T")
+	if a.Modal() != "outline" || a.Mode() != ModeOutline {
+		t.Fatalf("T did not open outline: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	om := a.trees.outlineModel()
+	om.Reveal(f.readSibling.ID)
+	d.Keys("o")
+	if ed := a.trees.activeEdit(); a.Mode() != ModeOutlineEdit || ed == nil {
+		t.Fatalf("o did not enter inline outline edit: mode=%q edit=%+v", a.Mode(), ed)
+	}
+	d.Type("Owner Inline Task")
+	d.Keys("esc")
+	d.Keys("q")
+	if a.Modal() != "" || a.Space() != SpacePanes {
+		t.Fatalf("after closing outline: modal=%q mode=%q space=%q focus=%q", a.Modal(), a.Mode(), a.Space(), a.Focus())
+	}
+
+	inlineTask, err := f.store.GetByField(data.KindTask, "title", "Owner Inline Task")
+	if err != nil {
+		t.Fatalf("inline task not created: %v", err)
+	}
+	if parentRef, ok := inlineTask.RefField("parent"); !ok || parentRef != f.proj.Ref() {
+		t.Fatalf("inlineTask parent = (%v, %v), want %v", parentRef, ok, f.proj.Ref())
+	}
+	if a.isNavRecordUnread(data.KindTask, *inlineTask, nil) {
+		t.Fatalf("owner inline-created task must not be unread: updated=%v readAt=%v", inlineTask.UpdatedAt, inlineTask.Time("readAt"))
+	}
+	// Siblings reordered by outline.order must stay read as well.
+	gotSibling, err := f.store.Get(f.readSibling.Ref())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.isNavRecordUnread(data.KindTask, *gotSibling, nil) {
+		t.Fatalf("readSibling flipped unread after outline.order sibling reorder: updated=%v readAt=%v", gotSibling.UpdatedAt, gotSibling.Time("readAt"))
+	}
+
+	// 2. CLI user-actor task creation under f.proj must not be unread.
+	cliActor := core.Actor{Kind: "user", ID: "cli", Label: "mtm CLI"}
+	cliTask, _, err := f.store.Create(data.CreateInput{
+		Kind: data.KindTask,
+		Fields: map[string]any{
+			"title":      "CLI Created Task",
+			"parent":     f.proj.Ref(),
+			"workStatus": "todo",
+		},
+	}, cliActor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.isNavRecordUnread(data.KindTask, *cliTask, nil) {
+		t.Fatalf("CLI user-created task must not be unread: updated=%v readAt=%v", cliTask.UpdatedAt, cliTask.Time("readAt"))
+	}
+
+	// 3. Owner edits (rename, status change) on owner-created and pre-existing tasks must stay read.
+	editedInline, _, err := f.store.Patch(data.PatchInput{
+		Ref:    inlineTask.Ref(),
+		Fields: map[string]any{"title": "Owner Inline Task Renamed", "workStatus": "active"},
+	}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.isNavRecordUnread(data.KindTask, *editedInline, nil) {
+		t.Fatalf("owner-edited inline task flipped unread: updated=%v readAt=%v", editedInline.UpdatedAt, editedInline.Time("readAt"))
+	}
+	editedCLI, _, err := f.store.Patch(data.PatchInput{
+		Ref:    cliTask.Ref(),
+		Fields: map[string]any{"workStatus": "active"},
+	}, cliActor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.isNavRecordUnread(data.KindTask, *editedCLI, nil) {
+		t.Fatalf("CLI-edited task flipped unread: updated=%v readAt=%v", editedCLI.UpdatedAt, editedCLI.Time("readAt"))
+	}
+
+	// Verify in Project Nav (collapsed Tasks): none of the owner-created/edited/reordered tasks surface,
+	// while the agent-created unreadSubTask still does!
+	a.invalidateProjectUnreadCaches("")
+	d.Keys("P")
+	if a.Space() != SpacePanes || a.Focus() != projectNavPrefix+"home" {
+		t.Fatalf("P did not open project nav: modal=%q mode=%q space=%q focus=%q", a.Modal(), a.Mode(), a.Space(), a.Focus())
+	}
+	root := a.View(a.State())
+	for _, hidden := range []struct {
+		name string
+		id   string
+	}{
+		{"inlineTask", inlineTask.ID},
+		{"cliTask", cliTask.ID},
+		{"readSibling", f.readSibling.ID},
+	} {
+		if root.Find(projectNavNodePrefix+"tasks."+hidden.id) != nil {
+			t.Fatalf("collapsed Tasks unexpectedly surfaced owner task %s (%s) as unread/new", hidden.name, hidden.id)
+		}
+	}
+	if root.Find(projectNavNodePrefix+"tasks."+f.unreadSubTask.ID) == nil {
+		t.Fatal("collapsed Tasks should still surface agent-created unreadSubTask")
+	}
+
+	// 4. An agent creating a task OR patching an owner task MUST still surface as unread/new!
+	agentActor := core.Actor{Kind: "agent", ID: "worker-4"}
+	agentTask, _, err := f.store.Create(data.CreateInput{
+		Kind: data.KindTask,
+		Fields: map[string]any{
+			"title":      "Fresh Agent Task",
+			"parent":     f.proj.Ref(),
+			"workStatus": "todo",
+		},
+	}, agentActor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := f.store.Patch(data.PatchInput{
+		Ref:    cliTask.Ref(),
+		Fields: map[string]any{"description": "Agent updated this task"},
+	}, agentActor); err != nil {
+		t.Fatal(err)
+	}
+	a.invalidateProjectUnreadCaches("")
+	root = a.View(a.State())
+	if nd := root.Find(projectNavNodePrefix + "tasks." + agentTask.ID); nd == nil || !nd.Unread {
+		t.Fatalf("agent-created task should surface as unread in collapsed Tasks: %+v", nd)
+	}
+	if nd := root.Find(projectNavNodePrefix + "tasks." + cliTask.ID); nd == nil || !nd.Unread {
+		t.Fatalf("agent-patched task should surface as unread in collapsed Tasks: %+v", nd)
+	}
+}

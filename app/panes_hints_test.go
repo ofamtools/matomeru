@@ -429,11 +429,11 @@ func TestPaneHintsAltReveal(t *testing.T) {
 		t.Fatalf("multi-char leading-alt did not run %q; got %v", wantMultiBCmd, cmds)
 	}
 
-	// 5. Backspace back to empty prefix clears pendingReveal so subsequent lowercase copies instead.
+	// 5. Backspace back to empty prefix clears pending alt override so subsequent lowercase copies instead.
 	d.Keys("f")
 	d.Keys("alt+"+multiA.Label[:1], "backspace")
-	if a.panes.hints == nil || a.panes.hints.pendingReveal || a.panes.hints.session.Prefix() != "" {
-		t.Fatalf("backspace did not clear pendingReveal/prefix: hints=%+v", a.panes.hints)
+	if a.panes.hints == nil || a.panes.hints.session.Prefix() != "" || a.panes.hints.session.Facts()["action"] != string(hints.ActionDefault) {
+		t.Fatalf("backspace did not clear pending override/prefix: hints=%+v facts=%+v", a.panes.hints, a.panes.hints.session.Facts())
 	}
 	beforeRuns := len(latestRunCommands(t, a.Store))
 	d.Keys(multiA.Label[:1], multiA.Label[1:])
@@ -456,8 +456,8 @@ func TestPaneHintsModifierActionsOptOut(t *testing.T) {
 
 	// Status line hides modifier hints when disabled.
 	d.Keys("f")
-	if got := a.Status(); got != "hints (2) · lowercase copies · esc/q cancels" {
-		t.Fatalf("disabled hints status = %q, want %q", got, "hints (2) · lowercase copies · esc/q cancels")
+	if got := a.Status(); got != "hints (2) · lowercase copies · tab cycles · esc/q cancels" {
+		t.Fatalf("disabled hints status = %q, want %q", got, "hints (2) · lowercase copies · tab cycles · esc/q cancels")
 	}
 	targets := a.panes.hints.session.Targets()
 
@@ -488,5 +488,438 @@ func TestPaneHintsModifierActionsOptOut(t *testing.T) {
 	}
 	if a.Register(core.RegUnnamed) != targets[1].Value {
 		t.Fatalf("alt+label with modifierActions=false did not copy %q; reg=%q", targets[1].Value, a.Register(core.RegUnnamed))
+	}
+}
+
+func TestPaneHintsActionArgAndPicker(t *testing.T) {
+	lines := []string{
+		"1 https://ofam.dev/action-arg",
+		"2 app/view.go:19",
+	}
+	a, d, host, pane, cwd := setupHintsApp(t, lines, nil)
+
+	wantRevealCmd := func(fullPath string) string {
+		if runtime.GOOS == "darwin" {
+			return "open -R " + handlers.Quote(fullPath)
+		}
+		return systemOpener() + " " + handlers.Quote(filepath.Dir(fullPath))
+	}
+	runPaneHints := func(action string) []hints.Target {
+		t.Helper()
+		d.Send(core.CommandEvent{Command: core.Command{
+			ID:   CmdPaneHints,
+			Args: map[string]any{"action": action},
+		}})
+		if a.Mode() != ModeHints || a.panes.hints == nil || !a.panes.hints.session.Active() {
+			t.Fatalf("pane.hints action=%q did not activate ModeHints: mode=%q status=%q", action, a.Mode(), a.Status())
+		}
+		return a.panes.hints.session.Targets()
+	}
+
+	// 1. action=copy -> lowercase copies.
+	targets := runPaneHints(HintsActionCopy)
+	d.Keys(targets[0].Label)
+	if a.Register(core.RegUnnamed) != targets[0].Value || a.rt.live.clipboard != targets[0].Value {
+		t.Fatalf("action=copy failed: reg=%q clip=%q want=%q", a.Register(core.RegUnnamed), a.rt.live.clipboard, targets[0].Value)
+	}
+
+	// 2. action=insert -> lowercase inserts into terminal pane.
+	targets = runPaneHints(HintsActionInsert)
+	d.Keys(targets[0].Label)
+	if got := host.joinedWrites(pane.ID); !strings.Contains(got, targets[0].Value) {
+		t.Fatalf("action=insert did not write %q to pane; writes=%q", targets[0].Value, got)
+	}
+
+	// 3. action=open -> lowercase opens via OS opener.
+	targets = runPaneHints(HintsActionOpen)
+	d.Keys(targets[0].Label)
+	wantOpen := systemOpener() + " " + handlers.Quote("https://ofam.dev/action-arg")
+	if cmds := latestRunCommands(t, a.Store); !hasCommand(cmds, wantOpen) {
+		t.Fatalf("action=open did not run %q; got %v", wantOpen, cmds)
+	}
+
+	// 4. action=reveal -> lowercase reveals local file.
+	targets = runPaneHints(HintsActionReveal)
+	fileTgt, ok := findTargetByValueContains(targets, "app/view.go:19")
+	if !ok {
+		t.Fatal("missing file target")
+	}
+	d.Keys(fileTgt.Label)
+	wantReveal := wantRevealCmd(filepath.Join(cwd, "app/view.go"))
+	if cmds := latestRunCommands(t, a.Store); !hasCommand(cmds, wantReveal) {
+		t.Fatalf("action=reveal did not run %q; got %v", wantReveal, cmds)
+	}
+
+	// 5. action=pick -> lowercase opens 4-item picker modal [Copy, Paste in input, Open, Reveal in Finder].
+	targets = runPaneHints(HintsActionPick)
+	d.Keys(targets[1].Label)
+	if a.Modal() != "hints.action.picker" {
+		t.Fatalf("action=pick did not open hints.action.picker modal: modal=%q status=%q", a.Modal(), a.Status())
+	}
+	pm, ok := a.modals.Top().(*modal.PickerModal)
+	if !ok || pm.Model() == nil {
+		t.Fatalf("expected *modal.PickerModal on top, got %T", a.modals.Top())
+	}
+	if len(pm.Model().Items) != 4 {
+		t.Fatalf("expected 4 action picker items, got %d", len(pm.Model().Items))
+	}
+	wantTitles := []string{"Copy", "Paste in input", "Open", "Reveal in Finder"}
+	for i, want := range wantTitles {
+		if pm.Model().Items[i].Title != want {
+			t.Fatalf("picker item[%d].Title = %q, want %q", i, pm.Model().Items[i].Title, want)
+		}
+	}
+	// Move down twice to "Open" and confirm.
+	d.Keys("j", "j", "enter")
+	wantGoOpen := systemOpener() + " " + handlers.Quote(filepath.Join(cwd, "app/view.go"))
+	if cmds := latestRunCommands(t, a.Store); !hasCommand(cmds, wantGoOpen) {
+		t.Fatalf("picker Open did not run %q; got %v", wantGoOpen, cmds)
+	}
+
+	// 6. action=pick while Composer is open -> choosing "Paste in input" pastes into Composer.
+	d.Keys("c")
+	cm := a.activeRichComposer()
+	if cm == nil || a.Mode() != ModeComposer {
+		t.Fatalf("c did not open composer: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	d.Type("Check ")
+	targets = runPaneHints(HintsActionPick)
+	d.Keys(targets[0].Label)
+	if a.Modal() != "hints.action.picker" {
+		t.Fatalf("expected hints.action.picker over composer, got %q", a.Modal())
+	}
+	d.Keys("j", "enter") // "Paste in input"
+	if a.Mode() != ModeComposer || a.activeRichComposer() == nil {
+		t.Fatalf("composer not restored after picker paste: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	if got := cm.in.Value(); got != "Check "+targets[0].Value {
+		t.Fatalf("composer value after picker paste = %q, want %q", got, "Check "+targets[0].Value)
+	}
+	d.Keys("esc")
+}
+
+func TestPaneHintsTabCycleActionSetAndLegend(t *testing.T) {
+	lines := []string{
+		"1 https://ofam.dev/cycle-url",
+		"2 app/panes_hints.go:10",
+	}
+	a, d, host, pane, cwd := setupHintsApp(t, lines, nil)
+
+	wantRevealCmd := func(fullPath string) string {
+		if runtime.GOOS == "darwin" {
+			return "open -R " + handlers.Quote(fullPath)
+		}
+		return systemOpener() + " " + handlers.Quote(filepath.Dir(fullPath))
+	}
+
+	d.Keys("f")
+	barText := func() string {
+		v := a.panes.hints.session.View("site.hints.bar")
+		s, _ := v.Props["text"].(string)
+		return s
+	}
+
+	// Verify truthful legend (never shows stale "[A-Z] secondary" or "[ctrl] alt").
+	bar := barText()
+	for _, want := range []string{"copy", "insert", "open", "reveal", "cycle", "cancel"} {
+		if !strings.Contains(bar, want) {
+			t.Fatalf("hints bar missing %q: %q", want, bar)
+		}
+	}
+	for _, stale := range []string{"secondary", "[ctrl] alt"} {
+		if strings.Contains(bar, stale) {
+			t.Fatalf("hints bar contains stale default legend %q: %q", stale, bar)
+		}
+	}
+
+	// Cycle through copy -> insert -> open -> reveal -> copy via tab.
+	if got := a.panes.hints.session.ActiveAction(); got != hints.ActionDefault {
+		t.Fatalf("initial ActiveAction = %q, want %q", got, hints.ActionDefault)
+	}
+	d.Keys("tab")
+	if got := a.panes.hints.session.ActiveAction(); got != hints.ActionSecondary {
+		t.Fatalf("after 1 tab ActiveAction = %q, want %q", got, hints.ActionSecondary)
+	}
+	if !strings.Contains(barText(), "● [Shift] insert") {
+		t.Fatalf("bar did not highlight insert after tab: %q", barText())
+	}
+	d.Keys("tab")
+	if got := a.panes.hints.session.ActiveAction(); got != hints.ActionAlt {
+		t.Fatalf("after 2 tabs ActiveAction = %q, want %q", got, hints.ActionAlt)
+	}
+	d.Keys("tab")
+	if got := a.panes.hints.session.ActiveAction(); got != hints.ActionMeta {
+		t.Fatalf("after 3 tabs ActiveAction = %q, want %q", got, hints.ActionMeta)
+	}
+	d.Keys("tab")
+	if got := a.panes.hints.session.ActiveAction(); got != hints.ActionDefault {
+		t.Fatalf("after 4 tabs ActiveAction = %q, want %q", got, hints.ActionDefault)
+	}
+
+	// 1 tab (insert) + lowercase label -> inserts with ZERO modifiers!
+	targets := a.panes.hints.session.Targets()
+	d.Keys("tab", targets[0].Label)
+	if got := host.joinedWrites(pane.ID); !strings.Contains(got, targets[0].Value) {
+		t.Fatalf("tab->insert + lowercase did not write %q; writes=%q", targets[0].Value, got)
+	}
+
+	// 2 tabs (open) + lowercase label -> opens with ZERO modifiers!
+	d.Keys("f")
+	targets = a.panes.hints.session.Targets()
+	d.Keys("tab", "tab", targets[0].Label)
+	wantOpen := systemOpener() + " " + handlers.Quote("https://ofam.dev/cycle-url")
+	if cmds := latestRunCommands(t, a.Store); !hasCommand(cmds, wantOpen) {
+		t.Fatalf("tab->open + lowercase did not run %q; got %v", wantOpen, cmds)
+	}
+
+	// 3 tabs (reveal) + lowercase label -> reveals with ZERO modifiers!
+	d.Keys("f")
+	targets = a.panes.hints.session.Targets()
+	d.Keys("tab", "tab", "tab", targets[1].Label)
+	wantReveal := wantRevealCmd(filepath.Join(cwd, "app/panes_hints.go"))
+	if cmds := latestRunCommands(t, a.Store); !hasCommand(cmds, wantReveal) {
+		t.Fatalf("tab->reveal + lowercase did not run %q; got %v", wantReveal, cmds)
+	}
+
+	// hints.action.set sets active action directly.
+	d.Keys("f")
+	targets = a.panes.hints.session.Targets()
+	d.Send(core.CommandEvent{Command: core.Command{
+		ID:   CmdHintsActionSet,
+		Args: map[string]any{"action": HintsActionOpen},
+	}})
+	if got := a.panes.hints.session.ActiveAction(); got != hints.ActionAlt {
+		t.Fatalf("hints.action.set open -> ActiveAction = %q, want %q", got, hints.ActionAlt)
+	}
+	d.Keys(targets[1].Label)
+	wantOpenFile := systemOpener() + " " + handlers.Quote(filepath.Join(cwd, "app/panes_hints.go"))
+	if cmds := latestRunCommands(t, a.Store); !hasCommand(cmds, wantOpenFile) {
+		t.Fatalf("hints.action.set open + lowercase did not run %q; got %v", wantOpenFile, cmds)
+	}
+}
+
+func TestPaneHintsDefaultActionSetting(t *testing.T) {
+	lines := []string{
+		"1 https://ofam.dev/def-open",
+		"2 app/scratch.go:5",
+	}
+
+	t.Run("hints.defaultAction=open", func(t *testing.T) {
+		a, d, _, _, _ := setupHintsApp(t, lines, map[string]any{SetHintsDefaultAction: HintsActionOpen})
+		d.Keys("f")
+		targets := a.panes.hints.session.Targets()
+		d.Keys(targets[0].Label)
+		want := systemOpener() + " " + handlers.Quote("https://ofam.dev/def-open")
+		if cmds := latestRunCommands(t, a.Store); !hasCommand(cmds, want) {
+			t.Fatalf("defaultAction=open lowercase did not run %q; got %v", want, cmds)
+		}
+	})
+
+	t.Run("hints.defaultAction=insert", func(t *testing.T) {
+		a, d, host, pane, _ := setupHintsApp(t, lines, map[string]any{SetHintsDefaultAction: HintsActionInsert})
+		d.Keys("f")
+		targets := a.panes.hints.session.Targets()
+		d.Keys(targets[0].Label)
+		if got := host.joinedWrites(pane.ID); !strings.Contains(got, targets[0].Value) {
+			t.Fatalf("defaultAction=insert lowercase did not write %q; writes=%q", targets[0].Value, got)
+		}
+	})
+
+	t.Run("hints.defaultAction=reveal", func(t *testing.T) {
+		a, d, _, _, cwd := setupHintsApp(t, lines, map[string]any{SetHintsDefaultAction: HintsActionReveal})
+		d.Keys("f")
+		targets := a.panes.hints.session.Targets()
+		d.Keys(targets[1].Label)
+		want := systemOpener() + " " + handlers.Quote(filepath.Dir(filepath.Join(cwd, "app/scratch.go")))
+		if runtime.GOOS == "darwin" {
+			want = "open -R " + handlers.Quote(filepath.Join(cwd, "app/scratch.go"))
+		}
+		if cmds := latestRunCommands(t, a.Store); !hasCommand(cmds, want) {
+			t.Fatalf("defaultAction=reveal lowercase did not run %q; got %v", want, cmds)
+		}
+	})
+}
+
+func TestPaneHintsAltHFromInputModes(t *testing.T) {
+	lines := []string{
+		"1 https://ofam.dev/alth-paste",
+		"2 app/bindings.go:100",
+	}
+	a, d, _, _, _ := setupHintsApp(t, lines, nil)
+
+	// 1. ModeComposer: alt+h launches hints pre-armed with insert -> lowercase pastes!
+	d.Keys("c")
+	cm := a.activeRichComposer()
+	if cm == nil || a.Mode() != ModeComposer {
+		t.Fatalf("c did not open composer: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	d.Type("URL: ")
+	d.Keys("alt+h")
+	if a.Mode() != ModeHints || a.panes.hints == nil || a.panes.hints.session.ActiveAction() != hints.ActionSecondary {
+		t.Fatalf("alt+h in ModeComposer did not launch insert hints: mode=%q status=%q", a.Mode(), a.Status())
+	}
+	tgt := a.panes.hints.session.Targets()[0]
+	d.Keys(tgt.Label) // lowercase!
+	if a.Mode() != ModeComposer || cm.in.Value() != "URL: "+tgt.Value {
+		t.Fatalf("alt+h paste in ModeComposer failed: mode=%q value=%q want=%q", a.Mode(), cm.in.Value(), "URL: "+tgt.Value)
+	}
+	d.Keys("esc")
+
+	// 2. ModeCommandLine: alt+h -> lowercase pastes!
+	cl := commandline.New(commandline.PrefixShell)
+	cl.Insert("open ")
+	clModal := modal.NewCommandLineModal(cl, modal.CommandLineOptions{ID: "commandline"})
+	a.Shell.State = a.pushModal(a.Shell.State, clModal)
+	d.Keys("alt+h")
+	if a.Mode() != ModeHints || a.panes.hints.session.ActiveAction() != hints.ActionSecondary {
+		t.Fatalf("alt+h in ModeCommandLine did not launch insert hints: mode=%q", a.Mode())
+	}
+	tgt = a.panes.hints.session.Targets()[1]
+	d.Keys(tgt.Label)
+	if a.Mode() != ModeCommandLine || cl.Value() != "open "+tgt.Value {
+		t.Fatalf("alt+h paste in ModeCommandLine failed: mode=%q value=%q want=%q", a.Mode(), cl.Value(), "open "+tgt.Value)
+	}
+	a.Shell.State = a.popModal(a.Shell.State, modal.CloseCancel)
+
+	// 3. ModeFormEdit: alt+h -> lowercase pastes!
+	fm := form.New("Hints Form", []core.ParamSpec{{Name: "ref", Type: core.ParamString}}, map[string]any{"ref": "see "})
+	fm.Editing = true
+	a.Shell.State = a.pushModal(a.Shell.State, modal.NewFormModal(fm, modal.FormOptions{ID: "alth-form"}))
+	d.Keys("alt+h")
+	if a.Mode() != ModeHints || a.panes.hints.session.ActiveAction() != hints.ActionSecondary {
+		t.Fatalf("alt+h in ModeFormEdit did not launch insert hints: mode=%q", a.Mode())
+	}
+	tgt = a.panes.hints.session.Targets()[0]
+	d.Keys(tgt.Label)
+	if a.Mode() != ModeFormEdit || fm.Values["ref"] != "see "+tgt.Value {
+		t.Fatalf("alt+h paste in ModeFormEdit failed: mode=%q value=%v want=%q", a.Mode(), fm.Values["ref"], "see "+tgt.Value)
+	}
+	a.Shell.State = a.popModal(a.Shell.State, modal.CloseCancel)
+
+	// 4. ModePickerFilter: alt+h -> lowercase pastes!
+	pm := picker.New("Items", []picker.Item{{ID: "1", Title: tgt.Value}})
+	a.Shell.State = a.pushModal(a.Shell.State, modal.NewPickerModal(pm, modal.PickerOptions{ID: "alth-picker", StartInFilter: true}))
+	d.Keys("alt+h")
+	if a.Mode() != ModeHints || a.panes.hints.session.ActiveAction() != hints.ActionSecondary {
+		t.Fatalf("alt+h in ModePickerFilter did not launch insert hints: mode=%q", a.Mode())
+	}
+	d.Keys(a.panes.hints.session.Targets()[0].Label)
+	if a.Mode() != ModePickerFilter || pm.Query != tgt.Value {
+		t.Fatalf("alt+h paste in ModePickerFilter failed: mode=%q query=%q want=%q", a.Mode(), pm.Query, tgt.Value)
+	}
+	a.Shell.State = a.popModal(a.Shell.State, modal.CloseCancel)
+
+	// 5. ModeFilter (on 3 Runs): alt+h -> lowercase pastes & returns to SpaceRuns/ModeFilter!
+	d.Keys("3", "/")
+	d.Type("f:")
+	d.Keys("alt+h")
+	if a.Mode() != ModeHints || a.panes.hints.session.ActiveAction() != hints.ActionSecondary {
+		t.Fatalf("alt+h in ModeFilter did not launch insert hints: mode=%q", a.Mode())
+	}
+	d.Keys(a.panes.hints.session.Targets()[0].Label)
+	if a.Mode() != ModeFilter || a.Space() != SpaceRuns || a.nav.tables[runsTable].Query != "f:"+tgt.Value {
+		t.Fatalf("alt+h paste in ModeFilter failed: space=%q mode=%q query=%q", a.Space(), a.Mode(), a.nav.tables[runsTable].Query)
+	}
+	d.Keys("esc")
+
+	// 6. ModeOutlineEdit (on 2 Work): alt+h -> lowercase pastes & returns to ModeOutlineEdit!
+	d.Keys("2", "o")
+	d.Type("Link ")
+	d.Keys("alt+h")
+	if a.Mode() != ModeHints || a.panes.hints.session.ActiveAction() != hints.ActionSecondary {
+		t.Fatalf("alt+h in ModeOutlineEdit did not launch insert hints: mode=%q", a.Mode())
+	}
+	d.Keys(a.panes.hints.session.Targets()[0].Label)
+	if a.Mode() != ModeOutlineEdit || a.trees.activeEdit() == nil || a.trees.activeEdit().Value() != "Link "+tgt.Value {
+		t.Fatalf("alt+h paste in ModeOutlineEdit failed: mode=%q val=%q", a.Mode(), a.trees.activeEdit().Value())
+	}
+	d.Keys("ctrl+c")
+}
+
+func TestPaneHintsScratchSideSplitAndProjectTab(t *testing.T) {
+	mainLines := []string{"main https://ofam.dev/main-pane"}
+	a, d, host, pane, _ := setupHintsApp(t, mainLines, nil)
+
+	// 1. Scratch terminal renders hint badges and scratch.hints.bar.
+	d.Keys("ctrl+a", "S")
+	sm := a.activeScratch()
+	if sm == nil {
+		t.Fatalf("ctrl+a S did not open scratch terminal: modal=%q status=%q", a.Modal(), a.Status())
+	}
+	host.setLines(sm.paneID, []string{"scratch https://ofam.dev/scratch-link"}, 1)
+	d.Keys("ctrl+a", "f")
+	if a.Mode() != ModeHints || a.panes.hints == nil || a.panes.hints.paneID != sm.paneID {
+		t.Fatalf("ctrl+a f in scratch did not activate hints on scratch pane: mode=%q hints=%+v", a.Mode(), a.panes.hints)
+	}
+	scratchNode := sm.View(120, 36)
+	if scratchNode.Find("scratch.hints.bar") == nil {
+		t.Fatalf("scratchModal.View missing scratch.hints.bar when hints are active")
+	}
+	scratchScreenNode := scratchNode.Find(scratchScreen)
+	if scratchScreenNode == nil {
+		t.Fatal("scratchModal.View missing scratch.screen")
+	}
+	sLines, _ := scratchScreenNode.Props["lines"].([]string)
+	joinedScratch := ansiRe.ReplaceAllString(strings.Join(sLines, "\n"), "")
+	if !strings.Contains(joinedScratch, "[a]") {
+		t.Fatalf("scratch.screen did not render hint badge [a]: %q", joinedScratch)
+	}
+	d.Keys(a.panes.hints.session.Targets()[0].Label)
+	if a.Register(core.RegUnnamed) != "https://ofam.dev/scratch-link" || a.Mode() != ModeTerminal {
+		t.Fatalf("scratch hint match failed: reg=%q mode=%q", a.Register(core.RegUnnamed), a.Mode())
+	}
+	d.Keys("ctrl+a", "S") // close scratch
+
+	// 2. Side Split terminal renders hint badges on sideScreen and site.hints.bar.
+	a.Shell.State = a.openSideSplit(a.State(), *pane, "")
+	side, hasSide := a.activeSideSplit(*pane)
+	if !hasSide {
+		t.Fatal("openSideSplit did not create active side split")
+	}
+	host.setLines(side.ID, []string{"side https://ofam.dev/side-split-link"}, 1)
+	d.Keys("ctrl+a", "f")
+	if a.Mode() != ModeHints || a.panes.hints == nil || a.panes.hints.paneID != side.ID || a.Focus() != sideScreen {
+		t.Fatalf("ctrl+a f in side split did not target side pane: mode=%q focus=%q hints=%+v", a.Mode(), a.Focus(), a.panes.hints)
+	}
+	view := a.View(a.State())
+	if view.Find("site.hints.bar") == nil {
+		t.Fatalf("side split view missing site.hints.bar when side hints are active")
+	}
+	sideNode := view.Find(sideScreen)
+	if sideNode == nil {
+		t.Fatal("side split view missing sideScreen")
+	}
+	sideLines, _ := sideNode.Props["lines"].([]string)
+	joinedSide := ansiRe.ReplaceAllString(strings.Join(sideLines, "\n"), "")
+	if !strings.Contains(joinedSide, "[a]") {
+		t.Fatalf("sideScreen did not render hint badge [a]: %q", joinedSide)
+	}
+	d.Keys(a.panes.hints.session.Targets()[0].Label)
+	if a.Register(core.RegUnnamed) != "https://ofam.dev/side-split-link" || a.Focus() != sideScreen {
+		t.Fatalf("side split hint match failed: reg=%q focus=%q", a.Register(core.RegUnnamed), a.Focus())
+	}
+	d.Keys("ctrl+a", "x") // close side split
+
+	// 3. Project Tab child pane preserves isProjectTab(s.ActivePage) (never kicks to SpacePanes).
+	proj, _, err := a.Store.Create(data.CreateInput{
+		Kind:   data.KindTask,
+		Fields: map[string]any{"title": "Hints Project Tab"},
+	}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.ensureProjectTabOpen(proj.ID)
+	a.Shell.State = a.openProjectChildPane(a.State(), proj.ID, pane.ID, false)
+	wantTab := ProjectTabPrefix + proj.ID
+	if a.Space() != wantTab {
+		t.Fatalf("openProjectChildPane did not enter %q: got %q", wantTab, a.Space())
+	}
+	d.Send(core.CommandEvent{Command: core.Command{ID: CmdPaneHints}})
+	if a.Mode() != ModeHints || a.Space() != wantTab {
+		t.Fatalf("pane.hints in Project Tab kicked user out of %q: space=%q mode=%q", wantTab, a.Space(), a.Mode())
+	}
+	d.Keys(a.panes.hints.session.Targets()[0].Label)
+	if a.Space() != wantTab || a.Mode() != ModeNormal || a.Register(core.RegUnnamed) != "https://ofam.dev/main-pane" {
+		t.Fatalf("Project Tab hint match failed: space=%q mode=%q reg=%q", a.Space(), a.Mode(), a.Register(core.RegUnnamed))
 	}
 }

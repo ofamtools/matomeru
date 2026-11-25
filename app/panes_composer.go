@@ -41,9 +41,26 @@ func (a *App) queuedPromptsFor(paneID string) []string {
 
 // paneCompose opens the on-demand multi-line prompt composer overlay for the
 // selected pane, backed by the universal richComposerModal engine.
-func (a *App) paneCompose(s core.State, _ core.Command) core.StepResult {
-	pane, ok := a.termPane(s)
-	if !ok {
+func (a *App) paneCompose(s core.State, c core.Command) core.StepResult {
+	var pane *data.Record
+	if c.Target != nil && c.Target.Kind == data.KindPane && c.Target.ID != "" && a.Store != nil {
+		if rec, err := a.Store.Get(*c.Target); err == nil && rec != nil {
+			pane = rec
+		}
+	}
+	if pane == nil && a.activeScratch() == nil && s.ActiveFrame().FocusID != sideScreen {
+		if ref, ok := a.subject(s, c); ok && ref.Kind == data.KindPane && a.Store != nil {
+			if rec, err := a.Store.Get(ref); err == nil && rec != nil {
+				pane = rec
+			}
+		}
+	}
+	if pane == nil {
+		if tp, ok := a.termPane(s); ok {
+			pane = tp
+		}
+	}
+	if pane == nil {
 		a.say("no pane is selected")
 		return core.Next(s)
 	}

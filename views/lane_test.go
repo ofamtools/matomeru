@@ -95,6 +95,95 @@ func TestLaneBar(t *testing.T) {
 	}
 }
 
+// CompactTopArea renders the lane bar as a prominent ui.KindProgress node
+// without the "Lane: " prefix or verbose per-lane text dump.
+func TestLaneBarCompact(t *testing.T) {
+	w := build(t)
+	pages := []data.Record{w.page, w.asks}
+	root := laneOf(t, w, "wave", "Ochazuke v2 Wave 3", "running", nil)
+	child := func(id, title, status string) data.Record {
+		return laneOf(t, w, id, title, status, map[string]any{"parentLane": root.Ref()})
+	}
+	child("l1", "trie", "done")
+	child("l2", "expr", "merged")
+	child("l3", "layout", "done")
+	worker := child("l4", "picker-worker", "running")
+	child("l5", "form", "planned")
+	child("l6", "docs", "parked")
+	if _, _, err := w.store.Relate(data.RelateInput{From: worker.Ref(), Kind: data.RelClaim, To: w.pane.Ref()}, owner); err != nil {
+		t.Fatal(err)
+	}
+
+	site := PaneSiteViewWith(w.pane, pages, "", "", SiteOptions{
+		Store:          w.store,
+		ShowLaneBar:    true,
+		CompactTopArea: true,
+		LaneHint:       "ctrl+a L",
+	})
+	bar := site.Find(LaneBarID)
+	if bar == nil || bar.Kind != ui.KindProgress {
+		t.Fatalf("compact bar = %+v, want KindProgress", bar)
+	}
+	if bar.Ref == nil || *bar.Ref != root.Ref() || site.Children[0].ID != LaneBarID {
+		t.Fatalf("compact bar placement/ref = %+v", bar)
+	}
+	if got, _ := bar.Props["label"].(string); got != "Ochazuke v2 Wave 3" {
+		t.Fatalf("label = %q, want %q", got, "Ochazuke v2 Wave 3")
+	}
+	if bar.Props["done"] != 3 || bar.Props["active"] != 1 || bar.Props["total"] != 6 {
+		t.Fatalf("progress counts = (%v, %v, %v), want (3, 1, 6)", bar.Props["done"], bar.Props["active"], bar.Props["total"])
+	}
+	if bar.Props["showFraction"] != true || bar.Props["showPercent"] != true {
+		t.Fatalf("show flags = (%v, %v), want (true, true)", bar.Props["showFraction"], bar.Props["showPercent"])
+	}
+	if got, _ := bar.Props["suffix"].(string); got != "▶1" {
+		t.Fatalf("suffix = %q, want %q", got, "▶1")
+	}
+	if bar.Facts["lane"] != root.ID || bar.Facts["done"] != 3 || bar.Facts["running"] != 1 || bar.Facts["planned"] != 2 || bar.Facts["trees"] != 1 || bar.Facts["percent"] != 50 {
+		t.Fatalf("facts = %+v", bar.Facts)
+	}
+
+	rendered := frame(t, site, "", 120, 12)
+	wantText(t, rendered, "Ochazuke v2 Wave 3", "3/6", "50%", "▶1", "█", "▓", "░")
+	for _, unwanted := range []string{"Lane:", "picker-worker", "2 planned", "ctrl+a L"} {
+		if strings.Contains(rendered, unwanted) {
+			t.Fatalf("compact lane bar should not contain verbose text %q:\n%s", unwanted, rendered)
+		}
+	}
+
+	// Folding a compact hook badge onto the progress bar keeps the suffix concise.
+	folded := PaneSiteViewWith(w.pane, pages, "", "", SiteOptions{
+		Store:          w.store,
+		ShowLaneBar:    true,
+		CompactTopArea: true,
+		LaneSuffix:     "● working",
+		LaneSuffixTone: "accent",
+	})
+	fbar := folded.Find(LaneBarID)
+	if got, _ := fbar.Props["suffix"].(string); got != "▶1 · ● working" {
+		t.Fatalf("folded suffix = %q, want %q", got, "▶1 · ● working")
+	}
+	if got, _ := fbar.Props["suffixTone"].(string); got != "accent" {
+		t.Fatalf("folded suffixTone = %q, want %q", got, "accent")
+	}
+
+	// Second active tree adds "+1" to the compact suffix.
+	second := laneOf(t, w, "side", "Side quest", "planned", nil)
+	if _, _, err := w.store.Relate(data.RelateInput{From: second.Ref(), Kind: data.RelClaim, To: w.pane.Ref()}, owner); err != nil {
+		t.Fatal(err)
+	}
+	bar2, ok := LaneBarCompact(w.store, w.pane, "", "")
+	if !ok {
+		t.Fatal("LaneBarCompact returned false for two trees")
+	}
+	if got, _ := bar2.Props["suffix"].(string); got != "▶1 +1" {
+		t.Fatalf("two-tree compact suffix = %q, want %q", got, "▶1 +1")
+	}
+	if bar2.Facts["trees"] != 2 {
+		t.Fatalf("two-tree facts.trees = %v, want 2", bar2.Facts["trees"])
+	}
+}
+
 // With no claim the bar walks up from the pane's task to the nearest task
 // that has an active lane; a finished tree shows nothing.
 func TestLaneBarFromTask(t *testing.T) {

@@ -137,11 +137,14 @@ type Options struct {
 }
 
 type viewMemoState struct {
-	gen     uint64
-	memoKey string
-	memo    ui.ViewNode
-	tabsKey string
-	tabs    ui.ViewNode
+	gen       uint64
+	builds    uint64
+	memoKey   string
+	memo      ui.ViewNode
+	tabsKey   string
+	tabs      ui.ViewNode
+	binds     *compiledBindingsIndex
+	fileCache *contentFileCache
 }
 
 // App is the application state around the engine. Handlers change it and the
@@ -424,9 +427,9 @@ func (a *App) subject(s core.State, c core.Command) (core.Ref, bool) {
 
 // --- registration ---------------------------------------------------------------
 
-// handle registers fn as the handler of id. Every handler runs between two
-// bumps of the view generation and is followed by settle, so the view never
-// shows stale data and the focus never points at a node that is gone.
+// handle registers fn as the handler of id. Every handler bumps the view
+// generation after running and is followed by settle, so the view never shows
+// stale data and the focus never points at a node that is gone.
 func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResult) {
 	a.Engine.Handle(id, func(s core.State, c core.Command) core.StepResult {
 		a.tickToasts()
@@ -434,7 +437,6 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 		prevMode := a.Engine.Mode(s)
 		a.syncEscapeGuardModal(prevModal)
 		unreadNavTarget, hasUnreadNav := a.unreadNavTargetAt(s)
-		a.viewMemo.gen++
 		out := fn(s, c)
 		if hasUnreadNav && isProjectNavAckCommand(c.ID) {
 			if a.markProjectNavTargetRead(unreadNavTarget) {
@@ -703,6 +705,8 @@ func (a *App) register() {
 	a.handle(CmdPaneHints, a.paneHints)
 	a.handle(CmdHintsKey, a.hintsKey)
 	a.handle(CmdHintsCancel, a.hintsCancel)
+	a.handle(CmdHintsActionCycle, a.hintsActionCycle)
+	a.handle(CmdHintsActionSet, a.hintsActionSet)
 	a.handle(CmdPaneCompose, a.paneCompose)
 	for _, id := range []string{CmdComposerInsert, CmdComposerBackspace, CmdComposerEnter, CmdComposerSubmit,
 		CmdComposerCancel, CmdComposerModeCycle, CmdComposerComplete, CmdComposerUp, CmdComposerDown,

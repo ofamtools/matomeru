@@ -477,13 +477,35 @@ func projectNavSafeID(raw string, idx int) string {
 	return s
 }
 
+const (
+	projectNavContextMaxItems = 40
+	projectNavOverflowNodeID  = "_more"
+)
+
+func projectNavSectionDisplayTitle(secKey string) string {
+	switch secKey {
+	case "context":
+		return "Context"
+	case "pinned":
+		return "Pinned"
+	case "prs":
+		return "PRs"
+	default:
+		return secKey
+	}
+}
+
 func (a *App) projectContextNavNodes(ws projectWorkspaceData, secKey string, items []CollectedContextItem, focusID, lockedFocus string, expanded, allowPeek bool) ([]views.ProjectNavNode, int) {
+	if !expanded && len(ws.contextRecords) == 0 {
+		return nil, 0
+	}
 	pc := a.projectCtrl()
 	projKey := ws.projectKey
 	parentFocus := projectNavPrefix + secKey
-	seen := map[string]int{}
-	out := make([]views.ProjectNavNode, 0, len(items))
+	var seen map[string]int
+	var out []views.ProjectNavNode
 	unreadCount := 0
+	overflow := 0
 	for i, it := range items {
 		unread := false
 		if it.RecordID != "" && ws.contextRecords != nil {
@@ -494,6 +516,18 @@ func (a *App) projectContextNavNodes(ws projectWorkspaceData, secKey string, ite
 		if unread {
 			unreadCount++
 		}
+		if !expanded && (!allowPeek || !unread) {
+			continue
+		}
+		if len(out) >= projectNavContextMaxItems {
+			overflow++
+			continue
+		}
+		if seen == nil {
+			capHint := min(len(items)-i, projectNavContextMaxItems)
+			seen = make(map[string]int, capHint)
+			out = make([]views.ProjectNavNode, 0, capHint+1)
+		}
 		nodeID := it.RecordID
 		if nodeID == "" {
 			nodeID = projectNavSafeID(it.CanonKey, i)
@@ -502,9 +536,6 @@ func (a *App) projectContextNavNodes(ws projectWorkspaceData, secKey string, ite
 			nodeID = fmt.Sprintf("%s_%d", nodeID, n)
 		}
 		seen[nodeID]++
-		if !expanded && (!allowPeek || !unread) {
-			continue
-		}
 
 		nodeFocusID := projectNavNodePrefix + secKey + "." + nodeID
 		label := strings.TrimSpace(it.Label)
@@ -555,6 +586,28 @@ func (a *App) projectContextNavNodes(ws projectWorkspaceData, secKey string, ite
 			ContextKey:    it.Key,
 			ContextItem:   &itemCopy,
 			Unread:        unread,
+		})
+	}
+	if overflow > 0 {
+		moreFocusID := projectNavNodePrefix + secKey + "." + projectNavOverflowNodeID
+		label := fmt.Sprintf("+%d more — open %s section", overflow, projectNavSectionDisplayTitle(secKey))
+		out = append(out, views.ProjectNavNode{
+			ID:      projectNavOverflowNodeID,
+			Section: secKey,
+			Label:   label,
+			Tone:    "muted",
+			Active:  focusID == moreFocusID,
+			Facts: map[string]any{
+				"navOverflow":   true,
+				"overflowCount": overflow,
+			},
+		})
+		pc.registerNavTarget(projKey, projectNavTarget{
+			FocusID:       moreFocusID,
+			Section:       secKey,
+			NodeID:        projectNavOverflowNodeID,
+			ParentFocusID: parentFocus,
+			Label:         label,
 		})
 	}
 	return out, unreadCount
@@ -747,6 +800,9 @@ func (a *App) projectNavNodeOpen(s core.State, focusID string) core.StepResult {
 
 	if target.Unread {
 		a.markProjectNavTargetRead(target)
+	}
+	if target.NodeID == projectNavOverflowNodeID {
+		return a.projectSectionSelect(s, core.Command{ID: CmdProjectSectionSelect, Args: map[string]any{"section": target.Section}})
 	}
 
 	// 1. Pages: full interactive ModePage matching 1 Panes.

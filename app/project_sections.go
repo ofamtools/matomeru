@@ -29,8 +29,11 @@ type projectWorkspaceData struct {
 	unreadNoteTasks, unreadPagePanes map[string]bool
 	unreadPages, officialCount       int
 	openQuestions                    int
-	unreadTotal                      int
+	baseUnreadTotal, unreadTotal     int
 	runningPanes, needsYouPanes      int
+	cacheRev                         int64
+	cacheCtxGen                      uint64
+	cacheRailKey                     string
 }
 
 func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) projectWorkspaceData {
@@ -47,8 +50,16 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 	ctxGen := a.contextIndexGen()
 	railKey := a.railGroupPanesKey(groupName)
 	if a.Store != nil && pc.wsCache != nil {
-		if c, ok := pc.wsCache[projKey]; ok && c.rev == rev && c.telemetrySeq == telSeq && c.showArchived == a.nav.showArchived && c.ctxGen == ctxGen && c.groupName == groupName && c.projID == projID && c.railPanesKey == railKey {
-			return c.data
+		if c, ok := pc.wsCache[projKey]; ok && c.rev == rev && c.showArchived == a.nav.showArchived && c.ctxGen == ctxGen && c.groupName == groupName && c.projID == projID && c.railPanesKey == railKey {
+			if c.telemetrySeq == telSeq {
+				return c.data
+			}
+			ws := c.data
+			a.populateProjectLiveTelemetry(&ws)
+			c.telemetrySeq = telSeq
+			c.data = ws
+			pc.wsCache[projKey] = c
+			return ws
 		}
 	}
 
@@ -90,15 +101,7 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 	if ws.projectID != "" {
 		ws.worktrees = a.projectWorktreesFromWorkspace(ws)
 	}
-	ws.contextItems = a.projectUnifiedContextItems(groupName, projRef, paneTitles)
-	if a.Store != nil && projRef != nil && projRef.ID != "" {
-		if persisted, err := a.Store.ProjectContextAll(projRef.ID); err == nil && len(persisted) > 0 {
-			ws.contextRecords = make(map[string]data.Record, len(persisted))
-			for _, rec := range persisted {
-				ws.contextRecords[rec.ID] = rec
-			}
-		}
-	}
+	ws.contextItems, ws.contextRecords = a.projectUnifiedContextItems(groupName, projRef, paneTitles)
 	for _, it := range ws.contextItems {
 		if it.Official {
 			ws.officialCount++
@@ -116,13 +119,16 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 	ws.questions, ws.openQuestions = a.projectQuestionsList(ws.taskIDs, ws.paneIDs)
 	ws.commands = a.projectScopedByTaskOrPane(data.KindCommand, ws.taskIDs, ws.paneIDs)
 	a.populateProjectWorkspaceActivity(&ws)
+	ws.cacheRailKey = railKey
+	ws.cacheCtxGen = a.contextIndexGen()
 	if a.Store != nil {
 		if pc.wsCache == nil {
 			pc.wsCache = map[string]cachedProjectWorkspace{}
 		}
 		postRev, _ := a.Store.LatestChangeSetNumber()
+		ws.cacheRev = postRev
 		pc.wsCache[projKey] = cachedProjectWorkspace{
-			rev: postRev, telemetrySeq: telSeq, showArchived: a.nav.showArchived, ctxGen: a.contextIndexGen(),
+			rev: postRev, telemetrySeq: telSeq, showArchived: a.nav.showArchived, ctxGen: ws.cacheCtxGen,
 			groupName: groupName, projID: projID, railPanesKey: railKey, data: ws,
 		}
 	}
@@ -177,7 +183,7 @@ func (a *App) buildProjectSectionBody(s core.State, ws projectWorkspaceData, sec
 		if a.projectOutlineAsPageEnabled() && ws.projectID != "" {
 			return a.projectOutlineView(&s, ws.projectID)
 		}
-		return a.projectRecordPanel("project.tasks", projectTasksFlatTable, data.KindTask, "tasks", "Tasks", views.ScopeProjectContent, ws.tasks,
+		return a.projectRecordPanel("project.tasks", projectTasksFlatTable, data.KindTask, "tasks", "Tasks", views.ScopeProjectContent, ws, ws.tasks,
 			[]ui.Badge{{Text: fmt.Sprintf("%d tasks", len(ws.tasks))}})
 	case "pages":
 		return a.projectSectionPages(s, ws)
@@ -194,10 +200,10 @@ func (a *App) buildProjectSectionBody(s core.State, ws projectWorkspaceData, sec
 		return a.projectContextPanel("project.pinned", projectPinnedTable, "pinned", "Pinned Links & Files", ws, ws.pinnedItems,
 			[]ui.Badge{{Text: fmt.Sprintf("%d curated", len(ws.pinnedItems)), Tone: "accent"}, {Text: "N add · p official", Tone: "muted"}})
 	case "panes":
-		return a.projectTreePanel("project.panes", projectPanesTree, data.KindPane, "parentPane", "panes", scopeProjectPanes, ws.panes,
+		return a.projectTreePanel("project.panes", projectPanesTree, data.KindPane, "parentPane", "panes", scopeProjectPanes, ws, ws.panes,
 			ui.Badge{Text: "enter jump live", Tone: "muted"})
 	case "lanes":
-		return a.projectTreePanel("project.lanes", projectLanesTree, data.KindLane, "parentLane", "lanes", views.ScopeProjectContent, ws.allLanes,
+		return a.projectTreePanel("project.lanes", projectLanesTree, data.KindLane, "parentLane", "lanes", views.ScopeProjectContent, ws, ws.allLanes,
 			ui.Badge{Text: fmt.Sprintf("%d active", len(ws.activeLanes)), Tone: "accent"})
 	case "worktrees":
 		return a.projectSectionWorktrees(ws)
@@ -205,7 +211,7 @@ func (a *App) buildProjectSectionBody(s core.State, ws projectWorkspaceData, sec
 		return a.projectContextPanel("project.prs", projectPRsTable, "prs", "PRs", ws, ws.prItems,
 			[]ui.Badge{{Text: fmt.Sprintf("%d PRs", len(ws.prItems)), Tone: "accent"}})
 	case "documents":
-		return a.projectRecordPanel("project.documents", projectDocumentsTable, data.KindDocument, "documents", "Documents", scopeProjectDocuments, ws.documents,
+		return a.projectRecordPanel("project.documents", projectDocumentsTable, data.KindDocument, "documents", "Documents", scopeProjectDocuments, ws, ws.documents,
 			[]ui.Badge{{Text: fmt.Sprintf("%d docs", len(ws.documents))}, {Text: "enter / o read", Tone: "muted"}})
 	case "notes":
 		return a.projectSectionNotes(ws)
@@ -214,98 +220,25 @@ func (a *App) buildProjectSectionBody(s core.State, ws projectWorkspaceData, sec
 		if ws.openQuestions > 0 {
 			badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d open", ws.openQuestions), Tone: "warning"})
 		}
-		return a.projectRecordPanel("project.questions", projectQuestionsTable, data.KindQuestion, "questions", "Questions & Decisions", views.ScopeProjectContent, ws.questions, badges)
+		return a.projectRecordPanel("project.questions", projectQuestionsTable, data.KindQuestion, "questions", "Questions & Decisions", views.ScopeProjectContent, ws, ws.questions, badges)
 	case "commands":
-		return a.projectRecordPanel("project.commands", projectCommandsTable, data.KindCommand, "commands", "Commands", views.ScopeProjectContent, ws.commands,
+		return a.projectRecordPanel("project.commands", projectCommandsTable, data.KindCommand, "commands", "Commands", views.ScopeProjectContent, ws, ws.commands,
 			[]ui.Badge{{Text: fmt.Sprintf("%d commands", len(ws.commands))}, {Text: "enter / r run", Tone: "muted"}})
 	default:
-		return a.projectSectionHome(ws)
+		return a.projectSectionHome(s, ws)
 	}
 }
 
 // --- Section builders -----------------------------------------------------------
 
-func (a *App) projectSectionHome(ws projectWorkspaceData) ui.ViewNode {
-	var rows []ui.ViewNode
-	if ws.projRec != nil {
-		if desc := strings.TrimSpace(ws.projRec.Text("description")); desc != "" {
-			rows = append(rows, line("project.home.desc", " "+desc, ""))
+func (a *App) projectSectionHome(s core.State, ws projectWorkspaceData) ui.ViewNode {
+	if openID := a.projectCtrl().openPageID(ws.projectKey); openID != "" {
+		if page, err := a.Store.Get(core.Ref{Kind: data.KindPage, ID: openID}); err == nil && page != nil {
+			return a.buildProjectInteractivePageNode(s, *page, false)
 		}
-		var meta []string
-		if repo := strings.TrimSpace(ws.projRec.Text("repo")); repo != "" {
-			meta = append(meta, "repo: "+repo)
-		}
-		if dir := strings.TrimSpace(ws.projRec.Text("defaultDir")); dir != "" {
-			meta = append(meta, "dir: "+dir)
-		}
-		if len(meta) > 0 {
-			rows = append(rows, line("project.home.meta", " "+strings.Join(meta, " · "), "muted"))
-		}
-	} else {
-		rows = append(rows, line("project.home.meta", " Panes not assigned to any project task (L associates a pane)", "muted"))
+		a.projectCtrl().setOpenPageID(ws.projectKey, "")
 	}
-	rows = append(rows,
-		line("project.home.gap1", "", ""),
-		line("project.home.counts.hdr", " WORKSPACE COUNTS", "muted"),
-		line("project.home.counts.1", fmt.Sprintf(" Tasks: %d · Panes: %d · Lanes: %d active (%d total) · Pages: %d",
-			len(ws.tasks), len(ws.panes), len(ws.activeLanes), len(ws.allLanes), len(ws.pages)), ""),
-		line("project.home.counts.2", fmt.Sprintf(" Docs: %d · Notes: %d · Questions: %d (%d open) · Commands: %d · Worktrees: %d",
-			len(ws.documents), len(ws.notes), len(ws.questions), ws.openQuestions, len(ws.commands), len(ws.worktrees)), ""),
-		line("project.home.gap2", "", ""),
-		line("project.home.official.hdr", fmt.Sprintf(" ★ OFFICIAL PROJECT CONTEXT (AUTO-INCLUDED · %d)", len(ws.officialItems)), "accent"),
-	)
-	if len(ws.officialItems) == 0 {
-		rows = append(rows, line("project.home.official.empty", " None yet · press N to add official context, or p in Context to promote", "muted"))
-	} else {
-		limit := min(len(ws.officialItems), 6)
-		for i := range limit {
-			it := ws.officialItems[i]
-			label := strings.TrimSpace(it.Label)
-			if label == "" {
-				label = it.Value
-			}
-			entry := fmt.Sprintf(" ★ [%s] %s", it.Kind, clip(label, 42))
-			if it.Value != "" && it.Value != label {
-				entry += " · " + clip(it.Value, 44)
-			}
-			rows = append(rows, line(fmt.Sprintf("project.home.official.%d", i), entry, ""))
-		}
-		if len(ws.officialItems) > limit {
-			rows = append(rows, line("project.home.official.more", fmt.Sprintf(" +%d more in Context", len(ws.officialItems)-limit), "muted"))
-		}
-	}
-	if len(ws.activeLanes) > 0 {
-		rows = append(rows, line("project.home.gap3", "", ""), line("project.home.lanes.hdr", " ACTIVE LANES", "muted"))
-		for i, l := range ws.activeLanes {
-			if i >= 4 {
-				rows = append(rows, line("project.home.lanes.more", fmt.Sprintf(" +%d more lanes", len(ws.activeLanes)-4), "muted"))
-				break
-			}
-			rows = append(rows, line(fmt.Sprintf("project.home.lane.%d", i),
-				fmt.Sprintf(" [%s] %s", l.Text("laneStatus"), views.Title(a.schema(data.KindLane), l)), "accent"))
-		}
-	}
-	if ws.openQuestions > 0 {
-		rows = append(rows, line("project.home.gap4", "", ""),
-			line("project.home.q.hdr", fmt.Sprintf(" OPEN QUESTIONS & DECISIONS (%d)", ws.openQuestions), "warning"))
-		shown := 0
-		for _, q := range ws.questions {
-			if q.Text("status") != "open" || shown >= 3 {
-				continue
-			}
-			rows = append(rows, line(fmt.Sprintf("project.home.q.%d", shown), " ? "+clip(views.Title(a.schema(data.KindQuestion), q), 72), "warning"))
-			shown++
-		}
-	}
-	return ui.ViewNode{
-		ID: "project.home", Kind: ui.KindPanel, Scope: views.ScopeProjectContent, Title: "Home", Border: true,
-		Badges: []ui.Badge{{Text: fmt.Sprintf("%d tasks", len(ws.tasks))}, {Text: fmt.Sprintf("%d context", len(ws.contextItems)), Tone: "accent"}},
-		Facts:  map[string]any{"section": "home"},
-		Children: []ui.ViewNode{{
-			ID: projectHomeSummaryID, Kind: ui.KindVStack, Scope: views.ScopeProjectContent,
-			Focusable: true, Facts: map[string]any{"section": "home"}, Children: rows,
-		}},
-	}
+	return a.buildProjectHomeSection(ws, true)
 }
 
 func (a *App) projectSectionPages(s core.State, ws projectWorkspaceData) ui.ViewNode {
@@ -316,57 +249,62 @@ func (a *App) projectSectionPages(s core.State, ws projectWorkspaceData) ui.View
 		}
 		pc.setOpenPageID(ws.projectKey, "")
 	}
-	cols := []table.Column{
-		{Key: "title", Title: "Page"},
-		{Key: "pageKind", Title: "Kind", Width: 11},
-		{Key: "pane", Title: "Pane", Width: 18},
-		{Key: "flags", Title: "Flags", Width: 5},
-	}
-	rows := make([]table.Row, 0, len(ws.pages)+1)
-	rows = append(rows, table.Row{
-		ID: projectPagesOutlineRowID, Scope: scopeProjectPages,
-		Cells:  map[string]any{"title": "★ Tasks (Outline)", "pageKind": "outline", "pane": "project", "flags": "★", views.AnyField: "Tasks Outline project"},
-		Facts:  map[string]any{"section": "pages", "projectOutlineEntry": true},
-		Badges: []ui.Badge{{Text: "pinned", Tone: "accent"}},
-	})
-	paneTitles := make(map[string]string, len(ws.panes))
-	paneSchema := a.schema(data.KindPane)
-	for _, p := range ws.panes {
-		paneTitles[p.ID] = views.Title(paneSchema, p)
-	}
-	for _, p := range ws.pages {
-		ref := p.Ref()
-		paneLabel := "project"
-		if pRef, ok := p.RefField("pane"); ok {
-			if t, found := paneTitles[pRef.ID]; found {
-				paneLabel = t
-			} else {
-				paneLabel = a.title(pRef)
-				paneTitles[pRef.ID] = paneLabel
-			}
+	cacheKey := fmt.Sprintf("pages|%s|%d|%v|%s|%d", ws.projectKey, ws.cacheRev, a.nav.showArchived, ws.cacheRailKey, len(ws.pages))
+	tbl, cached := a.cachedProjectTable(projectPagesTable, cacheKey)
+	if !cached {
+		cols := []table.Column{
+			{Key: "title", Title: "Page"},
+			{Key: "pageKind", Title: "Kind", Width: 11},
+			{Key: "pane", Title: "Pane", Width: 18},
+			{Key: "flags", Title: "Flags", Width: 5},
 		}
-		unread := p.IsUnread()
-		var flags []string
-		if unread {
-			flags = append(flags, "●")
-		}
-		if p.Bool("pinned") {
-			flags = append(flags, "▪")
-		}
-		if p.IsStarred() {
-			flags = append(flags, "★")
-		}
-		title := views.Title(a.schema(data.KindPage), p)
+		rows := make([]table.Row, 0, len(ws.pages)+1)
 		rows = append(rows, table.Row{
-			ID: data.RefText(ref), Ref: &ref, Scope: scopeProjectPages, Unread: unread,
-			Cells: map[string]any{
-				"title": title, "pageKind": p.Text("pageKind"), "pane": paneLabel, "flags": strings.Join(flags, ""),
-				views.AnyField: strings.Join([]string{title, p.Text("pageKind"), paneLabel, p.Text("slug")}, " "),
-			},
-			Facts: map[string]any{"section": "pages", "pageId": p.ID, "projectPageRow": true, "unread": unread},
+			ID: projectPagesOutlineRowID, Scope: scopeProjectPages,
+			Cells:  map[string]any{"title": "★ Tasks (Outline)", "pageKind": "outline", "pane": "project", "flags": "★", views.AnyField: "Tasks Outline project"},
+			Facts:  map[string]any{"section": "pages", "projectOutlineEntry": true},
+			Badges: []ui.Badge{{Text: "pinned", Tone: "accent"}},
 		})
+		paneTitles := make(map[string]string, len(ws.panes))
+		paneSchema := a.schema(data.KindPane)
+		for _, p := range ws.panes {
+			paneTitles[p.ID] = views.Title(paneSchema, p)
+		}
+		for _, p := range ws.pages {
+			ref := p.Ref()
+			paneLabel := "project"
+			if pRef, ok := p.RefField("pane"); ok {
+				if t, found := paneTitles[pRef.ID]; found {
+					paneLabel = t
+				} else {
+					paneLabel = a.title(pRef)
+					paneTitles[pRef.ID] = paneLabel
+				}
+			}
+			unread := p.IsUnread()
+			var flags []string
+			if unread {
+				flags = append(flags, "●")
+			}
+			if p.Bool("pinned") {
+				flags = append(flags, "▪")
+			}
+			if p.IsStarred() {
+				flags = append(flags, "★")
+			}
+			title := views.Title(a.schema(data.KindPage), p)
+			rows = append(rows, table.Row{
+				ID: data.RefText(ref), Ref: &ref, Scope: scopeProjectPages, Unread: unread,
+				Cells: map[string]any{
+					"title": title, "pageKind": p.Text("pageKind"), "pane": paneLabel, "flags": strings.Join(flags, ""),
+					views.AnyField: strings.Join([]string{title, p.Text("pageKind"), paneLabel, p.Text("slug")}, " "),
+				},
+				Facts: map[string]any{"section": "pages", "pageId": p.ID, "projectPageRow": true, "unread": unread},
+			})
+		}
+		tbl = a.keepProjectTable(projectPagesTable, table.New(cols, rows))
+		a.storeProjectTableKey(projectPagesTable, cacheKey)
 	}
-	tbl := a.keepProjectTable(projectPagesTable, table.New(cols, rows))
 	node := tbl.View(projectPagesTable)
 	node.Scope = scopeProjectPages
 	badges := []ui.Badge{{Text: fmt.Sprintf("%d pages", len(ws.pages))}}
@@ -397,10 +335,15 @@ func (a *App) projectSectionSignals() ui.ViewNode {
 }
 
 func (a *App) projectContextTableModel(ws projectWorkspaceData) *table.Model {
-	return a.buildContextSectionTable(projectContextTable, "context", ws.groupName, ws.projRef, ws.contextItems)
+	return a.buildContextSectionTable(projectContextTable, "context", ws, ws.contextItems)
 }
 
-func (a *App) buildContextSectionTable(tableID, section, groupName string, projRef *core.Ref, items []CollectedContextItem) *table.Model {
+func (a *App) buildContextSectionTable(tableID, section string, ws projectWorkspaceData, items []CollectedContextItem) *table.Model {
+	cacheKey := fmt.Sprintf("ctx|%s|%s|%d|%d|%v|%s|%d", tableID, ws.projectKey, ws.cacheRev, ws.cacheCtxGen, a.nav.showArchived, ws.cacheRailKey, len(items))
+	if tbl, ok := a.cachedProjectTable(tableID, cacheKey); ok && (len(items) == 0 || len(a.panes.projectCtxRows) > 0) {
+		a.panes.projectCtxGroup, a.panes.projectCtxRef = ws.groupName, ws.projRef
+		return tbl
+	}
 	cols := []table.Column{
 		{Key: "tier", Title: "Tier", Width: 17},
 		{Key: "kind", Title: "Kind", Width: 6},
@@ -451,12 +394,14 @@ func (a *App) buildContextSectionTable(tableID, section, groupName string, projR
 		}
 		a.panes.projectCtxRows[it.Key] = it
 	}
-	a.panes.projectCtxGroup, a.panes.projectCtxRef = groupName, projRef
-	return a.keepProjectTable(tableID, table.New(cols, rows))
+	a.panes.projectCtxGroup, a.panes.projectCtxRef = ws.groupName, ws.projRef
+	tbl := a.keepProjectTable(tableID, table.New(cols, rows))
+	a.storeProjectTableKey(tableID, cacheKey)
+	return tbl
 }
 
 func (a *App) projectContextPanel(panelID, tableID, section, title string, ws projectWorkspaceData, items []CollectedContextItem, extra []ui.Badge) ui.ViewNode {
-	tbl := a.buildContextSectionTable(tableID, section, ws.groupName, ws.projRef, items)
+	tbl := a.buildContextSectionTable(tableID, section, ws, items)
 	node := tbl.View(tableID)
 	node.Scope = ScopeProjectContext
 	if node.Facts == nil {
@@ -476,24 +421,30 @@ func (a *App) projectContextPanel(panelID, tableID, section, title string, ws pr
 	}
 }
 
-func (a *App) projectTreePanel(panelID, treeID, kind, parentField, section, panelScope string, recs []data.Record, extra ...ui.Badge) ui.ViewNode {
+func (a *App) projectTreePanel(panelID, treeID, kind, parentField, section, panelScope string, ws projectWorkspaceData, recs []data.Record, extra ...ui.Badge) ui.ViewNode {
 	schema := a.schema(kind)
-	tm := a.syncProjectSectionTree(treeID, schema, data.BuildTree(recs, parentField, "", a.nav.showArchived))
+	tm := a.syncProjectSectionTree(treeID, ws, schema, recs, parentField)
 	panel := views.TreeView(schema, tm, panelID, treeID, panelScope, extra...)
 	panel.Facts["section"] = section
 	return panel
 }
 
-func (a *App) projectRecordPanel(panelID, tableID, kind, section, title, panelScope string, recs []data.Record, badges []ui.Badge) ui.ViewNode {
-	schema := a.schema(kind)
-	fresh := views.TableFromRecordsWith(schema, recs, a.styleOptions())
-	a.resolveTableRefCells(schema, recs, fresh)
-	for i, rec := range recs {
-		if a.openable(rec) {
-			fresh.Rows[i].Facts[factOpenable] = true
+func (a *App) projectRecordPanel(panelID, tableID, kind, section, title, panelScope string, ws projectWorkspaceData, recs []data.Record, badges []ui.Badge) ui.ViewNode {
+	st := a.styleOptions()
+	cacheKey := fmt.Sprintf("rec|%s|%s|%s|%d|%v|%v:%v|%d", tableID, ws.projectKey, kind, ws.cacheRev, a.nav.showArchived, st.RowSemanticStyling, st.StatusIcons, len(recs))
+	tbl, cached := a.cachedProjectTable(tableID, cacheKey)
+	if !cached {
+		schema := a.schema(kind)
+		fresh := views.TableFromRecordsWith(schema, recs, st)
+		a.resolveTableRefCells(schema, recs, fresh)
+		for i, rec := range recs {
+			if a.openable(rec) {
+				fresh.Rows[i].Facts[factOpenable] = true
+			}
 		}
+		tbl = a.keepProjectTable(tableID, fresh)
+		a.storeProjectTableKey(tableID, cacheKey)
 	}
-	tbl := a.keepProjectTable(tableID, fresh)
 	node := tbl.View(tableID)
 	if node.Scope == "" {
 		node.Scope, node.Ref = kind, &core.Ref{Kind: kind}
@@ -505,23 +456,28 @@ func (a *App) projectRecordPanel(panelID, tableID, kind, section, title, panelSc
 }
 
 func (a *App) projectSectionWorktrees(ws projectWorkspaceData) ui.ViewNode {
-	cols := []table.Column{
-		{Key: "path", Title: "Path"}, {Key: "branch", Title: "Branch", Width: 20},
-		{Key: "repo", Title: "Repo", Width: 18}, {Key: "source", Title: "Source", Width: 10},
-	}
-	rows := make([]table.Row, len(ws.worktrees))
-	for i, wt := range ws.worktrees {
-		ref := wt.Ref
-		rows[i] = table.Row{
-			ID: wt.Path, Ref: &ref, Scope: scopeProjectWorktrees,
-			Cells: map[string]any{
-				"path": wt.Path, "branch": wt.Branch, "repo": wt.Repo, "source": wt.Source,
-				views.AnyField: strings.Join([]string{wt.Path, wt.Branch, wt.Repo, wt.Source}, " "),
-			},
-			Facts: map[string]any{"section": "worktrees", "path": wt.Path, factOpenable: true},
+	cacheKey := fmt.Sprintf("wt|%s|%d|%v|%s|%d", ws.projectKey, ws.cacheRev, a.nav.showArchived, ws.cacheRailKey, len(ws.worktrees))
+	tbl, cached := a.cachedProjectTable(projectWorktreesTable, cacheKey)
+	if !cached {
+		cols := []table.Column{
+			{Key: "path", Title: "Path"}, {Key: "branch", Title: "Branch", Width: 20},
+			{Key: "repo", Title: "Repo", Width: 18}, {Key: "source", Title: "Source", Width: 10},
 		}
+		rows := make([]table.Row, len(ws.worktrees))
+		for i, wt := range ws.worktrees {
+			ref := wt.Ref
+			rows[i] = table.Row{
+				ID: wt.Path, Ref: &ref, Scope: scopeProjectWorktrees,
+				Cells: map[string]any{
+					"path": wt.Path, "branch": wt.Branch, "repo": wt.Repo, "source": wt.Source,
+					views.AnyField: strings.Join([]string{wt.Path, wt.Branch, wt.Repo, wt.Source}, " "),
+				},
+				Facts: map[string]any{"section": "worktrees", "path": wt.Path, factOpenable: true},
+			}
+		}
+		tbl = a.keepProjectTable(projectWorktreesTable, table.New(cols, rows))
+		a.storeProjectTableKey(projectWorktreesTable, cacheKey)
 	}
-	tbl := a.keepProjectTable(projectWorktreesTable, table.New(cols, rows))
 	node := tbl.View(projectWorktreesTable)
 	node.Scope = scopeProjectWorktrees
 	return ui.ViewNode{
@@ -532,35 +488,41 @@ func (a *App) projectSectionWorktrees(ws projectWorkspaceData) ui.ViewNode {
 }
 
 func (a *App) projectSectionNotes(ws projectWorkspaceData) ui.ViewNode {
-	cols := []table.Column{
-		{Key: "title", Title: "Note"}, {Key: "target", Title: "Target", Width: 20},
-		{Key: "authorKind", Title: "Author", Width: 9}, {Key: "body", Title: "Excerpt"},
+	st := a.styleOptions()
+	cacheKey := fmt.Sprintf("notes|%s|%d|%v|%v:%v|%d", ws.projectKey, ws.cacheRev, a.nav.showArchived, st.RowSemanticStyling, st.StatusIcons, len(ws.notes))
+	tbl, cached := a.cachedProjectTable(projectNotesTable, cacheKey)
+	if !cached {
+		cols := []table.Column{
+			{Key: "title", Title: "Note"}, {Key: "target", Title: "Target", Width: 20},
+			{Key: "authorKind", Title: "Author", Width: 9}, {Key: "body", Title: "Excerpt"},
+		}
+		rows := make([]table.Row, len(ws.notes))
+		schema := a.schema(data.KindNote)
+		for i, n := range ws.notes {
+			ref := n.Ref()
+			target := a.projectNoteTargetLabel(n)
+			author := strings.TrimSpace(n.Text("authorKind"))
+			if author == "" {
+				author = "owner"
+			}
+			title := views.Title(schema, n)
+			excerpt := clip(strings.ReplaceAll(strings.TrimSpace(n.Text("body")), "\n", " "), 56)
+			facts := map[string]any{"section": "notes", "authorKind": author}
+			if a.openable(n) {
+				facts[factOpenable] = true
+			}
+			rows[i] = table.Row{
+				ID: data.RefText(ref), Ref: &ref, Scope: data.KindNote, Badges: views.StatusBadges(schema, n),
+				Cells: map[string]any{
+					"title": title, "target": target, "authorKind": author, "body": excerpt,
+					views.AnyField: strings.Join([]string{title, target, author, n.Text("body")}, " "),
+				},
+				Facts: facts,
+			}
+		}
+		tbl = a.keepProjectTable(projectNotesTable, table.New(cols, rows))
+		a.storeProjectTableKey(projectNotesTable, cacheKey)
 	}
-	rows := make([]table.Row, len(ws.notes))
-	schema := a.schema(data.KindNote)
-	for i, n := range ws.notes {
-		ref := n.Ref()
-		target := a.projectNoteTargetLabel(n)
-		author := strings.TrimSpace(n.Text("authorKind"))
-		if author == "" {
-			author = "owner"
-		}
-		title := views.Title(schema, n)
-		excerpt := clip(strings.ReplaceAll(strings.TrimSpace(n.Text("body")), "\n", " "), 56)
-		facts := map[string]any{"section": "notes", "authorKind": author}
-		if a.openable(n) {
-			facts[factOpenable] = true
-		}
-		rows[i] = table.Row{
-			ID: data.RefText(ref), Ref: &ref, Scope: data.KindNote, Badges: views.StatusBadges(schema, n),
-			Cells: map[string]any{
-				"title": title, "target": target, "authorKind": author, "body": excerpt,
-				views.AnyField: strings.Join([]string{title, target, author, n.Text("body")}, " "),
-			},
-			Facts: facts,
-		}
-	}
-	tbl := a.keepProjectTable(projectNotesTable, table.New(cols, rows))
 	node := tbl.View(projectNotesTable)
 	if node.Scope == "" {
 		node.Scope, node.Ref = data.KindNote, &core.Ref{Kind: data.KindNote}
@@ -609,13 +571,24 @@ func (a *App) resolveTableRefCells(schema data.Schema, recs []data.Record, tbl *
 	}
 }
 
-func (a *App) syncProjectSectionTree(treeID string, schema data.Schema, nodes []data.TreeNode) *tree.Model {
+func (a *App) syncProjectSectionTree(treeID string, ws projectWorkspaceData, schema data.Schema, recs []data.Record, parentField string) *tree.Model {
+	st := a.styleOptions()
+	guides := a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeGuides, true)
+	var telSeq uint64
+	if schema.Kind == data.KindPane {
+		telSeq = a.rt.live.telemetrySeq.Load()
+	}
+	cacheKey := fmt.Sprintf("tree|%s|%s|%s|%d|%d|%v|%s|%v:%v:%v|%d", treeID, ws.projectKey, schema.Kind, ws.cacheRev, telSeq, a.nav.showArchived, ws.cacheRailKey, st.RowSemanticStyling, st.StatusIcons, guides, len(recs))
+	if tm, ok := a.cachedProjectTree(treeID, cacheKey); ok {
+		return tm
+	}
 	pc := a.projectCtrl()
 	tm := pc.trees[treeID]
 	if tm == nil {
 		tm = tree.New(nil)
 		pc.trees[treeID] = tm
 	}
+	nodes := data.BuildTree(recs, parentField, "", a.nav.showArchived)
 	refTitles := map[core.Ref]string{}
 	resolveRef := func(ref core.Ref) string {
 		if t, ok := refTitles[ref]; ok {
@@ -626,8 +599,8 @@ func (a *App) syncProjectSectionTree(treeID string, schema data.Schema, nodes []
 		return t
 	}
 	opts := views.TreeOptions{
-		Style: a.styleOptions(), GapTopLevel: false, ShowFoldCount: true, ResolveRef: resolveRef,
-		Guides: a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeGuides, true),
+		Style: st, GapTopLevel: false, ShowFoldCount: true, ResolveRef: resolveRef,
+		Guides: guides,
 		EnrichNode: func(rec data.Record, nd *tree.Node) {
 			if a.openable(rec) {
 				if nd.Facts == nil {
@@ -635,12 +608,19 @@ func (a *App) syncProjectSectionTree(treeID string, schema data.Schema, nodes []
 				}
 				nd.Facts[factOpenable] = true
 			}
+			if rec.Kind == data.KindPane {
+				if nd.Facts == nil {
+					nd.Facts = map[string]any{}
+				}
+				nd.Facts["hasPendingApproval"] = len(a.pendingApprovalsFor(rec.ID)) > 0
+			}
 		},
 	}
 	built := views.TreeFromNodes(schema, nodes, opts)
-	tm.DefaultFolded, tm.GapTopLevel, tm.Guides, tm.ShowFoldCount = false, false, opts.Guides, true
+	tm.DefaultFolded, tm.GapTopLevel, tm.Guides, tm.ShowFoldCount = false, false, guides, true
 	tm.ScrollOff, tm.PageSize = a.scrollOff(), a.treeViewportHeight(treeID)
 	tm.SetNodes(built.Nodes)
+	a.storeProjectTreeKey(treeID, cacheKey)
 	return tm
 }
 
@@ -795,15 +775,16 @@ func (a *App) projectLanesSplit(projRef *core.Ref, taskIDs, paneIDs map[string]b
 	return all, active
 }
 
-func (a *App) projectUnifiedContextItems(groupName string, projRef *core.Ref, paneTitles map[string]string) []CollectedContextItem {
+func (a *App) projectUnifiedContextItems(groupName string, projRef *core.Ref, paneTitles map[string]string) ([]CollectedContextItem, map[string]data.Record) {
 	items := a.projectContextItems(groupName, projRef)
 	if a.Store == nil || projRef == nil || projRef.ID == "" {
-		return items
+		return items, nil
 	}
 	persisted, err := a.Store.ProjectContextAll(projRef.ID)
 	if err != nil || len(persisted) == 0 {
-		return items
+		return items, nil
 	}
+	records := make(map[string]data.Record, len(persisted))
 	byVal := make(map[string]int, len(items)*2)
 	for i, it := range items {
 		byVal[strings.ToLower(strings.TrimSpace(it.Value))] = i
@@ -812,6 +793,7 @@ func (a *App) projectUnifiedContextItems(groupName string, projRef *core.Ref, pa
 		}
 	}
 	for _, rec := range persisted {
+		records[rec.ID] = rec
 		val := strings.TrimSpace(rec.Text("value"))
 		if val == "" {
 			continue
@@ -852,7 +834,7 @@ func (a *App) projectUnifiedContextItems(groupName string, projRef *core.Ref, pa
 		items = append(items, item)
 	}
 	sortCollectedContext(items)
-	return items
+	return items, records
 }
 
 func mergeContextItem(harvested, persisted CollectedContextItem) CollectedContextItem {

@@ -73,6 +73,34 @@ func findProjectTreeNode(nodes []data.TreeNode, projectID string) (data.TreeNode
 func (a *App) syncProjectTaskTree(tm *tree.Model, projectID, treeID string) (data.Schema, []data.TreeNode) {
 	projectID = strings.TrimSpace(projectID)
 	schema := a.schema(data.KindTask)
+	cs := a.activeCleanSlate(data.KindTask, treeID)
+	syncKey := ""
+	if a.Store != nil && a.trees != nil {
+		rev, _ := a.Store.LatestChangeSetNumber()
+		syncKey = a.treeSyncKey(rev, data.KindTask, treeID, cs) + "|proj:" + projectID
+		if entry, ok := a.trees.syncCache[tm]; ok && entry.key == syncKey && (a.trees.foldInitialized[data.KindTask] || len(entry.nodes) == 0) {
+			tm.Folded = maps.Clone(a.trees.folded[data.KindTask])
+			if tm.Folded == nil {
+				tm.Folded = map[string]bool{}
+			}
+			if projectID != "" {
+				delete(tm.Folded, projectID)
+			}
+			tm.ScrollOff = a.scrollOff()
+			tm.PageSize = a.treeViewportHeight(treeID)
+			if len(tm.Nodes) > 0 && projectID != "" {
+				if len(tm.HoistStack) == 0 || tm.HoistStack[0] != projectID {
+					tm.HoistStack = []string{projectID}
+				}
+				if tm.SelectedID == "" && len(tm.Nodes[0].Children) > 0 {
+					tm.SelectedID = tm.Nodes[0].Children[0].ID
+				}
+			} else {
+				tm.HoistStack = nil
+			}
+			return schema, entry.nodes
+		}
+	}
 	allNodes, err := a.recordTreeNodes(data.KindTask)
 	if err != nil {
 		a.fail(data.KindTask, err)
@@ -116,6 +144,12 @@ func (a *App) syncProjectTaskTree(tm *tree.Model, projectID, treeID string) (dat
 
 	tm.SetNodes(builtNodes)
 	a.saveTreeFolded(data.KindTask, treeID, tm)
+	if syncKey != "" && a.trees != nil {
+		if a.trees.syncCache == nil {
+			a.trees.syncCache = map[*tree.Model]treeSyncEntry{}
+		}
+		a.trees.syncCache[tm] = treeSyncEntry{key: syncKey, nodes: nodes}
+	}
 	return schema, nodes
 }
 

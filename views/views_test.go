@@ -605,13 +605,193 @@ func TestShowViewRendersFullBodyMarkdownPanel(t *testing.T) {
 	if !strings.Contains(plain, "Switched audit to live IPP Mesh") || !strings.Contains(plain, "174 links across 52 pages") {
 		t.Fatalf("rendered Show page missing full body text:\n%s", plain)
 	}
+	// Body rendered in show.content.body must NOT be duplicated in Props or show.header summary.
+	if tbl := root.Find("show.props.table"); tbl != nil {
+		for _, r := range tbl.Props["rows"].([]any) {
+			cells := r.([]any)
+			if cells[0] == "Body" {
+				t.Fatalf("show.props.table should omit Body when show.content.body is rendered: %+v", cells)
+			}
+		}
+	}
+	if hdr := root.Find("show.header"); hdr != nil {
+		if sum, _ := hdr.Props["summary"].(string); sum != "" {
+			t.Fatalf("show.header should not duplicate body as truncated summary, got %q", sum)
+		}
+	}
 
-	// Opt-out (ShowContent: false) cleanly omits content panels.
+	// Opt-out (ShowContent: false) cleanly omits content panels and keeps legacy Props + summary.
 	noContent, err := ShowViewWith(w.store, note.Ref(), "show.header", ShowOptions{ShowMetadata: true, ShowEmptyRelations: true, ShowContent: false})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if noContent.Find("show.content.body") != nil {
 		t.Fatal("ShowOptions{ShowContent: false} should omit show.content.body")
+	}
+	foundBodyProp := false
+	if tbl := noContent.Find("show.props.table"); tbl != nil {
+		for _, r := range tbl.Props["rows"].([]any) {
+			if r.([]any)[0] == "Body" {
+				foundBodyProp = true
+			}
+		}
+	}
+	if !foundBodyProp {
+		t.Fatal("ShowOptions{ShowContent: false} should keep Body row in show.props.table")
+	}
+}
+
+func TestShowViewDeclarativeFormatsAndResolvedFiles(t *testing.T) {
+	w := build(t)
+
+	// 1. Code format (command.command) & Markdown format (command.notes) — full wrapped text, omitted from Props.
+	longCmd := "go test -race -count=1 ./data ./views ./app -run 'TestShowViewDeclarativeFormatsAndResolvedFiles'"
+	cmdRec, _, err := w.store.Create(data.CreateInput{
+		Kind: data.KindCommand,
+		Fields: map[string]any{
+			"title":   "Run full show suite",
+			"command": longCmd,
+			"notes":   "Runs with race detector enabled.",
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmdRoot, err := ShowView(w.store, cmdRec.Ref(), "show.header")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if codeNode := cmdRoot.Find("show.content.command.code"); codeNode == nil || codeNode.Kind != ui.KindText || codeNode.Props["text"] != longCmd || codeNode.Props["wrap"] != true {
+		t.Fatalf("expected wrapped KindText for code field, got %+v", codeNode)
+	}
+	if notesNode := cmdRoot.Find("show.content.notes.md"); notesNode == nil || notesNode.Kind != ui.KindMarkdown {
+		t.Fatalf("expected KindMarkdown for notes field, got %+v", notesNode)
+	}
+
+	// 2. Text format (context.value) & List format (question.choices) — no map[...] truncation.
+	ctxRec, _, err := w.store.Create(data.CreateInput{
+		Kind: data.KindContext,
+		Fields: map[string]any{
+			"title": "Design doc URL",
+			"value": "https://example.com/very/long/path/to/design/architecture/spec?section=show-pages&rev=42",
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctxRoot, err := ShowView(w.store, ctxRec.Ref(), "show.header")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if valNode := ctxRoot.Find("show.content.value.text"); valNode == nil || valNode.Kind != ui.KindText || valNode.Props["wrap"] != true {
+		t.Fatalf("expected wrapped KindText for context.value, got %+v", valNode)
+	}
+
+	qRec, _, err := w.store.Create(data.CreateInput{
+		Kind: data.KindQuestion,
+		Fields: map[string]any{
+			"prompt":  "Choose scroll behavior",
+			"details": "How should ctrl+d behave when focused on show.header?",
+			"choices": []any{
+				map[string]any{"id": "scroll", "label": "Scroll body", "description": "Scroll show.related viewport"},
+				map[string]any{"id": "focus", "label": "Jump focus"},
+			},
+			"answer": "Scroll body when content overflows.",
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	qRoot, err := ShowView(w.store, qRec.Ref(), "show.header")
+	if err != nil {
+		t.Fatal(err)
+	}
+	choicesNode := qRoot.Find("show.content.choices.list")
+	if choicesNode == nil || choicesNode.Kind != ui.KindText {
+		t.Fatalf("expected bulleted KindText for choices, got %+v", choicesNode)
+	}
+	choicesText, _ := choicesNode.Props["text"].(string)
+	if strings.Contains(choicesText, "map[") || !strings.Contains(choicesText, "• Scroll body — Scroll show.related viewport") || !strings.Contains(choicesText, "• Jump focus") {
+		t.Fatalf("unexpected formatted choices list: %q", choicesText)
+	}
+
+	// 3. File-backed ContentFile resolution via ResolvedFiles (prefers inline body when non-empty).
+	docRec, _, err := w.store.Create(data.CreateInput{
+		Kind: data.KindDocument,
+		Fields: map[string]any{
+			"title":    "File-backed plan",
+			"filePath": "/tmp/plan.md",
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diskBody := "# Plan from disk\n\n- Step 1\n- Step 2"
+	docOpts := DefaultShowOptions()
+	docOpts.ResolvedFiles = map[string]string{"filePath": diskBody}
+	docOpts.RelatedScrollOffset = 4
+	docOpts.PropsScrollOffset = 2
+	docRoot, err := ShowViewWith(w.store, docRec.Ref(), "show.header", docOpts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if md := docRoot.Find("show.content.body.md"); md == nil || md.Props["markdown"] != diskBody {
+		t.Fatalf("expected disk body in show.content.body.md, got %+v", md)
+	}
+	// File path stays visible in Props even though its content rendered in Body.
+	foundFilePath := false
+	for _, r := range docRoot.Find("show.props.table").Props["rows"].([]any) {
+		if r.([]any)[0] == "File path" && r.([]any)[1] == "/tmp/plan.md" {
+			foundFilePath = true
+		}
+	}
+	if !foundFilePath {
+		t.Fatal("expected File path row to remain in show.props.table")
+	}
+	if rel := docRoot.Find("show.related"); rel == nil || rel.Props["offset"] != 4 {
+		t.Fatalf("expected show.related offset=4, got %+v", rel)
+	}
+	if ps := docRoot.Find("show.props.scroll"); ps == nil || ps.Kind != ui.KindScroll || ps.Props["offset"] != 2 {
+		t.Fatalf("expected show.props.scroll offset=2, got %+v", ps)
+	}
+
+	// Non-empty inline body takes precedence over ResolvedFiles.
+	inlineDoc, _, err := w.store.Create(data.CreateInput{
+		Kind: data.KindDocument,
+		Fields: map[string]any{
+			"title":    "Inline wins",
+			"filePath": "/tmp/plan.md",
+			"body":     "Inline body wins over disk.",
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inlineRoot, err := ShowViewWith(w.store, inlineDoc.Ref(), "show.header", docOpts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if md := inlineRoot.Find("show.content.body.md"); md == nil || md.Props["markdown"] != "Inline body wins over disk." {
+		t.Fatalf("expected inline body to take precedence over ResolvedFiles, got %+v", md)
+	}
+
+	// 4. Undeclared extension string field (> 40 chars) falls back to a full content panel.
+	extRec, _, err := w.store.Create(data.CreateInput{
+		Kind: "gh.issue",
+		ID:   "99",
+		Fields: map[string]any{
+			"title":   "Support custom schemas",
+			"details": "This undeclared extension field exceeds forty characters so ShowView must render it in full.",
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extRoot, err := ShowView(w.store, extRec.Ref(), "show.header")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if extRoot.Find("show.content.details") == nil {
+		t.Fatal("expected undeclared >40-char string field to render in show.content.details")
 	}
 }
