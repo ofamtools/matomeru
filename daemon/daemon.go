@@ -20,6 +20,7 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/mcpui"
+	"ofam.dev/matomeru/mdweb"
 	"ofam.dev/matomeru/panesearch"
 	"ofam.dev/matomeru/ptyhost"
 )
@@ -91,6 +92,7 @@ type Server struct {
 	unixLn    net.Listener
 	httpLn    net.Listener
 	httpSrv   *http.Server
+	mdWeb     *mdweb.Handler
 	mcpURL    string
 	stopSched func()
 
@@ -290,11 +292,20 @@ func (s *Server) Start(ctx context.Context) error {
 		if box.PaneSearch != nil {
 			box.PaneSearch.LiveData = s.paneSearchLiveData
 		}
-		handler := mcpui.NewHTTPHandlerWithToolbox(box)
-		httpSrv := &http.Server{Handler: handler}
+		mcpHandler := mcpui.NewHTTPHandlerWithToolbox(box)
+		mdHandler := mdweb.NewHandler(mdweb.Config{
+			BasePath:          "/md",
+			AllowAnyLocalFile: true,
+		})
+		mux := http.NewServeMux()
+		mux.Handle("/md", http.RedirectHandler("/md/", http.StatusMovedPermanently))
+		mux.Handle("/md/", mdHandler)
+		mux.Handle("/", mcpHandler)
+		httpSrv := &http.Server{Handler: mux}
 		s.mu.Lock()
 		s.httpLn = httpLn
 		s.httpSrv = httpSrv
+		s.mdWeb = mdHandler
 		s.mcpURL = "http://" + httpLn.Addr().String()
 		s.mu.Unlock()
 
@@ -349,8 +360,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.mu.Lock()
 		unixLn := s.unixLn
 		httpSrv := s.httpSrv
+		mdWeb := s.mdWeb
 		s.panes = map[string]*paneMeta{}
 		s.mu.Unlock()
+
+		if mdWeb != nil {
+			mdWeb.Close()
+		}
 
 		if unixLn != nil {
 			_ = unixLn.Close()

@@ -137,10 +137,14 @@ var policies = map[string]policy{
 		allow:      []string{sqlite, mod + "/data", ochazuke + "/core"},
 		forbidDeps: noUI,
 	},
-	// Local self-hosted daemon: Unix-socket PTY persistence, HTTP MCP, and schedule ticker.
+	// Local self-hosted daemon: Unix-socket PTY persistence, HTTP MCP, interactive Markdown web server, and schedule ticker.
 	mod + "/daemon": {
-		allow:      []string{mod + "/data", mod + "/mcpui", mod + "/panesearch", mod + "/ptyhost", ochazuke + "/core"},
+		allow:      []string{mod + "/data", mod + "/mcpui", mod + "/mdweb", mod + "/panesearch", mod + "/ptyhost", ochazuke + "/core"},
 		forbidDeps: noTea,
+	},
+	// Interactive deterministic Markdown HTML server: pure stdlib + embedded assets.
+	mod + "/mdweb": {
+		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke}, noUI...),
 	},
 	// Agent hook handler: pure stdlib wire client for the daemon Unix socket.
 	mod + "/agenthook": {
@@ -185,9 +189,9 @@ var policies = map[string]policy{
 			ochazuke + "/widgets/palette", ochazuke + "/widgets/toast", ochazuke + "/widgets/hints", ochazuke + "/widgets/modal",
 		},
 	},
-	// The binary: oden + ochazuke/cli around app, data, mcpui, daemon, agenthook, harness, ptyhost, setup and migrate.
+	// The binary: oden + ochazuke/cli around app, data, mcpui, mdweb, daemon, agenthook, harness, ptyhost, setup and migrate.
 	mod + "/cmd/mtm": {
-		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", mod + "/setup", mod + "/panesearch", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", ochazuke + "/traits", oden, bubbletea},
+		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/mdweb", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", mod + "/setup", mod + "/panesearch", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", ochazuke + "/traits", oden, bubbletea},
 	},
 }
 
