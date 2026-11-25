@@ -102,7 +102,8 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: CmdOutlineEditCancel, Description: "Cancel inline outline edit", Meta: map[string]any{"internal": true}},
 		{ID: CmdOutlineEditNewline, Description: "Commit inline outline edit and start a new sibling below", Meta: map[string]any{"internal": true}},
 		{ID: CmdOutlineEditLinebreak, Description: "Insert a line break in inline outline edit", Meta: map[string]any{"internal": true}},
-		spec(CmdOutlineCleanSlate, "Open a fresh blank outline canvas isolated visually by hoisting", "editing"),
+		spec(CmdOutlineCleanSlate, "Open a fresh blank outline canvas hiding prior clutter while allowing multiple top-level trees", "editing"),
+		spec(CmdOutlineCleanSlateExit, "Exit clean-slate outline filter and show the full tree", "editing"),
 		{
 			ID:          CmdOutlineTriage,
 			Description: "Send the focused outline subtree to an agent pane for read-only triage into a ui.page proposal",

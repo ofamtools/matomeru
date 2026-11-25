@@ -559,6 +559,7 @@ func (a *App) register() {
 	a.handle(CmdOutlineEditNewline, a.outlineEditNewline)
 	a.handle(CmdOutlineEditLinebreak, a.outlineEditLinebreak)
 	a.handle(CmdOutlineCleanSlate, a.outlineCleanSlate)
+	a.handle(CmdOutlineCleanSlateExit, a.outlineCleanSlateExit)
 	a.handle(CmdOutlineTriage, a.outlineTriage)
 	a.handle(CmdRecentsPick, a.recentsPick)
 	a.handle(CmdPagesPick, a.pagesPick)

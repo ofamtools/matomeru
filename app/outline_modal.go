@@ -62,7 +62,7 @@ func (m *outlineModal) OnClose(modal.CloseReason) {
 	if m.a.trees.editingOutline() {
 		m.a.trees.clearEdit()
 	}
-	m.a.cleanupCleanSlateDraft(m.a.trees.outlineModel(), data.KindTask, outlineTree)
+	m.a.clearCleanSlate(data.KindTask, outlineTree)
 	if tm := m.a.trees.outlineModel(); tm != nil {
 		tm.ClearHoist()
 	}
@@ -89,6 +89,13 @@ func (m *outlineModal) Handle(cmd core.Command) modal.Result {
 		return modal.Result{Handled: true}
 	case tree.CmdHoistIn, tree.CmdHoistOut, tree.CmdHoistClear:
 		m.a.runTreeHoist(m.a.trees.outlineModel(), data.KindTask, outlineTree, false, cmd)
+		return modal.Result{Handled: true}
+	case CmdOutlineCleanSlateExit:
+		if m.a.exitCleanSlate(m.a.trees.outlineModel(), data.KindTask, outlineTree, false) {
+			m.a.say("returned to full tree")
+		} else {
+			m.a.say("already at full tree")
+		}
 		return modal.Result{Handled: true}
 	case CmdOutlineEditStart:
 		m.a.runTreeStartEdit(m.a.trees.outlineModel(), data.KindTask, outlineTree, false, ModeOutline, false)
@@ -251,8 +258,12 @@ func (a *App) runOutlineEditIndent() {
 	if !ok {
 		return
 	}
+	treeID := outlineTree
+	if meta.isWorkTree {
+		treeID = workTable
+	}
 	if tm.EditIndent() {
-		a.trees.folded[meta.kind] = tm.Folded
+		a.saveTreeFolded(meta.kind, treeID, tm)
 		if ed := tm.Edit(); ed != nil && ed.ParentID != "" {
 			a.say("indent under %s · enter saves", a.title(core.Ref{Kind: meta.kind, ID: ed.ParentID}))
 		}
@@ -303,18 +314,16 @@ func (a *App) runOutlineEditCancel() (string, bool) {
 		ret = ModeNormal
 	}
 	ed := tm.Edit()
-	wasCleanSlate := ed != nil && ed.Kind == tree.EditRename && a.isCleanSlateDraft(meta.kind, ed.TargetID)
+	wasAddDraft := ed != nil && ed.Kind != tree.EditRename
 	treeID := outlineTree
 	if meta.isWorkTree {
 		treeID = workTable
 	}
 	tm.CancelEdit()
 	a.trees.editMeta = nil
-	if wasCleanSlate {
-		if a.cleanupCleanSlateDraft(tm, meta.kind, treeID) {
-			if meta.isWorkTree {
-				a.syncWorkTreeToTable(meta.kind, tm)
-			}
+	if wasAddDraft {
+		if cs := a.activeCleanSlate(meta.kind, treeID); cs != nil && len(cs.roots) == 0 {
+			a.exitCleanSlate(tm, meta.kind, treeID, meta.isWorkTree)
 			a.say("discarded empty clean-slate outline")
 			return ret, true
 		}
@@ -359,23 +368,16 @@ func (a *App) runOutlineEditCommit() (string, bool) {
 	if res.Kind == tree.EditRename {
 		ref := core.Ref{Kind: meta.kind, ID: res.TargetID}
 		_ = a.ensureShadow(ref)
-		isDraft := a.isCleanSlateDraft(meta.kind, res.TargetID)
 		if title == "" {
-			if isDraft && a.treeRecordHasChildren(meta.kind, res.TargetID) {
-				a.clearCleanSlateDraft()
-				a.syncTreeModel(tm, meta.kind, treeID)
-				if meta.isWorkTree {
-					a.syncWorkTreeToTable(meta.kind, tm)
-				}
-				a.say("kept outline root (has children)")
-				return ret, true
-			}
-			if isDraft {
-				a.clearCleanSlateDraft()
-			}
 			_, cs, err := a.Store.Archive(ref, User)
 			if tm.HoistID() == res.TargetID {
 				tm.Unhoist()
+			}
+			if state := a.activeCleanSlate(meta.kind, treeID); state != nil {
+				delete(state.roots, res.TargetID)
+				if len(state.roots) == 0 {
+					a.clearCleanSlate(meta.kind, treeID)
+				}
 			}
 			noun := strings.ToLower(schema.Title)
 			if noun == "" {
@@ -387,9 +389,6 @@ func (a *App) runOutlineEditCommit() (string, bool) {
 				a.syncWorkTreeToTable(meta.kind, tm)
 			}
 			return ret, true
-		}
-		if isDraft {
-			a.clearCleanSlateDraft()
 		}
 		_, cs, err := a.Store.Patch(data.PatchInput{
 			Ref:     ref,
@@ -405,6 +404,11 @@ func (a *App) runOutlineEditCommit() (string, bool) {
 	}
 
 	if title == "" {
+		if cs := a.activeCleanSlate(meta.kind, treeID); cs != nil && len(cs.roots) == 0 {
+			a.exitCleanSlate(tm, meta.kind, treeID, meta.isWorkTree)
+			a.say("discarded empty clean-slate outline")
+			return ret, true
+		}
 		a.say("")
 		return ret, true
 	}
@@ -420,6 +424,10 @@ func (a *App) runOutlineEditCommit() (string, bool) {
 		return ret, true
 	}
 
+	if res.ParentID == "" {
+		a.addCleanSlateRoot(meta.kind, treeID, created.ID)
+	}
+
 	if h != nil && h.OrderField != "" {
 		if nodes, terr := a.recordTreeNodes(meta.kind); terr == nil {
 			a.positionCreatedTreeRecord(nodes, *created, res, h.OrderField)
@@ -428,7 +436,7 @@ func (a *App) runOutlineEditCommit() (string, bool) {
 
 	a.syncTreeModel(tm, meta.kind, treeID)
 	tm.Reveal(created.ID)
-	a.trees.folded[meta.kind] = tm.Folded
+	a.saveTreeFolded(meta.kind, treeID, tm)
 	if meta.isWorkTree {
 		a.syncWorkTreeToTable(meta.kind, tm)
 	}
@@ -470,10 +478,12 @@ func (a *App) runOutlineEditNewline() (string, bool) {
 	if ed := tm.Edit(); ed != nil {
 		prevParentID = ed.ParentID
 		prevDepth = ed.Depth
-		if ed.Kind == tree.EditRename {
-			if a.isCleanSlateDraft(kind, ed.TargetID) && strings.TrimSpace(ed.Value()) == "" {
+		if ed.Kind != tree.EditRename && strings.TrimSpace(ed.Value()) == "" {
+			if cs := a.activeCleanSlate(kind, treeID); cs != nil && len(cs.roots) == 0 {
 				wasEmptyCleanSlate = true
 			}
+		}
+		if ed.Kind == tree.EditRename {
 			if row, has := tm.Focused(); has {
 				prevParentID = row.ParentID
 				prevDepth = row.Depth
@@ -530,9 +540,37 @@ func (a *App) outlineEditLinebreak(s core.State, c core.Command) core.StepResult
 
 // --- structural mutations -------------------------------------------------------
 
+func siblingOrderBase(sibs []data.TreeNode, orderField string) int64 {
+	var minOrder int64
+	for _, n := range sibs {
+		v, ok := n.Record.Value(orderField)
+		if !ok {
+			continue
+		}
+		var num int64
+		switch x := v.(type) {
+		case int:
+			num = int64(x)
+		case int64:
+			num = x
+		case float64:
+			num = int64(x)
+		default:
+			continue
+		}
+		if num > 0 && (minOrder == 0 || num < minOrder) {
+			minOrder = num
+		}
+	}
+	if minOrder <= 0 {
+		return 1
+	}
+	return minOrder
+}
+
 func (a *App) outlineMoveSibling(delta int) func(core.State, core.Command) core.StepResult {
 	return func(s core.State, c core.Command) core.StepResult {
-		tm, _, schema, loc, ok := a.activeTreeLoc(s)
+		tm, kind, treeID, schema, loc, ok := a.activeTreeLoc(s)
 		if !ok {
 			a.say("no item selected in tree")
 			return core.Next(s)
@@ -563,11 +601,15 @@ func (a *App) outlineMoveSibling(delta int) func(core.State, core.Command) core.
 		reordered = append(reordered, cur)
 		reordered = append(reordered, without[target:]...)
 
+		base := int64(1)
+		if loc.parent == nil && a.isCleanSlateActive(kind, treeID) {
+			base = siblingOrderBase(loc.siblings, h.OrderField)
+		}
 		patches := make([]data.PatchInput, len(reordered))
 		for i, node := range reordered {
 			patches[i] = data.PatchInput{
 				Ref:    node.Record.Ref(),
-				Fields: map[string]any{h.OrderField: int64(i + 1)},
+				Fields: map[string]any{h.OrderField: base + int64(i)},
 			}
 		}
 		dir := "down"
@@ -581,7 +623,7 @@ func (a *App) outlineMoveSibling(delta int) func(core.State, core.Command) core.
 }
 
 func (a *App) outlineIndent(s core.State, _ core.Command) core.StepResult {
-	tm, kind, schema, loc, ok := a.activeTreeLoc(s)
+	tm, kind, treeID, schema, loc, ok := a.activeTreeLoc(s)
 	if !ok {
 		a.say("no item selected in tree")
 		return core.Next(s)
@@ -611,16 +653,23 @@ func (a *App) outlineIndent(s core.State, _ core.Command) core.StepResult {
 		Fields:  fields,
 		Summary: "indent " + a.title(cur.Record.Ref()) + " under " + a.title(prev.Record.Ref()),
 	}, User)
-	if err == nil && tm != nil {
-		delete(tm.Folded, prev.Record.ID)
-		a.trees.folded[kind] = tm.Folded
+	if err == nil {
+		if loc.parent == nil {
+			if state := a.activeCleanSlate(kind, treeID); state != nil {
+				delete(state.roots, cur.Record.ID)
+			}
+		}
+		if tm != nil {
+			delete(tm.Folded, prev.Record.ID)
+			a.saveTreeFolded(kind, treeID, tm)
+		}
 	}
 	a.wrote("indented "+a.title(cur.Record.Ref())+" under "+a.title(prev.Record.Ref()), cs, err)
 	return core.Next(s)
 }
 
 func (a *App) outlineOutdent(s core.State, _ core.Command) core.StepResult {
-	tm, _, schema, loc, ok := a.activeTreeLoc(s)
+	tm, kind, treeID, schema, loc, ok := a.activeTreeLoc(s)
 	if !ok {
 		a.say("no item selected in tree")
 		return core.Next(s)
@@ -657,15 +706,22 @@ func (a *App) outlineOutdent(s core.State, _ core.Command) core.StepResult {
 		newSibs = append(newSibs, cur)
 		newSibs = append(newSibs, loc.parentSibs[insertAt:]...)
 
+		base := int64(1)
+		if newParent == nil && a.isCleanSlateActive(kind, treeID) {
+			base = siblingOrderBase(loc.parentSibs, h.OrderField)
+		}
 		patches := make([]data.PatchInput, len(newSibs))
 		for i, node := range newSibs {
-			fields := map[string]any{h.OrderField: int64(i + 1)}
+			fields := map[string]any{h.OrderField: base + int64(i)}
 			if node.Record.ID == cur.Record.ID {
 				fields[h.ParentField] = newParent
 			}
 			patches[i] = data.PatchInput{Ref: node.Record.Ref(), Fields: fields}
 		}
 		cs, err := a.Store.PatchMany(patches, "outline.outdent", "outdent "+a.title(cur.Record.Ref())+" to "+where, User)
+		if err == nil && newParent == nil {
+			a.addCleanSlateRoot(kind, treeID, cur.Record.ID)
+		}
 		a.wrote("outdented "+a.title(cur.Record.Ref())+" to "+where, cs, err)
 		return core.Next(s)
 	}
@@ -675,6 +731,9 @@ func (a *App) outlineOutdent(s core.State, _ core.Command) core.StepResult {
 		Fields:  map[string]any{h.ParentField: newParent},
 		Summary: "outdent " + a.title(cur.Record.Ref()) + " to " + where,
 	}, User)
+	if err == nil && newParent == nil {
+		a.addCleanSlateRoot(kind, treeID, cur.Record.ID)
+	}
 	a.wrote("outdented "+a.title(cur.Record.Ref())+" to "+where, cs, err)
 	return core.Next(s)
 }
@@ -777,7 +836,7 @@ func (a *App) taskAddRelative(child bool) func(core.State, core.Command) core.St
 			r := ref
 			parentRef = &r
 			delete(tm.Folded, row.ID)
-			a.trees.folded[kind] = tm.Folded
+			a.saveTreeFolded(kind, treeID, tm)
 		} else if p, hasParent := rec.RefField(parentField); hasParent && p.Kind == kind && p.ID != "" {
 			r := p
 			parentRef = &r

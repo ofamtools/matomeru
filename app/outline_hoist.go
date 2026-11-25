@@ -3,88 +3,87 @@ package app
 import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
-	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/tree"
 )
 
-const cleanSlatePlaceholderTitle = "Untitled"
-
-func (a *App) isCleanSlateDraft(kind, id string) bool {
-	if a.trees == nil || id == "" || a.trees.cleanSlateRootID == "" {
-		return false
+func (a *App) cleanSlateStateFor(kind, treeID string, create bool) *cleanSlateState {
+	if a.trees == nil {
+		return nil
 	}
-	if a.trees.cleanSlateRootID != id {
-		return false
+	if treeID == workTable {
+		if a.trees.workCleanSlate == nil {
+			if !create {
+				return nil
+			}
+			a.trees.workCleanSlate = map[string]*cleanSlateState{}
+		}
+		cs := a.trees.workCleanSlate[kind]
+		if cs == nil && create {
+			cs = &cleanSlateState{}
+			a.trees.workCleanSlate[kind] = cs
+		}
+		return cs
 	}
-	return a.trees.cleanSlateKind == "" || kind == "" || a.trees.cleanSlateKind == kind
+	return &a.trees.outlineCleanSlate
 }
 
-func (a *App) clearCleanSlateDraft() {
-	if a.trees == nil {
+func (a *App) activeCleanSlate(kind, treeID string) *cleanSlateState {
+	cs := a.cleanSlateStateFor(kind, treeID, false)
+	if cs == nil || !cs.active {
+		return nil
+	}
+	return cs
+}
+
+func (a *App) isCleanSlateActive(kind, treeID string) bool {
+	return a.activeCleanSlate(kind, treeID) != nil
+}
+
+func (a *App) addCleanSlateRoot(kind, treeID, id string) {
+	if id == "" {
 		return
 	}
-	a.trees.cleanSlateRootID = ""
-	a.trees.cleanSlateKind = ""
-}
-
-func (a *App) treeRecordHasChildren(kind, id string) bool {
-	if a.Store == nil || kind == "" || id == "" {
-		return false
-	}
-	nodes, err := a.recordTreeNodes(kind)
-	if err != nil {
-		return false
-	}
-	kids, ok := findTreeChildren(nodes, id)
-	return ok && len(kids) > 0
-}
-
-// cleanupCleanSlateDraft archives an untouched clean-slate root placeholder
-// (zero children) so cancelling or submitting empty leaves zero stray records
-// while never altering any prior outlines.
-func (a *App) cleanupCleanSlateDraft(tm *tree.Model, kind, treeID string) bool {
-	if a.trees == nil || a.trees.cleanSlateRootID == "" {
-		return false
-	}
-	draftID := a.trees.cleanSlateRootID
-	draftKind := a.trees.cleanSlateKind
-	if draftKind == "" {
-		draftKind = kind
-	}
-	if draftKind == "" {
-		draftKind = data.KindTask
-	}
-	if kind != "" && draftKind != kind {
-		return false
-	}
-	a.clearCleanSlateDraft()
-
-	ref := core.Ref{Kind: draftKind, ID: draftID}
-	rec, err := a.Store.Get(ref)
-	if err != nil || rec == nil || rec.IsArchived() {
-		return false
-	}
-	if a.treeRecordHasChildren(draftKind, draftID) {
-		return false
-	}
-	if _, _, err := a.Store.Archive(ref, User); err != nil {
-		return false
-	}
-	if tm != nil {
-		if tm.HoistID() == draftID {
-			tm.Unhoist()
+	if cs := a.activeCleanSlate(kind, treeID); cs != nil {
+		if cs.roots == nil {
+			cs.roots = map[string]bool{}
 		}
-		a.syncTreeModel(tm, draftKind, treeID)
+		cs.roots[id] = true
+	}
+}
+
+func (a *App) clearCleanSlate(kind, treeID string) {
+	if cs := a.cleanSlateStateFor(kind, treeID, false); cs != nil {
+		cs.active = false
+		cs.roots = nil
+	}
+}
+
+func (a *App) exitCleanSlate(tm *tree.Model, kind, treeID string, isWork bool) bool {
+	if !a.isCleanSlateActive(kind, treeID) {
+		return false
+	}
+	focusID := ""
+	if tm != nil {
+		focusID = tm.SelectedID
+	}
+	a.clearCleanSlate(kind, treeID)
+	if tm != nil {
+		a.syncTreeModel(tm, kind, treeID)
+		if focusID != "" {
+			tm.Reveal(focusID)
+			a.saveTreeFolded(kind, treeID, tm)
+		}
+		if isWork {
+			a.syncWorkTreeToTable(kind, tm)
+		}
 	}
 	return true
 }
 
-// outlineCleanSlate opens an instant zero-noise canvas: creates a fresh
-// top-level root record, hoists visually into it without modifying or archiving
-// any prior outlines, and enters inline rename with a cleared buffer ready to
-// type immediately.
+// outlineCleanSlate opens an instant zero-noise canvas: activates a per-tree
+// clean-slate root filter hiding prior outlines without modifying or hoisting
+// them, and starts an inline root draft at depth 0 ready to type immediately.
 func (a *App) outlineCleanSlate(s core.State, _ core.Command) core.StepResult {
-	// If already in an inline edit, close it cleanly first.
 	if a.trees.editing() {
 		a.runOutlineEditCancel()
 	}
@@ -111,48 +110,33 @@ func (a *App) outlineCleanSlate(s core.State, _ core.Command) core.StepResult {
 		openModal = true
 	}
 
-	schema := a.schema(kind)
-	field := summaryField(schema)
-	created, _, err := a.Store.Create(data.CreateInput{
-		Kind:   kind,
-		Fields: map[string]any{field: cleanSlatePlaceholderTitle},
-	}, User)
-	if err != nil {
-		a.fail("clean slate", err)
-		return core.Next(s)
-	}
+	tm.ClearHoist()
+	cs := a.cleanSlateStateFor(kind, treeID, true)
+	cs.active = true
+	cs.roots = map[string]bool{}
 
-	a.trees.cleanSlateRootID = created.ID
-	a.trees.cleanSlateKind = kind
-
-	a.syncTreeModel(tm, kind, treeID)
-	tm.Hoist(created.ID)
-	a.trees.folded[kind] = tm.Folded
-
-	prefix := a.defaultEditPrefix(schema)
-	if row, has := tm.Focused(); has && row.Node.Icon != "" {
-		prefix = row.Node.Icon + " "
-	}
-	if !tm.StartRename(prefix) {
-		a.cleanupCleanSlateDraft(tm, kind, treeID)
-		a.say("could not start clean-slate outline")
-		return core.Next(s)
-	}
-	tm.HandleEditCommand(core.Command{ID: input.CmdLineStart})
-	tm.HandleEditCommand(core.Command{ID: input.CmdKillLineForward})
-
-	a.trees.editMeta = &treeEditMeta{
-		kind:       kind,
-		returnMode: returnMode,
-		isWorkTree: isWork,
-	}
-	if isWork {
-		a.syncWorkTreeToTable(kind, tm)
-	}
-	a.say("clean slate · type title · enter adds first bullet · esc saves · ctrl+c discards")
+	a.runTreeStartAdd(tm, kind, treeID, isWork, returnMode, false)
+	a.say("clean slate · type title · enter adds next · tab indents · esc exits edit")
 
 	if openModal {
 		return core.Next(a.pushModal(s, a.newOutlineModal()))
 	}
 	return core.Next(withMode(s, ModeOutlineEdit))
+}
+
+func (a *App) outlineCleanSlateExit(s core.State, c core.Command) core.StepResult {
+	if a.Modal() == "outline" {
+		return a.handleModal(s, c)
+	}
+	tm, kind, treeID, isWork, ok := a.activeTree(s)
+	if !ok {
+		a.say("no tree is focused")
+		return core.Next(s)
+	}
+	if a.exitCleanSlate(tm, kind, treeID, isWork) {
+		a.say("returned to full tree")
+	} else {
+		a.say("already at full tree")
+	}
+	return core.Next(s)
 }

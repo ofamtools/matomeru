@@ -139,26 +139,35 @@ func TestOutlineCleanSlateVisualIsolationAndDraftCleanup(t *testing.T) {
 	t.Cleanup(func() { a.Close() })
 	d := NewDriver(a, 120, 32)
 
-	// 1. Pressing `b` from 1 Panes opens an instant clean-slate canvas visually isolated by hoisting.
+	// 1. Pressing `b` from 1 Panes opens an instant blank clean-slate canvas without hoisting or creating placeholder rows.
 	if a.Space() != SpacePanes {
 		t.Fatalf("expected initial space panes, got %q", a.Space())
 	}
+	initialTasks, _ := store.Query(data.Query{Kind: data.KindTask})
 	d.Keys("b")
 	if a.Modal() != "outline" || a.Mode() != ModeOutlineEdit {
 		t.Fatalf("b from Panes: modal=%q mode=%q, want outline/outline-edit", a.Modal(), a.Mode())
 	}
 	om := a.trees.outlineModel()
-	if !om.Hoisted() {
-		t.Fatal("b should visually hoist the new clean-slate root")
+	if om.Hoisted() {
+		t.Fatal("b should use clean-slate filter, NOT single-root hoist")
 	}
-	if ed := a.trees.activeEdit(); ed == nil || ed.Value() != "" {
-		t.Fatalf("clean-slate inline rename should start with empty buffer, got %+v", ed)
+	if !a.isCleanSlateActive(data.KindTask, outlineTree) {
+		t.Fatal("b should activate outline clean slate")
 	}
-	hoistedFrame := d.Frame()
-	if strings.Contains(hoistedFrame, "Prior Alpha") || strings.Contains(hoistedFrame, "Prior Beta") {
-		t.Fatalf("clean-slate hoist leaked prior outlines:\n%s", hoistedFrame)
+	if ed := a.trees.activeEdit(); ed == nil || ed.Value() != "" || ed.ParentID != "" || ed.Depth != 0 {
+		t.Fatalf("clean-slate inline add should start at empty depth-0 draft, got %+v", ed)
 	}
-	// Prior outlines must remain completely untouched in the store.
+	if afterOpen, _ := store.Query(data.Query{Kind: data.KindTask}); len(afterOpen.Items) != len(initialTasks.Items) {
+		t.Fatalf("b should not create a placeholder record before typing: before=%d after=%d", len(initialTasks.Items), len(afterOpen.Items))
+	}
+	blankFrame := d.Frame()
+	if !strings.Contains(blankFrame, "clean slate") {
+		t.Fatalf("clean-slate modal missing clean slate badge:\n%s", blankFrame)
+	}
+	if strings.Contains(blankFrame, "Prior Alpha") || strings.Contains(blankFrame, "Prior Beta") {
+		t.Fatalf("clean-slate canvas leaked prior outlines:\n%s", blankFrame)
+	}
 	if p1, err := store.Get(prior1.Ref()); err != nil || p1.IsArchived() || p1.Text("title") != "Prior Alpha" {
 		t.Fatalf("Prior Alpha was altered: %+v err=%v", p1, err)
 	}
@@ -166,77 +175,210 @@ func TestOutlineCleanSlateVisualIsolationAndDraftCleanup(t *testing.T) {
 		t.Fatalf("Prior Beta was altered: %+v err=%v", p2, err)
 	}
 
-	// 2. Typing title + Enter commits root and immediately starts typing the FIRST CHILD inside the hoist!
-	d.Type("Fresh Brain Dump")
+	// 2. Multi-tree writing: Type Tree One + enter -> depth-0 sibling draft -> tab indents under Tree One ->
+	// Type Child One + enter -> depth-1 sibling draft -> shift+tab outdents to depth 0 -> Type Tree Two + esc!
+	d.Type("Tree One")
 	d.Keys("enter")
-	dumpRoot, err := store.GetByField(data.KindTask, "title", "Fresh Brain Dump")
+	tree1, err := store.GetByField(data.KindTask, "title", "Tree One")
 	if err != nil {
-		t.Fatalf("Fresh Brain Dump not saved: %v", err)
+		t.Fatalf("Tree One not saved: %v", err)
 	}
-	if a.Mode() != ModeOutlineEdit || !om.Hoisted() || om.HoistID() != dumpRoot.ID {
-		t.Fatalf("after enter on clean-slate root: mode=%q hoisted=%v hoistID=%q", a.Mode(), om.Hoisted(), om.HoistID())
+	if ed := a.trees.activeEdit(); a.Mode() != ModeOutlineEdit || ed == nil || ed.ParentID != "" || ed.Depth != 0 {
+		t.Fatalf("enter after depth-0 root should start depth-0 sibling draft, got mode=%q ed=%+v", a.Mode(), ed)
 	}
-	if ed := a.trees.activeEdit(); ed == nil || ed.ParentID != dumpRoot.ID {
-		t.Fatalf("enter on hoisted clean-slate root should start child under %q, got %+v", dumpRoot.ID, ed)
+	d.Keys("tab")
+	if ed := a.trees.activeEdit(); ed == nil || ed.ParentID != tree1.ID || ed.Depth != 1 {
+		t.Fatalf("tab should indent under Tree One, got %+v", ed)
 	}
-	d.Type("First bullet")
+	d.Type("Child One")
 	d.Keys("enter")
-	d.Type("Second bullet")
+	if ed := a.trees.activeEdit(); ed == nil || ed.ParentID != tree1.ID || ed.Depth != 1 {
+		t.Fatalf("enter after depth-1 child should stay at depth 1 under Tree One, got %+v", ed)
+	}
+	d.Keys("shift+tab")
+	if ed := a.trees.activeEdit(); ed == nil || ed.ParentID != "" || ed.Depth != 0 {
+		t.Fatalf("shift+tab at depth 1 in clean slate must outdent to depth 0, got %+v", ed)
+	}
+	d.Type("Tree Two")
 	d.Keys("esc")
-	if a.Mode() != ModeOutline || !om.Hoisted() {
-		t.Fatalf("after esc from child bullet: mode=%q hoisted=%v", a.Mode(), om.Hoisted())
+	if a.Mode() != ModeOutline || !a.isCleanSlateActive(data.KindTask, outlineTree) || om.Hoisted() {
+		t.Fatalf("after esc from edit: mode=%q cleanSlate=%v hoisted=%v", a.Mode(), a.isCleanSlateActive(data.KindTask, outlineTree), om.Hoisted())
 	}
-	b1, err := store.GetByField(data.KindTask, "title", "First bullet")
+	child1, err := store.GetByField(data.KindTask, "title", "Child One")
 	if err != nil {
-		t.Fatalf("First bullet not created: %v", err)
+		t.Fatalf("Child One not created: %v", err)
 	}
-	if p, ok := b1.RefField("parent"); !ok || p != dumpRoot.Ref() {
-		t.Fatalf("First bullet parent = %v (%v), want %v", p, ok, dumpRoot.Ref())
+	if p, ok := child1.RefField("parent"); !ok || p != tree1.Ref() {
+		t.Fatalf("Child One parent = %v (%v), want %v", p, ok, tree1.Ref())
 	}
-	b2, err := store.GetByField(data.KindTask, "title", "Second bullet")
+	tree2, err := store.GetByField(data.KindTask, "title", "Tree Two")
 	if err != nil {
-		t.Fatalf("Second bullet not created: %v", err)
+		t.Fatalf("Tree Two not created: %v", err)
 	}
-	if p, ok := b2.RefField("parent"); !ok || p != dumpRoot.Ref() {
-		t.Fatalf("Second bullet parent = %v (%v), want %v", p, ok, dumpRoot.Ref())
+	if p, ok := tree2.RefField("parent"); ok {
+		t.Fatalf("Tree Two should be a top-level root, got parent %v", p)
 	}
 
-	// 3. Pressing `esc` while hoisted unhoists back to full tree (does NOT close modal) with new root selected alongside untouched prior outlines.
+	// 3. o and O on roots create additional top-level trees in exact order while prior outlines remain hidden.
+	d.Keys("o")
+	d.Type("Tree Three")
 	d.Keys("esc")
-	if a.Modal() != "outline" || om.Hoisted() {
-		t.Fatalf("esc while hoisted should unhoist without closing modal: modal=%q hoisted=%v", a.Modal(), om.Hoisted())
+	tree3, err := store.GetByField(data.KindTask, "title", "Tree Three")
+	if err != nil {
+		t.Fatalf("Tree Three not created: %v", err)
 	}
-	if om.SelectedID != dumpRoot.ID {
-		t.Fatalf("after unhoist, SelectedID = %q, want %q", om.SelectedID, dumpRoot.ID)
+	if _, hasParent := tree3.RefField("parent"); hasParent {
+		t.Fatalf("Tree Three should be top-level")
 	}
-	fullFrame := d.Frame()
-	for _, want := range []string{"Prior Alpha", "Prior Beta", "Fresh Brain Dump"} {
-		if !strings.Contains(fullFrame, want) {
-			t.Fatalf("full outline after unhoist missing %q:\n%s", want, fullFrame)
+
+	// Jump to top (Tree One) and press O to add Tree Zero above it.
+	d.Keys("g", "g", "O")
+	d.Type("Tree Zero")
+	d.Keys("esc")
+	tree0, err := store.GetByField(data.KindTask, "title", "Tree Zero")
+	if err != nil {
+		t.Fatalf("Tree Zero not created: %v", err)
+	}
+	csFrame := d.Frame()
+	for _, want := range []string{"Tree Zero", "Tree One", "Child One", "Tree Two", "Tree Three"} {
+		if !strings.Contains(csFrame, want) {
+			t.Fatalf("clean-slate frame missing %q:\n%s", want, csFrame)
 		}
 	}
-
-	// 4. Cancelling an untouched clean slate (ctrl+c) cleans up the placeholder without touching prior outlines.
-	beforeTasks, _ := store.Query(data.Query{Kind: data.KindTask})
-	d.Keys("b", "ctrl+c")
-	if a.Mode() != ModeOutline || om.Hoisted() {
-		t.Fatalf("after b + ctrl+c: mode=%q hoisted=%v", a.Mode(), om.Hoisted())
-	}
-	afterCancelTasks, _ := store.Query(data.Query{Kind: data.KindTask})
-	if len(afterCancelTasks.Items) != len(beforeTasks.Items) {
-		t.Fatalf("b + ctrl+c left stray task: before=%d after=%d", len(beforeTasks.Items), len(afterCancelTasks.Items))
+	if strings.Contains(csFrame, "Prior Alpha") || strings.Contains(csFrame, "Prior Beta") {
+		t.Fatalf("clean-slate frame leaked prior outlines:\n%s", csFrame)
 	}
 
-	// 5. Submitting empty title (enter) on clean slate also cleans up placeholder and exits edit mode cleanly.
-	d.Keys("b", "enter")
-	if a.Mode() != ModeOutline || om.Hoisted() {
-		t.Fatalf("after b + empty enter: mode=%q hoisted=%v", a.Mode(), om.Hoisted())
+	// 4. First visible clean-slate root MUST NOT indent under hidden prior tasks; J/K reorders top-level trees.
+	d.Keys("g", "g", "tab")
+	if got0, _ := store.Get(tree0.Ref()); got0.Text("parent") != "" {
+		t.Fatalf("first clean-slate root accidentally indented under hidden task: parent=%q", got0.Text("parent"))
 	}
-	afterEmptyEnter, _ := store.Query(data.Query{Kind: data.KindTask})
-	if len(afterEmptyEnter.Items) != len(beforeTasks.Items) {
-		t.Fatalf("b + empty enter left stray task: before=%d after=%d", len(beforeTasks.Items), len(afterEmptyEnter.Items))
+	d.Keys("J")
+	// Tree Zero should now follow Tree One among visible clean-slate roots.
+	_, visNodes := a.syncTreeModel(om, data.KindTask, outlineTree)
+	if len(visNodes) != 4 || visNodes[0].Record.ID != tree1.ID || visNodes[1].Record.ID != tree0.ID {
+		var ids []string
+		for _, nd := range visNodes {
+			ids = append(ids, nd.Record.Text("title"))
+		}
+		t.Fatalf("after J on Tree Zero, visible roots = %v, want [Tree One, Tree Zero, ...]", ids)
+	}
+
+	// 5. Normal-mode shift+tab on depth-1 Child One outdents to depth 0 and keeps it visible in clean slate!
+	d.Keys("g", "g", "j") // focus Child One
+	if om.SelectedID != child1.ID {
+		t.Fatalf("expected Child One selected, got %q", om.SelectedID)
+	}
+	d.Keys("shift+tab")
+	if gotC1, _ := store.Get(child1.Ref()); gotC1.Text("parent") != "" {
+		t.Fatalf("normal-mode shift+tab on Child One did not promote to root: parent=%q", gotC1.Text("parent"))
+	}
+	if !strings.Contains(d.Frame(), "Child One") {
+		t.Fatalf("outdented Child One disappeared from clean slate:\n%s", d.Frame())
+	}
+	// Indent Child One back under Tree One.
+	d.Keys("tab")
+	if gotC1, _ := store.Get(child1.Ref()); gotC1.Text("parent") != data.RefText(tree1.Ref()) {
+		t.Fatalf("tab did not re-indent Child One under Tree One: parent=%q", gotC1.Text("parent"))
+	}
+
+	// 6. Hoist inside clean slate: `=` hoists Tree One; 1st `esc` unhoists back to multi-tree clean slate;
+	// 2nd `esc` exits clean slate to full tree (without closing modal, preserving prior collapsed state);
+	// 3rd `esc` closes modal.
+	d.Keys("g", "g", "=")
+	if !om.Hoisted() || om.HoistID() != tree1.ID {
+		t.Fatalf("= inside clean slate did not hoist Tree One: hoisted=%v id=%q", om.Hoisted(), om.HoistID())
+	}
+	if strings.Contains(d.Frame(), "Tree Two") {
+		t.Fatalf("hoisted view inside clean slate should hide Tree Two:\n%s", d.Frame())
+	}
+	d.Keys("esc")
+	if a.Modal() != "outline" || om.Hoisted() || !a.isCleanSlateActive(data.KindTask, outlineTree) {
+		t.Fatalf("1st esc should unhoist back to clean slate: modal=%q hoisted=%v cleanSlate=%v", a.Modal(), om.Hoisted(), a.isCleanSlateActive(data.KindTask, outlineTree))
+	}
+	if !strings.Contains(d.Frame(), "Tree Two") || strings.Contains(d.Frame(), "Prior Alpha") {
+		t.Fatalf("after unhoist inside clean slate, expected Tree Two visible and Prior Alpha hidden:\n%s", d.Frame())
+	}
+	d.Keys("esc")
+	if a.Modal() != "outline" || a.isCleanSlateActive(data.KindTask, outlineTree) {
+		t.Fatalf("2nd esc should exit clean slate without closing modal: modal=%q cleanSlate=%v", a.Modal(), a.isCleanSlateActive(data.KindTask, outlineTree))
+	}
+	if om.SelectedID != tree1.ID {
+		t.Fatalf("after exiting clean slate, SelectedID = %q, want %q", om.SelectedID, tree1.ID)
+	}
+	fullFrame := d.Frame()
+	for _, want := range []string{"Prior Alpha", "Prior Beta", "Tree One", "Tree Two"} {
+		if !strings.Contains(fullFrame, want) {
+			t.Fatalf("full outline after exiting clean slate missing %q:\n%s", want, fullFrame)
+		}
+	}
+	if strings.Contains(fullFrame, "Prior Alpha Child") {
+		t.Fatalf("Prior Alpha should remain collapsed after exiting clean slate:\n%s", fullFrame)
 	}
 	d.Keys("esc", "esc")
+	if a.Modal() != "" {
+		t.Fatalf("double esc after exiting clean slate should close outline modal, got modal=%q", a.Modal())
+	}
+
+	// 7. Empty clean slate exits cleanly with zero stray tasks on ctrl+c, empty enter, and empty esc.
+	d.Keys("T")
+	beforeTasks, _ := store.Query(data.Query{Kind: data.KindTask})
+	for _, tc := range []struct {
+		name string
+		key  string
+	}{
+		{"ctrl+c", "ctrl+c"},
+		{"empty enter", "enter"},
+		{"empty esc", "esc"},
+	} {
+		d.Keys("b", tc.key)
+		if a.Mode() != ModeOutline || a.isCleanSlateActive(data.KindTask, outlineTree) || om.Hoisted() {
+			t.Fatalf("after b + %s: mode=%q cleanSlate=%v hoisted=%v", tc.name, a.Mode(), a.isCleanSlateActive(data.KindTask, outlineTree), om.Hoisted())
+		}
+		after, _ := store.Query(data.Query{Kind: data.KindTask})
+		if len(after.Items) != len(beforeTasks.Items) {
+			t.Fatalf("b + %s left stray task: before=%d after=%d", tc.name, len(beforeTasks.Items), len(after.Items))
+		}
+	}
+	d.Keys("esc", "esc")
+
+	// 8. Works independently in 2 Work tree!
+	d.Keys("2", "b")
+	if a.Modal() != "" || a.Mode() != ModeOutlineEdit {
+		t.Fatalf("b in 2 Work tree: modal=%q mode=%q, want ''/outline-edit", a.Modal(), a.Mode())
+	}
+	if !a.isCleanSlateActive(data.KindTask, workTable) || a.isCleanSlateActive(data.KindTask, outlineTree) {
+		t.Fatalf("2 Work clean slate should be independent of Outline modal")
+	}
+	d.Type("Work Root A")
+	d.Keys("enter")
+	d.Type("Work Root B")
+	d.Keys("esc")
+	if a.Mode() != ModeNormal || !a.isCleanSlateActive(data.KindTask, workTable) {
+		t.Fatalf("after finishing 2 Work clean slate edit: mode=%q cleanSlate=%v", a.Mode(), a.isCleanSlateActive(data.KindTask, workTable))
+	}
+	wFrame := d.Frame()
+	if !strings.Contains(wFrame, "clean slate") || !strings.Contains(wFrame, "Work Root A") || !strings.Contains(wFrame, "Work Root B") {
+		t.Fatalf("2 Work clean slate frame missing expected items/badge:\n%s", wFrame)
+	}
+	if strings.Contains(wFrame, "Prior Alpha") || strings.Contains(wFrame, "Tree One") {
+		t.Fatalf("2 Work clean slate frame leaked prior tasks:\n%s", wFrame)
+	}
+	// Opening T Outline while 2 Work is in clean slate stays independent (shows full tree).
+	d.Keys("T")
+	if a.isCleanSlateActive(data.KindTask, outlineTree) || !strings.Contains(d.Frame(), "Prior Alpha") {
+		t.Fatalf("T Outline should not inherit 2 Work clean slate")
+	}
+	d.Keys("esc", "esc")
+	// Esc in 2 Work exits clean slate back to full tree.
+	d.Keys("esc")
+	if a.isCleanSlateActive(data.KindTask, workTable) {
+		t.Fatal("esc in 2 Work did not exit clean slate")
+	}
+	if !strings.Contains(d.Frame(), "Prior Alpha") || !strings.Contains(d.Frame(), "Work Root A") {
+		t.Fatalf("2 Work full tree after esc missing tasks:\n%s", d.Frame())
+	}
 }
 
 func TestTreeHoistKeysOutdentClampAndIndependentStacks(t *testing.T) {
