@@ -169,6 +169,9 @@ const (
 	SetComposerWrap                  = "panes.composerWrap"
 	SetArchiveAnimation              = "ui.archiveAnimation"
 	SetArchiveAnimationMs            = "ui.archiveAnimationMs"
+	SetTasksShowNoteIndicators       = "tasks.showNoteIndicators"
+	SetTasksInlineNoteThreads        = "tasks.inlineNoteThreads"
+	SetTasksLockThreadEdits          = "tasks.lockThreadEdits"
 	FocusHintsInline                 = "inline"
 	FocusHintsOverlay                = "overlay"
 	FocusHintsBoth                   = "both"
@@ -281,6 +284,9 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetComposerWrap, true, "soft-wrap long lines inside the prompt composer input"),
 		flag(SetArchiveAnimation, true, "animate archived rows with a color-fade dissolve before removing them from lists"),
 		{Name: SetArchiveAnimationMs, Type: core.ParamInt, Default: 2500, Description: "duration in milliseconds for the archive dissolve animation"},
+		flag(SetTasksShowNoteIndicators, true, "show note-count, unread-agent-note, and attachment indicators on task tree rows"),
+		flag(SetTasksInlineNoteThreads, true, "allow expanding note threads inline beneath task rows"),
+		flag(SetTasksLockThreadEdits, false, "enforce append-only conversation lock on thread notes and tasks with active note threads"),
 	}
 }
 

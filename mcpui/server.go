@@ -35,24 +35,26 @@ const (
 )
 
 // Tools returns every tool the MCP server lists: the four Open UI tools,
-// the lane tools, the data tools, the triage tools, then pane search.
+// the lane tools, the data tools, the triage tools, pane search, then task tools.
 func Tools(router *Router, dataTools *DataTools) []ToolSpec {
 	out := append(router.ToolSpecs(), NewLaneTools(nil).ToolSpecs()...)
 	out = append(out, dataTools.ToolSpecs()...)
 	out = append(out, NewTriageTools(nil).ToolSpecs()...)
-	return append(out, NewPaneSearchTools(nil).ToolSpecs()...)
+	out = append(out, NewPaneSearchTools(nil).ToolSpecs()...)
+	return append(out, NewTaskTools(nil).ToolSpecs()...)
 }
 
 // Toolbox is every tool over one store: the Open UI tools, the lane tools,
-// the data tools, the triage tools and pane search, behind one Call. The MCP
-// server and the CLI both run tools through it. Getenv reads the environment
-// (nil is os.Getenv).
+// the data tools, the triage tools, pane search and task tools, behind one
+// Call. The MCP server and the CLI both run tools through it. Getenv reads the
+// environment (nil is os.Getenv).
 type Toolbox struct {
 	Router     *Router
 	Lanes      *LaneTools
 	Data       *DataTools
 	Triage     *TriageTools
 	PaneSearch *PaneSearchTools
+	Tasks      *TaskTools
 	Getenv     func(string) string
 }
 
@@ -67,6 +69,7 @@ func NewToolbox(store *data.Store, router *Router) *Toolbox {
 		Data:       NewDataTools(store),
 		Triage:     NewTriageTools(store),
 		PaneSearch: NewPaneSearchTools(store),
+		Tasks:      NewTaskTools(store),
 	}
 }
 
@@ -79,6 +82,9 @@ func (b *Toolbox) ToolSpecs() []ToolSpec {
 	}
 	if b.PaneSearch != nil {
 		out = append(out, b.PaneSearch.ToolSpecs()...)
+	}
+	if b.Tasks != nil {
+		out = append(out, b.Tasks.ToolSpecs()...)
 	}
 	return out
 }
@@ -157,8 +163,10 @@ func (b *Toolbox) envFunc(ctx context.Context) func(string) string {
 func (b *Toolbox) envDefaults(getenv func(string) string, name string, raw json.RawMessage) json.RawMessage {
 	var keys []string
 	switch name {
-	case ToolCreatePage, ToolAsk, ToolSuggestCommand, ToolCreateDocument, ToolAddContext, ToolLogQA:
+	case ToolCreatePage, ToolAsk, ToolSuggestCommand, ToolCreateDocument, ToolAddContext, ToolLogQA, ToolTaskNote:
 		keys = []string{"pane", "task"}
+	case ToolTaskFlagAgent, ToolTaskThread:
+		keys = []string{"task"}
 	case ToolUpdatePage, ToolRecordAgentInput:
 		keys = []string{"pane"}
 	default:
@@ -221,6 +229,8 @@ func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw j
 		return b.Triage.Call(ctx, actor, name, raw)
 	case b.PaneSearch != nil && b.PaneSearch.HasTool(name):
 		return b.PaneSearch.Call(ctx, actor, name, raw)
+	case b.Tasks != nil && b.Tasks.HasTool(name):
+		return b.Tasks.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
 	}
 	return b.Router.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
 }

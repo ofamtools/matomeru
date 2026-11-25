@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -72,14 +73,41 @@ type RunnerFunc func(ctx context.Context, command string) (string, error)
 // Run implements Runner.
 func (f RunnerFunc) Run(ctx context.Context, command string) (string, error) { return f(ctx, command) }
 
+// EnvRunner is an optional Runner extension that passes extra KEY=VALUE
+// environment variables to the executed command.
+type EnvRunner interface {
+	RunWithEnv(ctx context.Context, command string, env []string) (string, error)
+}
+
 // ShellRunner executes commands with /bin/sh -c.
 type ShellRunner struct{}
 
 // Run implements Runner.
 func (ShellRunner) Run(ctx context.Context, command string) (string, error) {
+	return (ShellRunner{}).RunWithEnv(ctx, command, nil)
+}
+
+// RunWithEnv implements EnvRunner.
+func (ShellRunner) RunWithEnv(ctx context.Context, command string, env []string) (string, error) {
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", command)
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	out, err := cmd.CombinedOutput()
 	return string(out), err
+}
+
+// QueueDispatcher delivers queued agent tasks for scheduleKind="agent_queue".
+type QueueDispatcher interface {
+	DispatchQueue(ctx context.Context, sched data.Record, items []data.AgentQueueItem, prompt string) (detail string, err error)
+}
+
+// QueueDispatcherFunc adapts a function to QueueDispatcher.
+type QueueDispatcherFunc func(ctx context.Context, sched data.Record, items []data.AgentQueueItem, prompt string) (string, error)
+
+// DispatchQueue implements QueueDispatcher.
+func (f QueueDispatcherFunc) DispatchQueue(ctx context.Context, sched data.Record, items []data.AgentQueueItem, prompt string) (string, error) {
+	return f(ctx, sched, items, prompt)
 }
 
 // CronExpr is a parsed 5-field cron expression (minute, hour, dom, month, dow).
@@ -280,10 +308,11 @@ func (c *CronExpr) Next(after time.Time) time.Time {
 
 // Scheduler evaluates due "schedule" records in a *data.Store.
 type Scheduler struct {
-	store    *data.Store
-	notifier Notifier
-	runner   Runner
-	clock    func() time.Time
+	store      *data.Store
+	notifier   Notifier
+	runner     Runner
+	dispatcher QueueDispatcher
+	clock      func() time.Time
 
 	mu      sync.Mutex
 	running bool
@@ -291,10 +320,11 @@ type Scheduler struct {
 
 // SchedulerConfig configures a Scheduler.
 type SchedulerConfig struct {
-	Store    *data.Store
-	Notifier Notifier
-	Runner   Runner
-	Clock    func() time.Time
+	Store      *data.Store
+	Notifier   Notifier
+	Runner     Runner
+	Dispatcher QueueDispatcher
+	Clock      func() time.Time
 }
 
 // NewScheduler constructs a Scheduler over cfg.Store.
@@ -312,10 +342,11 @@ func NewScheduler(cfg SchedulerConfig) *Scheduler {
 		clock = time.Now
 	}
 	return &Scheduler{
-		store:    cfg.Store,
-		notifier: notifier,
-		runner:   runner,
-		clock:    clock,
+		store:      cfg.Store,
+		notifier:   notifier,
+		runner:     runner,
+		dispatcher: cfg.Dispatcher,
+		clock:      clock,
 	}
 }
 
@@ -476,6 +507,7 @@ func (s *Scheduler) evalSchedule(ctx context.Context, rec data.Record, now time.
 	command := rec.Text("command")
 
 	outcome := "done"
+	outcomeSummary := "record schedule occurrence outcome"
 	switch kind {
 	case "remind":
 		if err := s.notifier.Notify(ctx, title, fmt.Sprintf("Scheduled reminder (%s)", dueAt.UTC().Format(time.RFC3339))); err != nil {
@@ -519,6 +551,8 @@ func (s *Scheduler) evalSchedule(ctx context.Context, rec data.Record, now time.
 		if _, _, serr := s.store.Create(data.CreateInput{Kind: data.KindSignal, Fields: sigFields}, daemonActor); serr != nil {
 			outcome = "failed"
 		}
+	case "agent_queue":
+		outcome, outcomeSummary = s.evalAgentQueueSchedule(ctx, rec, command, now)
 	default:
 		outcome = "skipped"
 	}
@@ -529,7 +563,7 @@ func (s *Scheduler) evalSchedule(ctx context.Context, rec data.Record, now time.
 			"outcomeStatus": outcome,
 			"checkedAt":     now.UTC().Format(data.TimeFormat),
 		},
-		Summary: "record schedule occurrence outcome",
+		Summary: outcomeSummary,
 	}, daemonActor)
 
 	var nextVal any
@@ -541,5 +575,117 @@ func (s *Scheduler) evalSchedule(ctx context.Context, rec data.Record, now time.
 		Fields:  map[string]any{"nextDueAt": nextVal},
 		Summary: "advance nextDueAt",
 	}, daemonActor)
+	return err
+}
+
+const maxQueuePromptEnvBytes = 64 * 1024
+
+func (s *Scheduler) evalAgentQueueSchedule(ctx context.Context, rec data.Record, command string, now time.Time) (outcome string, summary string) {
+	projectID := ""
+	if taskRef, ok := rec.RefField("task"); ok && taskRef.Kind == data.KindTask {
+		projectID = taskRef.ID
+	}
+	items, err := s.store.QueryAgentQueue(data.AgentQueueFilter{
+		ProjectID:      projectID,
+		Status:         data.AgentStatusQueued,
+		IncludeSubtree: true,
+		IncludeNotes:   true,
+		IncludeContext: true,
+	})
+	if err != nil {
+		return "failed", fmt.Sprintf("agent_queue query failed: %v", err)
+	}
+	if len(items) == 0 {
+		return "skipped", "agent_queue empty"
+	}
+
+	prompt := data.FormatAgentQueuePrompt(items, rec.Text("prompt"))
+	if cmd := strings.TrimSpace(command); cmd != "" {
+		if err := s.runAgentQueueCommand(ctx, cmd, len(items), prompt); err != nil {
+			return "failed", fmt.Sprintf("agent_queue command failed: %v", err)
+		}
+		return "done", fmt.Sprintf("ran agent_queue command for %s", formatAgentTaskCount(len(items)))
+	}
+	if s.dispatcher != nil {
+		detail, err := s.dispatcher.DispatchQueue(ctx, rec, items, prompt)
+		if err != nil {
+			return "failed", fmt.Sprintf("agent_queue dispatch failed: %v", err)
+		}
+		if detail == "" {
+			detail = fmt.Sprintf("dispatched %s", formatAgentTaskCount(len(items)))
+		}
+		return "done", detail
+	}
+
+	sigTitle := fmt.Sprintf("%s queued", formatAgentTaskCount(len(items)))
+	sigBody := formatAgentQueueSignalBody("No agent queue dispatcher configured.", items)
+	if err := createAgentQueueSignal(s.store, rec, sigTitle, sigBody, now); err != nil {
+		return "failed", fmt.Sprintf("agent_queue signal failed: %v", err)
+	}
+	if s.notifier != nil {
+		_ = s.notifier.Notify(ctx, sigTitle, sigBody)
+	}
+	return "done", sigTitle
+}
+
+func (s *Scheduler) runAgentQueueCommand(ctx context.Context, command string, count int, prompt string) error {
+	envRunner, ok := s.runner.(EnvRunner)
+	if !ok {
+		_, err := s.runner.Run(ctx, command)
+		return err
+	}
+	env := []string{fmt.Sprintf("MTM_QUEUE_COUNT=%d", count)}
+	if f, err := os.CreateTemp("", "mtm-queue-prompt-*.md"); err == nil {
+		tmpPath := f.Name()
+		_, _ = f.WriteString(prompt)
+		_ = f.Close()
+		defer os.Remove(tmpPath)
+		env = append(env, "MTM_QUEUE_PROMPT_FILE="+tmpPath)
+	}
+	if len(prompt) <= maxQueuePromptEnvBytes {
+		env = append(env, "MTM_QUEUE_PROMPT="+prompt)
+	}
+	_, err := envRunner.RunWithEnv(ctx, command, env)
+	return err
+}
+
+func formatAgentTaskCount(n int) string {
+	if n == 1 {
+		return "1 agent task"
+	}
+	return fmt.Sprintf("%d agent tasks", n)
+}
+
+func formatAgentQueueSignalBody(header string, items []data.AgentQueueItem) string {
+	var b strings.Builder
+	if header = strings.TrimSpace(header); header != "" {
+		b.WriteString(header)
+		b.WriteString("\n")
+	}
+	for _, it := range items {
+		title := strings.TrimSpace(it.Task.Text("title"))
+		if title == "" {
+			title = "(untitled)"
+		}
+		fmt.Fprintf(&b, "- %s (`%s`)\n", title, it.Task.ID)
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func createAgentQueueSignal(store *data.Store, sched data.Record, title, body string, now time.Time) error {
+	sigFields := map[string]any{
+		"title":       title,
+		"source":      "schedule",
+		"eventKind":   "agent_queue",
+		"author":      "mtm-daemon",
+		"container":   sched.ID,
+		"body":        body,
+		"occurredAt":  now.UTC().Format(data.TimeFormat),
+		"triageState": data.TriageActionable,
+	}
+	if taskRef, ok := sched.RefField("task"); ok {
+		sigFields["task"] = taskRef
+	}
+	_, _, err := store.Create(data.CreateInput{Kind: data.KindSignal, Fields: sigFields}, daemonActor)
 	return err
 }

@@ -255,6 +255,10 @@ func New(store *data.Store, opts Options) (*App, error) {
 			if delay, ok := e.Data.(time.Duration); ok && delay > 0 && a.opts.Now == nil {
 				return tea.Tick(delay, func(time.Time) tea.Msg { return wakeMsg() })
 			}
+		case effectTeaCmd:
+			if cmd, ok := e.Data.(tea.Cmd); ok {
+				return cmd
+			}
 		}
 		return nil
 	}
@@ -649,7 +653,7 @@ func (a *App) register() {
 	a.handle(CmdPaneCompose, a.paneCompose)
 	for _, id := range []string{CmdComposerInsert, CmdComposerBackspace, CmdComposerEnter, CmdComposerSubmit,
 		CmdComposerCancel, CmdComposerModeCycle, CmdComposerComplete, CmdComposerUp, CmdComposerDown,
-		CmdComposerDraftPrev, CmdComposerDraftNext} {
+		CmdComposerDraftPrev, CmdComposerDraftNext, CmdComposerAttachClipboard, CmdComposerAttachFile, CmdComposerAttachRemove} {
 		a.handle(id, a.handleModal)
 	}
 	a.handle(CmdQuestionNext, a.questionStep(1))
@@ -678,6 +682,11 @@ func (a *App) register() {
 	a.handle(CmdTaskAddSibling, a.taskAddRelative(false))
 	a.handle(CmdTaskAddChild, a.taskAddRelative(true))
 	a.handle(CmdTaskFoldToggle, a.treeFoldCommand(tree.CmdFoldToggle))
+	a.handle(CmdTaskAgentToggle, a.taskAgentToggle)
+	a.handle(CmdTaskAgentStatus, a.taskAgentStatus)
+	a.handle(CmdTaskThreadToggle, a.taskThreadToggle)
+	a.handle(CmdTaskNoteReply, a.taskNoteReply)
+	a.handle(CmdTaskQueueDispatch, a.taskQueueDispatch)
 	for _, id := range []string{tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll} {
 		a.handle(id, a.treeFoldCommand(id))
 	}

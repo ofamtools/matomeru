@@ -163,34 +163,37 @@ const (
 	CmdRecordActions     = "record.actions"
 	CmdShellOpen         = "shell.open"
 
-	CmdPanesGroupToggle     = "panes.group.toggle"
-	CmdContextPick          = "context.pick"
-	CmdContextYank          = "context.yank"
-	CmdContextAttach        = "context.attach"
-	CmdProjectContextOpen   = "project.context.open"
-	CmdProjectContextYank   = "project.context.yank"
-	CmdProjectContextStar   = "project.context.star"
-	CmdProjectContextAttach = "project.context.attach"
-	CmdPaneHints            = "pane.hints"
-	CmdHintsKey             = "hints.key"
-	CmdHintsCancel          = "hints.cancel"
-	CmdPaneCompose          = "pane.compose"
-	CmdComposerInsert       = "composer.insert"
-	CmdComposerBackspace    = "composer.backspace"
-	CmdComposerEnter        = "composer.enter"
-	CmdComposerSubmit       = "composer.submit"
-	CmdComposerCancel       = "composer.cancel"
-	CmdComposerModeCycle    = "composer.mode.cycle"
-	CmdComposerComplete     = "composer.complete"
-	CmdComposerUp           = "composer.up"
-	CmdComposerDown         = "composer.down"
-	CmdComposerDraftPrev    = "composer.draft.prev"
-	CmdComposerDraftNext    = "composer.draft.next"
-	CmdQuestionNext         = "question.next"
-	CmdQuestionPrev         = "question.prev"
-	CmdQuestionSubmitAll    = "question.submit_all"
-	CmdAnswerBatchNext      = "question.batch.next"
-	CmdAnswerBatchPrev      = "question.batch.prev"
+	CmdPanesGroupToggle        = "panes.group.toggle"
+	CmdContextPick             = "context.pick"
+	CmdContextYank             = "context.yank"
+	CmdContextAttach           = "context.attach"
+	CmdProjectContextOpen      = "project.context.open"
+	CmdProjectContextYank      = "project.context.yank"
+	CmdProjectContextStar      = "project.context.star"
+	CmdProjectContextAttach    = "project.context.attach"
+	CmdPaneHints               = "pane.hints"
+	CmdHintsKey                = "hints.key"
+	CmdHintsCancel             = "hints.cancel"
+	CmdPaneCompose             = "pane.compose"
+	CmdComposerInsert          = "composer.insert"
+	CmdComposerBackspace       = "composer.backspace"
+	CmdComposerEnter           = "composer.enter"
+	CmdComposerSubmit          = "composer.submit"
+	CmdComposerCancel          = "composer.cancel"
+	CmdComposerModeCycle       = "composer.mode.cycle"
+	CmdComposerComplete        = "composer.complete"
+	CmdComposerUp              = "composer.up"
+	CmdComposerDown            = "composer.down"
+	CmdComposerDraftPrev       = "composer.draft.prev"
+	CmdComposerDraftNext       = "composer.draft.next"
+	CmdComposerAttachClipboard = "composer.attach.clipboard"
+	CmdComposerAttachFile      = "composer.attach.file"
+	CmdComposerAttachRemove    = "composer.attach.remove"
+	CmdQuestionNext            = "question.next"
+	CmdQuestionPrev            = "question.prev"
+	CmdQuestionSubmitAll       = "question.submit_all"
+	CmdAnswerBatchNext         = "question.batch.next"
+	CmdAnswerBatchPrev         = "question.batch.prev"
 
 	CmdConfirmAccept       = "confirm.accept"
 	CmdConfirmCancel       = "confirm.cancel"
@@ -204,15 +207,20 @@ const (
 	CmdPresetPickerDelete  = "table.preset.picker.delete"
 	CmdFocusHints          = "focus.hints"
 
-	CmdAppAbout         = "app.about"
-	CmdPaneAssociate    = "pane.associate"
-	CmdCommandRun       = "command.run"
-	CmdCommandEditRun   = "command.edit_run"
-	CmdExtSetup         = "extension.setup"
-	CmdTaskAddSibling   = "task.add.sibling"
-	CmdTaskAddChild     = "task.add.child"
-	CmdTaskFoldToggle   = "task.fold.toggle"
-	CmdWorkLayoutToggle = "work.layout.toggle"
+	CmdAppAbout          = "app.about"
+	CmdPaneAssociate     = "pane.associate"
+	CmdCommandRun        = "command.run"
+	CmdCommandEditRun    = "command.edit_run"
+	CmdExtSetup          = "extension.setup"
+	CmdTaskAddSibling    = "task.add.sibling"
+	CmdTaskAddChild      = "task.add.child"
+	CmdTaskFoldToggle    = "task.fold.toggle"
+	CmdTaskAgentToggle   = "task.agent.toggle"
+	CmdTaskAgentStatus   = "task.agent.status"
+	CmdTaskThreadToggle  = "task.thread.toggle"
+	CmdTaskNoteReply     = "task.note.reply"
+	CmdTaskQueueDispatch = "task.queue.dispatch"
+	CmdWorkLayoutToggle  = "work.layout.toggle"
 )
 
 var leader = core.Layer{Name: "leader", Modes: []string{ModeTerminalLeader, ModeNormal}, ExcludeTags: []string{"motion", "editing"}}
@@ -332,6 +340,11 @@ func DefaultBindings() []core.Binding {
 		hidden(when(bind(n, views.ScopeIndex, "esc", tree.CmdHoistOut, "unhoist"), "facts.isTree && facts.hoisted")),
 		hidden(when(bind(n, views.ScopeIndex, "esc", CmdOutlineCleanSlateExit, "exit clean slate"), "facts.isTree && !facts.hoisted && facts.cleanSlate")),
 		hidden(when(bind(n, views.ScopeIndex, "X", CmdOutlineTriage, "triage outline with agent"), "facts.isTree")),
+		hidden(bind(n, data.KindTask, "w", CmdTaskAgentToggle, "toggle agent queue")),
+		hidden(bind(n, data.KindTask, "r", CmdTaskNoteReply, "reply with note")),
+		hidden(bind(n, data.KindNote, "r", CmdTaskNoteReply, "reply with note")),
+		hidden(when(bind(n, views.ScopeIndex, "t", CmdTaskThreadToggle, "toggle note thread"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "D", CmdTaskQueueDispatch, "dispatch agent queue"), "facts.isTree")),
 		hidden(bind(n, SpaceWork, "g t", CmdWorkLayoutToggle, "toggle tree/table")),
 		bind(n, ScopeProjectContext, "enter", CmdProjectContextOpen, "open context item"),
 		bind(n, ScopeProjectContext, "y", CmdProjectContextYank, "yank context item"),
@@ -676,6 +689,10 @@ func DefaultBindings() []core.Binding {
 		when(bind(ModeOutline, all, "-", tree.CmdHoistOut, "unhoist"), "facts.hoisted"),
 		bind(ModeOutline, all, "b", CmdOutlineCleanSlate, "blank outline"),
 		bind(ModeOutline, all, "X", CmdOutlineTriage, "triage outline with agent"),
+		bind(ModeOutline, all, "w", CmdTaskAgentToggle, "toggle agent queue"),
+		bind(ModeOutline, all, "t", CmdTaskThreadToggle, "toggle note thread"),
+		bind(ModeOutline, all, "r", CmdTaskNoteReply, "reply with note"),
+		bind(ModeOutline, all, "D", CmdTaskQueueDispatch, "dispatch agent queue"),
 		when(bind(ModeOutline, all, "esc", tree.CmdHoistOut, "unhoist"), "facts.hoisted"),
 		when(bind(ModeOutline, all, "esc", CmdOutlineCleanSlateExit, "exit clean slate"), "!facts.hoisted && facts.cleanSlate"),
 		when(with(bind(ModeOutline, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}), "!facts.hoisted && !facts.cleanSlate"),
@@ -724,6 +741,9 @@ func DefaultBindings() []core.Binding {
 		bind(ModeComposer, all, "down", CmdComposerDown, "down"),
 		bind(ModeComposer, all, "ctrl+p", CmdComposerDraftPrev, "previous draft / completion"),
 		bind(ModeComposer, all, "ctrl+n", CmdComposerDraftNext, "next draft / completion"),
+		bind(ModeComposer, all, "ctrl+v", CmdComposerAttachClipboard, "paste or attach clipboard"),
+		bind(ModeComposer, all, "ctrl+f", CmdComposerAttachFile, "attach file"),
+		bind(ModeComposer, all, "ctrl+x", CmdComposerAttachRemove, "remove last attachment"),
 		bind(ModeComposer, all, "backspace", CmdComposerBackspace, "erase"),
 
 		// Shared confirmation modal.

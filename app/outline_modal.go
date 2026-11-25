@@ -80,6 +80,11 @@ func (m *outlineModal) Handle(cmd core.Command) modal.Result {
 			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
 		}
 		ref := core.Ref{Kind: data.KindTask, ID: row.ID}
+		if row.Node.Ref != nil && row.Node.Ref.ID != "" {
+			ref = *row.Node.Ref
+		} else if noteID, isNote := strings.CutPrefix(row.ID, threadNoteIDPrefix); isNote {
+			ref = core.Ref{Kind: data.KindNote, ID: noteID}
+		}
 		m.a.afterModal(func(st core.State) core.State {
 			return m.a.show(st, ref)
 		})
@@ -157,6 +162,20 @@ func (a *App) runTreeStartEdit(tm *tree.Model, kind, treeID string, isWork bool,
 	if !has || row.Draft {
 		a.say("no item selected")
 		return false
+	}
+	if isThreadNoteRow(row) {
+		if a.isTaskThreadLocked(threadNoteParentTaskID(row)) {
+			a.refuseLockedThreadEdit()
+			return false
+		}
+		a.say("press enter to open note or r to reply")
+		return false
+	}
+	if kind == data.KindTask && row.Node.Facts != nil {
+		if hasNotes, _ := row.Node.Facts["hasNotes"].(bool); hasNotes && a.isTaskThreadLocked(row.ID) {
+			a.refuseLockedThreadEdit()
+			return false
+		}
 	}
 	prefix := ""
 	if row.Node.Icon != "" {

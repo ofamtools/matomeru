@@ -11,9 +11,10 @@ import (
 
 // Managed file categories under FilesRoot.
 const (
-	CategoryNotes     = "notes"
-	CategoryDocuments = "documents"
-	CategoryArtifacts = "artifacts"
+	CategoryNotes       = "notes"
+	CategoryDocuments   = "documents"
+	CategoryArtifacts   = "artifacts"
+	CategoryAttachments = "attachments"
 )
 
 // FilesRoot returns the canonical managed storage root for a store at dbPath:
@@ -91,8 +92,17 @@ func safeSegment(s string) string {
 }
 
 // WriteManagedFile writes content atomically (temp file + rename) into
-// <root>/<category>/<id>-<slug><ext> and returns the final file path.
+// <root>/<category>/<id>-<slug><ext> and returns the final absolute file path.
 func WriteManagedFile(root, category, id, title, ext, content string) (string, error) {
+	if strings.TrimSpace(ext) == "" {
+		ext = ".md"
+	}
+	return WriteManagedBytes(root, category, id, title, ext, []byte(content))
+}
+
+// WriteManagedBytes writes raw bytes atomically (temp file + rename) into
+// <root>/<category>/<id>-<slug><ext> and returns the final absolute file path.
+func WriteManagedBytes(root, category, id, title, ext string, content []byte) (string, error) {
 	if strings.TrimSpace(root) == "" {
 		return "", errors.New("data: managed files root is empty")
 	}
@@ -106,7 +116,7 @@ func WriteManagedFile(root, category, id, title, ext, content string) (string, e
 	}
 	ext = strings.TrimSpace(ext)
 	if ext == "" {
-		ext = ".md"
+		ext = ".bin"
 	} else if !strings.HasPrefix(ext, ".") {
 		ext = "." + ext
 	}
@@ -116,7 +126,11 @@ func WriteManagedFile(root, category, id, title, ext, content string) (string, e
 	}
 	name += ext
 
-	dir := filepath.Join(filepath.Clean(root), cat)
+	absRoot, err := filepath.Abs(filepath.Clean(root))
+	if err != nil {
+		return "", fmt.Errorf("data: resolve managed root %s: %w", root, err)
+	}
+	dir := filepath.Join(absRoot, cat)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("data: create managed dir %s: %w", dir, err)
 	}
@@ -132,7 +146,7 @@ func WriteManagedFile(root, category, id, title, ext, content string) (string, e
 			_ = os.Remove(tmpPath)
 		}
 	}()
-	if _, err := tmp.WriteString(content); err != nil {
+	if _, err := tmp.Write(content); err != nil {
 		_ = tmp.Close()
 		return "", fmt.Errorf("data: write temp file %s: %w", tmpPath, err)
 	}

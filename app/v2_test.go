@@ -69,7 +69,10 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetCardBorderStyle: ui.CardBorderSubtle, SetRailEnterMode: RailEnterModeLive,
 		SetSideTermSplit: true, SetInheritProjectTask: true, SetFocusRailOnExit: true, SetFocusRailOnDetach: true,
 		SetExtensionsShowCatalog: true, SetExtensionsGoPrivate: "ofam.dev",
-		SetFocusHintsStyle: FocusHintsInline, SetFocusHintsDrilldown: true}
+		SetFocusHintsStyle: FocusHintsInline, SetFocusHintsDrilldown: true,
+		SetComposerCompact: true, SetComposerWrap: true,
+		SetArchiveAnimation: true, SetArchiveAnimationMs: 2500,
+		SetTasksShowNoteIndicators: true, SetTasksInlineNoteThreads: true, SetTasksLockThreadEdits: false}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -329,7 +332,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 		}
 		return out
 	}
-	if got := strings.Join(names(), " "); got != "title body task starStatus archiveStatus snoozedUntil logKind loggedAt" {
+	if got := strings.Join(names(), " "); got != "title body task authorKind authorLabel pane readAt attachments starStatus archiveStatus snoozedUntil logKind loggedAt" {
 		t.Fatalf("a logged note's form fields = %q", got)
 	}
 	note := *a.activeRecordForm().ref

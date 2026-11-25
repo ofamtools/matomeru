@@ -59,6 +59,8 @@ type Config struct {
 	Notifier Notifier
 	// Runner executes "run" and "check" schedules. Default: ShellRunner{}.
 	Runner Runner
+	// QueueDispatcher delivers "agent_queue" schedules. Default: ServerQueueDispatcher.
+	QueueDispatcher QueueDispatcher
 	// Clock supplies current time (default time.Now).
 	Clock func() time.Time
 	// HandoffPath optionally overrides $MTM_DAEMON_HANDOFF when adopting an
@@ -151,24 +153,27 @@ func New(cfg Config) (*Server, error) {
 	if clock == nil {
 		clock = time.Now
 	}
-	var sched *Scheduler
-	if cfg.Store != nil {
-		sched = NewScheduler(SchedulerConfig{
-			Store:    cfg.Store,
-			Notifier: cfg.Notifier,
-			Runner:   cfg.Runner,
-			Clock:    clock,
-		})
-	}
 	srv := &Server{
 		cfg:        cfg,
 		socketPath: sockPath,
 		host:       host,
 		telemetry:  newTelemetryStore(),
-		scheduler:  sched,
 		clock:      clock,
 		panes:      map[string]*paneMeta{},
 		subs:       map[*frameSubscriber]struct{}{},
+	}
+	if cfg.Store != nil {
+		disp := cfg.QueueDispatcher
+		if disp == nil {
+			disp = NewServerQueueDispatcher(srv)
+		}
+		srv.scheduler = NewScheduler(SchedulerConfig{
+			Store:      cfg.Store,
+			Notifier:   cfg.Notifier,
+			Runner:     cfg.Runner,
+			Dispatcher: disp,
+			Clock:      clock,
+		})
 	}
 	prevOnChange := host.OnChange
 	host.OnChange = func(id string) {

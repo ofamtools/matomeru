@@ -398,6 +398,13 @@ func DefaultSchemas() *Registry {
 		{Name: "blocked", Label: "Blocked", Tone: "state.blocked", RowTone: "row.attention", Icon: "!", IconTone: "state.blocked", Position: 2, Open: true},
 		{Name: "done", Label: "Done", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 3, Ends: true},
 	}}
+	agentStatus := StatusColumn{Name: "agentStatus", Title: "Agent", Default: AgentStatusNone, PrimaryRowStyle: false, Values: []StatusValue{
+		{Name: AgentStatusNone, Label: "None", Position: 0},
+		{Name: AgentStatusQueued, Label: "Queued", Tone: "accent", Icon: "◆", Position: 1, Open: true},
+		{Name: AgentStatusWorking, Label: "Working", Tone: "state.working", Icon: "▶", Position: 2, Starts: true, Open: true},
+		{Name: AgentStatusNeedsYou, Label: "Needs you", Tone: "state.needs-input", Icon: "?", Position: 3, Open: true},
+		{Name: AgentStatusDone, Label: "Done", Tone: "state.done.dim", Icon: "✓", Position: 4, Ends: true},
+	}}
 	paneRun := StatusColumn{Name: "runStatus", Title: "State", Default: "unknown", PrimaryRowStyle: true, Values: []StatusValue{
 		{Name: "needs_you", Label: "Needs you", Tone: "state.needs-input", RowTone: "row.attention", Icon: "◆", IconTone: "state.needs-input", Position: 0, Open: true},
 		{Name: "running", Label: "Running", Tone: "state.working", RowTone: "row.active", Icon: "▶", IconTone: "state.working", Position: 1, Starts: true, Open: true},
@@ -471,13 +478,25 @@ func DefaultSchemas() *Registry {
 				str("repo", "repository; empty uses the parent's"),
 				str("defaultHarness", "default agent harness; empty uses the parent's"),
 				{Name: "order", Type: core.ParamInt, Description: "sibling sort order in the task outline"},
+				{Name: "forAgent", Type: core.ParamBool, Default: false, Description: "flagged for agent queue pickup"},
+				statusField(agentStatus, "agent workflow state for this task"),
+				str("agentAssignee", "agent harness or worker assigned to this task"),
+				{Name: "attachments", Type: core.ParamList, Description: "attached files, images, URLs, or context references"},
+				{Name: "threadLocked", Type: core.ParamBool, Default: false, Description: "prevent automatic agent replies in this task's note thread"},
 			},
-			StatusColumns:  []StatusColumn{work},
+			StatusColumns:  []StatusColumn{work, agentStatus},
 			DefaultColumns: []string{"title", "workStatus", "priority", "parent"},
 			Relations: universalRelations(
 				RelationSpec{Kind: RelDirectory, Title: "Directories", Direction: DirectionOutgoing},
 			),
-			Hierarchy: &HierarchySpec{ParentField: "parent", OrderField: "order", RootTitle: "Project", DefaultView: "tree"},
+			Hierarchy:  &HierarchySpec{ParentField: "parent", OrderField: "order", RootTitle: "Project", DefaultView: "tree"},
+			FactFields: []string{"forAgent", "agentStatus", "threadLocked"},
+			BadgeRules: []BadgeRule{
+				{When: `fields.agentStatus == "queued"`, Text: "agent:queued", Tone: "accent"},
+				{When: `fields.agentStatus == "working"`, Text: "agent:working", Tone: "state.working"},
+				{When: `fields.agentStatus == "needs_you"`, Text: "agent:needs you", Tone: "state.needs-input"},
+				{When: `fields.agentStatus == "done"`, Text: "agent:done", Tone: "state.done.dim"},
+			},
 			StyleRules: []StyleRule{
 				{When: `fields.priority == "P0"`, Target: "priority", Tone: "error"},
 				{When: `fields.priority == "P1"`, Target: "priority", Tone: "warning"},
@@ -577,11 +596,21 @@ func DefaultSchemas() *Registry {
 				str("title", "note title"),
 				str("body", "the note"),
 				refTo("task", KindTask, "task the note belongs to"),
+				{Name: "authorKind", Type: core.ParamString, Enum: []string{"owner", "agent", "system"}, Default: "owner", Description: "who authored the note"},
+				str("authorLabel", "display name of the note author"),
+				refTo("pane", KindPane, "pane the note was written from"),
+				str("readAt", "when the owner read the note (RFC 3339)"),
+				{Name: "attachments", Type: core.ParamList, Description: "attached files, images, URLs, or context references"},
 			},
 			DefaultColumns: []string{"title", "body", "task"},
 			Relations: universalRelations(
 				RelationSpec{Kind: RelAbout, Title: "About", Direction: DirectionOutgoing},
 			),
+			FactFields: []string{"authorKind"},
+			BadgeRules: []BadgeRule{
+				{When: `fields.authorKind == "agent"`, Text: "agent", Tone: "accent"},
+				{When: `fields.authorKind == "system"`, Text: "system", Tone: "muted"},
+			},
 		},
 		Schema{
 			// A schedule is a reminder, a command to run or a check, on a cron
@@ -589,12 +618,15 @@ func DefaultSchemas() *Registry {
 			Kind: KindSchedule, Title: "Schedule", Plural: "Schedules", SummaryField: "title",
 			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the schedule is for"},
-				{Name: "scheduleKind", Type: core.ParamString, Enum: []string{"remind", "run", "check"}, Default: "remind", Description: "remind the owner, run a command, or check something"},
+				{Name: "scheduleKind", Type: core.ParamString, Enum: []string{"remind", "run", "check", "agent_queue"}, Default: "remind", Description: "remind the owner, run a command, check something, or drain the agent queue"},
 				str("cron", "cron expression"),
 				str("command", "command line, for run and check"),
 				str("nextDueAt", "when it is next due (RFC 3339)"),
 				{Name: "paused", Type: core.ParamBool, Default: false, Description: "paused schedules do not fire"},
 				refTo("task", KindTask, "task the schedule belongs to"),
+				str("harness", "agent harness for agent_queue schedules"),
+				refTo("pane", KindPane, "pane for agent_queue schedules"),
+				str("prompt", "extra prompt instructions for agent_queue schedules"),
 			},
 			DefaultColumns: []string{"title", "scheduleKind", "cron", "nextDueAt", "task"},
 			Relations:      universalRelations(),

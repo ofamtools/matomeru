@@ -81,7 +81,7 @@ func TestDefaultSchemas(t *testing.T) {
 	}
 	// Reminders are schedules; vim is a pane, not a noun.
 	sched, _ := reg.Get(KindSchedule)
-	if f, _ := sched.Field("scheduleKind"); !reflect.DeepEqual(f.Enum, []string{"remind", "run", "check"}) {
+	if f, _ := sched.Field("scheduleKind"); !reflect.DeepEqual(f.Enum, []string{"remind", "run", "check", "agent_queue"}) {
 		t.Fatalf("scheduleKind = %+v", f)
 	}
 	occ, _ := reg.Get(KindOccurrence)

@@ -37,6 +37,7 @@ type treeController struct {
 	editMeta          *treeEditMeta
 	outlineCleanSlate cleanSlateState
 	workCleanSlate    map[string]*cleanSlateState
+	expandedThreads   map[string]bool
 }
 
 func newTreeController() *treeController {
@@ -47,6 +48,7 @@ func newTreeController() *treeController {
 		layoutOverride:  map[string]string{},
 		workTableRowID:  map[string]string{},
 		workCleanSlate:  map[string]*cleanSlateState{},
+		expandedThreads: map[string]bool{},
 	}
 }
 
@@ -327,6 +329,11 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 		nodes = filtered
 	}
 
+	var taskThreads map[string][]data.Record
+	if kind == data.KindTask && a.Store != nil {
+		taskThreads, _ = a.Store.TaskNoteThreads()
+	}
+
 	opts := views.TreeOptions{
 		Style:         a.styleOptions(),
 		GapTopLevel:   a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeTopLevelGap, true),
@@ -341,9 +348,15 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 				nd.Facts[factOpenable] = true
 			}
 			a.applyArchiveAnimToTreeNode(rec, nd)
+			if kind == data.KindTask {
+				a.enrichTaskTreeNode(rec, nd, taskThreads)
+			}
 		},
 	}
 	built := views.TreeFromNodes(schema, nodes, opts)
+	if kind == data.KindTask {
+		a.attachTaskThreadNodes(built.Nodes, taskThreads)
+	}
 	tm.DefaultFolded = false
 	if cs != nil {
 		tm.Folded = maps.Clone(a.trees.folded[kind])
@@ -519,6 +532,9 @@ func (a *App) workLayoutToggle(s core.State, _ core.Command) core.StepResult {
 
 func (a *App) runTreeFold(tm *tree.Model, kind, treeID string, isWork bool, cmdID string) {
 	a.syncTreeModel(tm, kind, treeID)
+	if kind == data.KindTask && a.handleLeafTaskFoldThread(tm, treeID, isWork, cmdID) {
+		return
+	}
 	beforeRow, hasBefore := tm.Focused()
 	switch cmdID {
 	case tree.CmdFoldToggle:

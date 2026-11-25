@@ -415,9 +415,15 @@ func TestWrapInputsAndWrapOutlineSettings(t *testing.T) {
 	if idx < 0 || idx+len(wantSeq) > len(names) || !slices.Equal(names[idx:idx+len(wantSeq)], wantSeq) {
 		t.Fatalf("SettingSpecs missing ordered sequence %v in %v", wantSeq, names)
 	}
-	wantTail := []string{SetCardBorderStyle, SetRailEnterMode, SetSideTermSplit, SetInheritProjectTask, SetFocusRailOnExit, SetFocusRailOnDetach, SetExtensionsShowCatalog, SetExtensionsGoPrivate, SetFocusHintsStyle, SetFocusHintsDrilldown}
-	if !slices.Equal(names[len(names)-len(wantTail):], wantTail) {
-		t.Fatalf("last %d SettingSpecs = %v, want %v", len(wantTail), names[len(names)-len(wantTail):], wantTail)
+	wantGroup := []string{SetCardBorderStyle, SetRailEnterMode, SetSideTermSplit, SetInheritProjectTask, SetFocusRailOnExit, SetFocusRailOnDetach, SetExtensionsShowCatalog, SetExtensionsGoPrivate, SetFocusHintsStyle, SetFocusHintsDrilldown}
+	gIdx := slices.Index(names, SetCardBorderStyle)
+	if gIdx < 0 || gIdx+len(wantGroup) > len(names) || !slices.Equal(names[gIdx:gIdx+len(wantGroup)], wantGroup) {
+		t.Fatalf("SettingSpecs missing ordered group %v in %v", wantGroup, names)
+	}
+	wantTasks := []string{SetTasksShowNoteIndicators, SetTasksInlineNoteThreads, SetTasksLockThreadEdits}
+	tIdx := slices.Index(names, SetTasksShowNoteIndicators)
+	if tIdx < 0 || tIdx+len(wantTasks) > len(names) || !slices.Equal(names[tIdx:tIdx+len(wantTasks)], wantTasks) {
+		t.Fatalf("SettingSpecs missing ordered tasks group %v in %v", wantTasks, names)
 	}
 }
 
