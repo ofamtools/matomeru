@@ -15,30 +15,36 @@ import (
 const childPaneBackHint = "enter live · ctrl+a d detach · esc/h back to project"
 
 // activeChildPaneID returns the embedded child pane ID currently open inside
-// an active Project Tab, or "" when not in a Project Tab or no child pane is open.
+// an active Project Tab or 1 Panes Project Page workspace, or "" when none is open.
 func (a *App) activeChildPaneID(s core.State) string {
-	if a == nil || !isProjectTab(s.ActivePage) || a.proj == nil || a.proj.childPaneByProject == nil {
+	if a == nil || a.proj == nil || a.proj.childPaneByProject == nil {
 		return ""
 	}
-	projectID := projectIDFromTab(s.ActivePage)
-	if projectID == "" {
-		return ""
+	if isProjectTab(s.ActivePage) {
+		projectID := projectIDFromTab(s.ActivePage)
+		if projectID == "" {
+			return ""
+		}
+		return strings.TrimSpace(a.proj.childPaneByProject[projectID])
 	}
-	return strings.TrimSpace(a.proj.childPaneByProject[projectID])
+	if s.ActivePage == SpacePanes {
+		if groupName, projRef, onProj := a.selectedRailProject(); onProj {
+			return strings.TrimSpace(a.proj.childPaneByProject[projectKeyFor(groupName, projRef)])
+		}
+	}
+	return ""
 }
 
 // activePane resolves the pane currently targeted by pane site operations:
-// when an open Project Tab is showing an embedded child pane, it loads that
-// pane from the store; otherwise it delegates to SelectedPane in 1 Panes.
+// when an open Project Tab or 1 Panes Project Page is showing an embedded child
+// pane, it loads that pane from the store; otherwise it delegates to SelectedPane.
 func (a *App) activePane(s core.State) (*data.Record, bool) {
-	if isProjectTab(s.ActivePage) {
-		if paneID := a.activeChildPaneID(s); paneID != "" {
-			if a.Store == nil {
-				return nil, false
-			}
-			rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID})
-			return rec, err == nil && rec != nil
+	if paneID := a.activeChildPaneID(s); paneID != "" {
+		if a.Store == nil {
+			return nil, false
 		}
+		rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID})
+		return rec, err == nil && rec != nil
 	}
 	return a.SelectedPane()
 }
@@ -178,8 +184,20 @@ func (a *App) buildPaneSiteNode(s core.State, pane data.Record, embedded bool) u
 // Project Tab for projectID, optionally attaching straight into live terminal mode.
 func (a *App) openProjectChildPane(s core.State, projectID, paneID string, enterLive bool) core.State {
 	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return s
+	}
+	s.ActivePage = ProjectTabPrefix + projectID
+	return a.openProjectChildPaneInPlace(s, projectID, paneID, "", enterLive)
+}
+
+// openProjectChildPaneInPlace opens paneID as an embedded child pane site
+// inside the active space (1 Panes Project Page or 6+ Project Tab) and records
+// returnFocus to restore on close.
+func (a *App) openProjectChildPaneInPlace(s core.State, projKey, paneID, returnFocus string, enterLive bool) core.State {
+	projKey = strings.TrimSpace(projKey)
 	paneID = strings.TrimSpace(paneID)
-	if projectID == "" || paneID == "" || a.Store == nil {
+	if projKey == "" || paneID == "" || a.Store == nil {
 		return s
 	}
 	pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID})
@@ -193,7 +211,16 @@ func (a *App) openProjectChildPane(s core.State, projectID, paneID string, enter
 	if pc.childPaneByProject == nil {
 		pc.childPaneByProject = map[string]string{}
 	}
-	pc.childPaneByProject[projectID] = paneID
+	pc.childPaneByProject[projKey] = paneID
+	if pc.childPaneReturnFocus == nil {
+		pc.childPaneReturnFocus = map[string]string{}
+	}
+	if returnFocus != "" {
+		pc.childPaneReturnFocus[projKey] = returnFocus
+	} else {
+		delete(pc.childPaneReturnFocus, projKey)
+	}
+	pc.setActiveNavItem(projKey, nil)
 	a.nav.tocFilter = ""
 	if a.panes != nil {
 		if a.panes.activePage == nil {
@@ -202,10 +229,8 @@ func (a *App) openProjectChildPane(s core.State, projectID, paneID string, enter
 		a.panes.activePage[paneID] = views.ScreenPageID
 	}
 	a.viewMemo.gen++
-	tabID := ProjectTabPrefix + projectID
 	s = a.dropModals(s)
-	s.ActivePage = tabID
-	s = withPage(s, tabID, siteScreen, ModeNormal)
+	s = withPage(s, s.ActivePage, siteScreen, ModeNormal)
 	if enterLive {
 		return a.enterScreen(s, *pane)
 	}
@@ -214,19 +239,30 @@ func (a *App) openProjectChildPane(s core.State, projectID, paneID string, enter
 }
 
 // closeProjectChildPane exits the embedded child pane view inside the active
-// Project Tab and restores focus to the project's Panes tree in ModeNormal.
+// Project Tab or 1 Panes Project Page and restores focus to the originating nav
+// node or project.panes.tree in ModeNormal.
 func (a *App) closeProjectChildPane(s core.State, _ core.Command) core.StepResult {
-	if !isProjectTab(s.ActivePage) {
+	projKey := a.activeProjectWorkspaceKey(s)
+	if projKey == "" {
 		return core.Next(s)
 	}
-	projectID := projectIDFromTab(s.ActivePage)
-	if a.proj != nil && a.proj.childPaneByProject != nil && projectID != "" {
-		delete(a.proj.childPaneByProject, projectID)
+	ret := projectPanesTree
+	if a.proj != nil {
+		if a.proj.childPaneByProject != nil {
+			delete(a.proj.childPaneByProject, projKey)
+		}
+		if a.proj.childPaneReturnFocus != nil {
+			if saved := strings.TrimSpace(a.proj.childPaneReturnFocus[projKey]); saved != "" {
+				ret = saved
+			}
+			delete(a.proj.childPaneReturnFocus, projKey)
+		}
+		a.proj.setActiveNavItem(projKey, nil)
 	}
 	if a.panes != nil && a.panes.zoom {
 		a.panes.zoom = false
 	}
 	a.viewMemo.gen++
 	a.say("returned to project panes")
-	return core.Next(withPage(s, s.ActivePage, projectPanesTree, ModeNormal))
+	return core.Next(withPage(s, s.ActivePage, ret, ModeNormal))
 }

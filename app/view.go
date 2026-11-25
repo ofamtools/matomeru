@@ -121,6 +121,9 @@ func (a *App) viewKey(s core.State) string {
 			openPg := a.proj.openPageID(a.proj.activeProjectKey)
 			fmt.Fprintf(&b, "|proj:%s:%s:%s", a.proj.activeProjectKey, sec, openPg)
 		}
+		if nk := a.projectNavViewKey(s); nk != "" {
+			b.WriteString(nk)
+		}
 	}
 	if s.ActivePage == SpaceProjects {
 		if tbl := a.nav.tables[projectsDirTable]; tbl != nil {

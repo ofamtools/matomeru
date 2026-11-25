@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"ofam.dev/matomeru/data"
-	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
@@ -83,18 +82,25 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 	return ws
 }
 
-func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData, activeKey string) []views.ProjectNavSection {
+func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData, activeKey, focusID string) []views.ProjectNavSection {
 	counts := map[string]int{
 		"tasks": len(ws.tasks), "pages": len(ws.pages), "context": len(ws.contextItems),
 		"pinned": len(ws.pinnedItems), "panes": len(ws.panes), "lanes": len(ws.allLanes),
 		"worktrees": len(ws.worktrees), "prs": len(ws.prItems), "documents": len(ws.documents),
 		"notes": len(ws.notes), "questions": len(ws.questions), "commands": len(ws.commands),
 	}
+	pc := a.projectCtrl()
+	pc.resetNavTargets(ws.projectKey)
+	treeEnabled := a.projectNavTreeEnabled()
+
 	out := make([]views.ProjectNavSection, 0, len(defs))
 	for _, d := range defs {
+		expandable := treeEnabled && d.Key != "home" && d.Key != "signals" && counts[d.Key] > 0
+		expanded := expandable && pc.isNavSectionExpanded(ws.projectKey, d.Key)
 		sec := views.ProjectNavSection{
 			Key: d.Key, Label: d.Label, Icon: d.Icon, Group: d.Group,
 			Count: counts[d.Key], Active: d.Key == activeKey,
+			Expandable: expandable, Expanded: expanded,
 		}
 		switch d.Key {
 		case "pages":
@@ -107,6 +113,9 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 			}
 		case "questions":
 			sec.Unread = ws.openQuestions > 0
+		}
+		if expanded {
+			sec.Children = a.buildProjectNavChildren(ws, d.Key, focusID)
 		}
 		out = append(out, sec)
 	}
@@ -122,7 +131,7 @@ func (a *App) buildProjectSectionBody(s core.State, ws projectWorkspaceData, sec
 		return a.projectRecordPanel("project.tasks", projectTasksFlatTable, data.KindTask, "tasks", "Tasks", views.ScopeProjectContent, ws.tasks,
 			[]ui.Badge{{Text: fmt.Sprintf("%d tasks", len(ws.tasks))}})
 	case "pages":
-		return a.projectSectionPages(ws)
+		return a.projectSectionPages(s, ws)
 	case "signals":
 		return a.projectSectionSignals()
 	case "context":
@@ -250,11 +259,11 @@ func (a *App) projectSectionHome(ws projectWorkspaceData) ui.ViewNode {
 	}
 }
 
-func (a *App) projectSectionPages(ws projectWorkspaceData) ui.ViewNode {
+func (a *App) projectSectionPages(s core.State, ws projectWorkspaceData) ui.ViewNode {
 	pc := a.projectCtrl()
 	if openID := pc.openPageID(ws.projectKey); openID != "" {
 		if page, err := a.Store.Get(core.Ref{Kind: data.KindPage, ID: openID}); err == nil && page != nil {
-			return a.projectOpenPageView(*page)
+			return a.buildProjectInteractivePageNode(s, *page, false)
 		}
 		pc.setOpenPageID(ws.projectKey, "")
 	}
@@ -309,30 +318,6 @@ func (a *App) projectSectionPages(ws projectWorkspaceData) ui.ViewNode {
 	return ui.ViewNode{
 		ID: "project.pages", Kind: ui.KindPanel, Scope: scopeProjectPages, Title: "Pages", Border: true,
 		Badges: badges, Facts: map[string]any{"section": "pages"}, Children: []ui.ViewNode{node},
-	}
-}
-
-func (a *App) projectOpenPageView(page data.Record) ui.ViewNode {
-	pageRef := page.Ref()
-	root, err := mcpui.PageRoot(page)
-	body := text("project.page.err", "", "error")
-	if err != nil {
-		body.Props["text"] = "This page cannot be rendered: " + err.Error()
-	} else {
-		body = ui.ViewNode{
-			ID: views.PageScrollID, Kind: ui.KindScroll, Scope: views.ScopeProjectContent, Ref: &pageRef,
-			Focusable: true, Props: map[string]any{"offset": a.pageScrollOffset(page.ID)},
-			Facts:    map[string]any{"section": "pages", "projectOpenPage": true, "pageId": page.ID},
-			Children: []ui.ViewNode{root},
-		}
-	}
-	return ui.ViewNode{
-		ID: "project.page.open", Kind: ui.KindPanel, Scope: views.ScopeProjectContent, Ref: &pageRef,
-		Title:    views.Title(a.schema(data.KindPage), page),
-		Border:   true,
-		Badges:   []ui.Badge{{Text: page.Text("pageKind"), Tone: "info"}, {Text: "esc / h back to pages", Tone: "muted"}},
-		Facts:    map[string]any{"section": "pages", "projectOpenPage": true, "pageId": page.ID},
-		Children: []ui.ViewNode{body},
 	}
 }
 

@@ -543,13 +543,7 @@ func (a *App) register() {
 		}
 		if s.ActiveFrame().Mode == ModeTerminal {
 			a.say("left the pane")
-			if s.ActivePage == SpacePanes && (a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFocusRailOnDetach, true)) {
-				if a.panes != nil {
-					a.panes.zoom = false
-				}
-				return core.Next(withPage(s, SpacePanes, railTable, ModeNormal))
-			}
-			if isProjectTab(s.ActivePage) {
+			if isProjectTab(s.ActivePage) || (s.ActivePage == SpacePanes && a.activeChildPaneID(s) != "") {
 				if a.panes != nil {
 					a.panes.zoom = false
 				}
@@ -558,6 +552,12 @@ func (a *App) register() {
 					target = tocPrefix + views.ScreenPageID
 				}
 				return core.Next(withPage(s, s.ActivePage, target, ModeNormal))
+			}
+			if s.ActivePage == SpacePanes && (a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFocusRailOnDetach, true)) {
+				if a.panes != nil {
+					a.panes.zoom = false
+				}
+				return core.Next(withPage(s, SpacePanes, railTable, ModeNormal))
 			}
 			s = withMode(s, ModeNormal)
 		}

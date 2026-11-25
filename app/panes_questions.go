@@ -576,17 +576,13 @@ func (a *App) questionSubmitAll(s core.State, _ core.Command) core.StepResult {
 		s = a.popModal(s, modal.CloseSubmit)
 	}
 
-	pane, ok := a.activePane(s)
-	if !ok {
-		a.say("no pane is selected")
-		return core.Next(s)
-	}
 	root := a.View(s)
 	content := root.Find("site.content")
 	if content == nil || content.Ref == nil || content.Ref.Kind != data.KindPage {
 		a.say("no questions page is open")
 		return core.Next(s)
 	}
+	pane, hasPane := a.activePane(s)
 	pageID := content.Ref.ID
 	batches := findQuestionBatches(content, pageID)
 	if len(batches) == 0 {
@@ -634,7 +630,11 @@ func (a *App) questionSubmitAll(s core.State, _ core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	a.clearStagedAnswers(pageID, cardIDs)
-	a.say("submitted %d answers for %s · u undoes", len(batchAnswers), views.Title(a.schema(data.KindPane), *pane))
+	targetLabel := content.Title
+	if hasPane && pane != nil {
+		targetLabel = views.Title(a.schema(data.KindPane), *pane)
+	}
+	a.say("submitted %d answers for %s · u undoes", len(batchAnswers), targetLabel)
 	return core.Next(s)
 }
 
@@ -785,8 +785,15 @@ func (a *App) answerQuestion(s core.State, c core.Command) core.StepResult {
 			}
 		}
 	}
-	pane, ok := a.activePane(s)
-	if card == nil || !ok {
+	pageID := ""
+	if content := root.Find("site.content"); content != nil && content.Ref != nil && content.Ref.Kind == data.KindPage {
+		pageID = content.Ref.ID
+	}
+	pane, hasPane := a.activePane(s)
+	if pageID == "" && hasPane && pane != nil {
+		pageID = a.panes.activePage[pane.ID]
+	}
+	if card == nil || pageID == "" {
 		// Global KindQuestion record (e.g. in 2 Work -> Questions or Show page).
 		if ref, hasRef := a.subject(s, c); hasRef && ref.Kind == data.KindQuestion {
 			rec, err := a.Store.Get(ref)
@@ -808,10 +815,6 @@ func (a *App) answerQuestion(s core.State, c core.Command) core.StepResult {
 	}
 	if card.Facts != nil && card.Facts["batchSubmit"] == true {
 		return a.questionSubmitAll(s, c)
-	}
-	pageID := a.panes.activePage[pane.ID]
-	if content := root.Find("site.content"); content != nil && content.Ref != nil && content.Ref.Kind == data.KindPage {
-		pageID = content.Ref.ID
 	}
 	var batch *batchQuestionInfo
 	batchPos := 0

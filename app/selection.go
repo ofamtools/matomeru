@@ -515,11 +515,16 @@ func (a *App) treeSmartFoldCommand(cmdID string) func(core.State, core.Command) 
 	}
 }
 
-// smartGroupHL handles h/l on grouped table headers and TOC group headers when
-// tree.hlFolds is enabled: h collapses an expanded group, l expands a collapsed
-// group, and otherwise spills cleanly to region column navigation.
+// smartGroupHL handles h/l on Project nav tree nodes/sections, grouped table
+// headers, and TOC group headers, spilling cleanly to region column navigation.
 func (a *App) smartGroupHL(s core.State, delta int) (core.State, bool) {
-	if !a.treeHLFolds() || a.Modal() != "" {
+	if a.Modal() != "" {
+		return s, false
+	}
+	if next, handled := a.projectNavHL(s, delta); handled {
+		return next, true
+	}
+	if !a.treeHLFolds() {
 		return s, false
 	}
 	focus := s.ActiveFrame().FocusID

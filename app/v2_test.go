@@ -76,7 +76,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetProjectWorkspaceInPanes: true, SetProjectOutlineAsPage: true, SetProjectNavSections: "", SetContextAutoInject: true,
 		SetEnterOpensShow: false, SetTreeHLFolds: true, SetHintsModifierActions: true,
 		SetProjectsTopNavTab: true, SetProjectsDynamicTabs: true, SetProjectsChildPaneView: true,
-		SetSelfHostedFeaturesEnabled: SelfHostedFeaturesAuto, SetSelfHostedFeaturesRepoPath: ""}
+		SetSelfHostedFeaturesEnabled: SelfHostedFeaturesAuto, SetSelfHostedFeaturesRepoPath: "",
+		SetProjectsNavTree: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

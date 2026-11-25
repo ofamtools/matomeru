@@ -16,20 +16,43 @@ const (
 	ScopeProjectContent  = "project.content"
 	ScopeProjectOverview = "project.overview"
 	ProjectNavPrefix     = "project.nav."
+	ProjectNavNodePrefix = "project.nav.node."
 )
+
+// ProjectNavNode is a pure recursive value object describing one expandable or
+// leaf child entry under a Project Page left-navigation section.
+type ProjectNavNode struct {
+	ID         string
+	Section    string
+	ParentID   string // "" if direct child of section; parent node ID if nested
+	Label      string
+	Icon       string
+	Badge      string
+	Tone       string
+	Ref        *core.Ref
+	Unread     bool
+	Active     bool
+	Expandable bool
+	Expanded   bool
+	Children   []ProjectNavNode
+	Facts      map[string]any
+}
 
 // ProjectNavSection is a pure value object describing one entry in the
 // Project Page left navigation rail.
 type ProjectNavSection struct {
-	Key    string
-	Label  string
-	Icon   string
-	Group  string
-	Badge  string
-	Tone   string
-	Count  int
-	Unread bool
-	Active bool
+	Key        string
+	Label      string
+	Icon       string
+	Group      string
+	Badge      string
+	Tone       string
+	Count      int
+	Unread     bool
+	Active     bool
+	Expandable bool
+	Expanded   bool
+	Children   []ProjectNavNode
 }
 
 // ProjectWorkspaceSpec is the pure data contract for ProjectWorkspaceView.
@@ -98,6 +121,9 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 			})
 		}
 		navRows = append(navRows, projectNavRow(item, spec.ActiveKey))
+		if item.Expanded && len(item.Children) > 0 {
+			navRows = appendProjectNavChildren(navRows, item.Children, 1)
+		}
 	}
 	if len(navRows) == 0 {
 		navRows = append(navRows, ui.ViewNode{
@@ -158,8 +184,10 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 		"section":   spec.ActiveKey,
 	}
 	if body.Facts != nil {
-		if openPage, ok := body.Facts["projectOpenPage"]; ok {
-			contentFacts["projectOpenPage"] = openPage
+		for _, k := range []string{"projectOpenPage", "projectNavLocked", "projectNavPreview", "inChildPaneView"} {
+			if v, ok := body.Facts[k]; ok {
+				contentFacts[k] = v
+			}
 		}
 	}
 
@@ -216,21 +244,31 @@ func projectNavRow(item ProjectNavSection, activeKey string) ui.ViewNode {
 	if icon == "" {
 		icon = "·"
 	}
-	marker := " "
-	switch {
-	case isActive:
-		marker = "▸"
-	case item.Unread:
-		marker = "●"
+
+	var lineText, focusedText string
+	if item.Expandable {
+		chev := "▸"
+		if item.Expanded {
+			chev = "▾"
+		}
+		lineText = fmt.Sprintf("%s %s %s", chev, icon, item.Label)
+		focusedText = fmt.Sprintf("%s %s %s", chev, icon, item.Label)
+	} else {
+		marker := " "
+		switch {
+		case isActive:
+			marker = "▸"
+		case item.Unread:
+			marker = "●"
+		}
+		lineText = fmt.Sprintf("%s %s %s", marker, icon, item.Label)
+		focusedText = fmt.Sprintf("▸ %s %s", icon, item.Label)
 	}
 
 	suffix := strings.TrimSpace(item.Badge)
 	if suffix == "" && item.Count > 0 {
 		suffix = fmt.Sprintf("%d", item.Count)
 	}
-
-	lineText := fmt.Sprintf("%s %s %s", marker, icon, item.Label)
-	focusedText := fmt.Sprintf("▸ %s %s", icon, item.Label)
 	if suffix != "" {
 		lineText = fmt.Sprintf("%s  %s", lineText, suffix)
 		focusedText = fmt.Sprintf("%s  %s", focusedText, suffix)
@@ -259,10 +297,87 @@ func projectNavRow(item ProjectNavSection, activeKey string) ui.ViewNode {
 			"focusedText": focusedText,
 		},
 		Facts: map[string]any{
-			"section": item.Key,
-			"active":  isActive,
-			"count":   item.Count,
-			"unread":  item.Unread,
+			"section":       item.Key,
+			"active":        isActive,
+			"count":         item.Count,
+			"unread":        item.Unread,
+			"isNavSection":  true,
+			"navExpandable": item.Expandable,
+			"navExpanded":   item.Expanded,
 		},
 	}
+}
+
+func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, depth int) []ui.ViewNode {
+	indent := strings.Repeat("  ", depth)
+	for _, child := range children {
+		glyph := "·"
+		if child.Expandable {
+			if child.Expanded {
+				glyph = "▾"
+			} else {
+				glyph = "▸"
+			}
+		}
+		body := child.Label
+		if icon := strings.TrimSpace(child.Icon); icon != "" {
+			body = icon + " " + body
+		}
+		lineText := fmt.Sprintf("%s%s %s", indent, glyph, body)
+		focusedText := lineText
+		if !child.Expandable {
+			focusedText = fmt.Sprintf("%s▸ %s", indent, body)
+		}
+		if badge := strings.TrimSpace(child.Badge); badge != "" {
+			lineText += "  " + badge
+			focusedText += "  " + badge
+		}
+		tone := child.Tone
+		if tone == "" {
+			switch {
+			case child.Active:
+				tone = "accent"
+			case child.Unread:
+				tone = "warning"
+			}
+		}
+		var refCopy *core.Ref
+		if child.Ref != nil {
+			r := *child.Ref
+			refCopy = &r
+		}
+		facts := map[string]any{
+			"section":       child.Section,
+			"navNode":       true,
+			"navNodeId":     child.ID,
+			"navParentId":   child.ParentID,
+			"navDepth":      depth,
+			"navExpandable": child.Expandable,
+			"navExpanded":   child.Expanded,
+			"active":        child.Active,
+			"unread":        child.Unread,
+		}
+		if child.Facts != nil {
+			maps.Copy(facts, child.Facts)
+		}
+		dst = append(dst, ui.ViewNode{
+			ID:        ProjectNavNodePrefix + child.Section + "." + child.ID,
+			Kind:      ui.KindText,
+			Scope:     ScopeProjectNav,
+			Ref:       refCopy,
+			Focusable: true,
+			Unread:    child.Unread,
+			Tone:      tone,
+			Box:       layout.Constraints{FixedH: 1},
+			Props: map[string]any{
+				"text":        lineText,
+				"focusedText": focusedText,
+			},
+			Facts: facts,
+		})
+		if child.Expanded && len(child.Children) > 0 {
+			dst = appendProjectNavChildren(dst, child.Children, depth+1)
+		}
+	}
+	return dst
 }

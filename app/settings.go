@@ -182,6 +182,7 @@ const (
 	SetProjectsTopNavTab             = "projects.topNavTab.enabled"
 	SetProjectsDynamicTabs           = "projects.dynamicTabs.enabled"
 	SetProjectsChildPaneView         = "projects.childPaneView.enabled"
+	SetProjectsNavTree               = "projects.navTree"
 	SetSelfHostedFeaturesEnabled     = "selfHosted.featuresPage.enabled"
 	SetSelfHostedFeaturesRepoPath    = "selfHosted.featuresPage.repoPath"
 	SelfHostedFeaturesAuto           = "auto"
@@ -314,6 +315,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectsChildPaneView, true, "open project panes inline inside a Project Tab's content area"),
 		enum(SetSelfHostedFeaturesEnabled, SelfHostedFeaturesAuto, "enable the self-hosted Features page (auto detects local matomeru checkout, on forces visible, off hides)", SelfHostedFeaturesAuto, SelfHostedFeaturesOn, SelfHostedFeaturesOff),
 		{Name: SetSelfHostedFeaturesRepoPath, Type: core.ParamString, Default: "", Description: "override path to local matomeru checkout for Features page auto-detection"},
+		flag(SetProjectsNavTree, true, "allow expanding Project left-nav sections into interactive inline trees with live right-pane preview"),
 	}
 }
 

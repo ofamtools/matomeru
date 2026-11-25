@@ -114,3 +114,91 @@ func TestProjectWorkspaceViewDefaultsAndEmptyBody(t *testing.T) {
 	rendered := frame(t, root, "project.content.empty", 120, 20)
 	wantText(t, rendered, "Project · Empty", "no sections configured", "Select a section")
 }
+
+func TestProjectWorkspaceNavTreeChevronsIndentAndFacts(t *testing.T) {
+	t1Ref := core.Ref{Kind: "task", ID: "t1"}
+	t1SubRef := core.Ref{Kind: "task", ID: "t1a"}
+	p1Ref := core.Ref{Kind: "page", ID: "pg1"}
+
+	spec := ProjectWorkspaceSpec{
+		ProjectID: "proj-tree",
+		Title:     "Apollo",
+		ActiveKey: "tasks",
+		NavItems: []ProjectNavSection{
+			{Key: "home", Label: "Home", Icon: "⌂", Group: "Core"},
+			{
+				Key: "tasks", Label: "Tasks", Icon: "☐", Group: "Core",
+				Count: 2, Expandable: true, Expanded: true, Active: true,
+				Children: []ProjectNavNode{
+					{
+						ID: "t1", Section: "tasks", Label: "Parent Task", Icon: "◐",
+						Badge: "1", Ref: &t1Ref, Expandable: true, Expanded: true,
+						Children: []ProjectNavNode{
+							{
+								ID: "t1a", Section: "tasks", ParentID: "t1",
+								Label: "Nested Subtask", Icon: "○", Ref: &t1SubRef,
+								Facts: map[string]any{"customFlag": true},
+							},
+						},
+					},
+				},
+			},
+			{
+				Key: "pages", Label: "Pages", Icon: "◫", Group: "Core",
+				Count: 1, Unread: true, Expandable: true, Expanded: false,
+				Children: []ProjectNavNode{
+					{ID: "pg1", Section: "pages", Label: "Spec Page", Ref: &p1Ref, Unread: true},
+				},
+			},
+		},
+	}
+
+	root := ProjectWorkspaceView(spec)
+
+	// Section headers expose navExpandable / navExpanded / isNavSection facts.
+	tasksSec := root.Find(ProjectNavPrefix + "tasks")
+	if tasksSec == nil || tasksSec.Facts["isNavSection"] != true || tasksSec.Facts["navExpandable"] != true || tasksSec.Facts["navExpanded"] != true {
+		t.Fatalf("unexpected tasks section facts: %+v", tasksSec)
+	}
+	if txt, _ := tasksSec.Props["text"].(string); !strings.HasPrefix(txt, "▾ ") {
+		t.Fatalf("expanded tasks section should start with ▾, got %q", txt)
+	}
+
+	pagesSec := root.Find(ProjectNavPrefix + "pages")
+	if pagesSec == nil || pagesSec.Facts["navExpandable"] != true || pagesSec.Facts["navExpanded"] != false {
+		t.Fatalf("unexpected pages section facts: %+v", pagesSec)
+	}
+	if txt, _ := pagesSec.Props["text"].(string); !strings.HasPrefix(txt, "▸ ") {
+		t.Fatalf("collapsed pages section should start with ▸, got %q", txt)
+	}
+	// Collapsed section must NOT emit its children.
+	if root.Find(ProjectNavNodePrefix+"pages.pg1") != nil {
+		t.Fatal("collapsed pages section should not emit child nodes")
+	}
+
+	// Expanded parent task node (depth 1) & nested subtask node (depth 2).
+	t1Node := root.Find(ProjectNavNodePrefix + "tasks.t1")
+	if t1Node == nil || !t1Node.Focusable || t1Node.Scope != ScopeProjectNav || t1Node.Ref == nil || *t1Node.Ref != t1Ref {
+		t.Fatalf("unexpected t1 nav node: %+v", t1Node)
+	}
+	if t1Node.Facts["navNode"] != true || t1Node.Facts["navNodeId"] != "t1" || t1Node.Facts["navParentId"] != "" || t1Node.Facts["navDepth"] != 1 || t1Node.Facts["navExpandable"] != true || t1Node.Facts["navExpanded"] != true {
+		t.Fatalf("unexpected t1 facts: %+v", t1Node.Facts)
+	}
+	if txt, _ := t1Node.Props["text"].(string); !strings.HasPrefix(txt, "  ▾ ") {
+		t.Fatalf("depth-1 expanded node text = %q, want prefix \"  ▾ \"", txt)
+	}
+
+	t1aNode := root.Find(ProjectNavNodePrefix + "tasks.t1a")
+	if t1aNode == nil || !t1aNode.Focusable || t1aNode.Ref == nil || *t1aNode.Ref != t1SubRef {
+		t.Fatalf("unexpected t1a nav node: %+v", t1aNode)
+	}
+	if t1aNode.Facts["navNode"] != true || t1aNode.Facts["navNodeId"] != "t1a" || t1aNode.Facts["navParentId"] != "t1" || t1aNode.Facts["navDepth"] != 2 || t1aNode.Facts["navExpandable"] != false || t1aNode.Facts["customFlag"] != true {
+		t.Fatalf("unexpected t1a facts: %+v", t1aNode.Facts)
+	}
+	if txt, _ := t1aNode.Props["text"].(string); !strings.HasPrefix(txt, "    · ") {
+		t.Fatalf("depth-2 leaf node text = %q, want prefix \"    · \"", txt)
+	}
+
+	rendered := frame(t, root, ProjectNavNodePrefix+"tasks.t1a", 120, 28)
+	wantText(t, rendered, "▾ ☐ Tasks", "Parent Task", "Nested Subtask", "▸ ◫ Pages")
+}

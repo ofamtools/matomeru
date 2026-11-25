@@ -75,6 +75,7 @@ func pageModeBindings() []core.Binding {
 		when(bind(ModePage, all, "ctrl+s", CmdQuestionSubmitAll, "submit all answers"), "facts.hasQuestions"),
 		bind(ModePage, all, "esc", CmdPageLeave, "leave canvas"),
 		bind(ModePage, all, "q", CmdPageLeave, "leave canvas"),
+		hidden(when(bind(ModePage, all, "h", CmdPageLeave, "leave canvas"), "!facts.hasLinks && facts.projectOpenPage")),
 		hidden(bind(ModePage, all, "backspace", CmdPageLeave, "leave canvas")),
 		{Mode: ModePage, Keys: keys("ctrl+a"), Layer: &leader, Hint: "leader"},
 
@@ -99,6 +100,9 @@ func (a *App) activeSitePageID() string {
 }
 
 func (a *App) activeSitePageIDFor(s core.State) string {
+	if pid := a.activeProjectPageID(s); pid != "" {
+		return pid
+	}
 	pane, ok := a.activePane(s)
 	if !ok {
 		return ""
@@ -210,6 +214,9 @@ func (a *App) pageScrollMotion(s core.State, c core.Command) core.StepResult {
 func (a *App) pageLeave(s core.State, _ core.Command) core.StepResult {
 	if a.Engine.Mode(s) != ModePage {
 		return core.Next(s)
+	}
+	if next, handled := a.leaveProjectPage(s); handled {
+		return core.Next(next)
 	}
 	pageID := a.activeSitePageIDFor(s)
 	target := tocPrefix + pageID
