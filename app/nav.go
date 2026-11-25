@@ -73,7 +73,7 @@ func newNavController() *NavController {
 
 // regionRoots are the nodes whose focusable descendants form one column: h
 // and l move between regions, j and k walk every focusable in drawing order.
-var regionRoots = []string{"panes.rail", "project.nav", "project.content", "project.overview", "site.toc", "site.content", "site.side.panel", showHeader, "show.props", "show.related",
+var regionRoots = []string{"panes.rail", "projects.dir", "projects.preview", "project.nav", "project.content", "project.overview", "site.toc", "site.content", "site.side.panel", showHeader, "show.props", "show.related",
 	SpaceWork, SpaceRuns, SpaceExtensions, "runs.detail", "extensions.detail"}
 
 type fnode struct{ id, region string }
@@ -104,6 +104,13 @@ func (a *App) defaultFocus(s core.State) string {
 	if s.ActivePage == SpaceWork && a.nav.histPos >= 0 {
 		return showHeader
 	}
+	if s.ActivePage == SpaceProjects {
+		return projectsDirTable
+	}
+	if isProjectTab(s.ActivePage) {
+		pid := projectIDFromTab(s.ActivePage)
+		return projectNavPrefix + a.projectCtrl().activeSection(pid)
+	}
 	for _, sp := range spaces {
 		if sp.id == s.ActivePage {
 			return sp.table
@@ -117,6 +124,10 @@ func (a *App) defaultFocus(s core.State) string {
 func (a *App) settle(s core.State) core.State {
 	if len(s.Modals) > 0 {
 		return s
+	}
+	if !a.isValidTopTab(s.ActivePage) {
+		s.ActivePage = SpacePanes
+		a.viewMemo.gen++
 	}
 	nodes := a.focusables(s)
 	cur := s.Pages[s.ActivePage].FocusID
@@ -191,7 +202,7 @@ func (a *App) column(s core.State, delta int) core.State {
 		curID := nodes[cur].id
 		if pageID, ok := strings.CutPrefix(curID, tocPrefix); ok && pageID != "" &&
 			!strings.HasPrefix(curID, views.TOCGroupPrefix) && !strings.HasPrefix(curID, views.LaneTOCPrefix) {
-			if pane, hasPane := a.SelectedPane(); hasPane && pane != nil {
+			if pane, hasPane := a.activePane(s); hasPane && pane != nil {
 				a.panes.activePage[pane.ID] = pageID
 			}
 		}
@@ -406,21 +417,54 @@ func (a *App) recordJump(from, to jumpEntry) {
 }
 
 func (a *App) openSpace(s core.State, id string) core.State {
-	if !slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == id }) {
+	switch {
+	case slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == id }):
+	case id == SpaceProjects:
+		if !a.projectsTopNavTabEnabled() {
+			a.say("Projects tab is disabled (projects.topNavTab.enabled=false)")
+			return s
+		}
+	case isProjectTab(id):
+		if !a.projectsDynamicTabsEnabled() {
+			a.say("Project tabs are disabled (projects.dynamicTabs.enabled=false)")
+			return s
+		}
+		pid := projectIDFromTab(id)
+		if a.Store == nil {
+			a.say("no project %q", pid)
+			return s
+		}
+		if rec, err := a.Store.Get(core.Ref{Kind: data.KindTask, ID: pid}); err != nil || rec == nil {
+			a.say("project %q not found", pid)
+			return s
+		}
+		a.ensureProjectTabOpen(pid)
+	default:
 		a.say("no space %q", id)
 		return s
 	}
 	from := a.currentJump(s)
 	s = a.dropModals(s)
 	s.ActivePage = id
+	if isProjectTab(id) && s.Pages[id].ID == "" {
+		pid := projectIDFromTab(id)
+		s = withPage(s, id, projectNavPrefix+a.projectCtrl().activeSection(pid), ModeNormal)
+	}
 	a.recordJump(from, a.currentJump(s))
 	return s
 }
 
 func (a *App) cycleSpace(s core.State, delta int) core.State {
-	i := slices.IndexFunc(spaces, func(sp spaceDef) bool { return sp.id == s.ActivePage })
-	n := len(spaces)
-	return a.openSpace(s, spaces[((i+delta)%n+n)%n].id)
+	tabs := a.topTabs()
+	if len(tabs) == 0 {
+		return s
+	}
+	i := slices.IndexFunc(tabs, func(tb topTabDef) bool { return tb.id == s.ActivePage })
+	if i < 0 {
+		i = 0
+	}
+	n := len(tabs)
+	return a.openSpace(s, tabs[((i+delta)%n+n)%n].id)
 }
 
 // leave remembers the Work space's focus on the page it is leaving.
@@ -502,8 +546,31 @@ func (a *App) jumpTravel(s core.State, delta int) core.State {
 	defer func() { a.nav.jumping = false }()
 
 	s = a.dropModals(s)
-	s.ActivePage = entry.page
-	if entry.page == SpaceWork {
+	targetPage := entry.page
+	if targetPage == SpaceProjects && !a.projectsTopNavTabEnabled() {
+		targetPage = SpacePanes
+	} else if isProjectTab(targetPage) {
+		pid := projectIDFromTab(targetPage)
+		if !a.projectsDynamicTabsEnabled() {
+			if a.projectsTopNavTabEnabled() {
+				targetPage = SpaceProjects
+			} else {
+				targetPage = SpacePanes
+			}
+		} else if a.Store == nil {
+			targetPage = SpacePanes
+		} else if rec, err := a.Store.Get(core.Ref{Kind: data.KindTask, ID: pid}); err != nil || rec == nil {
+			if a.projectsTopNavTabEnabled() {
+				targetPage = SpaceProjects
+			} else {
+				targetPage = SpacePanes
+			}
+		} else {
+			a.ensureProjectTabOpen(pid)
+		}
+	}
+	s.ActivePage = targetPage
+	if targetPage == SpaceWork {
 		if entry.ref.ID != "" {
 			if entry.histPos >= 0 && entry.histPos < len(a.nav.history) && a.nav.history[entry.histPos].ref == entry.ref {
 				a.nav.histPos = entry.histPos
@@ -536,15 +603,19 @@ func (a *App) jumpTravel(s core.State, delta int) core.State {
 		return withPage(s, SpaceWork, focus, ModeNormal)
 	}
 	focus := entry.focus
-	if focus == "" {
+	if targetPage != entry.page || focus == "" {
 		focus = a.defaultFocus(s)
 	}
-	mode := s.Pages[entry.page].Mode
+	mode := s.Pages[targetPage].Mode
 	if mode == "" {
 		mode = ModeNormal
 	}
-	a.say("%s", entry.page)
-	return withPage(s, entry.page, focus, mode)
+	if isProjectTab(targetPage) {
+		a.say("%s", a.title(core.Ref{Kind: data.KindTask, ID: projectIDFromTab(targetPage)}))
+	} else {
+		a.say("%s", targetPage)
+	}
+	return withPage(s, targetPage, focus, mode)
 }
 
 func (a *App) travel(s core.State, delta int) core.State {

@@ -70,6 +70,14 @@ func (a *App) pagesPick(s core.State, _ core.Command) core.StepResult {
 		{pagePickAppPrefix + "outline", "Outline", "Full task hierarchy outline overlay", "T", []string{"app", "outline", "tree"}},
 		{pagePickAppPrefix + "inspector", "Inspector", "Inspect registered actions, parameters, and modes", ": inspect", []string{"app", "inspector", "actions", "modes"}},
 	}
+	if a.projectsTopNavTabEnabled() {
+		appPages = append(appPages[:4], append([]struct {
+			id, title, subtitle, key string
+			keywords                 []string
+		}{
+			{pagePickAppPrefix + "space:" + SpaceProjects, "Projects", "All projects directory with live Home overview preview", "5", []string{"app", "space", "projects", "directory"}},
+		}, appPages[4:]...)...)
+	}
 	for _, ap := range appPages {
 		badges := []ui.Badge{{Text: "[app]", Tone: "info"}}
 		if ap.key != "" {
@@ -81,6 +89,18 @@ func (a *App) pagesPick(s core.State, _ core.Command) core.StepResult {
 			Subtitle: ap.subtitle,
 			Badges:   badges,
 			Keywords: ap.keywords,
+		})
+	}
+	for i, tb := range a.topTabs() {
+		if !tb.dynamic {
+			continue
+		}
+		items = append(items, picker.Item{
+			ID:       pagePickAppPrefix + "space:" + tb.id,
+			Title:    tb.title,
+			Subtitle: "Open Project Tab",
+			Badges:   []ui.Badge{{Text: "[app]", Tone: "info"}, {Text: fmt.Sprint(i + 1), Tone: "accent"}},
+			Keywords: []string{"app", "project", "tab", tb.title, tb.projectID},
 		})
 	}
 

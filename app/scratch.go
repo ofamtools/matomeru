@@ -209,19 +209,19 @@ func (a *App) scratchToggle(s core.State, c core.Command) core.StepResult {
 }
 
 // termPane is the pane keys typed in terminal mode go to: the scratch that
-// is shown, the active side split pane when sideScreen is focused, or the pane
-// the rail has selected.
+// is shown, the active side split pane when sideScreen is focused, or the
+// active pane (embedded child pane in a Project Tab, or selected rail pane).
 func (a *App) termPane(s core.State) (*data.Record, bool) {
 	if sm := a.activeScratch(); sm != nil && sm.paneID != "" {
 		rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: sm.paneID})
 		return rec, err == nil
 	}
 	if s.ActiveFrame().FocusID == sideScreen {
-		if parent, ok := a.SelectedPane(); ok {
+		if parent, ok := a.activePane(s); ok {
 			if side, hasSide := a.activeSideSplit(*parent); hasSide {
 				return side, true
 			}
 		}
 	}
-	return a.SelectedPane()
+	return a.activePane(s)
 }

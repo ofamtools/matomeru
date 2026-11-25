@@ -179,6 +179,9 @@ const (
 	SetContextAutoInject             = "context.autoInjectProjectContext"
 	SetEnterOpensShow                = "ui.enterOpensShow"
 	SetTreeHLFolds                   = "tree.hlFolds"
+	SetProjectsTopNavTab             = "projects.topNavTab.enabled"
+	SetProjectsDynamicTabs           = "projects.dynamicTabs.enabled"
+	SetProjectsChildPaneView         = "projects.childPaneView.enabled"
 	FocusHintsInline                 = "inline"
 	FocusHintsOverlay                = "overlay"
 	FocusHintsBoth                   = "both"
@@ -301,6 +304,9 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetEnterOpensShow, false, "pressing enter on plain lists and tables opens the record's Show page (E always opens Show)"),
 		flag(SetTreeHLFolds, true, "use h/l to smart-fold/unfold trees, outlines, and grouped headers (spilling to regions at the edge)"),
 		flag(SetHintsModifierActions, true, "allow ctrl (open), Shift (insert into active/main input), and alt (reveal in Finder) modifiers on hint labels"),
+		flag(SetProjectsTopNavTab, true, "show permanent 5 Projects tab in the top navigation bar"),
+		flag(SetProjectsDynamicTabs, true, "open selected projects as dedicated 6+ tabs in the top navigation bar"),
+		flag(SetProjectsChildPaneView, true, "open project panes inline inside a Project Tab's content area"),
 	}
 }
 

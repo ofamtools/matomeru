@@ -1,0 +1,232 @@
+package app
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+
+	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/views"
+	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/layout"
+	"ofam.dev/ochazuke/ui"
+)
+
+const childPaneBackHint = "enter live · ctrl+a d detach · esc/h back to project"
+
+// activeChildPaneID returns the embedded child pane ID currently open inside
+// an active Project Tab, or "" when not in a Project Tab or no child pane is open.
+func (a *App) activeChildPaneID(s core.State) string {
+	if a == nil || !isProjectTab(s.ActivePage) || a.proj == nil || a.proj.childPaneByProject == nil {
+		return ""
+	}
+	projectID := projectIDFromTab(s.ActivePage)
+	if projectID == "" {
+		return ""
+	}
+	return strings.TrimSpace(a.proj.childPaneByProject[projectID])
+}
+
+// activePane resolves the pane currently targeted by pane site operations:
+// when an open Project Tab is showing an embedded child pane, it loads that
+// pane from the store; otherwise it delegates to SelectedPane in 1 Panes.
+func (a *App) activePane(s core.State) (*data.Record, bool) {
+	if isProjectTab(s.ActivePage) {
+		if paneID := a.activeChildPaneID(s); paneID != "" {
+			if a.Store == nil {
+				return nil, false
+			}
+			rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID})
+			return rec, err == nil && rec != nil
+		}
+	}
+	return a.SelectedPane()
+}
+
+// displayedSitePageIDFor resolves which page of paneID should be displayed in
+// the pane site (supporting live TOC preview in both 1 Panes and Project Tabs).
+func (a *App) displayedSitePageIDFor(s core.State, paneID string, pages []data.Record) (string, bool) {
+	active := a.panes.activePage[paneID]
+	if active == "" {
+		active = views.ScreenPageID
+	}
+	if a.cfg != nil && a.cfg.Settings != nil && !a.cfg.Settings.Bool(SetTOCLivePreview, true) {
+		return active, false
+	}
+	if s.ActivePage != SpacePanes && !isProjectTab(s.ActivePage) {
+		return active, false
+	}
+	focus := s.Pages[s.ActivePage].FocusID
+	pageID, ok := strings.CutPrefix(focus, tocPrefix)
+	if !ok || pageID == "" || strings.HasPrefix(focus, views.TOCGroupPrefix) || strings.HasPrefix(focus, views.LaneTOCPrefix) {
+		return active, false
+	}
+	if pageID == views.ScreenPageID {
+		return views.ScreenPageID, active != views.ScreenPageID
+	}
+	for _, p := range pages {
+		if p.ID == pageID {
+			return pageID, pageID != active
+		}
+	}
+	return active, false
+}
+
+// buildPaneSiteNode builds the full interactive pane site (live Screen + TOC +
+// ui.page canvases + questions + approval/header strips + side split) for both
+// 1 Panes (embedded=false) and an open Project Tab's embedded child pane view
+// (embedded=true).
+func (a *App) buildPaneSiteNode(s core.State, pane data.Record, embedded bool) ui.ViewNode {
+	frame := s.Pages[SpacePanes]
+	if isProjectTab(s.ActivePage) {
+		frame = s.Pages[s.ActivePage]
+	}
+	ref := pane.Ref()
+	res, err := a.Store.Query(data.Query{Kind: data.KindPage, Parent: &ref, ParentField: "pane", IncludeArchived: a.nav.showArchived})
+	if err != nil {
+		a.fail("read pages", err)
+	}
+	shownPageID, previewing := a.displayedSitePageIDFor(s, pane.ID, res.Items)
+	opts := views.SiteOptions{
+		Store:            a.Store,
+		ShowLaneBar:      a.cfg.Settings.Bool(SetLaneBar, false),
+		LaneInTOC:        a.cfg.Settings.Bool(SetLaneInTOC, true),
+		CompactTOC:       a.cfg.Settings.Bool(SetCompactTOC, true),
+		TOCGrouped:       a.cfg.Settings.Bool(SetTOCGrouped, true),
+		TOCCollapsed:     a.panes.tocCollapsed,
+		PageScrollOffset: a.pageScrollOffset(shownPageID),
+		PageScrollLocked: frame.Mode == ModePage,
+		WrapPageScroll:   true,
+		HideTOC:          !a.cfg.Settings.Bool(SetShowTOC, true),
+		LaneHint:         laneBarHint,
+	}
+	if a.Shell != nil {
+		opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once
+	}
+	site := views.PaneSiteViewWith(pane, res.Items, shownPageID, a.nav.tocFilter, opts)
+	a.enhanceQuestionsSite(&site, pane, res.Items)
+	a.enhanceCanvasSite(&site, shownPageID)
+	if previewing && shownPageID != views.ScreenPageID {
+		if content := site.Find("site.content"); content != nil {
+			content.Badges = append(slices.Clone(content.Badges), ui.Badge{Text: "preview · enter opens", Tone: "muted"})
+		}
+	}
+	var extraTop []ui.ViewNode
+	if strip, ok := a.paneHeaderStrip(pane); ok {
+		extraTop = append(extraTop, strip)
+	}
+	if banner, ok := a.paneApprovalBanner(pane); ok {
+		extraTop = append(extraTop, banner)
+		if site.Facts == nil {
+			site.Facts = map[string]any{}
+		}
+		site.Facts["hasPendingApproval"] = true
+	}
+	if len(extraTop) > 0 {
+		site.Children = append(extraTop, site.Children...)
+	}
+	a.rt.live.shown = ""
+	a.rt.live.shownSide = ""
+	if screen := site.Find(siteScreen); screen != nil {
+		var shownLines []string
+		if lines, cursor, badges, ok := a.liveScreen(pane, siteScreen); ok {
+			shownLines = lines
+			screen.Props["lines"], screen.Props["cursor"] = lines, cursor
+			content := site.Find("site.content")
+			content.Badges = badges
+			if f := a.rt.live.frames[pane.ID]; f.PID > 0 && !f.Exited {
+				content.Title = fmt.Sprintf("Screen · pid %d", f.PID)
+			}
+		} else {
+			typing := frame.Mode == ModeTerminal && frame.FocusID != sideScreen
+			shownLines = a.termLines(pane, typing)
+			screen.Props["lines"] = shownLines
+			site.Find("site.content").Badges = []ui.Badge{{Text: "not attached", Tone: "muted"}}
+		}
+		if a.panes.hints != nil && a.panes.hints.session != nil && a.panes.hints.session.Active() && a.panes.hints.paneID == pane.ID {
+			w, h := a.screenSize()
+			screen.Props["lines"] = a.hintsRenderLines(shownLines, w, h)
+			delete(screen.Props, "cursor")
+			if content := site.Find("site.content"); content != nil {
+				content.Badges = append(slices.Clone(content.Badges),
+					ui.Badge{Text: fmt.Sprintf("hints %d", len(a.panes.hints.session.Remaining())), Tone: "accent"})
+			}
+			site.Children = append(site.Children, a.panes.hints.session.View("site.hints.bar"))
+		}
+		a.applySideSplit(&site, pane, s)
+	}
+	if !embedded {
+		return site
+	}
+	if site.Facts == nil {
+		site.Facts = map[string]any{}
+	}
+	site.Facts["inChildPaneView"] = true
+	site.Box.Flex = 1
+	paneTitle := views.Title(a.schema(data.KindPane), pane)
+	banner := views.ChildPaneBannerView(paneTitle, childPaneBackHint)
+	return ui.ViewNode{
+		ID:       "project.child_pane.view",
+		Kind:     ui.KindVStack,
+		Box:      layout.Constraints{Flex: 1},
+		Facts:    map[string]any{"inChildPaneView": true, "paneId": pane.ID},
+		Children: []ui.ViewNode{banner, site},
+	}
+}
+
+// openProjectChildPane opens paneID as an embedded child pane site inside the
+// Project Tab for projectID, optionally attaching straight into live terminal mode.
+func (a *App) openProjectChildPane(s core.State, projectID, paneID string, enterLive bool) core.State {
+	projectID = strings.TrimSpace(projectID)
+	paneID = strings.TrimSpace(paneID)
+	if projectID == "" || paneID == "" || a.Store == nil {
+		return s
+	}
+	pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID})
+	if err != nil || pane == nil {
+		if err != nil {
+			a.fail("open pane", err)
+		}
+		return s
+	}
+	pc := a.projectCtrl()
+	if pc.childPaneByProject == nil {
+		pc.childPaneByProject = map[string]string{}
+	}
+	pc.childPaneByProject[projectID] = paneID
+	a.nav.tocFilter = ""
+	if a.panes != nil {
+		if a.panes.activePage == nil {
+			a.panes.activePage = map[string]string{}
+		}
+		a.panes.activePage[paneID] = views.ScreenPageID
+	}
+	a.viewMemo.gen++
+	tabID := ProjectTabPrefix + projectID
+	s = a.dropModals(s)
+	s.ActivePage = tabID
+	s = withPage(s, tabID, siteScreen, ModeNormal)
+	if enterLive {
+		return a.enterScreen(s, *pane)
+	}
+	a.say("%s · %s", views.Title(a.schema(data.KindPane), *pane), childPaneBackHint)
+	return s
+}
+
+// closeProjectChildPane exits the embedded child pane view inside the active
+// Project Tab and restores focus to the project's Panes tree in ModeNormal.
+func (a *App) closeProjectChildPane(s core.State, _ core.Command) core.StepResult {
+	if !isProjectTab(s.ActivePage) {
+		return core.Next(s)
+	}
+	projectID := projectIDFromTab(s.ActivePage)
+	if a.proj != nil && a.proj.childPaneByProject != nil && projectID != "" {
+		delete(a.proj.childPaneByProject, projectID)
+	}
+	if a.panes != nil && a.panes.zoom {
+		a.panes.zoom = false
+	}
+	a.viewMemo.gen++
+	a.say("returned to project panes")
+	return core.Next(withPage(s, s.ActivePage, projectPanesTree, ModeNormal))
+}

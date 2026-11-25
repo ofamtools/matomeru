@@ -313,9 +313,9 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(n, "terminal", "i", CmdTermAttach, "type in the pane")),
 		bind(n, "question", "enter", CmdAnswer, "answer"),
 		bind(n, "question", "a", CmdAnswer, "answer"),
-		when(bind(n, "question", "n", CmdQuestionNext, "next question"), "facts.space == \"panes\""),
-		when(bind(n, "question", "p", CmdQuestionPrev, "previous question"), "facts.space == \"panes\""),
-		when(bind(n, "question", "ctrl+s", CmdQuestionSubmitAll, "submit all answers"), "facts.space == \"panes\""),
+		when(bind(n, "question", "n", CmdQuestionNext, "next question"), "facts.space == \"panes\" || facts.inChildPaneView"),
+		when(bind(n, "question", "p", CmdQuestionPrev, "previous question"), "facts.space == \"panes\" || facts.inChildPaneView"),
+		when(bind(n, "question", "ctrl+s", CmdQuestionSubmitAll, "submit all answers"), "facts.space == \"panes\" || facts.inChildPaneView"),
 		bind(n, data.KindCommand, "enter", CmdCommandRun, "run command"),
 		bind(n, data.KindCommand, "r", CmdCommandRun, "run command"),
 		bind(n, data.KindCommand, "e", CmdCommandEditRun, "edit & run command"),
@@ -803,6 +803,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, fdSearchBindings()...)
 	out = append(out, paneSearchBindings()...)
 	out = append(out, projectHomeBindings()...)
+	out = append(out, projectTabsBindings()...)
 	out = append(out, composerContextBindings()...)
 	out = append(out, insertPickerBindings()...)
 	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {

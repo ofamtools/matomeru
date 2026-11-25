@@ -219,12 +219,13 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.nav.showArchived = a.cfg.Settings.Bool("showArchived", false)
 	a.register()
 
-	frames := make([]core.Frame, len(spaces))
-	for i, sp := range spaces {
-		frames[i] = core.Frame{ID: sp.id, Mode: ModeNormal, FocusID: sp.table}
+	frames := make([]core.Frame, 0, len(spaces)+1)
+	for _, sp := range spaces {
+		frames = append(frames, core.Frame{ID: sp.id, Mode: ModeNormal, FocusID: sp.table})
 	}
+	frames = append(frames, core.Frame{ID: SpaceProjects, Mode: ModeNormal, FocusID: projectsDirTable})
 	initial := core.NewState(frames...)
-	if start := a.cfg.Settings.String("startSpace", SpacePanes); slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == start }) {
+	if start := a.cfg.Settings.String("startSpace", SpacePanes); slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == start }) || (start == SpaceProjects && a.projectsTopNavTabEnabled()) {
 		initial.ActivePage = start
 	}
 	a.Shell = otea.New(a.Engine, initial, a.View, theme)
@@ -234,10 +235,12 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.Shell.AppFacts = func(s core.State) map[string]any {
 		_, recording := a.nav.Macros.Recording()
 		return map[string]any{
-			"space":          s.ActivePage,
-			"recording":      recording,
-			"enterOpensShow": a.enterOpensShow(),
-			"hlFolds":        a.treeHLFolds(),
+			"space":           s.ActivePage,
+			"recording":       recording,
+			"enterOpensShow":  a.enterOpensShow(),
+			"hlFolds":         a.treeHLFolds(),
+			"isProjectTab":    isProjectTab(s.ActivePage),
+			"inChildPaneView": a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
 		}
 	}
 	a.Shell.OnPassThrough = func(e core.PassToWidgetEffect) tea.Cmd {
@@ -441,7 +444,12 @@ func (a *App) register() {
 	}
 	a.handle(core.CmdFocusNext, func(s core.State, c core.Command) core.StepResult { return core.Next(a.step(s, c.Times())) })
 	a.handle(core.CmdFocusPrev, func(s core.State, c core.Command) core.StepResult { return core.Next(a.step(s, -c.Times())) })
-	a.handle(core.CmdPageOpen, func(s core.State, c core.Command) core.StepResult { return core.Next(a.openSpace(s, c.Arg("id"))) })
+	a.handle(core.CmdPageOpen, func(s core.State, c core.Command) core.StepResult {
+		if slot := intArg(c.Args["slot"]); slot > 0 {
+			return core.Next(a.openTabSlot(s, slot))
+		}
+		return core.Next(a.openSpace(s, c.Arg("id")))
+	})
 	a.handle(core.CmdPageNext, func(s core.State, _ core.Command) core.StepResult { return core.Next(a.cycleSpace(s, 1)) })
 	a.handle(core.CmdPagePrev, func(s core.State, _ core.Command) core.StepResult { return core.Next(a.cycleSpace(s, -1)) })
 
@@ -532,6 +540,16 @@ func (a *App) register() {
 					a.panes.zoom = false
 				}
 				return core.Next(withPage(s, SpacePanes, railTable, ModeNormal))
+			}
+			if isProjectTab(s.ActivePage) {
+				if a.panes != nil {
+					a.panes.zoom = false
+				}
+				target := siteScreen
+				if a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetShowTOC, true) {
+					target = tocPrefix + views.ScreenPageID
+				}
+				return core.Next(withPage(s, s.ActivePage, target, ModeNormal))
 			}
 			s = withMode(s, ModeNormal)
 		}
@@ -705,6 +723,7 @@ func (a *App) register() {
 	a.handle(CmdTaskNoteReply, a.taskNoteReply)
 	a.handle(CmdTaskQueueDispatch, a.taskQueueDispatch)
 	a.registerProjectHomeHandlers()
+	a.registerProjectTabsHandlers()
 	a.registerComposerContextHandlers()
 	a.registerInsertPickerHandlers()
 	for _, id := range []string{tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll} {

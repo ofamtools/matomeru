@@ -83,17 +83,35 @@ func (a *App) viewKey(s core.State) string {
 			len(a.panes.hints.session.Remaining()),
 		)
 	}
-	if s.ActivePage == SpacePanes {
+	if a.proj != nil {
+		fmt.Fprintf(&b, "|pt:%t:%t:%t:%s",
+			a.projectsTopNavTabEnabled(),
+			a.projectsDynamicTabsEnabled(),
+			a.projectChildPaneViewEnabled(),
+			strings.Join(a.proj.openTabs, ","),
+		)
+	}
+	if s.ActivePage == SpacePanes || isProjectTab(s.ActivePage) {
 		if pageID := a.activeSitePageID(); pageID != "" {
 			fmt.Fprintf(&b, "|ps:%s:%d", pageID, a.pageScrollOffset(pageID))
 			if ck := a.canvasViewKey(pageID); ck != "" {
 				b.WriteString(ck)
 			}
 		}
+		if childID := a.activeChildPaneID(s); childID != "" {
+			childPage := views.ScreenPageID
+			if a.panes != nil && a.panes.activePage[childID] != "" {
+				childPage = a.panes.activePage[childID]
+			}
+			fmt.Fprintf(&b, "|cp:%s:%s:%d", childID, childPage, a.pageScrollOffset(childPage))
+			if ck := a.canvasViewKey(childPage); ck != "" {
+				b.WriteString(ck)
+			}
+		}
 		if a.panes != nil && a.panes.tocCollapsed["pages"] {
 			b.WriteString("|toc:collapsed")
 		}
-		if pane, ok := a.SelectedPane(); ok && pane != nil && a.panes != nil {
+		if pane, ok := a.activePane(s); ok && pane != nil && a.panes != nil {
 			if sideID := a.panes.sideSplit[pane.ID]; sideID != "" {
 				b.WriteString("|side:" + sideID)
 			}
@@ -104,18 +122,41 @@ func (a *App) viewKey(s core.State) string {
 			fmt.Fprintf(&b, "|proj:%s:%s:%s", a.proj.activeProjectKey, sec, openPg)
 		}
 	}
+	if s.ActivePage == SpaceProjects {
+		if tbl := a.nav.tables[projectsDirTable]; tbl != nil {
+			if row, ok := tbl.FocusedRow(); ok {
+				b.WriteString("|pdir:" + row.ID)
+			}
+		}
+	}
 	return b.String()
 }
 
 func (a *App) build(s core.State) ui.ViewNode {
-	active := slices.IndexFunc(spaces, func(sp spaceDef) bool { return sp.id == s.ActivePage })
-	tabs := ui.ViewNode{ID: "spaces", Kind: ui.KindTabs, Props: map[string]any{"active": max(active, 0)}, Box: layout.Constraints{Flex: 1}}
-	for i, sp := range spaces {
-		tab := ui.ViewNode{ID: "space." + sp.id, Kind: ui.KindVStack, Scope: sp.id, Title: fmt.Sprintf("%d %s", i+1, sp.title)}
+	topTabs := a.topTabs()
+	active := slices.IndexFunc(topTabs, func(tb topTabDef) bool { return tb.id == s.ActivePage })
+	if active < 0 {
+		active = 0
+	}
+	tabs := ui.ViewNode{ID: "spaces", Kind: ui.KindTabs, Props: map[string]any{"active": active}, Box: layout.Constraints{Flex: 1}}
+	for i, tb := range topTabs {
+		tab := ui.ViewNode{ID: "space." + tb.id, Kind: ui.KindVStack, Scope: tb.id, Title: fmt.Sprintf("%d %s", i+1, tb.title)}
 		if i == active {
-			tab.Children = []ui.ViewNode{a.space(s, sp)}
+			child := a.spaceForTab(s, tb)
+			if tb.dynamic {
+				inChild := a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled()
+				child = ui.ViewNode{
+					ID:       "project.tab." + tb.projectID,
+					Kind:     ui.KindVStack,
+					Scope:    views.ScopeProjectTab,
+					Box:      layout.Constraints{Flex: 1},
+					Facts:    map[string]any{"isProjectTab": true, "canCloseTab": true, "inChildPaneView": inChild, "projectId": tb.projectID},
+					Children: []ui.ViewNode{child},
+				}
+			}
+			tab.Children = []ui.ViewNode{child}
 		}
-		if sp.id == SpacePanes {
+		if tb.id == SpacePanes {
 			tab.Unread = slices.ContainsFunc(a.rail().Rows, func(r table.Row) bool { return r.Unread })
 			if pane, ok := a.SelectedPane(); ok && len(a.pendingApprovalsFor(pane.ID)) > 0 {
 				tab.Facts = map[string]any{"hasPendingApproval": true}
@@ -186,7 +227,7 @@ func (a *App) statusLine(s core.State, chain []core.ContextFrame) string {
 	}
 	// A filter is shown while it is typed and for as long as it narrows a list.
 	typing, cursor := a.Engine.Mode(s) == ModeFilter, map[bool]string{true: "▏"}
-	if onPages := typing && a.nav.filterTarget == "toc"; s.ActivePage == SpacePanes && (a.nav.tocFilter != "" || onPages) {
+	if onPages := typing && a.nav.filterTarget == "toc"; (s.ActivePage == SpacePanes || isProjectTab(s.ActivePage)) && (a.nav.tocFilter != "" || onPages) {
 		out += " · pages /" + a.nav.tocFilter + cursor[onPages]
 	}
 	list := a.nav.filterTarget
@@ -344,14 +385,24 @@ func (a *App) hintLine(s core.State, chain []core.ContextFrame) string {
 
 // --- spaces ---------------------------------------------------------------------
 
-func (a *App) space(s core.State, sp spaceDef) ui.ViewNode {
-	switch sp.id {
+func (a *App) spaceForTab(s core.State, tb topTabDef) ui.ViewNode {
+	if tb.dynamic {
+		return a.projectTabSpace(s, tb.projectID)
+	}
+	switch tb.id {
 	case SpacePanes:
 		return a.panesSpace(s)
 	case SpaceWork:
 		return a.workSpace(s)
+	case SpaceProjects:
+		return a.projectsSpace(s)
 	}
-	return a.listSpace(sp)
+	for _, sp := range spaces {
+		if sp.id == tb.id {
+			return a.listSpace(sp)
+		}
+	}
+	return a.panesSpace(s)
 }
 
 func (a *App) panesSpace(s core.State) ui.ViewNode {
@@ -383,80 +434,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 	if groupName, projRef, onProject := a.selectedRailProject(); onProject {
 		site = a.projectOverviewView(s, groupName, projRef)
 	} else if pane, ok := a.SelectedPane(); ok {
-		ref := pane.Ref()
-		res, err := a.Store.Query(data.Query{Kind: data.KindPage, Parent: &ref, ParentField: "pane", IncludeArchived: a.nav.showArchived})
-		if err != nil {
-			a.fail("read pages", err)
-		}
-		shownPageID, previewing := a.displayedSitePageID(s, pane.ID, res.Items)
-		opts := views.SiteOptions{
-			Store:            a.Store,
-			ShowLaneBar:      a.cfg.Settings.Bool(SetLaneBar, false),
-			LaneInTOC:        a.cfg.Settings.Bool(SetLaneInTOC, true),
-			CompactTOC:       a.cfg.Settings.Bool(SetCompactTOC, true),
-			TOCGrouped:       a.cfg.Settings.Bool(SetTOCGrouped, true),
-			TOCCollapsed:     a.panes.tocCollapsed,
-			PageScrollOffset: a.pageScrollOffset(shownPageID),
-			PageScrollLocked: s.Pages[SpacePanes].Mode == ModePage,
-			WrapPageScroll:   true,
-			HideTOC:          !a.cfg.Settings.Bool(SetShowTOC, true),
-			LaneHint:         laneBarHint,
-		}
-		if a.Shell != nil {
-			opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once
-		}
-		site = views.PaneSiteViewWith(*pane, res.Items, shownPageID, a.nav.tocFilter, opts)
-		a.enhanceQuestionsSite(&site, *pane, res.Items)
-		a.enhanceCanvasSite(&site, shownPageID)
-		if previewing && shownPageID != views.ScreenPageID {
-			if content := site.Find("site.content"); content != nil {
-				content.Badges = append(slices.Clone(content.Badges), ui.Badge{Text: "preview · enter opens", Tone: "muted"})
-			}
-		}
-		var extraTop []ui.ViewNode
-		if strip, ok := a.paneHeaderStrip(*pane); ok {
-			extraTop = append(extraTop, strip)
-		}
-		if banner, ok := a.paneApprovalBanner(*pane); ok {
-			extraTop = append(extraTop, banner)
-			if site.Facts == nil {
-				site.Facts = map[string]any{}
-			}
-			site.Facts["hasPendingApproval"] = true
-		}
-		if len(extraTop) > 0 {
-			site.Children = append(extraTop, site.Children...)
-		}
-		a.rt.live.shown = ""
-		a.rt.live.shownSide = ""
-		if screen := site.Find(siteScreen); screen != nil {
-			var shownLines []string
-			if lines, cursor, badges, ok := a.liveScreen(*pane, siteScreen); ok {
-				shownLines = lines
-				screen.Props["lines"], screen.Props["cursor"] = lines, cursor
-				content := site.Find("site.content")
-				content.Badges = badges
-				if f := a.rt.live.frames[pane.ID]; f.PID > 0 && !f.Exited {
-					content.Title = fmt.Sprintf("Screen · pid %d", f.PID)
-				}
-			} else {
-				typing := s.Pages[SpacePanes].Mode == ModeTerminal && s.Pages[SpacePanes].FocusID != sideScreen
-				shownLines = a.termLines(*pane, typing)
-				screen.Props["lines"] = shownLines
-				site.Find("site.content").Badges = []ui.Badge{{Text: "not attached", Tone: "muted"}}
-			}
-			if a.panes.hints != nil && a.panes.hints.session != nil && a.panes.hints.session.Active() && a.panes.hints.paneID == pane.ID {
-				w, h := a.screenSize()
-				screen.Props["lines"] = a.hintsRenderLines(shownLines, w, h)
-				delete(screen.Props, "cursor")
-				if content := site.Find("site.content"); content != nil {
-					content.Badges = append(slices.Clone(content.Badges),
-						ui.Badge{Text: fmt.Sprintf("hints %d", len(a.panes.hints.session.Remaining())), Tone: "accent"})
-				}
-				site.Children = append(site.Children, a.panes.hints.session.View("site.hints.bar"))
-			}
-			a.applySideSplit(&site, *pane, s)
-		}
+		site = a.buildPaneSiteNode(s, *pane, false)
 	}
 	if a.panes.zoom && site.ID == "site" {
 		// Zoomed: only the pane's page, still inside the pane's context chain.
@@ -482,10 +460,10 @@ func (a *App) displayedSitePageID(s core.State, paneID string, pages []data.Reco
 	if a.cfg != nil && a.cfg.Settings != nil && !a.cfg.Settings.Bool(SetTOCLivePreview, true) {
 		return active, false
 	}
-	if s.ActivePage != SpacePanes {
+	if s.ActivePage != SpacePanes && !(isProjectTab(s.ActivePage) && a.activeChildPaneID(s) == paneID) {
 		return active, false
 	}
-	focus := s.Pages[SpacePanes].FocusID
+	focus := s.Pages[s.ActivePage].FocusID
 	pageID, ok := strings.CutPrefix(focus, tocPrefix)
 	if !ok || pageID == "" || strings.HasPrefix(focus, views.TOCGroupPrefix) || strings.HasPrefix(focus, views.LaneTOCPrefix) {
 		return active, false

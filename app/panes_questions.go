@@ -333,7 +333,7 @@ func (a *App) questionStep(delta int) func(core.State, core.Command) core.StepRe
 			nextIdx := min(max(cur+delta, 0), len(qNodes)-1)
 			target = qNodes[nextIdx]
 		}
-		a.scrollPageReveal(s, a.activeSitePageID(), target)
+		a.scrollPageReveal(s, a.activeSitePageIDFor(s), target)
 		return core.Next(withFocus(s, target))
 	}
 }
@@ -576,7 +576,7 @@ func (a *App) questionSubmitAll(s core.State, _ core.Command) core.StepResult {
 		s = a.popModal(s, modal.CloseSubmit)
 	}
 
-	pane, ok := a.SelectedPane()
+	pane, ok := a.activePane(s)
 	if !ok {
 		a.say("no pane is selected")
 		return core.Next(s)
@@ -785,7 +785,7 @@ func (a *App) answerQuestion(s core.State, c core.Command) core.StepResult {
 			}
 		}
 	}
-	pane, ok := a.SelectedPane()
+	pane, ok := a.activePane(s)
 	if card == nil || !ok {
 		// Global KindQuestion record (e.g. in 2 Work -> Questions or Show page).
 		if ref, hasRef := a.subject(s, c); hasRef && ref.Kind == data.KindQuestion {

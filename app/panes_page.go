@@ -84,7 +84,22 @@ func pageModeBindings() []core.Binding {
 }
 
 func (a *App) activeSitePageID() string {
+	if a.Shell != nil {
+		return a.activeSitePageIDFor(a.Shell.State)
+	}
 	pane, ok := a.SelectedPane()
+	if !ok {
+		return ""
+	}
+	id := a.panes.activePage[pane.ID]
+	if id == "" {
+		return views.ScreenPageID
+	}
+	return id
+}
+
+func (a *App) activeSitePageIDFor(s core.State) string {
+	pane, ok := a.activePane(s)
 	if !ok {
 		return ""
 	}
@@ -141,7 +156,7 @@ func (a *App) pageScrollMotion(s core.State, c core.Command) core.StepResult {
 	if res, handled := a.canvasMotion(s, c); handled {
 		return res
 	}
-	pageID := a.activeSitePageID()
+	pageID := a.activeSitePageIDFor(s)
 	if pageID == "" || pageID == views.ScreenPageID {
 		return core.Next(s)
 	}
@@ -196,16 +211,22 @@ func (a *App) pageLeave(s core.State, _ core.Command) core.StepResult {
 	if a.Engine.Mode(s) != ModePage {
 		return core.Next(s)
 	}
-	pageID := a.activeSitePageID()
+	pageID := a.activeSitePageIDFor(s)
 	target := tocPrefix + pageID
 	nodes := a.focusables(s)
 	if !slices.ContainsFunc(nodes, func(n fnode) bool { return n.id == target }) {
 		target = railTable
+		if isProjectTab(s.ActivePage) {
+			target = projectPanesTree
+		}
 		for _, n := range nodes {
 			if strings.HasPrefix(n.id, tocPrefix) {
 				target = n.id
 				break
 			}
+		}
+		if isProjectTab(s.ActivePage) && target == projectPanesTree && slices.ContainsFunc(nodes, func(n fnode) bool { return n.id == siteScreen }) {
+			target = siteScreen
 		}
 	}
 	a.say("left page")
@@ -253,7 +274,7 @@ func (a *App) pageStepItem(delta int) func(core.State, core.Command) core.StepRe
 			idx := ((cur+delta)%len(items) + len(items)) % len(items)
 			nextID = items[idx]
 		}
-		a.scrollPageReveal(s, a.activeSitePageID(), nextID)
+		a.scrollPageReveal(s, a.activeSitePageIDFor(s), nextID)
 		return core.Next(withFocus(s, nextID))
 	}
 }

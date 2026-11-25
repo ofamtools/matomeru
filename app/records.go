@@ -544,6 +544,13 @@ func (a *App) inferCreateCwd(s core.State, subject core.Ref, hasSubject bool, ta
 			}
 		}
 	}
+	if isProjectTab(s.ActivePage) {
+		if pid := projectIDFromTab(s.ActivePage); pid != "" {
+			if dir := a.defaultDirForTask(core.Ref{Kind: data.KindTask, ID: pid}); dir != "" {
+				return dir
+			}
+		}
+	}
 	if s.ActivePage == SpacePanes {
 		inheritProj := a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetInheritProjectTask, true)
 		if inheritProj {
@@ -670,11 +677,17 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 		}
 	} else {
 		subject, hasSubject = a.subject(s, c)
-		inheritProj := s.ActivePage == SpacePanes && (a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetInheritProjectTask, true))
+		inheritProj := (s.ActivePage == SpacePanes || isProjectTab(s.ActivePage)) && (a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetInheritProjectTask, true))
 		var projTask core.Ref
 		var hasProjTask bool
 		if inheritProj {
-			projTask, hasProjTask = a.railActiveProjectTask(s)
+			if isProjectTab(s.ActivePage) {
+				if pid := projectIDFromTab(s.ActivePage); pid != "" {
+					projTask, hasProjTask = core.Ref{Kind: data.KindTask, ID: pid}, true
+				}
+			} else {
+				projTask, hasProjTask = a.railActiveProjectTask(s)
+			}
 		}
 		switch {
 		case kind == data.KindTask:
@@ -709,7 +722,7 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 			if _, ok := schema.Field("task"); ok && task.Kind == data.KindTask && task.ID != "" {
 				setField("task", task)
 			}
-		case s.ActivePage == SpacePanes:
+		case s.ActivePage == SpacePanes || isProjectTab(s.ActivePage):
 			if _, ok := schema.Field("task"); ok && hasProjTask {
 				setField("task", projTask)
 			}
@@ -762,6 +775,10 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 		}
 		if rec.Kind == data.KindPane {
 			a.viewMemo.gen++
+			if isProjectTab(s.ActivePage) && a.projectChildPaneViewEnabled() {
+				s = a.openProjectChildPane(s, projectIDFromTab(s.ActivePage), rec.ID, true)
+				return core.Next(s)
+			}
 			rail := a.rail()
 			if !selectRow(rail, data.RefText(rec.Ref())) {
 				rail.Query = ""

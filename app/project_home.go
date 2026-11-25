@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
@@ -72,22 +73,27 @@ var defaultProjectNavSections = []projectNavDef{
 // ProjectController owns per-project workspace navigation state: active left
 // nav section, open inline ui.page, and per-section table/tree models.
 type ProjectController struct {
-	sectionByProject  map[string]string
-	openPageByProject map[string]string
-	tables            map[string]*table.Model
-	trees             map[string]*tree.Model
-	activeProjectKey  string
-	activeProjectID   string
-	activeGroupName   string
-	activeProjectRef  *core.Ref
+	sectionByProject   map[string]string
+	openPageByProject  map[string]string
+	childPaneByProject map[string]string
+	openTabs           []string
+	lastUsedAt         map[string]time.Time
+	tables             map[string]*table.Model
+	trees              map[string]*tree.Model
+	activeProjectKey   string
+	activeProjectID    string
+	activeGroupName    string
+	activeProjectRef   *core.Ref
 }
 
 func newProjectController() *ProjectController {
 	return &ProjectController{
-		sectionByProject:  map[string]string{},
-		openPageByProject: map[string]string{},
-		tables:            map[string]*table.Model{},
-		trees:             map[string]*tree.Model{},
+		sectionByProject:   map[string]string{},
+		openPageByProject:  map[string]string{},
+		childPaneByProject: map[string]string{},
+		lastUsedAt:         map[string]time.Time{},
+		tables:             map[string]*table.Model{},
+		trees:              map[string]*tree.Model{},
 	}
 }
 
@@ -201,9 +207,9 @@ func projectHomeBindings() []core.Binding {
 	n := ModeNormal
 	return []core.Binding{
 		bind(n, views.ScopeProjectNav, "enter", CmdProjectSectionSelect, "open section"),
-		when(bind(n, views.ScopeProjectContent, "esc", CmdProjectPageBack, "back to pages"), "facts.projectOpenPage"),
-		hidden(when(bind(n, views.ScopeProjectContent, "h", CmdProjectPageBack, "back to pages"), "facts.projectOpenPage")),
-		hidden(when(bind(n, views.ScopeProjectContent, "esc", CmdProjectPageBack, "back to nav"), "!facts.projectOpenPage && !facts.visualActive && !(facts.markedCount > 0)")),
+		when(bind(n, views.ScopeProjectContent, "esc", CmdProjectPageBack, "back to pages"), "facts.projectOpenPage && !facts.inChildPaneView"),
+		hidden(when(bind(n, views.ScopeProjectContent, "h", CmdProjectPageBack, "back to pages"), "facts.projectOpenPage && !facts.inChildPaneView")),
+		hidden(when(bind(n, views.ScopeProjectContent, "esc", CmdProjectPageBack, "back to nav"), "!facts.projectOpenPage && !facts.inChildPaneView && !facts.visualActive && !(facts.markedCount > 0)")),
 		bind(n, scopeProjectPages, "enter", CmdProjectContentOpen, "open page"),
 		bind(n, scopeProjectPanes, "enter", CmdProjectContentOpen, "jump to pane"),
 		bind(n, scopeProjectDocuments, "enter", CmdProjectContentOpen, "read document"),
@@ -228,6 +234,25 @@ func (a *App) registerProjectHomeHandlers() {
 // projectOverviewView renders the right side of 1 Panes when a Project header
 // row is selected in the left rail.
 func (a *App) projectOverviewView(s core.State, groupName string, projRef *core.Ref) ui.ViewNode {
+	if !a.projectWorkspaceEnabled() {
+		pc := a.projectCtrl()
+		projKey := projectKeyFor(groupName, projRef)
+		pc.activeProjectKey, pc.activeGroupName = projKey, groupName
+		if projRef != nil {
+			r := *projRef
+			pc.activeProjectRef, pc.activeProjectID = &r, projRef.ID
+		} else {
+			pc.activeProjectRef, pc.activeProjectID = nil, ""
+		}
+		return a.projectOverviewFallbackView(groupName, projRef)
+	}
+	return a.renderProjectWorkspace(s, groupName, projRef, 0.24, "", false)
+}
+
+// renderProjectWorkspace renders the shared Project Page workspace shell used
+// both in 1 Panes project overview (navRatio=0.24, header visible) and inside
+// dynamic 6+ Project Tabs (navRatio=0.20, navTitle=projectName, header hidden).
+func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *core.Ref, navRatio float64, navTitle string, hideHeader bool) ui.ViewNode {
 	pc := a.projectCtrl()
 	projKey := projectKeyFor(groupName, projRef)
 	pc.activeProjectKey, pc.activeGroupName = projKey, groupName
@@ -237,15 +262,15 @@ func (a *App) projectOverviewView(s core.State, groupName string, projRef *core.
 	} else {
 		pc.activeProjectRef, pc.activeProjectID = nil, ""
 	}
-	if !a.projectWorkspaceEnabled() {
-		return a.projectOverviewFallbackView(groupName, projRef)
-	}
 
 	defs := a.projectNavSectionDefs()
 	activeKey := pc.activeSection(projKey)
-	if s.ActivePage == SpacePanes {
-		if secKey, ok := strings.CutPrefix(s.Pages[SpacePanes].FocusID, projectNavPrefix); ok && secKey != "" {
+	if s.ActivePage == SpacePanes || isProjectTab(s.ActivePage) {
+		if secKey, ok := strings.CutPrefix(s.Pages[s.ActivePage].FocusID, projectNavPrefix); ok && secKey != "" {
 			if slices.ContainsFunc(defs, func(d projectNavDef) bool { return d.Key == secKey }) {
+				if secKey != activeKey && projRef != nil && pc.childPaneByProject != nil {
+					delete(pc.childPaneByProject, projRef.ID)
+				}
 				activeKey = secKey
 				pc.setSection(projKey, secKey)
 			}
@@ -284,14 +309,32 @@ func (a *App) projectOverviewView(s core.State, groupName string, projRef *core.
 		subParts = append(subParts, "Panes not assigned to any project task (L associates a pane)")
 	}
 
+	var activeBody ui.ViewNode
+	inChildPane := false
+	if isProjectTab(s.ActivePage) && a.projectChildPaneViewEnabled() {
+		if childPaneID := a.activeChildPaneID(s); childPaneID != "" {
+			if childPane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: childPaneID}); err == nil && childPane != nil {
+				activeBody = a.buildPaneSiteNode(s, *childPane, true)
+				inChildPane = true
+			} else if ws.projectID != "" && pc.childPaneByProject != nil {
+				delete(pc.childPaneByProject, ws.projectID)
+			}
+		}
+	}
+	if !inChildPane {
+		activeBody = a.buildProjectSectionBody(s, ws, activeKey)
+	}
+
 	return views.ProjectWorkspaceView(views.ProjectWorkspaceSpec{
 		ProjectID: ws.projectID, Title: groupName, Subtitle: strings.Join(subParts, " · "),
-		Ref: projRef, Badges: badges, NavRatio: 0.24, ActiveKey: activeKey,
+		Ref: projRef, Badges: badges, NavRatio: navRatio, NavTitle: navTitle, HideHeader: hideHeader,
+		ActiveKey:  activeKey,
 		NavItems:   a.buildProjectNavItems(defs, ws, activeKey),
-		ActiveBody: a.buildProjectSectionBody(s, ws, activeKey),
+		ActiveBody: activeBody,
 		Facts: map[string]any{
 			"projectGroup": groupName, "paneCount": len(ws.panes),
 			"contextCount": len(ws.contextItems), "officialCount": ws.officialCount,
+			"inChildPaneView": inChildPane,
 		},
 	})
 }
@@ -375,6 +418,16 @@ func (a *App) resolveProjectTargetRef(s core.State, c core.Command) (core.Ref, b
 			}
 		}
 	}
+	if isProjectTab(s.ActivePage) {
+		if pid := projectIDFromTab(s.ActivePage); pid != "" {
+			return core.Ref{Kind: data.KindTask, ID: pid}, true
+		}
+	}
+	if s.ActivePage == SpaceProjects {
+		if ref, ok := a.selectedProjectsDirRef(); ok {
+			return ref, true
+		}
+	}
 	if ref, ok := a.railActiveProjectTask(s); ok {
 		return ref, true
 	}
@@ -419,6 +472,9 @@ func (a *App) projectSectionSelect(s core.State, c core.Command) core.StepResult
 	}
 	if pc.activeSection(pc.activeProjectKey) != sec {
 		pc.setOpenPageID(pc.activeProjectKey, "")
+	}
+	if pc.activeProjectID != "" && pc.childPaneByProject != nil {
+		delete(pc.childPaneByProject, pc.activeProjectID)
 	}
 	pc.setSection(pc.activeProjectKey, sec)
 	s = withFocus(s, projectNavPrefix+sec)
@@ -495,6 +551,9 @@ func (a *App) projectContentOpen(s core.State, c core.Command) core.StepResult {
 	case projectPanesTree:
 		if tm := pc.trees[projectPanesTree]; tm != nil {
 			if row, ok := tm.Focused(); ok && row.Node.Ref != nil && row.Node.Ref.Kind == data.KindPane {
+				if isProjectTab(s.ActivePage) && a.projectChildPaneViewEnabled() {
+					return core.Next(a.openProjectChildPane(s, projectIDFromTab(s.ActivePage), row.Node.Ref.ID, false))
+				}
 				return core.Next(a.jumpToPane(s, row.Node.Ref.ID, true))
 			}
 		}

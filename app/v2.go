@@ -767,12 +767,16 @@ func (a *App) nextAttention(s core.State, _ core.Command) core.StepResult {
 }
 
 // laneShow opens the Show page of the active lane: the focused lane, or the
-// root of the lane tree the selected pane works in.
+// root of the lane tree the active pane works in.
 func (a *App) laneShow(s core.State, c core.Command) core.StepResult {
-	if ref, ok := a.subject(s, c); ok && ref.Kind == data.KindLane {
-		return core.Next(a.show(withPage(s, SpacePanes, s.Pages[SpacePanes].FocusID, ModeNormal), ref))
+	page := SpacePanes
+	if isProjectTab(s.ActivePage) {
+		page = s.ActivePage
 	}
-	pane, ok := a.SelectedPane()
+	if ref, ok := a.subject(s, c); ok && ref.Kind == data.KindLane {
+		return core.Next(a.show(withPage(s, page, s.Pages[page].FocusID, ModeNormal), ref))
+	}
+	pane, ok := a.activePane(s)
 	if !ok {
 		a.say("no pane is selected")
 		return core.Next(s)
@@ -785,7 +789,7 @@ func (a *App) laneShow(s core.State, c core.Command) core.StepResult {
 		a.say("%s has no active lane · an agent starts one with lane.start", views.Title(a.schema(data.KindPane), *pane))
 	default:
 		// Leaving the terminal: the lane's page reads keys as commands.
-		return core.Next(a.show(withPage(s, SpacePanes, s.Pages[SpacePanes].FocusID, ModeNormal), roll.Root.Ref()))
+		return core.Next(a.show(withPage(s, page, s.Pages[page].FocusID, ModeNormal), roll.Root.Ref()))
 	}
 	return core.Next(s)
 }
@@ -795,7 +799,8 @@ func (a *App) laneShow(s core.State, c core.Command) core.StepResult {
 func (a *App) termEscape(s core.State, _ core.Command) core.StepResult {
 	pane, ok := a.termPane(s)
 	inScratch := a.activeScratch() != nil
-	if !ok || (!inScratch && (s.Pages[SpacePanes].Mode != ModeTerminal || s.ActivePage != SpacePanes)) {
+	inTermSpace := s.ActivePage == SpacePanes || isProjectTab(s.ActivePage)
+	if !ok || (!inScratch && (!inTermSpace || s.Pages[s.ActivePage].Mode != ModeTerminal)) {
 		return core.Next(s)
 	}
 	if a.panes.Host != nil && a.hasSession(pane.ID) {

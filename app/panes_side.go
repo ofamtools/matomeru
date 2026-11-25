@@ -144,7 +144,10 @@ func (a *App) openSideSplit(s core.State, from data.Record, command string) core
 	}
 
 	s = a.dropModals(s)
-	if sel, ok := a.SelectedPane(); !ok || sel == nil || sel.ID != parent.ID {
+	targetSpace := SpacePanes
+	if isProjectTab(s.ActivePage) && a.activeChildPaneID(s) == parent.ID {
+		targetSpace = s.ActivePage
+	} else if sel, ok := a.SelectedPane(); !ok || sel == nil || sel.ID != parent.ID {
 		rail := a.rail()
 		if !selectRow(rail, data.RefText(parent.Ref())) {
 			rail.Query = ""
@@ -156,17 +159,17 @@ func (a *App) openSideSplit(s core.State, from data.Record, command string) core
 		a.panes.sideSplit = map[string]string{}
 	}
 	a.panes.sideSplit[parent.ID] = side.ID
-	s.ActivePage = SpacePanes
+	s.ActivePage = targetSpace
 	if err := a.attachSide(*side); err != nil {
 		a.fail("open "+side.Text("title"), err)
-		return withPage(s, SpacePanes, sideScreen, ModeNormal)
+		return withPage(s, targetSpace, sideScreen, ModeNormal)
 	}
 	a.say("side %s split · ctrl+a o switches · ctrl+a x closes · ctrl+a d detaches", kindLabel)
-	return withPage(s, SpacePanes, sideScreen, ModeTerminal)
+	return withPage(s, targetSpace, sideScreen, ModeTerminal)
 }
 
 func (a *App) sideSplitSwitch(s core.State, _ core.Command) core.StepResult {
-	pane, ok := a.SelectedPane()
+	pane, ok := a.activePane(s)
 	if !ok {
 		a.say("no pane is selected")
 		return core.Next(s)
@@ -190,7 +193,7 @@ func (a *App) sideSplitSwitch(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) sideSplitClose(s core.State, _ core.Command) core.StepResult {
-	pane, ok := a.SelectedPane()
+	pane, ok := a.activePane(s)
 	if !ok {
 		a.say("no pane is selected")
 		return core.Next(s)
@@ -255,7 +258,11 @@ func (a *App) applySideSplit(site *ui.ViewNode, pane data.Record, s core.State) 
 			sideTitle = fmt.Sprintf("%s · pid %d", sideTitle, f.PID)
 		}
 	} else {
-		typing := s.Pages[SpacePanes].Mode == ModeTerminal && s.Pages[SpacePanes].FocusID == sideScreen
+		frame := s.Pages[SpacePanes]
+		if isProjectTab(s.ActivePage) {
+			frame = s.Pages[s.ActivePage]
+		}
+		typing := frame.Mode == ModeTerminal && frame.FocusID == sideScreen
 		sideTerm.Props["lines"] = a.termLines(*side, typing)
 		sideBadges = []ui.Badge{roleBadge, {Text: "not attached", Tone: "muted"}}
 	}

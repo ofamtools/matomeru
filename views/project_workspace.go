@@ -38,6 +38,8 @@ type ProjectWorkspaceSpec struct {
 	ProjectID  string
 	Title      string
 	Subtitle   string
+	NavTitle   string
+	HideHeader bool
 	Ref        *core.Ref
 	Badges     []ui.Badge
 	NavItems   []ProjectNavSection
@@ -107,11 +109,16 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 		})
 	}
 
+	navTitle := strings.TrimSpace(spec.NavTitle)
+	if navTitle == "" {
+		navTitle = "Project"
+	}
+
 	navPanel := ui.ViewNode{
 		ID:     "project.nav",
 		Kind:   ui.KindPanel,
 		Scope:  ScopeProjectNav,
-		Title:  "Project",
+		Title:  navTitle,
 		Border: true,
 		Facts: map[string]any{
 			"projectId":     spec.ProjectID,
@@ -188,13 +195,18 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 		maps.Copy(facts, spec.Facts)
 	}
 
+	children := []ui.ViewNode{split}
+	if !spec.HideHeader {
+		children = []ui.ViewNode{header, split}
+	}
+
 	return ui.ViewNode{
 		ID:       "project.overview",
 		Kind:     ui.KindVStack,
 		Scope:    ScopeProjectOverview,
 		Ref:      spec.Ref,
 		Facts:    facts,
-		Children: []ui.ViewNode{header, split},
+		Children: children,
 	}
 }
 

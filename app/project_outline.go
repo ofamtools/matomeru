@@ -18,18 +18,28 @@ const (
 )
 
 // inProjectOutlineTree reports whether focus is currently in the embedded
-// Project Page outline todo tree in 1 Panes with no modal open.
+// Project Page outline todo tree in 1 Panes or an open Project Tab with no modal open.
 func (a *App) inProjectOutlineTree(s *core.State) bool {
 	if a == nil || s == nil {
 		return false
 	}
-	return s.ActivePage == SpacePanes && s.ActiveFrame().FocusID == projectOutlineTree && a.Modal() == ""
+	inSpace := s.ActivePage == SpacePanes || isProjectTab(s.ActivePage)
+	return inSpace && s.ActiveFrame().FocusID == projectOutlineTree && a.Modal() == ""
 }
 
 // activeProjectOutlineID resolves the project task ID for the active embedded
-// Project Outline tree, preferring the last rendered project ID and falling
-// back to the rail's active project task.
+// Project Outline tree, preferring an open Project Tab's project ID, then the
+// project controller's active project ID, then the last rendered project ID,
+// and falling back to the rail's active project task.
 func (a *App) activeProjectOutlineID(s core.State) string {
+	if id := strings.TrimSpace(projectIDFromTab(s.ActivePage)); id != "" {
+		return id
+	}
+	if a != nil {
+		if id := strings.TrimSpace(a.projectCtrl().activeProjectID); id != "" {
+			return id
+		}
+	}
 	if a != nil && a.trees != nil {
 		if id := strings.TrimSpace(a.trees.activeProjectID); id != "" {
 			return id

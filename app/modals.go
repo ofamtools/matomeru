@@ -751,12 +751,18 @@ func (a *App) paletteEntries() []palette.Entry {
 			Defaults: defaults,
 		})
 	}
-	// A space is a page.open with its ID: one palette row each.
-	for i, sp := range spaces {
-		defaults := map[string]any{"id": sp.id}
+	// A space or dynamic Project Tab is a page.open with its ID: one palette row each.
+	for i, tb := range a.topTabs() {
+		defaults := map[string]any{"id": tb.id}
+		title := "space." + tb.id
+		desc := "Go to the " + tb.title + " space"
+		if tb.dynamic {
+			title = "tab." + tb.title
+			desc = "Switch to project tab " + tb.title
+		}
 		entries = append(entries, palette.Entry{
-			Spec: core.CommandSpec{ID: core.CmdPageOpen, Description: "Go to the " + sp.title + " space"},
-			Item: picker.Item{ID: "space." + sp.id, Title: "space." + sp.id, Subtitle: "Go to the " + sp.title + " space",
+			Spec: core.CommandSpec{ID: core.CmdPageOpen, Description: desc},
+			Item: picker.Item{ID: "space." + tb.id, Title: title, Subtitle: desc,
 				Data: defaults, Badges: []ui.Badge{{Text: fmt.Sprint(i + 1)}}},
 			Defaults: defaults,
 		})

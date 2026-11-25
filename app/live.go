@@ -685,12 +685,26 @@ func (a *App) handlePaneExited(s core.State, paneID string, exitCode int) core.S
 
 	termP, hasTerm := a.termPane(s)
 	termMatches := hasTerm && termP.ID == paneID
-	selP, hasSel := a.SelectedPane()
-	selMatches := s.ActivePage == SpacePanes && hasSel && (selP.ID == paneID || (isSideSplit && sideParentID != "" && selP.ID == sideParentID))
+	inProjTab := isProjectTab(s.ActivePage)
+	selP, hasSel := a.activePane(s)
+	selMatches := (s.ActivePage == SpacePanes || inProjTab) && hasSel && (selP.ID == paneID || (isSideSplit && sideParentID != "" && selP.ID == sideParentID))
 	isActive := termMatches || selMatches
 
+	closedActiveChildPane := false
+	if !isSideSplit && a.proj != nil && a.proj.childPaneByProject != nil {
+		activeProjID := projectIDFromTab(s.ActivePage)
+		for projID, childID := range a.proj.childPaneByProject {
+			if childID == paneID {
+				delete(a.proj.childPaneByProject, projID)
+				if inProjTab && projID == activeProjID {
+					closedActiveChildPane = true
+				}
+			}
+		}
+	}
+
 	nextRailID := ""
-	if isActive {
+	if isActive && !inProjTab {
 		if isSideSplit && sideParentID != "" {
 			nextRailID = data.RefText(core.Ref{Kind: data.KindPane, ID: sideParentID})
 		} else {
@@ -761,19 +775,26 @@ func (a *App) handlePaneExited(s core.State, paneID string, exitCode int) core.S
 		a.pushToast(msg, toast.Warn)
 	}
 
-	// Refresh rail and return focus to the left pane rail on the next item.
+	// Refresh rail and return focus to the left pane rail on the next item (or
+	// back to the Project Tab's panes tree when an embedded child pane exited).
 	a.panes.railCacheKey = ""
-	if isActive && (a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFocusRailOnExit, true)) {
-		rail := a.rail()
-		if nextRailID != "" {
-			if !selectRow(rail, nextRailID) && len(rail.Filtered()) > 0 {
+	if closedActiveChildPane && len(s.Modals) == 0 {
+		s = withPage(s, s.ActivePage, projectPanesTree, ModeNormal)
+	} else if isActive && (a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFocusRailOnExit, true)) {
+		if !inProjTab {
+			rail := a.rail()
+			if nextRailID != "" {
+				if !selectRow(rail, nextRailID) && len(rail.Filtered()) > 0 {
+					selectRow(rail, rail.Filtered()[0].ID)
+				}
+			} else if len(rail.Filtered()) > 0 {
 				selectRow(rail, rail.Filtered()[0].ID)
 			}
-		} else if len(rail.Filtered()) > 0 {
-			selectRow(rail, rail.Filtered()[0].ID)
-		}
-		if s.ActivePage == SpacePanes && len(s.Modals) == 0 {
-			s = withPage(s, SpacePanes, railTable, ModeNormal)
+			if s.ActivePage == SpacePanes && len(s.Modals) == 0 {
+				s = withPage(s, SpacePanes, railTable, ModeNormal)
+			}
+		} else if isSideSplit && len(s.Modals) == 0 {
+			s = withPage(s, s.ActivePage, siteScreen, ModeNormal)
 		}
 	}
 	a.viewMemo.gen++
@@ -927,8 +948,12 @@ func (a *App) termPrefix(s core.State, c core.Command) core.StepResult {
 			} else {
 				a.panes.activePage[pane.ID] = views.ScreenPageID
 			}
-			next.ActivePage = SpacePanes
-			next = withPage(a.dropModals(next), SpacePanes, targetFocus, ModeTerminal)
+			targetPage := SpacePanes
+			if isProjectTab(s.ActivePage) && a.activeChildPaneID(s) != "" {
+				targetPage = s.ActivePage
+			}
+			next.ActivePage = targetPage
+			next = withPage(a.dropModals(next), targetPage, targetFocus, ModeTerminal)
 		}
 		return core.Next(next, effects...)
 	}

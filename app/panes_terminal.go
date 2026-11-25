@@ -141,7 +141,7 @@ func (a *App) sitePageOpen(s core.State, c core.Command) core.StepResult {
 	if ok && ref.Kind == data.KindLane {
 		return core.Next(a.show(s, ref))
 	}
-	pane, hasPane := a.SelectedPane()
+	pane, hasPane := a.activePane(s)
 	if !ok || !hasPane || ref.Kind != data.KindPage {
 		a.say("no page here to open")
 		return core.Next(s)
@@ -183,7 +183,7 @@ func (a *App) sitePageOpen(s core.State, c core.Command) core.StepResult {
 }
 
 func (a *App) paneEnterLive(s core.State, _ core.Command) core.StepResult {
-	pane, ok := a.SelectedPane()
+	pane, ok := a.activePane(s)
 	if !ok {
 		return a.siteFocus(s, core.Command{})
 	}
@@ -192,12 +192,14 @@ func (a *App) paneEnterLive(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) siteFocus(s core.State, _ core.Command) core.StepResult {
-	if groupName, projRef, onProj := a.selectedRailProject(); onProj {
-		if a.projectWorkspaceEnabled() {
-			key := a.projectCtrl().activeSection(projectKeyFor(groupName, projRef))
-			return core.Next(withFocus(s, views.ProjectNavPrefix+key))
+	if s.ActivePage == SpacePanes {
+		if groupName, projRef, onProj := a.selectedRailProject(); onProj {
+			if a.projectWorkspaceEnabled() {
+				key := a.projectCtrl().activeSection(projectKeyFor(groupName, projRef))
+				return core.Next(withFocus(s, views.ProjectNavPrefix+key))
+			}
+			return core.Next(withFocus(s, projectContextTable))
 		}
-		return core.Next(withFocus(s, projectContextTable))
 	}
 	for _, n := range a.focusables(s) {
 		if !strings.HasPrefix(n.id, tocPrefix) {
