@@ -6,6 +6,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/widgets/commandline"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
@@ -118,6 +119,7 @@ const (
 
 	CmdNewHere         = "record.new.here"
 	CmdAssign          = "record.assign"
+	CmdStatusCycle     = "record.status.cycle"
 	CmdNounsPick       = "nouns.pick"
 	CmdFilterFieldPick = "table.filter.field.pick"
 	CmdSortFieldPick   = "table.sort.field.pick"
@@ -317,6 +319,9 @@ func DefaultBindings() []core.Binding {
 		bind(n, data.KindCommand, "enter", CmdCommandRun, "run command"),
 		bind(n, data.KindCommand, "r", CmdCommandRun, "run command"),
 		bind(n, data.KindCommand, "e", CmdCommandEditRun, "edit & run command"),
+		hidden(when(bind(n, views.ScopeIndex, "enter", CmdOutlineEditEnd, "edit inline"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "h", tree.CmdFoldOrParent, "fold / parent"), "facts.isTree && facts.hlFolds")),
+		hidden(when(bind(n, views.ScopeIndex, "l", tree.CmdFoldOrStepIn, "unfold / child"), "facts.isTree && facts.hlFolds")),
 		hidden(when(bind(n, views.ScopeIndex, "i", CmdOutlineEditStart, "edit inline at start"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "a", CmdOutlineEditEnd, "edit inline at end"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "o", CmdOutlineAddBelow, "new item below"), "facts.isTree")),
@@ -329,7 +334,6 @@ func DefaultBindings() []core.Binding {
 		hidden(when(bind(n, views.ScopeIndex, "<", CmdOutlineOutdent, "outdent"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "J", CmdOutlineMoveDown, "move down"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "K", CmdOutlineMoveUp, "move up"), "facts.isTree")),
-		hidden(when(bind(n, views.ScopeIndex, "space", CmdOutlineStatusCycle, "cycle status"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "z a", tree.CmdFoldToggle, "fold/unfold subtree"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "z o", tree.CmdFoldOpen, "unfold subtree"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "z c", tree.CmdFoldClose, "fold subtree"), "facts.isTree")),
@@ -337,8 +341,8 @@ func DefaultBindings() []core.Binding {
 		hidden(when(bind(n, views.ScopeIndex, "z M", tree.CmdFoldCloseAll, "fold all"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "=", tree.CmdHoistIn, "hoist subtree"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "-", tree.CmdHoistOut, "unhoist"), "facts.isTree && facts.hoisted")),
-		hidden(when(bind(n, views.ScopeIndex, "esc", tree.CmdHoistOut, "unhoist"), "facts.isTree && facts.hoisted")),
-		hidden(when(bind(n, views.ScopeIndex, "esc", CmdOutlineCleanSlateExit, "exit clean slate"), "facts.isTree && !facts.hoisted && facts.cleanSlate")),
+		hidden(when(bind(n, views.ScopeIndex, "esc", tree.CmdHoistOut, "unhoist"), "facts.isTree && !facts.visualActive && !(facts.markedCount > 0) && facts.hoisted")),
+		hidden(when(bind(n, views.ScopeIndex, "esc", CmdOutlineCleanSlateExit, "exit clean slate"), "facts.isTree && !facts.visualActive && !(facts.markedCount > 0) && !facts.hoisted && facts.cleanSlate")),
 		hidden(when(bind(n, views.ScopeIndex, "X", CmdOutlineTriage, "triage outline with agent"), "facts.isTree")),
 		hidden(bind(n, data.KindTask, "w", CmdTaskAgentToggle, "toggle agent queue")),
 		hidden(bind(n, data.KindTask, "r", CmdTaskNoteReply, "reply with note")),
@@ -348,7 +352,8 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(n, SpaceWork, "g t", CmdWorkLayoutToggle, "toggle tree/table")),
 		bind(n, ScopeProjectContext, "enter", CmdProjectContextOpen, "open context item"),
 		bind(n, ScopeProjectContext, "y", CmdProjectContextYank, "yank context item"),
-		bind(n, ScopeProjectContext, "s", CmdProjectContextStar, "star context item"),
+		bind(n, ScopeProjectContext, "m", CmdProjectContextStar, "star context item"),
+		hidden(bind(n, ScopeProjectContext, "*", CmdProjectContextStar, "star context item")),
 		bind(n, ScopeProjectContext, "a", CmdProjectContextAttach, "attach context item"),
 		bind(n, SpacePanes, "g p", CmdPanesGroupToggle, "toggle rail grouping"),
 		bind(n, ScopeRail, "f", CmdPaneHints, "terminal hints"),
@@ -360,10 +365,15 @@ func DefaultBindings() []core.Binding {
 		when(bind(n, data.KindExtension, "enter", CmdExtInstall, "install extension"), "facts.extAvailable"),
 		when(bind(n, data.KindExtension, "enter", CmdExtRun, "run"), "!facts.extAvailable"),
 		when(bind(n, data.KindExtension, "i", CmdExtInstall, "install / update"), "facts.extInstallable"),
-		bind(n, all, "enter", views.CmdOpen, "open"),
-		bind(n, SpaceWork, "backspace", CmdHistoryBack, "back"),
-		bind(n, SpaceWork, "H", CmdHistoryBack, "back"),
-		bind(n, SpaceWork, "L", CmdHistoryForward, "forward"),
+		bind(n, views.ScopeShow, "enter", views.CmdOpen, "open"),
+		bind(n, all, "E", views.CmdOpen, "open show"),
+		when(bind(n, all, "enter", CmdGroupToggle, "fold group"), "facts.isGroupHeader && !facts.enterOpensShow"),
+		when(bind(n, all, "enter", views.CmdOpen, "open"), "facts.enterOpensShow"),
+		with(bind(n, SpaceWork, "backspace", CmdHistoryBack, "back"), map[string]any{"scope": "work"}),
+		with(bind(n, SpaceWork, "H", CmdHistoryBack, "back"), map[string]any{"scope": "work"}),
+		with(bind(n, SpaceWork, "L", CmdHistoryForward, "forward"), map[string]any{"scope": "work"}),
+		bind(n, all, "ctrl+o", CmdHistoryBack, "jump back"),
+		bind(n, all, "ctrl+i", CmdHistoryForward, "jump forward"),
 
 		// Record actions, on whatever record is focused.
 		bind(n, all, "e", views.CmdEdit, "edit"),
@@ -380,10 +390,13 @@ func DefaultBindings() []core.Binding {
 		}),
 		when(bind(n, SpacePanes, "t", CmdSiteTOCToggle, "toggle pages"), "layer == nil"),
 		bind(n, SpaceWork, "n", CmdNewHere, "new"),
-		bind(n, all, "m", CmdAssign, "move to a task"),
+		bind(n, all, "g m", CmdAssign, "move to a task"),
 		with(bind(n, all, "N", views.CmdNew, "new note"), map[string]any{"kind": "note"}),
-		when(bind(n, all, "s", views.CmdStar, "star"), "facts.starStatus != \"starred\""),
-		when(bind(n, all, "s", views.CmdUnstar, "unstar"), "facts.starStatus == \"starred\""),
+		when(bind(n, all, "s", CmdStatusCycle, "cycle status"), "facts.hasStatus"),
+		when(bind(n, all, "m", views.CmdStar, "star"), "facts.starStatus != \"starred\""),
+		when(bind(n, all, "m", views.CmdUnstar, "unstar"), "facts.starStatus == \"starred\""),
+		hidden(when(bind(n, all, "*", views.CmdStar, "star"), "facts.starStatus != \"starred\"")),
+		hidden(when(bind(n, all, "*", views.CmdUnstar, "unstar"), "facts.starStatus == \"starred\"")),
 		when(bind(n, all, "a", views.CmdArchive, "archive"), "facts.archiveStatus != \"archived\""),
 		when(bind(n, all, "a", views.CmdRestore, "restore"), "facts.archiveStatus == \"archived\""),
 		when(bind(n, all, "Z", views.CmdSnooze, "snooze"), "!facts.snoozed"),
@@ -425,7 +438,11 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, "g n", CmdNounsPick, "browse any noun"),
 		bind(n, all, "g r", CmdRecentsPick, "recents"),
 		when(bind(n, all, "space", CmdGroupToggle, "fold group"), "facts.isGroupHeader"),
-		bind(n, all, "x", CmdMarkToggle, "mark"),
+		when(bind(n, all, "space", traits.SelectCmdMarkToggle, "mark"), "!facts.isGroupHeader && facts.tocGroup == null"),
+		bind(n, all, "v", traits.SelectCmdVisualToggle, "visual select"),
+		bind(n, all, "V", traits.SelectCmdVisualLine, "visual line"),
+		when(bind(n, all, "esc", traits.SelectCmdVisualClear, "clear visual"), "facts.visualActive"),
+		when(bind(n, all, "esc", traits.SelectCmdMarkClear, "clear marks"), "!facts.visualActive && facts.markedCount > 0"),
 		bind(n, all, "A", CmdArchivedToggle, "show archived"),
 
 		// Overlays, from anywhere.
@@ -438,7 +455,7 @@ func DefaultBindings() []core.Binding {
 		with(bind(n, all, "|", CmdShellOpen, "pipe record to shell"), map[string]any{"prefix": string(commandline.PrefixPipe)}),
 		with(bind(n, all, "g !", CmdShellOpen, "read shell into note"), map[string]any{"prefix": string(commandline.PrefixReadShell)}),
 		bind(n, all, "?", CmdHelpOpen, "bindings"),
-		bind(n, all, "ctrl+o", CmdPathOpen, "path"),
+		bind(n, all, "g o", CmdPathOpen, "path"),
 		bind(n, all, "S", CmdSettingsOpen, "settings"),
 		bind(n, all, "B", CmdBindingsOpen, "edit bindings"),
 		bind(n, all, "g A", CmdAppAbout, "about"),
@@ -666,14 +683,20 @@ func DefaultBindings() []core.Binding {
 		with(hidden(bind(ModeOutline, all, "8", core.CmdCountPush, "count")), map[string]any{"digit": 8}),
 		with(hidden(bind(ModeOutline, all, "9", core.CmdCountPush, "count")), map[string]any{"digit": 9}),
 		when(with(hidden(bind(ModeOutline, all, "0", core.CmdCountPush, "count")), map[string]any{"digit": 0}), "count != null"),
-		bind(ModeOutline, all, "enter", CmdOutlineJump, "open task"),
+		bind(ModeOutline, all, "enter", CmdOutlineEditEnd, "edit inline"),
+		bind(ModeOutline, all, "E", CmdOutlineJump, "open task"),
 		bind(ModeOutline, all, "J", CmdOutlineMoveDown, "move down"),
 		bind(ModeOutline, all, "K", CmdOutlineMoveUp, "move up"),
 		bind(ModeOutline, all, ">", CmdOutlineIndent, "indent"),
 		bind(ModeOutline, all, "<", CmdOutlineOutdent, "outdent"),
 		bind(ModeOutline, all, "tab", CmdOutlineIndent, "indent"),
 		bind(ModeOutline, all, "shift+tab", CmdOutlineOutdent, "outdent"),
-		bind(ModeOutline, all, "space", CmdOutlineStatusCycle, "cycle status"),
+		bind(ModeOutline, all, "space", traits.SelectCmdMarkToggle, "mark"),
+		bind(ModeOutline, all, "v", traits.SelectCmdVisualToggle, "visual select"),
+		bind(ModeOutline, all, "V", traits.SelectCmdVisualLine, "visual line"),
+		bind(ModeOutline, all, "s", CmdStatusCycle, "cycle status"),
+		when(bind(ModeOutline, all, "h", tree.CmdFoldOrParent, "fold / parent"), "facts.hlFolds"),
+		when(bind(ModeOutline, all, "l", tree.CmdFoldOrStepIn, "unfold / child"), "facts.hlFolds"),
 		bind(ModeOutline, all, "i", CmdOutlineEditStart, "edit inline at start"),
 		bind(ModeOutline, all, "a", CmdOutlineEditEnd, "edit inline at end"),
 		bind(ModeOutline, all, "o", CmdOutlineAddBelow, "new item below"),
@@ -693,9 +716,11 @@ func DefaultBindings() []core.Binding {
 		bind(ModeOutline, all, "t", CmdTaskThreadToggle, "toggle note thread"),
 		bind(ModeOutline, all, "r", CmdTaskNoteReply, "reply with note"),
 		bind(ModeOutline, all, "D", CmdTaskQueueDispatch, "dispatch agent queue"),
-		when(bind(ModeOutline, all, "esc", tree.CmdHoistOut, "unhoist"), "facts.hoisted"),
-		when(bind(ModeOutline, all, "esc", CmdOutlineCleanSlateExit, "exit clean slate"), "!facts.hoisted && facts.cleanSlate"),
-		when(with(bind(ModeOutline, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}), "!facts.hoisted && !facts.cleanSlate"),
+		when(bind(ModeOutline, all, "esc", traits.SelectCmdVisualClear, "clear visual"), "facts.visualActive"),
+		when(bind(ModeOutline, all, "esc", traits.SelectCmdMarkClear, "clear marks"), "!facts.visualActive && facts.markedCount > 0"),
+		when(bind(ModeOutline, all, "esc", tree.CmdHoistOut, "unhoist"), "!facts.visualActive && !(facts.markedCount > 0) && facts.hoisted"),
+		when(bind(ModeOutline, all, "esc", CmdOutlineCleanSlateExit, "exit clean slate"), "!facts.visualActive && !(facts.markedCount > 0) && !facts.hoisted && facts.cleanSlate"),
+		when(with(bind(ModeOutline, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}), "!facts.visualActive && !(facts.markedCount > 0) && !facts.hoisted && !facts.cleanSlate"),
 		bind(ModeOutline, all, "q", CmdModalCancel, "close"),
 		bind(ModeOutline, all, "T", CmdModalCancel, "close"),
 
@@ -777,6 +802,8 @@ func DefaultBindings() []core.Binding {
 	out = append(out, pageModeBindings()...)
 	out = append(out, fdSearchBindings()...)
 	out = append(out, paneSearchBindings()...)
+	out = append(out, projectHomeBindings()...)
+	out = append(out, composerContextBindings()...)
 	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {
 		out = appendReadlineBindings(out, mode, all)
 	}

@@ -417,7 +417,7 @@ func TestInspect(t *testing.T) {
 	for _, a := range actions {
 		byID[a.ID] = a
 	}
-	if a := byID["record.star"]; !a.Bound || len(a.Keys) != 1 || a.Keys[0] != "s" {
+	if a := byID["record.star"]; !a.Bound || len(a.Keys) != 2 || a.Keys[0] != "m" || a.Keys[1] != "*" {
 		t.Fatalf("record.star = %+v", a)
 	}
 	if a, ok := byID["table.group.field.cycle"]; !ok || a.Bound || a.Keys == nil {

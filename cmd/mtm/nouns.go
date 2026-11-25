@@ -596,6 +596,10 @@ func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
 		children = append(children, mtmSchedulePresetCommand(g))
 	}
 
+	if kind == data.KindContext {
+		children = append(children, mtmContextProjectCommands(g)...)
+	}
+
 	if kind == data.KindPane {
 		children = append(children, mtmPaneSearchCommand(g))
 	}

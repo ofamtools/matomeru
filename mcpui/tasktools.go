@@ -52,10 +52,12 @@ func NewTaskTools(store *data.Store) *TaskTools { return &TaskTools{store: store
 
 // TaskQueueArgs are the arguments of task.queue.
 type TaskQueueArgs struct {
-	Project        string `json:"project,omitempty"`
-	Status         string `json:"status,omitempty"`
-	IncludeNotes   *bool  `json:"includeNotes,omitempty"`
-	IncludeContext *bool  `json:"includeContext,omitempty"`
+	Project               string   `json:"project,omitempty"`
+	Status                string   `json:"status,omitempty"`
+	IncludeNotes          *bool    `json:"includeNotes,omitempty"`
+	IncludeContext        *bool    `json:"includeContext,omitempty"`
+	IncludeProjectContext *bool    `json:"includeProjectContext,omitempty"`
+	ContextIDs            []string `json:"contextIds,omitempty"`
 }
 
 // TaskQueueResult is what task.queue returns.
@@ -112,9 +114,11 @@ type TaskThreadResult struct {
 
 // TaskDispatchArgs are the arguments of task.dispatch.
 type TaskDispatchArgs struct {
-	Project string `json:"project,omitempty"`
-	Status  string `json:"status,omitempty"`
-	Prompt  string `json:"prompt,omitempty"`
+	Project               string   `json:"project,omitempty"`
+	Status                string   `json:"status,omitempty"`
+	Prompt                string   `json:"prompt,omitempty"`
+	IncludeProjectContext *bool    `json:"includeProjectContext,omitempty"`
+	ContextIDs            []string `json:"contextIds,omitempty"`
 }
 
 // TaskDispatchResult is what task.dispatch returns.
@@ -152,10 +156,12 @@ func (t *TaskTools) ToolSpecs() []ToolSpec {
 			Name:        ToolTaskQueue,
 			Description: "List agent-flagged tasks ready for pickup or inspection, ordered by priority, sibling order, and creation time, with hydrated note threads, attachments, and linked context. Returns {items, count}.",
 			InputSchema: object([]string{}, props{
-				"project":        text("filter to this project/parent task ID and its descendants"),
-				"status":         oneOf("agent status filter; default queued", taskQueueStatuses),
-				"includeNotes":   flag("include chronological note threads on each item; default true"),
-				"includeContext": flag("include outgoing context records on each item; default true"),
+				"project":               text("filter to this project/parent task ID and its descendants"),
+				"status":                oneOf("agent status filter; default queued", taskQueueStatuses),
+				"includeNotes":          flag("include chronological note threads on each item; default true"),
+				"includeContext":        flag("include outgoing context records on each item; default true"),
+				"includeProjectContext": flag("include official curated project context automatically; default true"),
+				"contextIds":            props{"type": "array", "items": props{"type": "string"}, "description": "explicit context record IDs overriding the project's default official context bundle"},
 			}),
 		},
 		{
@@ -193,11 +199,13 @@ func (t *TaskTools) ToolSpecs() []ToolSpec {
 		},
 		{
 			Name:        ToolTaskDispatch,
-			Description: "Query the agent task queue and render a deterministic Markdown pickup prompt containing task metadata, note threads, attachments, linked context, and progress-reporting MCP commands. Returns {prompt, count, tasks}.",
+			Description: "Query the agent task queue and render a deterministic Markdown pickup prompt containing task metadata, official project context, note threads, attachments, linked context, and progress-reporting MCP commands. Returns {prompt, count, tasks}.",
 			InputSchema: object([]string{}, props{
-				"project": text("filter to this project/parent task ID and its descendants"),
-				"status":  oneOf("agent status filter; default queued", taskQueueStatuses),
-				"prompt":  text("optional extra instructions prepended to the generated prompt"),
+				"project":               text("filter to this project/parent task ID and its descendants"),
+				"status":                oneOf("agent status filter; default queued", taskQueueStatuses),
+				"prompt":                text("optional extra instructions prepended to the generated prompt"),
+				"includeProjectContext": flag("include official curated project context automatically; default true"),
+				"contextIds":            props{"type": "array", "items": props{"type": "string"}, "description": "explicit context record IDs overriding the project's default official context bundle"},
 			}),
 		},
 	}
@@ -288,11 +296,13 @@ func (t *TaskTools) Queue(args TaskQueueArgs) (*TaskQueueResult, error) {
 	}
 	projectID := strings.TrimSpace(args.Project)
 	items, err := t.store.QueryAgentQueue(data.AgentQueueFilter{
-		ProjectID:      projectID,
-		Status:         status,
-		IncludeSubtree: projectID != "",
-		IncludeNotes:   includeNotes,
-		IncludeContext: includeContext,
+		ProjectID:             projectID,
+		Status:                status,
+		IncludeSubtree:        projectID != "",
+		IncludeNotes:          includeNotes,
+		IncludeContext:        includeContext,
+		IncludeProjectContext: args.IncludeProjectContext,
+		ContextIDs:            args.ContextIDs,
 	})
 	if err != nil {
 		return nil, err
@@ -442,11 +452,13 @@ func (t *TaskTools) Dispatch(args TaskDispatchArgs) (*TaskDispatchResult, error)
 	}
 	projectID := strings.TrimSpace(args.Project)
 	items, err := t.store.QueryAgentQueue(data.AgentQueueFilter{
-		ProjectID:      projectID,
-		Status:         status,
-		IncludeSubtree: projectID != "",
-		IncludeNotes:   true,
-		IncludeContext: true,
+		ProjectID:             projectID,
+		Status:                status,
+		IncludeSubtree:        projectID != "",
+		IncludeNotes:          true,
+		IncludeContext:        true,
+		IncludeProjectContext: args.IncludeProjectContext,
+		ContextIDs:            args.ContextIDs,
 	})
 	if err != nil {
 		return nil, err

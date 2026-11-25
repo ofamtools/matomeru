@@ -64,6 +64,7 @@ func (m *outlineModal) OnClose(modal.CloseReason) {
 	}
 	m.a.clearCleanSlate(data.KindTask, outlineTree)
 	if tm := m.a.trees.outlineModel(); tm != nil {
+		tm.ClearVisual()
 		tm.ClearHoist()
 	}
 }
@@ -145,6 +146,9 @@ func (m *outlineModal) Handle(cmd core.Command) modal.Result {
 	}
 	if strings.HasPrefix(cmd.ID, "motion.") {
 		m.a.outlineTreeMove(cmd)
+		if tm := m.a.trees.outlineModel(); tm != nil && tm.VisualActive {
+			m.a.say("VISUAL · %d selected", len(tm.VisualIDs()))
+		}
 		return modal.Result{Handled: true}
 	}
 	if m.a.trees.editingOutline() && input.IsReadlineCommand(cmd.ID) {
@@ -168,7 +172,7 @@ func (a *App) runTreeStartEdit(tm *tree.Model, kind, treeID string, isWork bool,
 			a.refuseLockedThreadEdit()
 			return false
 		}
-		a.say("press enter to open note or r to reply")
+		a.say("press E to open note or r to reply")
 		return false
 	}
 	if kind == data.KindTask && row.Node.Facts != nil {
@@ -642,6 +646,18 @@ func (a *App) outlineMoveSibling(delta int) func(core.State, core.Command) core.
 }
 
 func (a *App) outlineIndent(s core.State, _ core.Command) core.StepResult {
+	if tm, kind, treeID, _, ok := a.activeTree(s); ok {
+		schema, _ := a.syncTreeModel(tm, kind, treeID)
+		if tm.VisualActive {
+			if ids := tm.VisualIDs(); len(ids) > 0 {
+				return a.outlineBatchIndent(s, tm, kind, treeID, schema, ids)
+			}
+		} else if len(tm.Marked) > 0 {
+			if ids := tm.MarkedIDs(); len(ids) > 0 {
+				return a.outlineBatchIndent(s, tm, kind, treeID, schema, ids)
+			}
+		}
+	}
 	tm, kind, treeID, schema, loc, ok := a.activeTreeLoc(s)
 	if !ok {
 		a.say("no item selected in tree")
@@ -688,6 +704,18 @@ func (a *App) outlineIndent(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) outlineOutdent(s core.State, _ core.Command) core.StepResult {
+	if tm, kind, treeID, _, ok := a.activeTree(s); ok {
+		schema, _ := a.syncTreeModel(tm, kind, treeID)
+		if tm.VisualActive {
+			if ids := tm.VisualIDs(); len(ids) > 0 {
+				return a.outlineBatchOutdent(s, tm, kind, treeID, schema, ids)
+			}
+		} else if len(tm.Marked) > 0 {
+			if ids := tm.MarkedIDs(); len(ids) > 0 {
+				return a.outlineBatchOutdent(s, tm, kind, treeID, schema, ids)
+			}
+		}
+	}
 	tm, kind, treeID, schema, loc, ok := a.activeTreeLoc(s)
 	if !ok {
 		a.say("no item selected in tree")
@@ -754,43 +782,6 @@ func (a *App) outlineOutdent(s core.State, _ core.Command) core.StepResult {
 		a.addCleanSlateRoot(kind, treeID, cur.Record.ID)
 	}
 	a.wrote("outdented "+a.title(cur.Record.Ref())+" to "+where, cs, err)
-	return core.Next(s)
-}
-
-func (a *App) outlineStatusCycle(s core.State, _ core.Command) core.StepResult {
-	tm, kind, treeID, _, ok := a.activeTree(s)
-	if !ok {
-		a.say("no item selected in tree")
-		return core.Next(s)
-	}
-	schema, _ := a.syncTreeModel(tm, kind, treeID)
-	row, has := tm.Focused()
-	if !has || row.Draft || row.ID == "" {
-		a.say("no item selected in tree")
-		return core.Next(s)
-	}
-	col, hasCol := primaryStatusColumn(schema)
-	if !hasCol {
-		a.say("%s has no status column to cycle", strings.ToLower(schema.Title))
-		return core.Next(s)
-	}
-	ref := core.Ref{Kind: kind, ID: row.ID}
-	_ = a.ensureShadow(ref)
-	rec, err := a.Store.Get(ref)
-	if err != nil {
-		a.fail("status", err)
-		return core.Next(s)
-	}
-	names := col.Names()
-	cur := rec.Text(col.Name)
-	idx := slices.Index(names, cur)
-	nextStatus := names[(idx+1)%len(names)]
-	_, cs, err := a.Store.Patch(data.PatchInput{
-		Ref:     ref,
-		Fields:  map[string]any{col.Name: nextStatus},
-		Summary: a.title(ref) + " " + col.Name + " -> " + nextStatus,
-	}, User)
-	a.wrote(a.title(ref)+" -> "+nextStatus, cs, err)
 	return core.Next(s)
 }
 

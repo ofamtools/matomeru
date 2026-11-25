@@ -164,6 +164,7 @@ type App struct {
 	bind          *BindingsController
 	nav           *NavController
 	panes         *PaneController
+	proj          *ProjectController
 	rt            *RuntimeController
 	ext           *ExtensionController
 	ctx           *ContextController
@@ -188,6 +189,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		bind:        newBindingsController(),
 		nav:         newNavController(),
 		panes:       newPaneController(),
+		proj:        newProjectController(),
 		rt:          newRuntimeController(),
 		ext:         newExtensionController(),
 		ctx:         newContextController(),
@@ -231,7 +233,12 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.Shell.DisableMouse = !a.cfg.Settings.Bool("mouse", true)
 	a.Shell.AppFacts = func(s core.State) map[string]any {
 		_, recording := a.nav.Macros.Recording()
-		return map[string]any{"space": s.ActivePage, "recording": recording}
+		return map[string]any{
+			"space":          s.ActivePage,
+			"recording":      recording,
+			"enterOpensShow": a.enterOpensShow(),
+			"hlFolds":        a.treeHLFolds(),
+		}
 	}
 	a.Shell.OnPassThrough = func(e core.PassToWidgetEffect) tea.Cmd {
 		if e.Mouse != nil || e.Key == "" {
@@ -439,8 +446,8 @@ func (a *App) register() {
 	a.handle(core.CmdPagePrev, func(s core.State, _ core.Command) core.StepResult { return core.Next(a.cycleSpace(s, -1)) })
 
 	a.handle(views.CmdOpen, a.openFocused)
-	a.handle(CmdHistoryBack, func(s core.State, _ core.Command) core.StepResult { return core.Next(a.travel(s, -1)) })
-	a.handle(CmdHistoryForward, func(s core.State, _ core.Command) core.StepResult { return core.Next(a.travel(s, 1)) })
+	a.handle(CmdHistoryBack, func(s core.State, c core.Command) core.StepResult { return a.historyTravel(s, c, -1) })
+	a.handle(CmdHistoryForward, func(s core.State, c core.Command) core.StepResult { return a.historyTravel(s, c, 1) })
 
 	a.handle(views.CmdEdit, a.edit)
 	a.handle(views.CmdNew, a.create)
@@ -470,6 +477,7 @@ func (a *App) register() {
 	a.handle(CmdTermEscape, a.termEscape)
 	a.handle(views.CmdStar, a.onRecord("star", a.Store.Star))
 	a.handle(views.CmdUnstar, a.onRecord("unstar", a.Store.Unstar))
+	a.handle(CmdStatusCycle, a.statusCycle)
 	a.handle(views.CmdArchive, a.archiveRecord)
 	a.handle(views.CmdRestore, a.restoreRecord)
 	a.handle(views.CmdSnooze, a.onRecord("snooze", func(ref core.Ref, actor core.Actor) (*data.Record, *data.ChangeSet, error) {
@@ -558,7 +566,7 @@ func (a *App) register() {
 	a.handle(CmdOutlineMoveUp, a.outlineMoveSibling(-1))
 	a.handle(CmdOutlineIndent, a.outlineIndent)
 	a.handle(CmdOutlineOutdent, a.outlineOutdent)
-	a.handle(CmdOutlineStatusCycle, a.outlineStatusCycle)
+	a.handle(CmdOutlineStatusCycle, a.statusCycle)
 	a.handle(CmdOutlineRename, a.outlineRename)
 	a.handle(CmdOutlineEditStart, a.outlineStartEdit(false))
 	a.handle(CmdOutlineEditEnd, a.outlineStartEdit(true))
@@ -613,8 +621,17 @@ func (a *App) register() {
 	for _, id := range input.ReadlineCommandIDs() {
 		a.handle(id, a.readlineCommand)
 	}
-	for _, id := range []string{CmdFilterMode, CmdFilterField, CmdSortCycle, CmdSortField, CmdGroupField, CmdGroupToggle, CmdMarkToggle} {
+	for _, id := range []string{CmdFilterMode, CmdFilterField, CmdSortCycle, CmdSortField, CmdGroupField, CmdGroupToggle} {
 		a.handle(id, a.tableCommand)
+	}
+	for _, id := range []string{
+		traits.SelectCmdMarkToggle, traits.SelectCmdMarkClear,
+		traits.SelectCmdVisualToggle, traits.SelectCmdVisualLine,
+		traits.SelectCmdVisualMark, traits.SelectCmdVisualClear,
+		traits.SelectCmdAll, traits.SelectCmdInvert,
+		CmdMarkToggle,
+	} {
+		a.handle(id, a.selectCommand)
 	}
 	a.handle(CmdYankPick, a.yankPick)
 	a.handle(CmdYankPrimary, a.yankPrimary)
@@ -687,8 +704,13 @@ func (a *App) register() {
 	a.handle(CmdTaskThreadToggle, a.taskThreadToggle)
 	a.handle(CmdTaskNoteReply, a.taskNoteReply)
 	a.handle(CmdTaskQueueDispatch, a.taskQueueDispatch)
+	a.registerProjectHomeHandlers()
+	a.registerComposerContextHandlers()
 	for _, id := range []string{tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll} {
 		a.handle(id, a.treeFoldCommand(id))
+	}
+	for _, id := range []string{tree.CmdFoldOrStepIn, tree.CmdFoldOrParent} {
+		a.handle(id, a.treeSmartFoldCommand(id))
 	}
 	for _, id := range []string{tree.CmdHoistIn, tree.CmdHoistOut, tree.CmdHoistClear} {
 		a.handle(id, a.treeHoistCommand(id))

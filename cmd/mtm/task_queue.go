@@ -67,22 +67,49 @@ func mtmTaskQueueCommands(g globalOpts) []oden.Command {
 	}
 }
 
+func parseContextIDsArg(vals []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, raw := range vals {
+		for _, part := range strings.Split(raw, ",") {
+			id := strings.TrimSpace(part)
+			if id == "" || seen[id] {
+				continue
+			}
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func projectContextFilterFromParsed(p oden.Parsed) (*bool, []string) {
+	ids := parseContextIDsArg(p.Strings("context"))
+	if p.Bool("no-project-context") {
+		f := false
+		return &f, ids
+	}
+	return nil, ids
+}
+
 func mtmTaskQueueSubcmd(g globalOpts) oden.Command {
 	params := []oden.Parameter{
 		{Name: "project", Type: "string", Description: "Filter to tasks under this project/parent task ID or title"},
 		{Name: "status", Type: "string", Default: data.AgentStatusQueued, Enum: cliQueueStatuses, Description: "Agent status filter"},
+		{Name: "no-project-context", Type: "bool", Description: "Exclude official project context from queue items"},
+		{Name: "context", Type: "string", Repeatable: true, Description: "Explicit context IDs (repeatable or comma-separated) overriding official project context"},
 	}
 	return oden.Command{
 		Name:       "queue",
 		Summary:    "list agent-flagged tasks in pickup order",
-		Usage:      "[--project ID] [--status queued|working|needs_you|done|open|all] [--json]",
+		Usage:      "[--project ID] [--status queued|working|needs_you|done|open|all] [--no-project-context] [--context ID,...] [--json]",
 		Parameters: params,
 		Handle: func(c *oden.Ctx) error {
 			p, err := c.Parse(params)
 			if err != nil {
 				return err
 			}
-			const use = "usage: mtm task queue [--project ID] [--status queued|working|needs_you|done|open|all] [--json]"
+			const use = "usage: mtm task queue [--project ID] [--status queued|working|needs_you|done|open|all] [--no-project-context] [--context ID,...] [--json]"
 			if len(p.Positional()) != 0 {
 				return errors.New(use)
 			}
@@ -103,12 +130,15 @@ func mtmTaskQueueSubcmd(g globalOpts) oden.Command {
 			if status == "" {
 				status = data.AgentStatusQueued
 			}
+			includeProjCtx, ctxIDs := projectContextFilterFromParsed(p)
 			items, err := store.QueryAgentQueue(data.AgentQueueFilter{
-				ProjectID:      projectID,
-				Status:         status,
-				IncludeSubtree: projectID != "",
-				IncludeNotes:   true,
-				IncludeContext: true,
+				ProjectID:             projectID,
+				Status:                status,
+				IncludeSubtree:        projectID != "",
+				IncludeNotes:          true,
+				IncludeContext:        true,
+				IncludeProjectContext: includeProjCtx,
+				ContextIDs:            ctxIDs,
 			})
 			if err != nil {
 				return err
@@ -433,18 +463,20 @@ func mtmTaskDispatchSubcmd(g globalOpts) oden.Command {
 		{Name: "prompt", Type: "string", Description: "Extra instructions prepended to the generated prompt"},
 		{Name: "socket", Type: "string", Description: "Override daemon Unix socket path"},
 		{Name: "dry-run", Type: "bool", Description: "Render the prompt without writing to a pane"},
+		{Name: "no-project-context", Type: "bool", Description: "Exclude official project context from the rendered prompt"},
+		{Name: "context", Type: "string", Repeatable: true, Description: "Explicit context IDs (repeatable or comma-separated) overriding official project context"},
 	}
 	return oden.Command{
 		Name:       "dispatch",
 		Summary:    "format queued agent tasks and deliver them to a live daemon pane",
-		Usage:      "[--project ID] [--pane ID] [--prompt EXTRA] [--socket PATH] [--dry-run] [--json]",
+		Usage:      "[--project ID] [--pane ID] [--prompt EXTRA] [--socket PATH] [--dry-run] [--no-project-context] [--context ID,...] [--json]",
 		Parameters: params,
 		Handle: func(c *oden.Ctx) error {
 			p, err := c.Parse(params)
 			if err != nil {
 				return err
 			}
-			const use = "usage: mtm task dispatch [--project ID] [--pane ID] [--prompt EXTRA] [--socket PATH] [--dry-run] [--json]"
+			const use = "usage: mtm task dispatch [--project ID] [--pane ID] [--prompt EXTRA] [--socket PATH] [--dry-run] [--no-project-context] [--context ID,...] [--json]"
 			if len(p.Positional()) != 0 {
 				return errors.New(use)
 			}
@@ -465,12 +497,15 @@ func mtmTaskDispatchSubcmd(g globalOpts) oden.Command {
 			if status == "" {
 				status = data.AgentStatusQueued
 			}
+			includeProjCtx, ctxIDs := projectContextFilterFromParsed(p)
 			items, err := store.QueryAgentQueue(data.AgentQueueFilter{
-				ProjectID:      projectID,
-				Status:         status,
-				IncludeSubtree: projectID != "",
-				IncludeNotes:   true,
-				IncludeContext: true,
+				ProjectID:             projectID,
+				Status:                status,
+				IncludeSubtree:        projectID != "",
+				IncludeNotes:          true,
+				IncludeContext:        true,
+				IncludeProjectContext: includeProjCtx,
+				ContextIDs:            ctxIDs,
 			})
 			if err != nil {
 				return err

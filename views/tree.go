@@ -241,6 +241,12 @@ func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope st
 	}
 	total := countTreeNodes(tm.Nodes)
 	badges = append(badges, ui.Badge{Text: countSchemaRecords(total, schema)})
+	if tm.VisualActive {
+		badges = append(badges, ui.Badge{Text: fmt.Sprintf("VISUAL · %d", len(tm.VisualIDs())), Tone: "accent"})
+	}
+	if n := len(tm.Marked); n > 0 {
+		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d marked", n), Tone: "warning"})
+	}
 	badges = append(badges, extraBadges...)
 
 	title := schema.Plural

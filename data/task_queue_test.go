@@ -518,3 +518,101 @@ func TestQueryAgentQueueFilteringSortingSubtreeAndPrompt(t *testing.T) {
 		}
 	}
 }
+
+func TestQueryAgentQueueOfficialProjectContextAutoInjectAndOverrides(t *testing.T) {
+	s, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	owner := core.Actor{Kind: "user", ID: "owner"}
+
+	proj, _, err := s.Create(CreateInput{Kind: KindTask, Fields: map[string]any{"title": "Project Nova"}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub, _, err := s.Create(CreateInput{Kind: KindTask, Fields: map[string]any{
+		"title":  "Ship context bundle",
+		"parent": proj.Ref(),
+	}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetTaskAgentFlag(sub.Ref(), true, AgentStatusQueued, "", owner); err != nil {
+		t.Fatal(err)
+	}
+
+	officialRec, _, err := s.AddOfficialProjectContext(OfficialContextInput{
+		ProjectID: proj.ID,
+		Title:     "Nova Design Spec",
+		Value:     "https://docs.google.com/document/d/nova-spec/edit",
+		Notes:     "Always follow section 3.",
+		Pinned:    true,
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Also relate officialRec directly to sub so we verify prompt deduplicates it from ### Context.
+	if _, _, err := s.Relate(RelateInput{From: sub.Ref(), Kind: RelContext, To: officialRec.Ref()}, owner); err != nil {
+		t.Fatal(err)
+	}
+
+	// Passively scraped context should NOT be auto-injected as projectContext.
+	unofficialRec, _, err := s.Create(CreateInput{Kind: KindContext, Fields: map[string]any{
+		"title":  "Random Scraped URL",
+		"value":  "https://example.com/noise",
+		"source": "screen",
+		"task":   proj.Ref(),
+	}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Default query automatically includes official project context and resolves ProjectID.
+	items, err := s.QueryAgentQueue(AgentQueueFilter{ProjectID: proj.ID, IncludeNotes: true, IncludeContext: true})
+	if err != nil || len(items) != 1 {
+		t.Fatalf("QueryAgentQueue = %+v, err=%v", items, err)
+	}
+	if items[0].ProjectID != proj.ID {
+		t.Fatalf("ProjectID = %q, want %q", items[0].ProjectID, proj.ID)
+	}
+	if len(items[0].ProjectContext) != 1 || items[0].ProjectContext[0].ID != officialRec.ID {
+		t.Fatalf("ProjectContext = %+v, want [officialRec]", items[0].ProjectContext)
+	}
+
+	// Prompt places ## Official Project Context right after # Agent Task Queue and avoids repeating officialRec under ### Context.
+	prompt := FormatAgentQueuePrompt(items, "")
+	idxHeader := strings.Index(prompt, "# Agent Task Queue")
+	idxOfficial := strings.Index(prompt, "## Official Project Context")
+	idxTask := strings.Index(prompt, "## 1. Ship context bundle")
+	if idxHeader < 0 || idxOfficial < idxHeader || idxTask < idxOfficial {
+		t.Fatalf("unexpected section order in prompt:\n%s", prompt)
+	}
+	if strings.Contains(prompt, "### Context") {
+		t.Fatalf("official context should not be repeated under per-task ### Context:\n%s", prompt)
+	}
+	if strings.Contains(prompt, "https://example.com/noise") {
+		t.Fatalf("unofficial scraped context leaked into prompt:\n%s", prompt)
+	}
+
+	// 2. Opt-out via IncludeProjectContext = false.
+	noCtx := false
+	optOutItems, err := s.QueryAgentQueue(AgentQueueFilter{
+		ProjectID:             proj.ID,
+		IncludeContext:        true,
+		IncludeProjectContext: &noCtx,
+	})
+	if err != nil || len(optOutItems) != 1 || len(optOutItems[0].ProjectContext) != 0 {
+		t.Fatalf("opt-out ProjectContext = %+v, err=%v", optOutItems, err)
+	}
+
+	// 3. Explicit ContextIDs override official bundle.
+	overrideItems, err := s.QueryAgentQueue(AgentQueueFilter{
+		ProjectID:      proj.ID,
+		IncludeContext: true,
+		ContextIDs:     []string{unofficialRec.ID},
+	})
+	if err != nil || len(overrideItems) != 1 || len(overrideItems[0].ProjectContext) != 1 || overrideItems[0].ProjectContext[0].ID != unofficialRec.ID {
+		t.Fatalf("override ProjectContext = %+v, err=%v", overrideItems, err)
+	}
+}

@@ -8,7 +8,6 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
-	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/table"
 )
@@ -105,14 +104,10 @@ func (a *App) railActiveProjectTask(_ core.State) (core.Ref, bool) {
 	return core.Ref{}, false
 }
 
-// projectPageOpen opens the assigned top-level Project's Show page.
-func (a *App) projectPageOpen(s core.State, _ core.Command) core.StepResult {
-	projRef, ok := a.railActiveProjectTask(s)
-	if !ok {
-		a.say("no project task assigned")
-		return core.Next(s)
-	}
-	return core.Next(a.show(s, projRef))
+// projectPageOpen opens the Project Page workspace in 1 Panes (or the Show page
+// when project.workspaceInPanes is opted out).
+func (a *App) projectPageOpen(s core.State, c core.Command) core.StepResult {
+	return a.projectHomeOpen(s, c)
 }
 
 // resolvePaneProject walks a pane's task -> parent chain up to its root project
@@ -154,12 +149,12 @@ func selectGroupHeader(tbl *table.Model, groupName string) bool {
 	return false
 }
 
-// rail returns the pane rail: panes strictly ordered by the owner's last prompt
-// (promptedAt descending). Agent output, hook telemetry, and needs_you NEVER
-// reorder panes; instead status is shown via row indicator symbols and tone.
-// When panes.group == "project-pane", rows are grouped under their root project
-// (or "Unassigned") while preserving stable promptedAt order within every group
-// and across groups.
+// buildRail builds the pane rail: panes strictly ordered by the owner's last
+// prompt (promptedAt descending). Agent output, hook telemetry, and needs_you
+// NEVER reorder panes; instead status is shown via row indicator symbols and
+// tone. When panes.group == "project-pane", rows are grouped under their root
+// project (or "Unassigned") while preserving stable promptedAt order within
+// every group and across groups.
 func (a *App) buildRail() *table.Model {
 	res, err := a.Store.Query(data.Query{Kind: data.KindPane, IncludeArchived: a.nav.showArchived})
 	if err != nil {
@@ -206,11 +201,7 @@ func (a *App) buildRail() *table.Model {
 		title := views.Title(paneSchema, pane)
 		if a.attention(row.Ref.ID) {
 			row.Unread = true
-			if showStateCol {
-				row.Cells["rail"] = "● " + title
-			} else {
-				row.Cells["rail"] = "● " + title
-			}
+			row.Cells["rail"] = "● " + title
 		} else if showStateCol {
 			row.Cells["rail"] = "  " + title
 		} else {
@@ -348,478 +339,53 @@ func (a *App) selectedRailProject() (groupName string, projRef *core.Ref, ok boo
 	return it.Group, nil, true
 }
 
-// projectDescendants collects all task records that belong to rootID.
-func (a *App) projectDescendants(rootID string) []data.Record {
-	if rootID == "" {
-		return nil
-	}
-	nodes, err := a.Store.TaskTree(a.nav.showArchived)
-	if err != nil {
-		return nil
-	}
-	var out []data.Record
-	var collect func(ns []data.TaskNode)
-	collect = func(ns []data.TaskNode) {
-		for _, n := range ns {
-			out = append(out, n.Record)
-			collect(n.Children)
-		}
-	}
-	for _, root := range nodes {
-		if root.Record.ID == rootID {
-			collect(root.Children)
-			break
-		}
-	}
-	return out
-}
-
-// projectLanes collects active lanes associated with a project, its descendant
-// tasks, or its panes.
-func (a *App) projectLanes(projRef *core.Ref, taskIDs map[string]bool, paneIDs map[string]bool) []data.Record {
-	res, err := a.Store.Query(data.Query{Kind: data.KindLane, IncludeArchived: a.nav.showArchived})
-	if err != nil {
-		return nil
+// focusedProjectContextItemFor returns the CollectedContextItem currently
+// focused in focusID (or in the project context / pinned / PRs tables).
+func (a *App) focusedProjectContextItemFor(focusID string) (CollectedContextItem, bool) {
+	if a.panes == nil || a.nav == nil {
+		return CollectedContextItem{}, false
 	}
 	seen := map[string]bool{}
-	var out []data.Record
-	add := func(rec data.Record) {
-		if seen[rec.ID] {
-			return
-		}
-		status := strings.ToLower(strings.TrimSpace(rec.Text("laneStatus")))
-		if status == "done" || status == "merged" || status == "cancelled" {
-			return
-		}
-		seen[rec.ID] = true
-		out = append(out, rec)
-	}
-	for _, lane := range res.Items {
-		if t, ok := lane.RefField("task"); ok && (taskIDs[t.ID] || (projRef != nil && t.ID == projRef.ID)) {
-			add(lane)
+	for _, id := range []string{focusID, projectContextTable, projectPinnedTable, projectPRsTable} {
+		if id == "" || seen[id] {
 			continue
 		}
-		rels, err := a.Store.Related(lane.Ref(), data.RelClaim, data.Outgoing)
-		if err != nil {
+		seen[id] = true
+		tbl := a.nav.tables[id]
+		if tbl == nil {
 			continue
 		}
-		for _, r := range rels {
-			if r.To.Kind == data.KindPane && paneIDs[r.To.ID] {
-				add(lane)
-				break
-			}
-		}
-	}
-	return out
-}
-
-// projectNotes collects notes associated with a project, its descendant tasks,
-// or its panes.
-func (a *App) projectNotes(projRef *core.Ref, taskIDs map[string]bool, paneIDs map[string]bool) []data.Record {
-	res, err := a.Store.Query(data.Query{Kind: data.KindNote, IncludeArchived: a.nav.showArchived})
-	if err != nil {
-		return nil
-	}
-	seen := map[string]bool{}
-	var out []data.Record
-	add := func(rec data.Record) {
-		if seen[rec.ID] {
-			return
-		}
-		seen[rec.ID] = true
-		out = append(out, rec)
-	}
-	for _, n := range res.Items {
-		if t, ok := n.RefField("task"); ok && (taskIDs[t.ID] || (projRef != nil && t.ID == projRef.ID)) {
-			add(n)
+		row, ok := tbl.FocusedRow()
+		if !ok {
 			continue
 		}
-		rels, err := a.Store.Related(n.Ref(), data.RelAbout, data.Outgoing)
-		if err != nil {
-			continue
-		}
-		for _, r := range rels {
-			if (projRef != nil && r.To == *projRef) || (r.To.Kind == data.KindTask && taskIDs[r.To.ID]) || (r.To.Kind == data.KindPane && paneIDs[r.To.ID]) {
-				add(n)
-				break
-			}
+		if it, exists := a.panes.projectCtxRows[row.ID]; exists {
+			return it, true
 		}
 	}
-	return out
-}
-
-// projectDocuments collects documents associated with a project, its descendant
-// tasks, or its panes.
-func (a *App) projectDocuments(projRef *core.Ref, taskIDs map[string]bool, paneIDs map[string]bool) []data.Record {
-	res, err := a.Store.Query(data.Query{Kind: data.KindDocument, IncludeArchived: a.nav.showArchived})
-	if err != nil {
-		return nil
-	}
-	seen := map[string]bool{}
-	var out []data.Record
-	add := func(rec data.Record) {
-		if seen[rec.ID] {
-			return
-		}
-		seen[rec.ID] = true
-		out = append(out, rec)
-	}
-	for _, doc := range res.Items {
-		if t, ok := doc.RefField("task"); ok && (taskIDs[t.ID] || (projRef != nil && t.ID == projRef.ID)) {
-			add(doc)
-			continue
-		}
-		for _, relKind := range []string{data.RelCreated, data.RelAbout, data.RelContext} {
-			rels, err := a.Store.Related(doc.Ref(), relKind, data.Both)
-			if err != nil {
-				continue
-			}
-			matched := false
-			for _, r := range rels {
-				other := r.To
-				if other == doc.Ref() {
-					other = r.From
-				}
-				if (projRef != nil && other == *projRef) || (other.Kind == data.KindTask && taskIDs[other.ID]) || (other.Kind == data.KindPane && paneIDs[other.ID]) {
-					add(doc)
-					matched = true
-					break
-				}
-			}
-			if matched {
-				break
-			}
-		}
-	}
-	return out
-}
-
-// projectLinks collects documents, directory/context relations, and URL links
-// associated with a project or its panes.
-func (a *App) projectLinks(projRef *core.Ref, taskIDs map[string]bool, ctxItems []CollectedContextItem) []string {
-	var out []string
-	seen := map[string]bool{}
-	add := func(s string) {
-		s = strings.TrimSpace(s)
-		if s == "" || seen[s] {
-			return
-		}
-		seen[s] = true
-		out = append(out, s)
-	}
-	if projRef != nil {
-		if rec, err := a.Store.Get(*projRef); err == nil {
-			if dir := rec.Text("defaultDir"); dir != "" {
-				add("dir: " + dir)
-			}
-			if u := rec.Text("url"); u != "" {
-				add(u)
-			}
-		}
-		for _, relKind := range []string{data.RelDirectory, data.RelContext} {
-			if rels, err := a.Store.Related(*projRef, relKind, data.Outgoing); err == nil {
-				for _, r := range rels {
-					add(r.To.ID)
-				}
-			}
-		}
-		if docs, err := a.Store.Query(data.Query{Kind: data.KindDocument, IncludeArchived: a.nav.showArchived}); err == nil {
-			for _, d := range docs.Items {
-				if t, ok := d.RefField("task"); ok && (t.ID == projRef.ID || taskIDs[t.ID]) {
-					if fp := d.Text("filePath"); fp != "" {
-						add(views.Title(a.schema(data.KindDocument), d) + " (" + fp + ")")
-					}
-				}
-			}
-		}
-	}
-	for _, it := range ctxItems {
-		if it.Kind == "url" || it.Kind == "osc8" || it.Kind == "pr" {
-			add(it.Value)
-		}
-	}
-	return out
-}
-
-// projectContextTableModel returns the filterable/sortable/groupable table of
-// high-signal Context Items collected across a project's panes.
-func (a *App) projectContextTableModel(groupName string, projRef *core.Ref) *table.Model {
-	a.syncContextItems()
-	items := a.projectContextItems(groupName, projRef)
-	cols := []table.Column{
-		{Key: "star", Title: "★", Width: 2},
-		{Key: "kind", Title: "Kind", Width: 6},
-		{Key: "value", Title: "Value"},
-		{Key: "pane", Title: "Pane", Width: 18},
-		{Key: "source", Title: "Source", Width: 10},
-	}
-	rows := make([]table.Row, len(items))
-	byID := make(map[string]CollectedContextItem, len(items))
-	for i, it := range items {
-		star := " "
-		if it.Starred {
-			star = "★"
-		}
-		ref := core.Ref{Kind: "context." + it.Kind, ID: it.Value}
-		rows[i] = table.Row{
-			ID:    it.Key,
-			Ref:   &ref,
-			Scope: ScopeProjectContext,
-			Cells: map[string]any{
-				"star":         star,
-				"kind":         it.Kind,
-				"value":        it.Value,
-				"pane":         it.PaneTitle,
-				"source":       it.Source,
-				"label":        it.Label,
-				"project":      it.Project,
-				views.AnyField: strings.Join([]string{it.Kind, it.Value, it.PaneTitle, it.Source, it.Label, it.Project}, " "),
-			},
-			Facts: map[string]any{
-				"contextItem": true,
-				"contextKey":  it.Key,
-				"contextKind": it.Kind,
-				"starred":     it.Starred,
-			},
-		}
-		byID[it.Key] = it
-	}
-	a.panes.projectCtxRows = byID
-	a.panes.projectCtxGroup = groupName
-	a.panes.projectCtxRef = projRef
-
-	fresh := table.New(cols, rows)
-	old := a.nav.tables[projectContextTable]
-	tbl := keep(old, fresh)
-	if old == nil {
-		tbl.MatchMode = a.matchMode()
-		a.applyDefaultPreset(tbl, projectContextTable)
-	}
-	a.pageSize(tbl, projectContextTable)
-	a.nav.tables[projectContextTable] = tbl
-	return tbl
-}
-
-// projectOverviewView renders the right side of 1 Panes when the rail cursor is
-// on a Project header row: notes, links, related tasks, and the filterable /
-// sortable / groupable Context Items table for that project's panes.
-func (a *App) projectOverviewView(_ core.State, groupName string, projRef *core.Ref) ui.ViewNode {
-	groupPanes := a.panes.railGroupPanes[groupName]
-	paneIDs := make(map[string]bool, len(groupPanes))
-	for _, p := range groupPanes {
-		paneIDs[p.ID] = true
-	}
-
-	var (
-		projRec *data.Record
-		tasks   []data.Record
-		badges  []ui.Badge
-	)
-	taskIDs := map[string]bool{}
-	if projRef != nil {
-		if rec, err := a.Store.Get(*projRef); err == nil {
-			projRec = rec
-			badges = append(badges, views.StatusBadges(a.schema(data.KindTask), *rec)...)
-		}
-		tasks = a.projectDescendants(projRef.ID)
-		for _, t := range tasks {
-			taskIDs[t.ID] = true
-		}
-	}
-
-	ctxTbl := a.projectContextTableModel(groupName, projRef)
-	ctxItems := a.projectContextItems(groupName, projRef)
-	lanes := a.projectLanes(projRef, taskIDs, paneIDs)
-	notes := a.projectNotes(projRef, taskIDs, paneIDs)
-	docs := a.projectDocuments(projRef, taskIDs, paneIDs)
-	links := a.projectLinks(projRef, taskIDs, ctxItems)
-
-	badges = append(badges,
-		ui.Badge{Text: fmt.Sprintf("%d panes", len(groupPanes))},
-		ui.Badge{Text: fmt.Sprintf("%d context", len(ctxItems)), Tone: "accent"},
-	)
-	if len(lanes) > 0 {
-		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d lanes", len(lanes)), Tone: "info"})
-	}
-	if len(docs) > 0 {
-		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d docs", len(docs)), Tone: "info"})
-	}
-
-	var summaryLines []ui.ViewNode
-	if projRec != nil {
-		var meta []string
-		if desc := strings.TrimSpace(projRec.Text("description")); desc != "" {
-			meta = append(meta, desc)
-		}
-		if repo := projRec.Text("repo"); repo != "" {
-			meta = append(meta, "repo: "+repo)
-		}
-		if dir := projRec.Text("defaultDir"); dir != "" {
-			meta = append(meta, "dir: "+dir)
-		}
-		if len(meta) > 0 {
-			summaryLines = append(summaryLines, line("project.overview.meta", " "+strings.Join(meta, " · "), "muted"))
-		}
-	} else {
-		summaryLines = append(summaryLines, line("project.overview.meta", " Panes not assigned to any project task (L associates a pane with a task)", "muted"))
-	}
-
-	// Active Lanes summary.
-	laneSummary := "none"
-	if len(lanes) > 0 {
-		var parts []string
-		for i, l := range lanes {
-			if i >= 4 {
-				parts = append(parts, fmt.Sprintf("+%d more", len(lanes)-4))
-				break
-			}
-			parts = append(parts, fmt.Sprintf("[%s] %s", l.Text("laneStatus"), views.Title(a.schema(data.KindLane), l)))
-		}
-		laneSummary = strings.Join(parts, " · ")
-	}
-	summaryLines = append(summaryLines, line("project.overview.lanes", fmt.Sprintf(" Lanes (%d): %s", len(lanes), laneSummary), "accent"))
-
-	// Related Tasks summary.
-	taskSummary := "none"
-	if len(tasks) > 0 {
-		var parts []string
-		for i, t := range tasks {
-			if i >= 4 {
-				parts = append(parts, fmt.Sprintf("+%d more", len(tasks)-4))
-				break
-			}
-			parts = append(parts, fmt.Sprintf("[%s] %s", t.Text("workStatus"), views.Title(a.schema(data.KindTask), t)))
-		}
-		taskSummary = strings.Join(parts, " · ")
-	}
-	summaryLines = append(summaryLines, line("project.overview.tasks", fmt.Sprintf(" Tasks (%d): %s", len(tasks), taskSummary), ""))
-
-	// Notes summary.
-	noteSummary := "none"
-	if len(notes) > 0 {
-		var parts []string
-		for i, n := range notes {
-			if i >= 4 {
-				parts = append(parts, fmt.Sprintf("+%d more", len(notes)-4))
-				break
-			}
-			parts = append(parts, views.Title(a.schema(data.KindNote), n))
-		}
-		noteSummary = strings.Join(parts, " · ")
-	}
-	summaryLines = append(summaryLines, line("project.overview.notes", fmt.Sprintf(" Notes (%d): %s", len(notes), noteSummary), ""))
-
-	// Documents summary.
-	docSummary := "none"
-	if len(docs) > 0 {
-		var parts []string
-		for i, doc := range docs {
-			if i >= 4 {
-				parts = append(parts, fmt.Sprintf("+%d more", len(docs)-4))
-				break
-			}
-			parts = append(parts, views.Title(a.schema(data.KindDocument), doc))
-		}
-		docSummary = strings.Join(parts, " · ")
-	}
-	summaryLines = append(summaryLines, line("project.overview.docs", fmt.Sprintf(" Documents (%d): %s", len(docs), docSummary), ""))
-
-	// Links summary.
-	linkSummary := "none"
-	if len(links) > 0 {
-		shown := links
-		more := 0
-		if len(shown) > 3 {
-			more = len(shown) - 3
-			shown = shown[:3]
-		}
-		linkSummary = strings.Join(shown, " · ")
-		if more > 0 {
-			linkSummary += fmt.Sprintf(" · +%d more", more)
-		}
-	}
-	summaryLines = append(summaryLines, line("project.overview.links", fmt.Sprintf(" Links (%d): %s", len(links), linkSummary), "info"))
-
-	ctxNode := ctxTbl.View(projectContextTable)
-	ctxNode.Scope = ScopeProjectContext
-	if ctxNode.Facts == nil {
-		ctxNode.Facts = map[string]any{}
-	}
-	ctxNode.Facts["projectOverview"] = true
-
-	ctxBadges := []ui.Badge{{Text: fmt.Sprintf("%d/%d", len(ctxTbl.Filtered()), len(ctxTbl.Rows))}}
-	if ctxTbl.Query != "" {
-		ctxBadges = append(ctxBadges, ui.Badge{Text: "/" + ctxTbl.Query, Tone: "accent"})
-	}
-	if ctxTbl.SortField != "" && ctxTbl.SortDir != table.SortNone {
-		ctxBadges = append(ctxBadges, ui.Badge{Text: "sort:" + ctxTbl.SortField, Tone: "info"})
-	}
-	if ctxTbl.GroupField != "" {
-		ctxBadges = append(ctxBadges, ui.Badge{Text: "group:" + ctxTbl.GroupField, Tone: "info"})
-	}
-
-	ctxPanel := ui.ViewNode{
-		ID:       "project.context",
-		Kind:     ui.KindPanel,
-		Scope:    ScopeProjectContext,
-		Title:    "Context Items",
-		Border:   true,
-		Badges:   ctxBadges,
-		Box:      layout.Constraints{Flex: 1},
-		Children: []ui.ViewNode{ctxNode},
-	}
-
-	summaryPanel := ui.ViewNode{
-		ID:       "project.summary",
-		Kind:     ui.KindPanel,
-		Title:    "Overview",
-		Border:   true,
-		Box:      layout.Constraints{FixedH: len(summaryLines) + 2},
-		Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: summaryLines}},
-	}
-
-	overview := ui.ViewNode{
-		ID:     "project.overview",
-		Kind:   ui.KindPanel,
-		Scope:  ScopeProjectOverview,
-		Ref:    projRef,
-		Title:  "Project · " + groupName,
-		Border: true,
-		Badges: badges,
-		Facts:  map[string]any{"projectGroup": groupName, "paneCount": len(groupPanes), "contextCount": len(ctxItems)},
-		Children: []ui.ViewNode{
-			{Kind: ui.KindVStack, Gap: 1, Children: []ui.ViewNode{summaryPanel, ctxPanel}},
-		},
-	}
-	return overview
+	return CollectedContextItem{}, false
 }
 
 // focusedProjectContextItem returns the CollectedContextItem currently focused
-// in projectContextTable.
+// in the active project context table.
 func (a *App) focusedProjectContextItem() (CollectedContextItem, bool) {
-	tbl := a.nav.tables[projectContextTable]
-	if tbl == nil {
-		return CollectedContextItem{}, false
+	focusID := ""
+	if a.Shell != nil {
+		focusID = a.Focus()
 	}
-	row, ok := tbl.FocusedRow()
-	if !ok {
-		return CollectedContextItem{}, false
-	}
-	it, exists := a.panes.projectCtxRows[row.ID]
-	return it, exists
+	return a.focusedProjectContextItemFor(focusID)
 }
 
-// projectContextCommand handles open, yank, star, and attach actions on rows of
-// the project overview's Context Items table.
+// projectContextOpen handles opening the focused context row or toggling a group.
 func (a *App) projectContextOpen(s core.State, _ core.Command) core.StepResult {
-	tbl := a.nav.tables[projectContextTable]
-	if tbl != nil {
+	focus := s.ActiveFrame().FocusID
+	if tbl := a.nav.tables[focus]; tbl != nil {
 		if it, ok := tbl.Focused(); ok && it.Header {
 			tbl.ToggleGroup()
 			return core.Next(s)
 		}
 	}
-	it, ok := a.focusedProjectContextItem()
+	it, ok := a.focusedProjectContextItemFor(focus)
 	if !ok {
 		a.say("no context item selected")
 		return core.Next(s)
@@ -834,7 +400,7 @@ func (a *App) projectContextOpen(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) projectContextYank(s core.State, _ core.Command) core.StepResult {
-	it, ok := a.focusedProjectContextItem()
+	it, ok := a.focusedProjectContextItemFor(s.ActiveFrame().FocusID)
 	if !ok {
 		a.say("no context item selected")
 		return core.Next(s)
@@ -844,7 +410,7 @@ func (a *App) projectContextYank(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) projectContextStar(s core.State, _ core.Command) core.StepResult {
-	it, ok := a.focusedProjectContextItem()
+	it, ok := a.focusedProjectContextItemFor(s.ActiveFrame().FocusID)
 	if !ok {
 		a.say("no context item selected")
 		return core.Next(s)
@@ -859,7 +425,7 @@ func (a *App) projectContextStar(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) projectContextAttach(s core.State, _ core.Command) core.StepResult {
-	it, ok := a.focusedProjectContextItem()
+	it, ok := a.focusedProjectContextItemFor(s.ActiveFrame().FocusID)
 	if !ok {
 		a.say("no context item selected")
 		return core.Next(s)

@@ -137,7 +137,7 @@ func TestNewNoteIsAboutTheFocusedRecord(t *testing.T) {
 	if ref, ok := note.RefField("task"); !ok || ref != task.Ref() {
 		t.Fatalf("note.task = %v", ref)
 	}
-	d.Keys("enter")
+	d.Keys("E")
 	root := a.View(a.State())
 	if shown, _ := a.Showing(); shown != task.Ref() || root.Find("show.sec.note.task."+data.RefText(note.Ref())) == nil {
 		t.Fatalf("Show page of %v does not list the note", shown)

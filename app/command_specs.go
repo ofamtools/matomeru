@@ -7,6 +7,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/widgets/commandline"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
@@ -37,7 +38,7 @@ func recordSpec(id, desc string, kinds []string, whenExpr string, tags ...string
 // the terminal's leader layer leaves them out.
 func CommandSpecs() []core.CommandSpec {
 	text := []core.ParamSpec{{Name: "text", Type: core.ParamString}}
-	base := append(append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...), viewCycleSpecs()...)
+	base := append(append(append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...), viewCycleSpecs()...), traits.SelectCommandSpecs()...)
 	return append(append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
@@ -53,14 +54,19 @@ func CommandSpecs() []core.CommandSpec {
 		}},
 		recordSpec(views.CmdStar, "Star the focused record", nil, "facts.starStatus != \"starred\"", "editing"),
 		recordSpec(views.CmdUnstar, "Unstar the focused record", nil, "facts.starStatus == \"starred\"", "editing"),
+		recordSpec(CmdStatusCycle, "Cycle the focused record's primary status field", nil, "facts.hasStatus", "editing"),
 		recordSpec(views.CmdArchive, "Archive the focused record", nil, "facts.archiveStatus != \"archived\"", "editing"),
 		recordSpec(views.CmdRestore, "Restore the focused record", nil, "facts.archiveStatus == \"archived\"", "editing"),
 		recordSpec(views.CmdSnooze, "Snooze the focused record", nil, "!facts.snoozed", "editing"),
 		recordSpec(views.CmdUnsnooze, "Unsnooze the focused record", nil, "facts.snoozed", "editing"),
 		spec(CmdUndo, "Undo my last change", "editing"),
 		spec(CmdRedo, "Redo my last undone change", "editing"),
-		spec(CmdHistoryBack, "Go back to the previous Show page"),
-		spec(CmdHistoryForward, "Go forward again"),
+		{ID: CmdHistoryBack, Description: "Go back in jump history (or Work Show stack)", Params: []core.ParamSpec{
+			{Name: "scope", Type: core.ParamString, Enum: []string{"global", "work"}, Default: "global", Description: "jump scope: global or work"},
+		}},
+		{ID: CmdHistoryForward, Description: "Go forward in jump history (or Work Show stack)", Params: []core.ParamSpec{
+			{Name: "scope", Type: core.ParamString, Enum: []string{"global", "work"}, Default: "global", Description: "jump scope: global or work"},
+		}},
 		spec(CmdSiteFocus, "Go to the selected pane's pages"),
 		spec(CmdPaneEnterLive, "Enter the selected pane's live terminal directly from the rail"),
 		spec(CmdSideSplitSwitch, "Toggle focus between the main Screen and the side split terminal"),
@@ -314,6 +320,8 @@ func CommandSpecs() []core.CommandSpec {
 		spec(tree.CmdFoldClose, "Fold the focused tree subtree"),
 		spec(tree.CmdFoldOpenAll, "Unfold every node in the focused tree"),
 		spec(tree.CmdFoldCloseAll, "Fold every parent node in the focused tree"),
+		spec(tree.CmdFoldOrStepIn, "Unfold or step into the focused tree node (spills right at leaf)"),
+		spec(tree.CmdFoldOrParent, "Fold or jump to parent in the focused tree (spills left at root)"),
 		{
 			ID:          tree.CmdHoistIn,
 			Description: "Zoom into the focused tree node subtree",
@@ -322,7 +330,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(tree.CmdHoistOut, "Zoom out one level from the hoisted subtree"),
 		spec(tree.CmdHoistClear, "Clear all hoisting and return to the full tree"),
 		spec(CmdWorkLayoutToggle, "Toggle 2 Work between tree and table layout for hierarchical nouns"),
-	}...), append(append(append(append(sessionRecorderSpecs(), uxNotesSpecs()...), pageModeSpecs()...), fdSearchSpecs()...), paneSearchSpecs()...)...)
+	}...), append(append(append(append(append(append(sessionRecorderSpecs(), uxNotesSpecs()...), pageModeSpecs()...), fdSearchSpecs()...), paneSearchSpecs()...), projectHomeSpecs()...), composerContextSpecs()...)...)
 }
 
 // readerSpecs are the Markdown widget's own commands. They only make sense

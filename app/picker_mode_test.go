@@ -165,10 +165,10 @@ func TestPathPickerNormalModeOverhaul(t *testing.T) {
 	task := titled(t, a, data.KindTask, "ochazuke-v2")
 
 	// Open path picker on ochazuke-v2 (defaultDir ~/proj/ochazuke-next).
-	d.Keys("2", "ctrl+o")
+	d.Keys("2", "g", "o")
 	ppMod := a.activePathPicker()
 	if a.Modal() != "path" || a.Mode() != ModePicker || ppMod == nil {
-		t.Fatalf("ctrl+o: modal=%q mode=%q pp=%v", a.Modal(), a.Mode(), ppMod)
+		t.Fatalf("g o: modal=%q mode=%q pp=%v", a.Modal(), a.Mode(), ppMod)
 	}
 	pp := ppMod.Model()
 	if pp.Dir != "/home/owner/proj/ochazuke-next" {
@@ -245,7 +245,7 @@ func TestPathPickerNormalModeOverhaul(t *testing.T) {
 	}
 
 	// Undo, reopen, and verify `Tab` submits directly from ModePicker too.
-	d.Keys("u", "ctrl+o", "h", "tab")
+	d.Keys("u", "g", "o", "h", "tab")
 	if a.Modal() != "" {
 		t.Fatalf("tab in path ModePicker did not submit: modal=%q", a.Modal())
 	}
@@ -301,9 +301,9 @@ func TestPickerDefaultModeSetting(t *testing.T) {
 	if a.Modal() != "" || a.workKind() != data.KindLane {
 		t.Fatalf("filter: direct typing in g n failed: modal=%q kind=%q", a.Modal(), a.workKind())
 	}
-	d.Keys("ctrl+o")
+	d.Keys("g", "o")
 	if a.Modal() != "path" || a.Mode() != ModePickerFilter {
-		t.Fatalf("filter: ctrl+o mode = %q, want %q", a.Mode(), ModePickerFilter)
+		t.Fatalf("filter: g o mode = %q, want %q", a.Mode(), ModePickerFilter)
 	}
 	d.Keys("esc", "esc", "esc")
 	if a.Modal() != "" {

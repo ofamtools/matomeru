@@ -27,6 +27,7 @@ func keep(old, fresh *table.Model) *table.Model {
 	fresh.Query, fresh.FilterField, fresh.MatchMode = old.Query, old.FilterField, old.MatchMode
 	fresh.SortField, fresh.SortDir, fresh.SortKeys = old.SortField, old.SortDir, slices.Clone(old.SortKeys)
 	fresh.GroupField, fresh.Collapsed, fresh.Marked = old.GroupField, old.Collapsed, old.Marked
+	fresh.VisualActive, fresh.VisualAnchor = old.VisualActive, old.VisualAnchor
 	fresh.SelectedIdx, fresh.Offset, fresh.PageSize = old.SelectedIdx, old.Offset, old.PageSize
 	selectRow(fresh, selected)
 	return fresh

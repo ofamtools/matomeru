@@ -8,6 +8,7 @@ package data
 
 import (
 	"slices"
+	"strings"
 	"sync"
 
 	"ofam.dev/ochazuke/core"
@@ -302,6 +303,31 @@ func (s Schema) AllStatusColumns() []StatusColumn {
 	return append(slices.Clone(s.StatusColumns), UniversalStatusColumns()...)
 }
 
+// PrimaryStatusField returns the schema's primary cyclable status field name
+// and ordered enum values, derived declaratively from schema metadata without
+// per-noun special cases. Declared StatusColumns are checked first (preferring
+// PrimaryRowStyle), followed by the first declared enum field named "status" or
+// ending with "Status" (excluding universal archiveStatus and starStatus).
+func (s Schema) PrimaryStatusField() (string, []string, bool) {
+	for _, c := range s.StatusColumns {
+		if c.PrimaryRowStyle && len(c.Values) > 0 && c.Name != ColArchiveStatus && c.Name != ColStarStatus {
+			return c.Name, c.Names(), true
+		}
+	}
+	for _, c := range s.StatusColumns {
+		if len(c.Values) > 0 && c.Name != ColArchiveStatus && c.Name != ColStarStatus {
+			return c.Name, c.Names(), true
+		}
+	}
+	for _, f := range s.Fields {
+		if len(f.Enum) > 0 && f.Name != ColArchiveStatus && f.Name != ColStarStatus &&
+			(f.Name == "status" || strings.HasSuffix(f.Name, "Status")) {
+			return f.Name, slices.Clone(f.Enum), true
+		}
+	}
+	return "", nil, false
+}
+
 // UniversalStatusColumns returns the status columns every record has.
 func UniversalStatusColumns() []StatusColumn {
 	return []StatusColumn{
@@ -563,7 +589,7 @@ func DefaultSchemas() *Registry {
 				{Name: "title", Type: core.ParamString, Required: true, Description: "page title"},
 				str("slug", "stable name within the pane's site"),
 				{Name: "pageKind", Type: core.ParamString, Default: "custom", Description: "what the page is for",
-					Enum: []string{"screen", "questions", "decisions", "plan", "response", "custom"}},
+					Enum: []string{"screen", "questions", "decisions", "plan", "response", "custom", "outline", "signals"}},
 				{Name: "pinned", Type: core.ParamBool, Description: "kept at the top of the table of contents"},
 				{Name: "root", Type: core.ParamObject, Description: "the page's ViewNode tree"},
 				str("viewedAt", "when the owner last viewed the page (RFC 3339)"),
@@ -770,8 +796,11 @@ func DefaultSchemas() *Registry {
 			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "display label"},
 				{Name: "value", Type: core.ParamString, Required: true, Description: "URL, PR reference, or file path"},
-				{Name: "contextKind", Type: core.ParamString, Enum: []string{"url", "pr", "file", "doc"}, Default: "url", Description: "kind of context item"},
-				{Name: "source", Type: core.ParamString, Enum: []string{"prompt", "response", "screen", "tool"}, Default: "response", Description: "where the context item came from"},
+				{Name: "contextKind", Type: core.ParamString, Enum: []string{"url", "pr", "file", "doc", "gdoc", "sheet"}, Default: "url", Description: "kind of context item"},
+				{Name: "source", Type: core.ParamString, Enum: []string{"prompt", "response", "screen", "tool", "curated"}, Default: "response", Description: "where the context item came from"},
+				{Name: "official", Type: core.ParamBool, Default: false, Description: "curated official project context automatically included for agents"},
+				{Name: "pinned", Type: core.ParamBool, Default: false, Description: "pinned for quick access on the Project Page"},
+				str("notes", "why this context item matters to agents and humans"),
 				{Name: "line", Type: core.ParamInt, Description: "optional 1-based line number"},
 				{Name: "col", Type: core.ParamInt, Description: "optional 1-based column number"},
 				str("canonKey", "canonical deduplication key"),
@@ -780,6 +809,13 @@ func DefaultSchemas() *Registry {
 			},
 			DefaultColumns: []string{"title", "contextKind", "value", "pane", "task"},
 			Relations:      universalRelations(),
+			FactFields:     []string{"official", "pinned", "contextKind", "source"},
+			BadgeRules: []BadgeRule{
+				{When: `fields.official == true`, Text: "official · auto", Tone: "accent"},
+				{When: `fields.pinned == true && fields.official != true`, Text: "pinned", Tone: "info"},
+				{When: `fields.contextKind == "gdoc"`, Text: "gdoc", Tone: "info"},
+				{When: `fields.contextKind == "sheet"`, Text: "sheet", Tone: "success"},
+			},
 		},
 	)
 	return r

@@ -30,9 +30,12 @@ func viewCycleSpecs() []core.CommandSpec {
 
 func viewCycleBindings() []core.Binding {
 	return []core.Binding{
-		bind(ModeNormal, "", "V", CmdViewCycle, "cycle view"),
-		bind(ModeForm, "", "V", CmdViewCycle, "cycle form density"),
-		bind(ModePicker, "", "V", CmdViewCycle, "cycle view"),
+		with(bind(ModeNormal, "", "(", CmdViewCycle, "prev view"), map[string]any{"dir": -1}),
+		with(bind(ModeNormal, "", ")", CmdViewCycle, "next view"), map[string]any{"dir": 1}),
+		with(bind(ModeForm, "", "(", CmdViewCycle, "prev density"), map[string]any{"dir": -1}),
+		with(bind(ModeForm, "", ")", CmdViewCycle, "next density"), map[string]any{"dir": 1}),
+		with(bind(ModePicker, "", "(", CmdViewCycle, "prev view"), map[string]any{"dir": -1}),
+		with(bind(ModePicker, "", ")", CmdViewCycle, "next view"), map[string]any{"dir": 1}),
 		bind(ModeFormEdit, "", "alt+v", CmdViewCycle, "cycle form density"),
 		bind(ModeFilter, "", "alt+v", CmdViewCycle, "cycle view"),
 		bind(ModePickerFilter, "", "alt+v", CmdViewCycle, "cycle view"),

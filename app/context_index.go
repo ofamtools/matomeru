@@ -22,8 +22,10 @@ import (
 )
 
 // CollectedContextItem is one deduplicated high-signal context item harvested
-// from a pane's prompts, agent pages, documents, or visible terminal screen.
+// from a pane's prompts, agent pages, documents, or visible terminal screen,
+// or curated as official project context.
 type CollectedContextItem struct {
+	RecordID  string
 	Key       string
 	CanonKey  string
 	Kind      string
@@ -38,6 +40,9 @@ type CollectedContextItem struct {
 	ProjectID string
 	Project   string
 	Starred   bool
+	Official  bool
+	Pinned    bool
+	Notes     string
 	SeenAt    time.Time
 }
 
@@ -53,6 +58,7 @@ type ContextController struct {
 	starred         map[string]bool                  // canonKey -> starred
 	persisted       map[string]bool                  // paneID\x00canonKey -> persisted in SQLite
 	loadedStored    bool
+	storedRev       int64
 	pageRevs        map[string]int64
 	docRevs         map[string]int64
 	screenRevs      map[string]uint64
@@ -137,12 +143,22 @@ func mapContextRecordSource(src string) string {
 	}
 }
 
+func (a *App) invalidateContextIndex() {
+	if a.ctx == nil {
+		return
+	}
+	a.ctx.mu.Lock()
+	a.ctx.loadedStored = false
+	a.ctx.mu.Unlock()
+}
+
 func (a *App) loadPersistedContextIndex(idx *ContextController) {
 	if a.Store == nil {
 		return
 	}
+	rev, _ := a.Store.LatestChangeSetNumber()
 	idx.mu.RLock()
-	already := idx.loadedStored
+	already := idx.loadedStored && idx.storedRev == rev
 	idx.mu.RUnlock()
 	if already {
 		return
@@ -153,7 +169,7 @@ func (a *App) loadPersistedContextIndex(idx *ContextController) {
 	}
 	idx.mu.Lock()
 	defer idx.mu.Unlock()
-	if idx.loadedStored {
+	if idx.loadedStored && idx.storedRev == rev {
 		return
 	}
 	for _, rec := range res.Items {
@@ -175,37 +191,54 @@ func (a *App) loadPersistedContextIndex(idx *ContextController) {
 		}
 		key := paneID + "\x00" + canon
 		idx.persisted[key] = true
-		if _, exists := idx.items[key]; !exists && !rec.IsArchived() && val != "" {
-			paneTitle := ""
-			if paneID != "" {
-				paneTitle = a.title(core.Ref{Kind: data.KindPane, ID: paneID})
+		if rec.IsArchived() {
+			if cur, exists := idx.items[key]; exists && cur.RecordID == rec.ID {
+				delete(idx.items, key)
 			}
-			projID, projTitle := "", unassignedProjectLabel
-			if tRef, ok := rec.RefField("task"); ok {
-				if taskRec, err := a.Store.Get(tRef); err == nil && taskRec != nil {
-					var root core.Ref
-					projTitle, root = a.resolveTaskRoot(*taskRec)
-					projID = root.ID
-				}
-			}
-			idx.items[key] = &CollectedContextItem{
-				Key:       key,
-				CanonKey:  canon,
-				Kind:      kind,
-				Value:     val,
-				Label:     rec.Text("title"),
-				Source:    rec.Text("source"),
-				Line:      recordIntField(rec, "line"),
-				Col:       recordIntField(rec, "col"),
-				PaneID:    paneID,
-				PaneTitle: paneTitle,
-				ProjectID: projID,
-				Project:   projTitle,
-				Starred:   rec.IsStarred() || idx.starred[canon],
-				SeenAt:    rec.UpdatedAt,
+			continue
+		}
+		if val == "" {
+			continue
+		}
+		paneTitle := ""
+		if paneID != "" {
+			paneTitle = a.title(core.Ref{Kind: data.KindPane, ID: paneID})
+		}
+		projID, projTitle := "", unassignedProjectLabel
+		if tRef, ok := rec.RefField("task"); ok {
+			if taskRec, err := a.Store.Get(tRef); err == nil && taskRec != nil {
+				var root core.Ref
+				projTitle, root = a.resolveTaskRoot(*taskRec)
+				projID = root.ID
 			}
 		}
+		path := ""
+		if kind == contextitems.KindFile || kind == "doc" {
+			path, _, _ = splitContextFileLoc(val)
+		}
+		idx.items[key] = &CollectedContextItem{
+			RecordID:  rec.ID,
+			Key:       key,
+			CanonKey:  canon,
+			Kind:      kind,
+			Value:     val,
+			Path:      path,
+			Label:     rec.Text("title"),
+			Source:    rec.Text("source"),
+			Line:      recordIntField(rec, "line"),
+			Col:       recordIntField(rec, "col"),
+			PaneID:    paneID,
+			PaneTitle: paneTitle,
+			ProjectID: projID,
+			Project:   projTitle,
+			Starred:   rec.IsStarred() || idx.starred[canon],
+			Official:  rec.Bool("official"),
+			Pinned:    rec.Bool("pinned"),
+			Notes:     rec.Text("notes"),
+			SeenAt:    rec.UpdatedAt,
+		}
 	}
+	idx.storedRev = rev
 	idx.loadedStored = true
 }
 
@@ -322,13 +355,30 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 		if taskRef != nil {
 			fields["task"] = *taskRef
 		}
-		_, _, _ = a.Store.Create(data.CreateInput{Kind: data.KindContext, Fields: fields}, contextHarvestActor)
+		created, _, err := a.Store.Create(data.CreateInput{Kind: data.KindContext, Fields: fields}, contextHarvestActor)
+		if err == nil && created != nil {
+			idx.mu.Lock()
+			if cur, ok := idx.items[item.Key]; ok && cur.RecordID == "" {
+				cur.RecordID = created.ID
+			}
+			idx.mu.Unlock()
+		}
 	}
 }
 
 // harvestPrompt extracts and indexes high-signal context items from a user
 // prompt sent to pane.
+func stripInjectedPromptSections(text string) string {
+	for _, marker := range []string{"\n\n## Official Project Context\n", "\n## Official Project Context\n", "\n\n[Attachments]\n"} {
+		if idx := strings.Index(text, marker); idx >= 0 {
+			text = text[:idx]
+		}
+	}
+	return text
+}
+
 func (a *App) harvestPrompt(pane data.Record, text string) {
+	text = stripInjectedPromptSections(text)
 	if strings.TrimSpace(text) == "" {
 		return
 	}
@@ -550,6 +600,18 @@ func (a *App) resolveTaskRoot(task data.Record) (string, core.Ref) {
 
 func sortCollectedContext(items []CollectedContextItem) {
 	slices.SortStableFunc(items, func(x, y CollectedContextItem) int {
+		if x.Official != y.Official {
+			if x.Official {
+				return -1
+			}
+			return 1
+		}
+		if x.Pinned != y.Pinned {
+			if x.Pinned {
+				return -1
+			}
+			return 1
+		}
 		if x.Starred != y.Starred {
 			if x.Starred {
 				return -1
@@ -603,8 +665,18 @@ func (a *App) projectContextItems(groupName string, projRef *core.Ref) []Collect
 			continue
 		}
 		cp := *it
-		cp.Starred = idx.starred[cp.CanonKey]
-		if existing, dup := byCanon[cp.CanonKey]; !dup || cp.SeenAt.After(existing.SeenAt) {
+		cp.Starred = cp.Starred || idx.starred[cp.CanonKey]
+		if existing, dup := byCanon[cp.CanonKey]; !dup || (cp.Official && !existing.Official) || (cp.Official == existing.Official && cp.SeenAt.After(existing.SeenAt)) {
+			if dup {
+				if cp.RecordID == "" {
+					cp.RecordID = existing.RecordID
+				}
+				cp.Pinned = cp.Pinned || existing.Pinned
+				cp.Starred = cp.Starred || existing.Starred
+				if cp.Notes == "" {
+					cp.Notes = existing.Notes
+				}
+			}
 			byCanon[cp.CanonKey] = cp
 		}
 	}
@@ -624,8 +696,18 @@ func (a *App) allContextItems() []CollectedContextItem {
 	byCanon := map[string]CollectedContextItem{}
 	for _, it := range idx.items {
 		cp := *it
-		cp.Starred = idx.starred[cp.CanonKey]
-		if existing, dup := byCanon[cp.CanonKey]; !dup || cp.SeenAt.After(existing.SeenAt) {
+		cp.Starred = cp.Starred || idx.starred[cp.CanonKey]
+		if existing, dup := byCanon[cp.CanonKey]; !dup || (cp.Official && !existing.Official) || (cp.Official == existing.Official && cp.SeenAt.After(existing.SeenAt)) {
+			if dup {
+				if cp.RecordID == "" {
+					cp.RecordID = existing.RecordID
+				}
+				cp.Pinned = cp.Pinned || existing.Pinned
+				cp.Starred = cp.Starred || existing.Starred
+				if cp.Notes == "" {
+					cp.Notes = existing.Notes
+				}
+			}
 			byCanon[cp.CanonKey] = cp
 		}
 	}

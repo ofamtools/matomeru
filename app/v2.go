@@ -120,6 +120,7 @@ func (a *App) nounsPick(s core.State, _ core.Command) core.StepResult {
 
 // browse opens the index of a noun in the Work space.
 func (a *App) browse(s core.State, kind string) core.State {
+	from := a.currentJump(s)
 	s = a.dropModals(s)
 	if kind == data.KindTask {
 		kind = ""
@@ -139,8 +140,10 @@ func (a *App) browse(s core.State, kind string) core.State {
 	}
 	s.ActivePage = SpaceWork
 	schema := a.schema(a.workKind())
-	a.say("%s · enter opens · e edits · n new · A archived", strings.ToLower(schema.Plural))
-	return withPage(s, SpaceWork, workTable, ModeNormal)
+	a.say("%s · E opens · e edits · n new · A archived", strings.ToLower(schema.Plural))
+	next := withPage(s, SpaceWork, workTable, ModeNormal)
+	a.recordJump(from, a.currentJump(next))
+	return next
 }
 
 // --- every field filters, sorts and groups ------------------------------------------
@@ -280,11 +283,12 @@ func assignField(kind string) string {
 }
 
 func (a *App) assign(s core.State, c core.Command) core.StepResult {
-	ref, ok := a.subject(s, c)
-	if !ok {
+	refs, fromSel := a.targetRefs(s, c)
+	if len(refs) == 0 {
 		a.say("nothing here to assign")
 		return core.Next(s)
 	}
+	ref := refs[0]
 	rec, err := a.Store.Get(ref)
 	if err != nil {
 		a.fail("assign", err)
@@ -296,7 +300,16 @@ func (a *App) assign(s core.State, c core.Command) core.StepResult {
 		a.fail("assign", err)
 		return core.Next(s)
 	}
-	current, _ := rec.RefField(field)
+	var current core.Ref
+	if len(refs) == 1 {
+		current, _ = rec.RefField(field)
+	}
+	excludeTasks := map[string]bool{}
+	for _, r := range refs {
+		if r.Kind == data.KindTask {
+			excludeTasks[r.ID] = true
+		}
+	}
 	none := picker.Item{ID: "", Title: "(None / root)", Subtitle: "no task"}
 	if ref.Kind == data.KindTask {
 		none.Subtitle = "a root task: it displays as a project"
@@ -307,13 +320,13 @@ func (a *App) assign(s core.State, c core.Command) core.StepResult {
 	walk = func(ns []data.TaskNode, path string, under bool) {
 		for _, n := range ns {
 			// A task cannot move under itself or its own subtasks.
-			inside := under || (ref.Kind == data.KindTask && n.Record.ID == ref.ID)
+			inside := under || excludeTasks[n.Record.ID]
 			title := views.Title(schema, n.Record)
 			if !inside {
 				r := n.Record.Ref()
 				item := picker.Item{ID: r.ID, Title: strings.Repeat("  ", n.Depth) + title, Subtitle: path, Ref: &r, Scope: data.KindTask,
 					Badges: views.StatusBadges(schema, n.Record)}
-				if r == current {
+				if len(refs) == 1 && r == current {
 					item.Badges = append(item.Badges, ui.Badge{Text: "now", Tone: "accent"})
 				}
 				items = append(items, item)
@@ -326,20 +339,36 @@ func (a *App) assign(s core.State, c core.Command) core.StepResult {
 		}
 	}
 	walk(nodes, "", false)
-	pm := picker.New("Move "+a.title(ref)+" to", items)
+	title := "Move " + a.title(ref) + " to"
+	if len(refs) > 1 {
+		title = fmt.Sprintf("Move %d items to", len(refs))
+	}
+	pm := picker.New(title, items)
 	pm.Placeholder = "a task (or type a new task title)"
-	targetRef := ref
+	targetRefs := slices.Clone(refs)
+	applyAssign := func(target *core.Ref) modal.Result {
+		if len(targetRefs) == 1 {
+			a.assigned(targetRefs[0], field, target)
+		} else {
+			a.assignMany(targetRefs, target)
+		}
+		if fromSel {
+			a.afterModal(func(st core.State) core.State {
+				a.clearActiveVisual(st)
+				return st
+			})
+		}
+		return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+	}
 	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "assign",
 		PageSize: 10,
 		Create: a.pickerCreateHook(data.KindTask, func(rec data.Record) modal.Result {
 			r := rec.Ref()
-			a.assigned(targetRef, field, &r)
-			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+			return applyAssign(&r)
 		}),
 		OnConfirm: func(picked picker.Item) modal.Result {
-			a.assigned(targetRef, field, picked.Ref)
-			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+			return applyAssign(picked.Ref)
 		},
 	})
 	return core.Next(a.pushModal(s, m))

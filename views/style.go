@@ -72,10 +72,12 @@ func EvalExpr(src string, env map[string]any) (bool, error) {
 // columns, and every field listed in schema.FactFields (defaulting missing
 // boolean fields to false).
 func RecordFacts(schema data.Schema, rec data.Record, now time.Time) map[string]any {
+	_, _, hasStatus := schema.PrimaryStatusField()
 	facts := map[string]any{
 		data.ColArchiveStatus: rec.ArchiveStatus,
 		data.ColStarStatus:    rec.StarStatus,
 		"snoozed":             rec.IsSnoozed(now),
+		"hasStatus":           hasStatus,
 	}
 	for _, col := range schema.StatusColumns {
 		facts[col.Name] = rec.Text(col.Name)

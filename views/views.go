@@ -362,6 +362,9 @@ func IndexView(schema data.Schema, tbl *table.Model, id string) ui.ViewNode {
 	if tbl.GroupField != "" {
 		badges = append(badges, ui.Badge{Text: "by " + fieldTitle(schema, tbl.GroupField)})
 	}
+	if tbl.VisualActive {
+		badges = append(badges, ui.Badge{Text: fmt.Sprintf("VISUAL · %d", len(tbl.VisualRows())), Tone: "accent"})
+	}
 	if n := len(tbl.Marked); n > 0 {
 		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d marked", n), Tone: "warning"})
 	}

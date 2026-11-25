@@ -198,7 +198,7 @@ func TestRegistersAndMacros(t *testing.T) {
 	browseTo(t, a, d, doc)
 	d.Keys("j", "k") // any command: the register follows the focus
 	browseTo(t, a, d, doc)
-	d.Keys("x")
+	d.Keys("space")
 	if a.Register(core.RegPath) != "/docs/plan.md" {
 		t.Fatalf("\"%% on a document = %q", a.Register(core.RegPath))
 	}
@@ -671,7 +671,7 @@ func TestInspectActionsAndModes(t *testing.T) {
 		}
 		return false, false, ""
 	}
-	if found, unbound, keys := item("record.star"); !found || unbound || keys != "s" {
+	if found, unbound, keys := item("record.star"); !found || unbound || keys != "m, *" {
 		t.Fatalf("record.star: found %v, unbound %v, keys %q", found, unbound, keys)
 	}
 	if found, unbound, _ := item(CmdGroupField); !found || !unbound {
@@ -758,7 +758,7 @@ func TestShowEmptySectionNewAndBreadcrumbs(t *testing.T) {
 
 	// Open the task's Show page via the Work index.
 	browseTo(t, a, d, task)
-	d.Keys("enter")
+	d.Keys("E")
 	if a.Focus() != showHeader {
 		t.Fatalf("focus = %q, want %q", a.Focus(), showHeader)
 	}
@@ -947,7 +947,7 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 	if got := bm.line.Value(); got != "verb:record.star " {
 		t.Fatalf("bindings filter ctrl+w -> %q", got)
 	}
-	if len(a.bind.bindEd.Filtered()) != 1 {
+	if len(a.bind.bindEd.Filtered()) != 2 {
 		t.Fatalf("bindings filter did not apply query %q (got %d rows)", bm.line.Value(), len(a.bind.bindEd.Filtered()))
 	}
 	d.Keys("esc", "esc", "esc")

@@ -35,19 +35,21 @@ const (
 )
 
 // Tools returns every tool the MCP server lists: the four Open UI tools,
-// the lane tools, the data tools, the triage tools, pane search, then task tools.
+// the lane tools, the data tools, the triage tools, pane search, task tools,
+// then curated project context tools.
 func Tools(router *Router, dataTools *DataTools) []ToolSpec {
 	out := append(router.ToolSpecs(), NewLaneTools(nil).ToolSpecs()...)
 	out = append(out, dataTools.ToolSpecs()...)
 	out = append(out, NewTriageTools(nil).ToolSpecs()...)
 	out = append(out, NewPaneSearchTools(nil).ToolSpecs()...)
-	return append(out, NewTaskTools(nil).ToolSpecs()...)
+	out = append(out, NewTaskTools(nil).ToolSpecs()...)
+	return append(out, NewContextTools(nil).ToolSpecs()...)
 }
 
 // Toolbox is every tool over one store: the Open UI tools, the lane tools,
-// the data tools, the triage tools, pane search and task tools, behind one
-// Call. The MCP server and the CLI both run tools through it. Getenv reads the
-// environment (nil is os.Getenv).
+// the data tools, the triage tools, pane search, task tools and context tools,
+// behind one Call. The MCP server and the CLI both run tools through it.
+// Getenv reads the environment (nil is os.Getenv).
 type Toolbox struct {
 	Router     *Router
 	Lanes      *LaneTools
@@ -55,6 +57,7 @@ type Toolbox struct {
 	Triage     *TriageTools
 	PaneSearch *PaneSearchTools
 	Tasks      *TaskTools
+	Context    *ContextTools
 	Getenv     func(string) string
 }
 
@@ -70,6 +73,7 @@ func NewToolbox(store *data.Store, router *Router) *Toolbox {
 		Triage:     NewTriageTools(store),
 		PaneSearch: NewPaneSearchTools(store),
 		Tasks:      NewTaskTools(store),
+		Context:    NewContextTools(store),
 	}
 }
 
@@ -85,6 +89,9 @@ func (b *Toolbox) ToolSpecs() []ToolSpec {
 	}
 	if b.Tasks != nil {
 		out = append(out, b.Tasks.ToolSpecs()...)
+	}
+	if b.Context != nil {
+		out = append(out, b.Context.ToolSpecs()...)
 	}
 	return out
 }
@@ -231,6 +238,10 @@ func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw j
 		return b.PaneSearch.Call(ctx, actor, name, raw)
 	case b.Tasks != nil && b.Tasks.HasTool(name):
 		return b.Tasks.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
+	case b.Context != nil && b.Context.HasTool(name):
+		ctxTools := *b.Context
+		ctxTools.Getenv = getenv
+		return ctxTools.Call(ctx, actor, name, raw)
 	}
 	return b.Router.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
 }

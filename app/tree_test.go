@@ -146,12 +146,12 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 		t.Fatalf("after > on lane, expected parentLane to be set")
 	}
 
-	// 5. Status cycle (`space`) cycles laneStatus on Lanes!
+	// 5. Status cycle (`s`) cycles laneStatus on Lanes!
 	beforeStatus := func() string { rec, _ := store.Get(createdLane.Ref()); return rec.Text("laneStatus") }()
-	d.Keys("space")
+	d.Keys("s")
 	afterStatus := func() string { rec, _ := store.Get(createdLane.Ref()); return rec.Text("laneStatus") }()
 	if beforeStatus == afterStatus {
-		t.Fatalf("space did not cycle laneStatus (still %q)", afterStatus)
+		t.Fatalf("s did not cycle laneStatus (still %q)", afterStatus)
 	}
 
 	// 6. `g t` toggles Lanes between tree and table while preserving selection.

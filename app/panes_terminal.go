@@ -192,7 +192,11 @@ func (a *App) paneEnterLive(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) siteFocus(s core.State, _ core.Command) core.StepResult {
-	if _, _, onProj := a.selectedRailProject(); onProj {
+	if groupName, projRef, onProj := a.selectedRailProject(); onProj {
+		if a.projectWorkspaceEnabled() {
+			key := a.projectCtrl().activeSection(projectKeyFor(groupName, projRef))
+			return core.Next(withFocus(s, views.ProjectNavPrefix+key))
+		}
 		return core.Next(withFocus(s, projectContextTable))
 	}
 	for _, n := range a.focusables(s) {

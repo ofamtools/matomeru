@@ -293,9 +293,9 @@ func TestModalStackScopeBindings(t *testing.T) {
 	d.Keys("esc", "esc")
 
 	// 4. "path" scope: ctrl+t toggles hidden, left goes to parent, right enters dir, tab selects.
-	d.Keys("2", "ctrl+o")
+	d.Keys("2", "g", "o")
 	if a.Modal() != "path" {
-		t.Fatalf("ctrl+o did not open path picker: %q", a.Modal())
+		t.Fatalf("g o did not open path picker: %q", a.Modal())
 	}
 	pp := a.activePathPicker().Model()
 	wasHidden := pp.ShowHidden
@@ -417,10 +417,10 @@ func TestModalStackPickerCreateHook(t *testing.T) {
 	}
 	d.Keys("esc", "esc")
 
-	// 2. Inside "assign" picker (m on a task).
+	// 2. Inside "assign" picker (g m on a task).
 	targetTask := mkRec(t, a, data.KindTask, map[string]any{"title": "Move Me Task"})
 	browseTo(t, a, d, targetTask)
-	d.Keys("m")
+	d.Keys("g", "m")
 	if a.Modal() != "assign" {
 		t.Fatalf("expected assign picker, got %q", a.Modal())
 	}

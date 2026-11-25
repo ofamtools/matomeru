@@ -100,12 +100,12 @@ func TestOutlineReorderIndentOutdentStatusAndUndo(t *testing.T) {
 		t.Fatalf("after undo >: %s", got)
 	}
 
-	// space cycles workStatus: todo -> active -> blocked -> done -> todo.
+	// s cycles workStatus: todo -> active -> blocked -> done -> todo.
 	for _, want := range []string{"active", "blocked", "done", "todo"} {
-		d.Keys("space")
+		d.Keys("s")
 		rec, _ := store.Get(t2.Ref())
 		if got := rec.Text("workStatus"); got != want {
-			t.Fatalf("workStatus after space = %q, want %q", got, want)
+			t.Fatalf("workStatus after s = %q, want %q", got, want)
 		}
 	}
 	// Undo brings workStatus back from todo to done.

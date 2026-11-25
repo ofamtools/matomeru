@@ -18,8 +18,19 @@ type historyEntry struct {
 	focus string // focus to restore when coming back to this page
 }
 
+type jumpEntry struct {
+	page       string
+	focus      string
+	ref        core.Ref // non-empty when showing a Work Show page
+	histPos    int      // -1 when not on a Work Show page
+	browseKind string
+}
+
+const maxJumpHistory = 100
+
 // NavController owns tables, presets, archived visibility, browsing state,
-// Work history, focus tracking, filtering, command line, registers, and macros.
+// Work history, global jump history, focus tracking, filtering, command line,
+// registers, and macros.
 type NavController struct {
 	tables       map[string]*table.Model
 	recCacheKeys map[string]string
@@ -30,6 +41,9 @@ type NavController struct {
 	browseKind   string
 	history      []historyEntry
 	histPos      int
+	jumps        []jumpEntry
+	jumpPos      int
+	jumping      bool
 	indexFocus   string
 	lastFocus    map[string]string
 	focusRegion  string
@@ -50,6 +64,7 @@ func newNavController() *NavController {
 		activePreset: map[string]string{},
 		lastFocus:    map[string]string{},
 		histPos:      -1,
+		jumpPos:      -1,
 		indexFocus:   workTable,
 	}
 }
@@ -58,7 +73,7 @@ func newNavController() *NavController {
 
 // regionRoots are the nodes whose focusable descendants form one column: h
 // and l move between regions, j and k walk every focusable in drawing order.
-var regionRoots = []string{"panes.rail", "project.overview", "site.toc", "site.content", "site.side.panel", showHeader, "show.props", "show.related",
+var regionRoots = []string{"panes.rail", "project.nav", "project.content", "project.overview", "site.toc", "site.content", "site.side.panel", showHeader, "show.props", "show.related",
 	SpaceWork, SpaceRuns, SpaceExtensions, "runs.detail", "extensions.detail"}
 
 type fnode struct{ id, region string }
@@ -279,12 +294,23 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 	focus := s.ActiveFrame().FocusID
 	if focus == workTable && a.inWorkTree(s) && c.ID != "motion.left" && c.ID != "motion.right" {
 		a.workTreeMove(c)
+		a.syncVisualStatus(s)
+		return core.Next(s)
+	}
+	if a.inProjectOutlineTree(&s) && c.ID != "motion.left" && c.ID != "motion.right" {
+		a.projectOutlineTreeMove(s, c)
+		a.syncVisualStatus(s)
+		return core.Next(s)
+	}
+	if c.ID != "motion.left" && c.ID != "motion.right" && a.handleProjectTreeMotion(s, c) {
+		a.syncVisualStatus(s)
 		return core.Next(s)
 	}
 	if tbl := a.nav.tables[focus]; tbl != nil && c.ID != "motion.left" && c.ID != "motion.right" {
 		before := tbl.SelectedIdx
 		tbl.HandleCommand(c)
 		if tbl.SelectedIdx != before || (c.ID != "motion.down" && c.ID != "motion.up") || !spill {
+			a.syncVisualStatus(s)
 			return core.Next(s)
 		}
 		// At the list's edge with nav.edgeFocusSpill=true, spill into the next thing drawn.
@@ -303,8 +329,14 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 	case "motion.page.up":
 		s = a.stepBounded(s, -10*c.Times(), spill)
 	case "motion.right":
+		if next, handled := a.smartGroupHL(s, 1); handled {
+			return core.Next(next)
+		}
 		s = a.column(s, 1)
 	case "motion.left":
+		if next, handled := a.smartGroupHL(s, -1); handled {
+			return core.Next(next)
+		}
 		s = a.column(s, -1)
 	case "motion.top":
 		s = a.edge(s, false)
@@ -325,13 +357,63 @@ func (a *App) dropModals(s core.State) core.State {
 	return s
 }
 
+func sameJumpLocation(a, b jumpEntry) bool {
+	if a.page != b.page || a.ref != b.ref {
+		return false
+	}
+	if a.page == SpaceWork && a.ref.ID == "" {
+		return a.browseKind == b.browseKind
+	}
+	return true
+}
+
+func (a *App) currentJump(s core.State) jumpEntry {
+	page := s.ActivePage
+	focus := s.Pages[page].FocusID
+	var ref core.Ref
+	histPos := -1
+	if page == SpaceWork {
+		if r, ok := a.Showing(); ok {
+			ref = r
+			histPos = a.nav.histPos
+		}
+	}
+	return jumpEntry{
+		page:       page,
+		focus:      focus,
+		ref:        ref,
+		histPos:    histPos,
+		browseKind: a.nav.browseKind,
+	}
+}
+
+func (a *App) recordJump(from, to jumpEntry) {
+	if a.nav == nil || a.nav.jumping || sameJumpLocation(from, to) {
+		return
+	}
+	if len(a.nav.jumps) == 0 || a.nav.jumpPos < 0 || a.nav.jumpPos >= len(a.nav.jumps) {
+		a.nav.jumps = []jumpEntry{from, to}
+		a.nav.jumpPos = 1
+		return
+	}
+	a.nav.jumps[a.nav.jumpPos].focus = from.focus
+	a.nav.jumps = append(a.nav.jumps[:a.nav.jumpPos+1], to)
+	if len(a.nav.jumps) > maxJumpHistory {
+		drop := len(a.nav.jumps) - maxJumpHistory
+		a.nav.jumps = slices.Clone(a.nav.jumps[drop:])
+	}
+	a.nav.jumpPos = len(a.nav.jumps) - 1
+}
+
 func (a *App) openSpace(s core.State, id string) core.State {
 	if !slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == id }) {
 		a.say("no space %q", id)
 		return s
 	}
+	from := a.currentJump(s)
 	s = a.dropModals(s)
 	s.ActivePage = id
+	a.recordJump(from, a.currentJump(s))
 	return s
 }
 
@@ -367,6 +449,7 @@ func (a *App) show(s core.State, ref core.Ref) core.State {
 		a.fail("open "+data.RefText(ref), err)
 		return s
 	}
+	from := a.currentJump(s)
 	s = a.dropModals(s)
 	if cur, ok := a.Showing(); !ok || cur != ref {
 		a.leave(s)
@@ -375,7 +458,93 @@ func (a *App) show(s core.State, ref core.Ref) core.State {
 	}
 	s.ActivePage = SpaceWork
 	a.say("%s", a.title(ref))
-	return a.arrive(s)
+	next := a.arrive(s)
+	a.recordJump(from, a.currentJump(next))
+	return next
+}
+
+func (a *App) historyTravel(s core.State, c core.Command, delta int) core.StepResult {
+	if c.Arg("scope") == "work" {
+		return core.Next(a.travel(s, delta))
+	}
+	return core.Next(a.jumpTravel(s, delta))
+}
+
+func (a *App) jumpTravel(s core.State, delta int) core.State {
+	if len(a.nav.jumps) == 0 || a.nav.jumpPos < 0 {
+		if s.ActivePage == SpaceWork {
+			return a.travel(s, delta)
+		}
+		if delta < 0 {
+			a.say("this is the first page")
+		} else {
+			a.say("nothing to go forward to")
+		}
+		return s
+	}
+	to := a.nav.jumpPos + delta
+	if to < 0 || to >= len(a.nav.jumps) {
+		if delta < 0 {
+			a.say("this is the first page")
+		} else {
+			a.say("nothing to go forward to")
+		}
+		return s
+	}
+	a.nav.jumps[a.nav.jumpPos].focus = s.Pages[s.ActivePage].FocusID
+	if s.ActivePage == SpaceWork {
+		a.leave(s)
+	}
+	a.nav.jumpPos = to
+	entry := a.nav.jumps[to]
+
+	a.nav.jumping = true
+	defer func() { a.nav.jumping = false }()
+
+	s = a.dropModals(s)
+	s.ActivePage = entry.page
+	if entry.page == SpaceWork {
+		if entry.ref.ID != "" {
+			if entry.histPos >= 0 && entry.histPos < len(a.nav.history) && a.nav.history[entry.histPos].ref == entry.ref {
+				a.nav.histPos = entry.histPos
+			} else if idx := slices.IndexFunc(a.nav.history, func(h historyEntry) bool { return h.ref == entry.ref }); idx >= 0 {
+				a.nav.histPos = idx
+			} else {
+				a.nav.history = append(a.nav.history, historyEntry{ref: entry.ref, focus: showHeader})
+				a.nav.histPos = len(a.nav.history) - 1
+			}
+			focus := entry.focus
+			if focus == "" {
+				focus = showHeader
+			}
+			a.nav.history[a.nav.histPos].focus = focus
+			a.say("%s", a.title(entry.ref))
+			return withPage(s, SpaceWork, focus, ModeNormal)
+		}
+		a.nav.histPos = -1
+		if entry.browseKind != a.nav.browseKind {
+			a.nav.browseKind = entry.browseKind
+			delete(a.nav.tables, workTable)
+			a.setActivePreset(workTable, "")
+		}
+		focus := entry.focus
+		if focus == "" {
+			focus = workTable
+		}
+		a.nav.indexFocus = focus
+		a.say("%s", strings.ToLower(a.schema(a.workKind()).Plural))
+		return withPage(s, SpaceWork, focus, ModeNormal)
+	}
+	focus := entry.focus
+	if focus == "" {
+		focus = a.defaultFocus(s)
+	}
+	mode := s.Pages[entry.page].Mode
+	if mode == "" {
+		mode = ModeNormal
+	}
+	a.say("%s", entry.page)
+	return withPage(s, entry.page, focus, mode)
 }
 
 func (a *App) travel(s core.State, delta int) core.State {

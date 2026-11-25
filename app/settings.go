@@ -172,6 +172,12 @@ const (
 	SetTasksShowNoteIndicators       = "tasks.showNoteIndicators"
 	SetTasksInlineNoteThreads        = "tasks.inlineNoteThreads"
 	SetTasksLockThreadEdits          = "tasks.lockThreadEdits"
+	SetProjectWorkspaceInPanes       = "project.workspaceInPanes"
+	SetProjectOutlineAsPage          = "project.outlineAsPage"
+	SetProjectNavSections            = "project.navSections"
+	SetContextAutoInject             = "context.autoInjectProjectContext"
+	SetEnterOpensShow                = "ui.enterOpensShow"
+	SetTreeHLFolds                   = "tree.hlFolds"
 	FocusHintsInline                 = "inline"
 	FocusHintsOverlay                = "overlay"
 	FocusHintsBoth                   = "both"
@@ -247,7 +253,7 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetWorkTasksLayout, WorkTasksLayoutTree, "how tasks are displayed in 2 Work (tree or table)", WorkTasksLayoutTree, WorkTasksLayoutTable),
 		enum(SetWorkHierarchyLayout, WorkHierarchyLayoutAuto, "how hierarchical nouns are displayed in 2 Work (auto, tree, or table)", WorkHierarchyLayoutAuto, WorkHierarchyLayoutTree, WorkHierarchyLayoutTable),
 		enum(SetPickerDefaultMode, PickerDefaultModeNormal, "initial mode when opening pickers (normal, all-normal, or filter)", PickerDefaultModeNormal, PickerDefaultModeAllNormal, PickerDefaultModeFilter),
-		flag(SetViewCycle, true, "cycle focused component views, layouts, density, and saved presets with V (normal) / alt+v (insert)"),
+		flag(SetViewCycle, true, "cycle focused component views, layouts, density, and saved presets with ( / ) (normal) / alt+v (insert)"),
 		flag(SetFormReactiveFields, true, "evaluate reactive VisibleWhen predicates in forms (false shows all fields)"),
 		flag(SetSessionRecord, true, "record session events into a bounded in-memory ring buffer"),
 		flag(SetSessionPromptSaveOnExit, false, "prompt to save the session recording before quitting"),
@@ -287,6 +293,12 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetTasksShowNoteIndicators, true, "show note-count, unread-agent-note, and attachment indicators on task tree rows"),
 		flag(SetTasksInlineNoteThreads, true, "allow expanding note threads inline beneath task rows"),
 		flag(SetTasksLockThreadEdits, false, "enforce append-only conversation lock on thread notes and tasks with active note threads"),
+		flag(SetProjectWorkspaceInPanes, true, "show the full Project Page workspace with left nav on project headers and P"),
+		flag(SetProjectOutlineAsPage, true, "render the Project Page Tasks section as an embedded outline todo page"),
+		{Name: SetProjectNavSections, Type: core.ParamString, Default: "", Description: "comma-separated override list of Project Page left-nav sections (blank shows all 14)"},
+		flag(SetContextAutoInject, true, "automatically include curated official project context in prompts and agent task dispatch"),
+		flag(SetEnterOpensShow, false, "pressing enter on plain lists and tables opens the record's Show page (E always opens Show)"),
+		flag(SetTreeHLFolds, true, "use h/l to smart-fold/unfold trees, outlines, and grouped headers (spilling to regions at the edge)"),
 	}
 }
 
@@ -487,6 +499,20 @@ func (a *App) wrapInputs() bool {
 		return true
 	}
 	return a.cfg.Settings.Bool(SetWrapInputs, true)
+}
+
+func (a *App) enterOpensShow() bool {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return false
+	}
+	return a.cfg.Settings.Bool(SetEnterOpensShow, false)
+}
+
+func (a *App) treeHLFolds() bool {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return true
+	}
+	return a.cfg.Settings.Bool(SetTreeHLFolds, true)
 }
 
 func (a *App) settingsOpen(s core.State, _ core.Command) core.StepResult {

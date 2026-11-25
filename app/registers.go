@@ -181,11 +181,12 @@ func PrimaryYank(schema data.Schema, rec data.Record) YankValue {
 // yankPick opens the yank picker over the focused record: one row per
 // value, each showing exactly what it copies.
 func (a *App) yankPick(s core.State, c core.Command) core.StepResult {
-	ref, ok := a.subject(s, c)
-	if !ok {
+	refs, fromSel := a.targetRefs(s, c)
+	if len(refs) == 0 {
 		a.say("nothing here to yank")
 		return core.Next(s)
 	}
+	ref := refs[0]
 	rec, err := a.Store.Get(ref)
 	if err != nil {
 		a.fail("yank", err)
@@ -211,7 +212,8 @@ func (a *App) yankPick(s core.State, c core.Command) core.StepResult {
 		text, _ := it.Data.(string)
 		return &ui.ViewNode{ID: "yank.preview.text", Kind: ui.KindText, Props: map[string]any{"text": text}}
 	}
-	yankTarget := ref
+	yankTargets := slices.Clone(refs)
+	yankFromSel := fromSel
 	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "yank",
 		PageSize: 10,
@@ -224,37 +226,64 @@ func (a *App) yankPick(s core.State, c core.Command) core.StepResult {
 			if cmd.ID != CmdYankPrimary {
 				return modal.Result{}, false
 			}
-			rec, err := a.Store.Get(yankTarget)
-			if err != nil {
-				a.fail("yank", err)
-				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}, true
+			a.yankPrimaryRefs(yankTargets)
+			if yankFromSel {
+				a.afterModal(func(st core.State) core.State {
+					a.clearActiveVisual(st)
+					return st
+				})
 			}
-			v := PrimaryYank(a.schema(yankTarget.Kind), *rec)
-			a.yank(v.Text, v.Name)
 			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}, true
 		},
 	})
 	return core.Next(a.pushModal(s, m))
 }
 
+func (a *App) yankPrimaryRefs(refs []core.Ref) {
+	if len(refs) == 0 {
+		a.say("nothing here to yank")
+		return
+	}
+	if len(refs) == 1 {
+		rec, err := a.Store.Get(refs[0])
+		if err != nil {
+			a.fail("yank", err)
+			return
+		}
+		v := PrimaryYank(a.schema(refs[0].Kind), *rec)
+		a.yank(v.Text, v.Name)
+		return
+	}
+	vals := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		rec, err := a.Store.Get(ref)
+		if err != nil {
+			continue
+		}
+		vals = append(vals, PrimaryYank(a.schema(ref.Kind), *rec).Text)
+	}
+	if len(vals) == 0 {
+		a.say("nothing here to yank")
+		return
+	}
+	a.yank(strings.Join(vals, "\n"), fmt.Sprintf("%d items", len(vals)))
+}
+
 // yankPrimary copies the primary value of the record the yank picker is
-// open on, or of the focused record, without a picker.
+// open on, or of the focused/selected record(s), without a picker.
 func (a *App) yankPrimary(s core.State, c core.Command) core.StepResult {
 	if a.Modal() == "yank" {
 		return a.handleModal(s, c)
 	}
-	ref, ok := a.subject(s, c)
-	if !ok {
+	refs, fromSel := a.targetRefs(s, c)
+	if len(refs) == 0 {
 		a.say("nothing here to yank")
 		return core.Next(s)
 	}
-	rec, err := a.Store.Get(ref)
-	if err != nil {
-		a.fail("yank", err)
-		return core.Next(s)
+	if fromSel {
+		a.clearActiveVisual(s)
 	}
-	v := PrimaryYank(a.schema(ref.Kind), *rec)
-	a.yank(v.Text, v.Name)
+	a.yankPrimaryRefs(refs)
 	return core.Next(s)
 }
 

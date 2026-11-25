@@ -245,7 +245,7 @@ func RunTutorialSmoke(out io.Writer) error {
 	k.Keys("2")
 	k.Keys("H")
 	k.check("Work lists the projects", a.Focus() == workTable && k.has("Learn Matomeru", "Sandbox project"))
-	k.Keys("enter")
+	k.Keys("E")
 	k.check("the project's page has one subtask per step", k.has("Subtasks", "1. Move between the four spaces") && len(TutorialSteps()) >= 10)
 	k.Keys("g", "n")
 	k.check("g n lists every noun", a.Modal() == "nouns" && k.has("Tasks", "Lanes", "Notes", "Runs"))

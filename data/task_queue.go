@@ -22,21 +22,25 @@ const (
 // AgentQueueFilter selects which agent-flagged tasks QueryAgentQueue returns
 // and which linked data it hydrates.
 type AgentQueueFilter struct {
-	ProjectID      string
-	Status         string // "", "queued", "working", "needs_you", "done", "open", "all"
-	IncludeSubtree bool
-	IncludeNotes   bool
-	IncludeContext bool
+	ProjectID             string
+	Status                string // "", "queued", "working", "needs_you", "done", "open", "all"
+	IncludeSubtree        bool
+	IncludeNotes          bool
+	IncludeContext        bool
+	IncludeProjectContext *bool
+	ContextIDs            []string
 }
 
 // AgentQueueItem is one hydrated task ready for agent pickup or inspection.
 type AgentQueueItem struct {
-	Task         Record       `json:"task"`
-	ProjectTitle string       `json:"projectTitle,omitempty"`
-	AncestorPath []string     `json:"ancestorPath,omitempty"`
-	Notes        []Record     `json:"notes,omitempty"`
-	Context      []Record     `json:"context,omitempty"`
-	Attachments  []Attachment `json:"attachments,omitempty"`
+	Task           Record       `json:"task"`
+	ProjectID      string       `json:"projectId,omitempty"`
+	ProjectTitle   string       `json:"projectTitle,omitempty"`
+	AncestorPath   []string     `json:"ancestorPath,omitempty"`
+	Notes          []Record     `json:"notes,omitempty"`
+	Context        []Record     `json:"context,omitempty"`
+	ProjectContext []Record     `json:"projectContext,omitempty"`
+	Attachments    []Attachment `json:"attachments,omitempty"`
 }
 
 // AppendTaskNoteInput describes an append-only note added to a task's thread.
@@ -168,12 +172,16 @@ func (s *Store) QueryAgentQueue(filter AgentQueueFilter) ([]AgentQueueItem, erro
 
 	slices.SortStableFunc(matched, compareAgentQueueTasks)
 
+	wantProjectCtx := filter.IncludeContext || filter.IncludeProjectContext != nil || len(filter.ContextIDs) > 0
+	projectCtxCache := map[string][]Record{}
+
 	out := make([]AgentQueueItem, 0, len(matched))
 	for _, rec := range matched {
-		projTitle, ancPath := taskLineage(rec, byID)
+		rootProjID, projTitle, ancPath := taskLineage(rec, byID)
 		notes := threads[rec.ID]
 		item := AgentQueueItem{
 			Task:         rec,
+			ProjectID:    rootProjID,
 			ProjectTitle: projTitle,
 			AncestorPath: ancPath,
 			Attachments:  mergeTaskAttachments(rec, notes),
@@ -190,6 +198,23 @@ func (s *Store) QueryAgentQueue(filter AgentQueueFilter) ([]AgentQueueItem, erro
 				if !cr.IsArchived() {
 					item.Context = append(item.Context, cr)
 				}
+			}
+		}
+		if wantProjectCtx {
+			projCtx, cached := projectCtxCache[rootProjID]
+			if !cached {
+				var err error
+				projCtx, err = s.ResolveProjectContextBundle(rootProjID, ProjectContextOverrides{
+					IncludeProjectContext: filter.IncludeProjectContext,
+					ContextIDs:            filter.ContextIDs,
+				})
+				if err != nil {
+					return nil, err
+				}
+				projectCtxCache[rootProjID] = projCtx
+			}
+			if len(projCtx) > 0 {
+				item.ProjectContext = slices.Clone(projCtx)
 			}
 		}
 		out = append(out, item)
@@ -258,7 +283,7 @@ func taskInProject(rec Record, byID map[string]Record, projectID string, include
 	return false
 }
 
-func taskLineage(rec Record, byID map[string]Record) (projectTitle string, ancestorPath []string) {
+func taskLineage(rec Record, byID map[string]Record) (projectID, projectTitle string, ancestorPath []string) {
 	var rev []Record
 	visited := map[string]bool{rec.ID: true}
 	cur := rec
@@ -276,7 +301,7 @@ func taskLineage(rec Record, byID map[string]Record) (projectTitle string, ances
 		cur = p
 	}
 	if len(rev) == 0 {
-		return rec.Text("title"), nil
+		return rec.ID, rec.Text("title"), nil
 	}
 	slices.Reverse(rev)
 	ancestorPath = make([]string, 0, len(rev))
@@ -285,8 +310,9 @@ func taskLineage(rec Record, byID map[string]Record) (projectTitle string, ances
 			ancestorPath = append(ancestorPath, title)
 		}
 	}
+	projectID = rev[0].ID
 	projectTitle = strings.TrimSpace(rev[0].Text("title"))
-	return projectTitle, ancestorPath
+	return projectID, projectTitle, ancestorPath
 }
 
 func priorityRank(p string) int {
@@ -553,6 +579,23 @@ func (s *Store) MarkTaskNotesRead(taskID string, readAt time.Time, actor core.Ac
 func FormatAgentQueuePrompt(items []AgentQueueItem, extraPrompt string) string {
 	var b strings.Builder
 	b.WriteString("# Agent Task Queue\n")
+
+	projectCtxSeen := map[string]bool{}
+	var allProjectCtx []Record
+	for _, item := range items {
+		for _, pc := range item.ProjectContext {
+			if pc.ID == "" || projectCtxSeen[pc.ID] {
+				continue
+			}
+			projectCtxSeen[pc.ID] = true
+			allProjectCtx = append(allProjectCtx, pc)
+		}
+	}
+	if block := FormatProjectContextMarkdown(allProjectCtx); block != "" {
+		b.WriteString("\n")
+		b.WriteString(block)
+	}
+
 	if extra := strings.TrimSpace(extraPrompt); extra != "" {
 		b.WriteString("\n")
 		b.WriteString(extra)
@@ -632,16 +675,25 @@ func FormatAgentQueuePrompt(items []AgentQueueItem, extraPrompt string) string {
 		}
 
 		if len(item.Context) > 0 {
-			b.WriteString("\n### Context\n")
+			var perTaskCtx []Record
 			for _, ctx := range item.Context {
-				ctitle := strings.TrimSpace(ctx.Text("title"))
-				cval := strings.TrimSpace(ctx.Text("value"))
-				if ctitle != "" && cval != "" && ctitle != cval {
-					fmt.Fprintf(&b, "- %s: %s\n", ctitle, cval)
-				} else if cval != "" {
-					fmt.Fprintf(&b, "- %s\n", cval)
-				} else if ctitle != "" {
-					fmt.Fprintf(&b, "- %s\n", ctitle)
+				if projectCtxSeen[ctx.ID] {
+					continue
+				}
+				perTaskCtx = append(perTaskCtx, ctx)
+			}
+			if len(perTaskCtx) > 0 {
+				b.WriteString("\n### Context\n")
+				for _, ctx := range perTaskCtx {
+					ctitle := strings.TrimSpace(ctx.Text("title"))
+					cval := strings.TrimSpace(ctx.Text("value"))
+					if ctitle != "" && cval != "" && ctitle != cval {
+						fmt.Fprintf(&b, "- %s: %s\n", ctitle, cval)
+					} else if cval != "" {
+						fmt.Fprintf(&b, "- %s\n", cval)
+					} else if ctitle != "" {
+						fmt.Fprintf(&b, "- %s\n", ctitle)
+					}
 				}
 			}
 		}

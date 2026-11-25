@@ -691,13 +691,13 @@ func TestWaveD2WorkTasksTreeLayoutAndOutlineAddFold(t *testing.T) {
 	}
 	d.Keys("esc")
 
-	// `space` cycles status on focused task in Work tree.
+	// `s` cycles status on focused task in Work tree.
 	curID := a.trees.workModel(data.KindTask).SelectedID
 	beforeRec, _ := a.Store.Get(core.Ref{Kind: data.KindTask, ID: curID})
-	d.Keys("space")
+	d.Keys("s")
 	afterRec, _ := a.Store.Get(core.Ref{Kind: data.KindTask, ID: curID})
 	if afterRec.Text("workStatus") == beforeRec.Text("workStatus") {
-		t.Fatalf("space did not cycle workStatus in tree (still %q)", afterRec.Text("workStatus"))
+		t.Fatalf("s did not cycle workStatus in tree (still %q)", afterRec.Text("workStatus"))
 	}
 
 	// Wire o, O, and z a in T Outline too!

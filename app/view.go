@@ -98,6 +98,11 @@ func (a *App) viewKey(s core.State) string {
 				b.WriteString("|side:" + sideID)
 			}
 		}
+		if a.proj != nil && a.proj.activeProjectKey != "" {
+			sec := a.proj.activeSection(a.proj.activeProjectKey)
+			openPg := a.proj.openPageID(a.proj.activeProjectKey)
+			fmt.Fprintf(&b, "|proj:%s:%s:%s", a.proj.activeProjectKey, sec, openPg)
+		}
 	}
 	return b.String()
 }
@@ -118,7 +123,12 @@ func (a *App) build(s core.State) ui.ViewNode {
 		}
 		tabs.Children = append(tabs.Children, tab)
 	}
-	root := ui.ViewNode{ID: "root", Kind: ui.KindVStack, Children: []ui.ViewNode{tabs}}
+	root := ui.ViewNode{
+		ID:       "root",
+		Kind:     ui.KindVStack,
+		Facts:    map[string]any{"enterOpensShow": a.enterOpensShow(), "hlFolds": a.treeHLFolds()},
+		Children: []ui.ViewNode{tabs},
+	}
 	var overlays []ui.ViewNode
 	for i, m := range s.Modals {
 		ov := a.modal(m)

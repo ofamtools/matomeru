@@ -72,7 +72,9 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetFocusHintsStyle: FocusHintsInline, SetFocusHintsDrilldown: true,
 		SetComposerCompact: true, SetComposerWrap: true,
 		SetArchiveAnimation: true, SetArchiveAnimationMs: 2500,
-		SetTasksShowNoteIndicators: true, SetTasksInlineNoteThreads: true, SetTasksLockThreadEdits: false}
+		SetTasksShowNoteIndicators: true, SetTasksInlineNoteThreads: true, SetTasksLockThreadEdits: false,
+		SetProjectWorkspaceInPanes: true, SetProjectOutlineAsPage: true, SetProjectNavSections: "", SetContextAutoInject: true,
+		SetEnterOpensShow: false, SetTreeHLFolds: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -123,7 +125,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		t.Fatalf("match mode of the open table = %q", a.nav.tables[workTable].MatchMode)
 	}
 	// Show and Edit follow their settings.
-	d.Keys("enter")
+	d.Keys("E")
 	if !strings.Contains(d.Frame(), "Revision") || !strings.Contains(d.Frame(), "Lanes") {
 		t.Fatalf("show page before:\n%s", d.Frame())
 	}
@@ -208,32 +210,32 @@ func TestBindingEditor(t *testing.T) {
 	if a.Modal() != "bindings" || a.Mode() != ModeBindings || len(a.bind.bindEd.Filtered()) != len(DefaultBindings()) {
 		t.Fatalf("B: modal %q mode %s", a.Modal(), a.Mode())
 	}
-	filter("key:Z verb:record", 2)            // snooze and unsnooze
-	filter("mode:terminal-leader key:d", 1)   // detach
-	filter("verb:record.star mode:normal", 1) // one binding
+	filter("key:Z verb:record", 2)                  // snooze and unsnooze
+	filter("mode:terminal-leader key:d", 1)         // detach
+	filter("verb:record.star mode:normal key:m", 1) // one primary binding
 	if frame := d.Frame(); !strings.Contains(frame, "same-key-diff-when") {
-		t.Fatalf("the conflict note of s is not shown:\n%s", frame)
+		t.Fatalf("the conflict note of m is not shown:\n%s", frame)
 	}
-	filter("conflict:same-key-diff-when key:s verb:record", 2)
-	filter("verb:record.star", 1)
+	filter("conflict:same-key-diff-when key:m verb:record", 2)
+	filter("verb:record.star key:m", 1)
 
 	// Rebind to a two-key sequence.
 	d.Keys("r", "g", "x", "enter")
 	if rows := saved(); len(rows) != 2 || !slices.Equal(rows[0].Keys, []string{"g", "x"}) || rows[0].Command != views.CmdStar ||
-		!rows[1].Unbind || !slices.Equal(rows[1].Keys, []string{"s"}) || rows[1].When != rows[0].When {
+		!rows[1].Unbind || !slices.Equal(rows[1].Keys, []string{"m"}) || rows[1].When != rows[0].When {
 		t.Fatalf("bindings.json after the rebind = %+v", rows)
 	}
-	d.Keys("esc", "esc", "s")
+	d.Keys("esc", "esc", "m")
 	if starred() {
-		t.Fatal("s still stars after it was moved")
+		t.Fatal("m still stars after it was moved")
 	}
 	d.Keys("g", "x")
 	if !starred() {
 		t.Fatal("g x does not star")
 	}
-	d.Keys("s") // unstar is another binding and still on s
+	d.Keys("m") // unstar is another binding and still on m
 	if starred() {
-		t.Fatal("s no longer unstars")
+		t.Fatal("m no longer unstars")
 	}
 	// The next start reads the overrides.
 	b, bd := configured(t, dir)
@@ -244,7 +246,7 @@ func TestBindingEditor(t *testing.T) {
 
 	// Reset puts it back; esc during a rebind leaves it alone.
 	d.Keys("B")
-	filter("verb:record.star", 1)
+	filter("verb:record.star key:g", 1)
 	d.Keys("r", "Q", "esc")
 	if a.Mode() != ModeBindings || len(saved()) != 2 {
 		t.Fatalf("esc in a rebind changed something (mode %s)", a.Mode())
@@ -254,13 +256,14 @@ func TestBindingEditor(t *testing.T) {
 		t.Fatalf("after reset bindings.json = %+v", rows)
 	}
 	// Unbind, undo, redo.
+	filter("verb:record.star key:m", 1)
 	d.Keys("x")
 	if rows := saved(); len(rows) != 1 || !rows[0].Unbind || rows[0].Command != views.CmdStar {
 		t.Fatalf("after unbind bindings.json = %+v", rows)
 	}
-	d.Keys("esc", "esc", "s")
+	d.Keys("esc", "esc", "m")
 	if starred() {
-		t.Fatal("the unbound s still stars")
+		t.Fatal("the unbound m still stars")
 	}
 	d.Keys("B", "u")
 	if len(saved()) != 0 {
@@ -270,9 +273,9 @@ func TestBindingEditor(t *testing.T) {
 	if len(saved()) != 1 {
 		t.Fatal("ctrl+r did not unbind again")
 	}
-	d.Keys("u", "esc", "esc", "s")
+	d.Keys("u", "esc", "esc", "m")
 	if !starred() || a.Modal() != "" {
-		t.Fatal("s does not star after the undo")
+		t.Fatal("m does not star after the undo")
 	}
 	if got := bindingOverrides(DefaultBindings(), DefaultBindings(), 0); len(got) != 0 {
 		t.Fatalf("an untouched keymap has %d overrides", len(got))
@@ -393,9 +396,9 @@ func TestAssign(t *testing.T) {
 	tier := titled(t, a, data.KindTask, "Tier 1: core, ui, tea")
 	d.Keys("2", "/")
 	d.Type("Tier 1:")
-	d.Keys("enter", "m")
+	d.Keys("enter", "g", "m")
 	if a.Modal() != "assign" {
-		t.Fatalf("m: modal %q, status %q", a.Modal(), a.Status())
+		t.Fatalf("g m: modal %q, status %q", a.Modal(), a.Status())
 	}
 	var offered []string
 	for _, it := range a.activePicker("assign").Model().Items {
@@ -403,7 +406,7 @@ func TestAssign(t *testing.T) {
 	}
 	if offered[0] != "(None / root)" || slices.Contains(offered, "Tier 1: core, ui, tea") || slices.Contains(offered, "Leader layer falls through to normal") ||
 		!slices.Contains(offered, "matomeru-v2") {
-		t.Fatalf("m offers %v", offered)
+		t.Fatalf("g m offers %v", offered)
 	}
 	d.Keys("enter") // (None / root)
 	if rec, _ := a.Store.Get(tier.Ref()); rec.Text("parent") != "" {
@@ -415,7 +418,7 @@ func TestAssign(t *testing.T) {
 	}
 	// A run: its task changes.
 	run := titled(t, a, data.KindRun, "gate: data")
-	d.Keys("esc", "3", "g", "g", "m", "/")
+	d.Keys("esc", "3", "g", "g", "g", "m", "/")
 	d.Type("ochazuke-v2")
 	d.Keys("enter")
 	got, _ := a.Store.Get(run.Ref())
@@ -426,11 +429,11 @@ func TestAssign(t *testing.T) {
 	for _, kind := range []string{data.KindPane, data.KindNote, data.KindDocument, data.KindSchedule, data.KindLane} {
 		d.Keys("g", "n", "/")
 		d.Type(kind)
-		d.Keys("enter", "m")
+		d.Keys("enter", "g", "m")
 		if pm := a.activePicker("assign"); a.Modal() != "assign" || pm == nil || len(pm.Model().Items) == 0 || pm.Model().Items[0].Subtitle != "no task" {
-			t.Fatalf("m on a %s: modal %q picker %v", kind, a.Modal(), pm)
+			t.Fatalf("g m on a %s: modal %q picker %v", kind, a.Modal(), pm)
 		}
-		d.Keys("esc")
+		d.Keys("esc", "esc")
 	}
 }
 

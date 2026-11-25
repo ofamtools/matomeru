@@ -153,10 +153,10 @@ func TestTaskTreeNoteIndicatorsInlineThreadsAndOptOuts(t *testing.T) {
 	a.reloadSettings()
 	a.applySettings()
 
-	d.Keys("enter")
+	d.Keys("E")
 	showingRef, isShowing := a.Showing()
 	if !isShowing || showingRef != n1.Ref() {
-		t.Fatalf("enter on inline thread note did not open note Show page: showing=%v ref=%+v", isShowing, showingRef)
+		t.Fatalf("E on inline thread note did not open note Show page: showing=%v ref=%+v", isShowing, showingRef)
 	}
 
 	// Return to Work tree, collapse with `t`, and verify `z o` / `z a` toggles thread on leaf task with notes.
@@ -174,13 +174,13 @@ func TestTaskTreeNoteIndicatorsInlineThreadsAndOptOuts(t *testing.T) {
 		t.Fatal("z a on leaf task with expanded thread should collapse its inline note thread")
 	}
 
-	// 5. Verify Outline modal (`T`) also supports `t` expand and `enter` on inline thread note.
-	d.Keys("T", "t", "j", "enter")
+	// 5. Verify Outline modal (`T`) also supports `t` expand and `E` on inline thread note.
+	d.Keys("T", "t", "j", "E")
 	if a.Modal() != "" {
-		t.Fatalf("enter on outline thread note should close outline modal: modal=%q", a.Modal())
+		t.Fatalf("E on outline thread note should close outline modal: modal=%q", a.Modal())
 	}
 	if showRef, ok := a.Showing(); !ok || showRef != n1.Ref() {
-		t.Fatalf("enter on outline thread note did not open note Show page: ok=%v ref=%+v", ok, showRef)
+		t.Fatalf("E on outline thread note did not open note Show page: ok=%v ref=%+v", ok, showRef)
 	}
 
 	// 6. Opt-out tasks.inlineNoteThreads=false disables thread expansion.

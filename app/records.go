@@ -32,49 +32,168 @@ func (a *App) wrote(what string, cs *data.ChangeSet, err error) {
 	}
 }
 
+func batchPastTense(what string) string {
+	switch what {
+	case "star":
+		return "starred"
+	case "unstar":
+		return "unstarred"
+	case "snooze":
+		return "snoozed"
+	case "unsnooze":
+		return "unsnoozed"
+	case "archive":
+		return "archived"
+	case "restore":
+		return "restored"
+	default:
+		return what
+	}
+}
+
 func (a *App) onRecord(what string, do func(core.Ref, core.Actor) (*data.Record, *data.ChangeSet, error)) func(core.State, core.Command) core.StepResult {
 	return func(s core.State, c core.Command) core.StepResult {
-		ref, ok := a.subject(s, c)
-		if !ok {
+		refs, fromSel := a.targetRefs(s, c)
+		if len(refs) == 0 {
 			a.say("nothing here to %s", what)
 			return core.Next(s)
 		}
-		_ = a.ensureShadow(ref)
-		_, cs, err := do(ref, User)
-		a.wrote(what+" "+a.title(ref), cs, err)
+		if fromSel {
+			a.clearActiveVisual(s)
+		}
+		if len(refs) == 1 {
+			ref := refs[0]
+			_ = a.ensureShadow(ref)
+			_, cs, err := do(ref, User)
+			a.wrote(what+" "+a.title(ref), cs, err)
+			return core.Next(s)
+		}
+		changed := 0
+		var firstErr error
+		for _, ref := range refs {
+			_ = a.ensureShadow(ref)
+			_, cs, err := do(ref, User)
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+			if cs != nil {
+				changed++
+			}
+		}
+		if changed == 0 && firstErr != nil {
+			a.fail(what, firstErr)
+			return core.Next(s)
+		}
+		if changed == 0 {
+			a.say("%s: nothing changed", what)
+			return core.Next(s)
+		}
+		a.say("%s %d items · u undoes", batchPastTense(what), changed)
 		return core.Next(s)
 	}
 }
 
 func (a *App) archiveRecord(s core.State, c core.Command) core.StepResult {
-	ref, ok := a.subject(s, c)
-	if !ok {
+	refs, fromSel := a.targetRefs(s, c)
+	if len(refs) == 0 {
 		a.say("nothing here to archive")
 		return core.Next(s)
 	}
-	_ = a.ensureShadow(ref)
-	_, cs, err := a.Store.Archive(ref, User)
-	a.wrote("archive "+a.title(ref), cs, err)
-	if err == nil && cs != nil && a.archiveAnimEnabled() && !a.nav.showArchived {
-		if eff := a.startArchiveAnim(ref); eff != nil {
-			return core.StepResult{State: s, Effects: []core.Effect{eff}}
+	if fromSel {
+		a.clearActiveVisual(s)
+	}
+	if len(refs) == 1 {
+		ref := refs[0]
+		_ = a.ensureShadow(ref)
+		_, cs, err := a.Store.Archive(ref, User)
+		a.wrote("archive "+a.title(ref), cs, err)
+		if err == nil && cs != nil && a.archiveAnimEnabled() && !a.nav.showArchived {
+			if eff := a.startArchiveAnim(ref); eff != nil {
+				return core.StepResult{State: s, Effects: []core.Effect{eff}}
+			}
+		}
+		return core.Next(s)
+	}
+	changed := 0
+	var firstErr error
+	var effects []core.Effect
+	for _, ref := range refs {
+		_ = a.ensureShadow(ref)
+		_, cs, err := a.Store.Archive(ref, User)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if cs != nil {
+			changed++
+			if a.archiveAnimEnabled() && !a.nav.showArchived {
+				if eff := a.startArchiveAnim(ref); eff != nil {
+					effects = append(effects, eff)
+				}
+			}
 		}
 	}
-	return core.Next(s)
+	if changed == 0 && firstErr != nil {
+		a.fail("archive", firstErr)
+		return core.Next(s)
+	}
+	if changed == 0 {
+		a.say("archive: nothing changed")
+		return core.Next(s)
+	}
+	a.say("archived %d items · u undoes", changed)
+	return core.StepResult{State: s, Effects: effects}
 }
 
 func (a *App) restoreRecord(s core.State, c core.Command) core.StepResult {
-	ref, ok := a.subject(s, c)
-	if !ok {
+	refs, fromSel := a.targetRefs(s, c)
+	if len(refs) == 0 {
 		a.say("nothing here to restore")
 		return core.Next(s)
 	}
-	_ = a.ensureShadow(ref)
-	_, cs, err := a.Store.Restore(ref, User)
-	if err == nil {
-		a.cancelArchiveAnim(ref)
+	if fromSel {
+		a.clearActiveVisual(s)
 	}
-	a.wrote("restore "+a.title(ref), cs, err)
+	if len(refs) == 1 {
+		ref := refs[0]
+		_ = a.ensureShadow(ref)
+		_, cs, err := a.Store.Restore(ref, User)
+		if err == nil {
+			a.cancelArchiveAnim(ref)
+		}
+		a.wrote("restore "+a.title(ref), cs, err)
+		return core.Next(s)
+	}
+	changed := 0
+	var firstErr error
+	for _, ref := range refs {
+		_ = a.ensureShadow(ref)
+		_, cs, err := a.Store.Restore(ref, User)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		a.cancelArchiveAnim(ref)
+		if cs != nil {
+			changed++
+		}
+	}
+	if changed == 0 && firstErr != nil {
+		a.fail("restore", firstErr)
+		return core.Next(s)
+	}
+	if changed == 0 {
+		a.say("restore: nothing changed")
+		return core.Next(s)
+	}
+	a.say("restored %d items · u undoes", changed)
 	return core.Next(s)
 }
 

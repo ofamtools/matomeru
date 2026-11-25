@@ -52,25 +52,33 @@ func (a *App) paneCompose(s core.State, _ core.Command) core.StepResult {
 	contextTaskID := ""
 	if tRef, hasTask := pane.RefField("task"); hasTask && tRef.Kind == data.KindTask {
 		contextTaskID = tRef.ID
+		if a.Store != nil {
+			if rootID := a.Store.RootProjectID(tRef.ID); rootID != "" {
+				contextTaskID = rootID
+			}
+		}
 	}
+	isFirstPrompt := pane.Time("promptedAt").IsZero()
 
 	cm := newRichComposerModal(a, richComposerSpec{
-		ID:                "composer",
-		Scope:             "composer",
-		Title:             "Compose · " + paneTitle,
-		InputTitle:        "Prompt",
-		Placeholder:       "Type prompt… (@file, @ctx, @agent, $skill, /command · enter newline · ctrl+s submit)",
-		Cwd:               pane.Text("cwd"),
-		DraftKey:          composerDraftKey(paneID),
-		PaneID:            paneID,
-		ShowDeliveryModes: true,
-		ContextTaskID:     contextTaskID,
-		OnSubmit: func(text string, attachments []data.Attachment, mode ComposerMode) (tea.Cmd, error) {
+		ID:                   "composer",
+		Scope:                "composer",
+		Title:                "Compose · " + paneTitle,
+		InputTitle:           "Prompt",
+		Placeholder:          "Type prompt… (@file, @ctx, @agent, $skill, /command · enter newline · ctrl+s submit)",
+		Cwd:                  pane.Text("cwd"),
+		DraftKey:             composerDraftKey(paneID),
+		PaneID:               paneID,
+		ShowDeliveryModes:    true,
+		EnableProjectContext: true,
+		IsFirstPrompt:        isFirstPrompt,
+		ContextTaskID:        contextTaskID,
+		OnSubmitWithContext: func(text string, attachments []data.Attachment, projectCtx []data.Record, mode ComposerMode) (tea.Cmd, error) {
 			rec, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: paneID})
 			if err != nil {
 				return nil, err
 			}
-			payload := formatPromptWithAttachments(text, attachments)
+			payload := formatPromptWithContext(text, attachments, projectCtx)
 			paneCopy := *rec
 			a.afterModal(func(st core.State) core.State {
 				a.deliverComposerPrompt(paneCopy, payload, mode)
@@ -80,7 +88,7 @@ func (a *App) paneCompose(s core.State, _ core.Command) core.StepResult {
 		},
 	})
 
-	a.say("composer (%s) · ctrl+s submits · shift+tab mode · ctrl+p/n drafts · ctrl+v/f attach · @file $skill /cmd", cm.delivery)
+	a.say("composer (%s) · ctrl+s submits · shift+tab mode · ctrl+g/o ctx · ctrl+p/n drafts · ctrl+v/f attach", cm.delivery)
 	return core.Next(a.pushModal(s, cm))
 }
 

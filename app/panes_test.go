@@ -275,9 +275,9 @@ func TestWave3ProjectHeaderOverviewAndContextTable(t *testing.T) {
 	}
 
 	// Star, yank, and attach the focused context item.
-	d.Keys("s")
+	d.Keys("m")
 	if !strings.Contains(a.Status(), "starred") {
-		t.Fatalf("s did not star context item: status=%q", a.Status())
+		t.Fatalf("m did not star context item: status=%q", a.Status())
 	}
 	d.Keys("y")
 	if a.Register(core.RegUnnamed) != "https://example.com/spec" {

@@ -44,6 +44,10 @@ func (a *App) lockThreadEditsEnabled() bool {
 	return a != nil && a.cfg != nil && a.cfg.Settings != nil && a.cfg.Settings.Bool(SetTasksLockThreadEdits, false)
 }
 
+func (a *App) autoInjectProjectContextEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetContextAutoInject, true)
+}
+
 // enrichTaskTreeNode adds note-thread facts and metadata indicators to a task
 // tree.Node during tree construction.
 func (a *App) enrichTaskTreeNode(rec data.Record, nd *tree.Node, threads map[string][]data.Record) {
@@ -330,43 +334,52 @@ func (a *App) handleLeafTaskFoldThread(tm *tree.Model, treeID string, isWork boo
 	return false
 }
 
-// resolveFocusedTaskID resolves the focused task ID from an active tree (mapping
-// inline thread note nodes back to their parent task) or from the subject ref.
-func (a *App) resolveFocusedTaskID(s core.State, c core.Command) (string, bool) {
-	if tm, kind, treeID, _, ok := a.activeTree(s); ok && kind == data.KindTask {
+// focusedTaskAndNote resolves the focused task ID (and optional inline/focused
+// note ID) from any active task tree (including workTable, outlineTree, and
+// projectOutlineTree) or from the subject ref.
+func (a *App) focusedTaskAndNote(s core.State, c core.Command) (taskID, noteID string, ok bool) {
+	if tm, kind, treeID, _, active := a.activeTree(s); active && kind == data.KindTask {
 		a.syncTreeModel(tm, kind, treeID)
 		if row, has := tm.Focused(); has && !row.Draft && row.ID != "" {
 			if isThreadNoteRow(row) {
+				nid, _ := strings.CutPrefix(row.ID, threadNoteIDPrefix)
 				if pid := threadNoteParentTaskID(row); pid != "" {
-					return pid, true
+					return pid, nid, true
 				}
 			} else {
-				return row.ID, true
+				return row.ID, "", true
 			}
 		}
 	}
-	ref, ok := a.subject(s, c)
-	if !ok || ref.ID == "" {
-		return "", false
+	ref, hasSub := a.subject(s, c)
+	if !hasSub || ref.ID == "" {
+		return "", "", false
 	}
 	switch ref.Kind {
 	case data.KindTask:
-		return ref.ID, true
+		return ref.ID, "", true
 	case data.KindNote:
 		if rec, err := a.Store.Get(ref); err == nil && rec != nil {
 			if tRef, hasTask := rec.RefField("task"); hasTask && tRef.Kind == data.KindTask && tRef.ID != "" {
-				return tRef.ID, true
+				return tRef.ID, ref.ID, true
 			}
 		}
 		if rels, err := a.Store.RelatedRecords(ref, data.RelAbout, data.Outgoing); err == nil {
 			for _, rel := range rels {
 				if rel.Kind == data.KindTask && rel.ID != "" {
-					return rel.ID, true
+					return rel.ID, ref.ID, true
 				}
 			}
 		}
 	}
-	return "", false
+	return "", "", false
+}
+
+// resolveFocusedTaskID resolves the focused task ID from an active tree (mapping
+// inline thread note nodes back to their parent task) or from the subject ref.
+func (a *App) resolveFocusedTaskID(s core.State, c core.Command) (string, bool) {
+	taskID, _, ok := a.focusedTaskAndNote(s, c)
+	return taskID, ok
 }
 
 // --- Verb handlers --------------------------------------------------------------
@@ -564,6 +577,11 @@ func (a *App) taskQueueDispatch(s core.State, c core.Command) core.StepResult {
 		ancestors     []string
 		rootProjectID string
 	)
+	inProjectOutline := a.inProjectOutlineTree(&s)
+	activeProjectID := ""
+	if inProjectOutline {
+		activeProjectID = a.activeProjectOutlineID(s)
+	}
 	if taskID, ok := a.resolveFocusedTaskID(s, c); ok {
 		focusedTaskID = taskID
 		if nodes, err := a.recordTreeNodes(data.KindTask); err == nil {
@@ -578,45 +596,67 @@ func (a *App) taskQueueDispatch(s core.State, c core.Command) core.StepResult {
 			ancestors = []string{taskID}
 		}
 	}
+	if activeProjectID != "" && !slices.Contains(ancestors, activeProjectID) {
+		ancestors = append(ancestors, activeProjectID)
+	}
 
+	includeProj := a.autoInjectProjectContextEnabled()
 	var items []data.AgentQueueItem
 	var err error
-	if focusedTaskID != "" {
+	if inProjectOutline && activeProjectID != "" {
 		items, err = a.Store.QueryAgentQueue(data.AgentQueueFilter{
-			ProjectID:      focusedTaskID,
-			Status:         data.AgentStatusQueued,
-			IncludeSubtree: true,
-			IncludeNotes:   true,
-			IncludeContext: true,
+			ProjectID:             activeProjectID,
+			Status:                data.AgentStatusQueued,
+			IncludeSubtree:        true,
+			IncludeNotes:          true,
+			IncludeContext:        true,
+			IncludeProjectContext: &includeProj,
 		})
 		if err != nil {
 			a.fail("dispatch agent queue", err)
 			return core.Next(s)
 		}
-	}
-	if len(items) == 0 && rootProjectID != "" && rootProjectID != focusedTaskID {
-		items, err = a.Store.QueryAgentQueue(data.AgentQueueFilter{
-			ProjectID:      rootProjectID,
-			Status:         data.AgentStatusQueued,
-			IncludeSubtree: true,
-			IncludeNotes:   true,
-			IncludeContext: true,
-		})
-		if err != nil {
-			a.fail("dispatch agent queue", err)
-			return core.Next(s)
+	} else {
+		if focusedTaskID != "" {
+			items, err = a.Store.QueryAgentQueue(data.AgentQueueFilter{
+				ProjectID:             focusedTaskID,
+				Status:                data.AgentStatusQueued,
+				IncludeSubtree:        true,
+				IncludeNotes:          true,
+				IncludeContext:        true,
+				IncludeProjectContext: &includeProj,
+			})
+			if err != nil {
+				a.fail("dispatch agent queue", err)
+				return core.Next(s)
+			}
 		}
-	}
-	if len(items) == 0 {
-		items, err = a.Store.QueryAgentQueue(data.AgentQueueFilter{
-			Status:         data.AgentStatusQueued,
-			IncludeSubtree: true,
-			IncludeNotes:   true,
-			IncludeContext: true,
-		})
-		if err != nil {
-			a.fail("dispatch agent queue", err)
-			return core.Next(s)
+		if len(items) == 0 && rootProjectID != "" && rootProjectID != focusedTaskID {
+			items, err = a.Store.QueryAgentQueue(data.AgentQueueFilter{
+				ProjectID:             rootProjectID,
+				Status:                data.AgentStatusQueued,
+				IncludeSubtree:        true,
+				IncludeNotes:          true,
+				IncludeContext:        true,
+				IncludeProjectContext: &includeProj,
+			})
+			if err != nil {
+				a.fail("dispatch agent queue", err)
+				return core.Next(s)
+			}
+		}
+		if len(items) == 0 {
+			items, err = a.Store.QueryAgentQueue(data.AgentQueueFilter{
+				Status:                data.AgentStatusQueued,
+				IncludeSubtree:        true,
+				IncludeNotes:          true,
+				IncludeContext:        true,
+				IncludeProjectContext: &includeProj,
+			})
+			if err != nil {
+				a.fail("dispatch agent queue", err)
+				return core.Next(s)
+			}
 		}
 	}
 	if len(items) == 0 {

@@ -155,11 +155,11 @@ func TestIndexView(t *testing.T) {
 	tbl := TableFromRecords(schema, w.all(t, data.KindTask))
 	root := IndexView(schema, tbl, "idx")
 	wantText(t, frame(t, root, "idx.table", 110, 16), "Tasks", "Title", "Status", "Priority", "Matomeru v2", "Data layer", "Link cards", "task:sub2")
-	wantChain(t, root, "idx.table", w.project.Ref(), "task", "trait.nav", "trait.scroll", "trait.filter", "index", "app")
+	wantChain(t, root, "idx.table", w.project.Ref(), "task", "trait.nav", "trait.scroll", "trait.filter", "trait.select", "index", "app")
 
 	// Moving the selection changes the subject, with nothing registered per row.
 	tbl.SelectedIdx = 2
-	chain := wantChain(t, IndexView(schema, tbl, "idx"), "idx.table", w.sub2.Ref(), "task", "trait.nav", "trait.scroll", "trait.filter", "index", "app")
+	chain := wantChain(t, IndexView(schema, tbl, "idx"), "idx.table", w.sub2.Ref(), "task", "trait.nav", "trait.scroll", "trait.filter", "trait.select", "index", "app")
 	if chain[0].Facts["workStatus"] != "blocked" || chain[0].Facts[data.ColArchiveStatus] != data.ArchiveActive {
 		t.Fatalf("row facts = %v", chain[0].Facts)
 	}
@@ -190,12 +190,12 @@ func TestIndexView(t *testing.T) {
 		recs := w.all(t, kind)
 		view := IndexView(s, TableFromRecords(s, recs), "idx")
 		wantText(t, frame(t, view, "idx.table", 110, 12), wants...)
-		wantChain(t, view, "idx.table", recs[0].Ref(), kind, "trait.nav", "trait.scroll", "trait.filter", "index", "app")
+		wantChain(t, view, "idx.table", recs[0].Ref(), kind, "trait.nav", "trait.scroll", "trait.filter", "trait.select", "index", "app")
 	}
 
 	// An empty list still has the type as its context, so "new" has a target.
 	empty := IndexView(w.schema(data.KindExtension), TableFromRecords(w.schema(data.KindExtension), nil), "idx")
-	wantChain(t, empty, "idx.table", core.Ref{Kind: data.KindExtension}, "extension", "trait.nav", "trait.scroll", "trait.filter", "index", "app")
+	wantChain(t, empty, "idx.table", core.Ref{Kind: data.KindExtension}, "extension", "trait.nav", "trait.scroll", "trait.filter", "trait.select", "index", "app")
 }
 
 func TestProjectShowPage(t *testing.T) {
@@ -446,16 +446,16 @@ func TestOutlineView(t *testing.T) {
 	if tree.Kind != ui.KindTree || tree.Props["selected"] != 3 || tree.Props["guides"] != true {
 		t.Fatalf("tree props = %v", tree.Props)
 	}
-	chain := wantChain(t, root, "outline.tree", w.leaf.Ref(), "task", "trait.nav", "trait.scroll", "trait.filter", "trait.fold", "outline", "app")
+	chain := wantChain(t, root, "outline.tree", w.leaf.Ref(), "task", "trait.nav", "trait.scroll", "trait.filter", "trait.select", "trait.fold", "outline", "app")
 	if chain[0].Facts["depth"] != 2 || chain[0].Facts["project"] != false || chain[0].Facts["workStatus"] != "todo" {
 		t.Fatalf("selected row facts = %v", chain[0].Facts)
 	}
 	// A root task is selected as a project; an unknown selection falls to the first row.
-	chain = wantChain(t, OutlineView(nodes, "proj2", "outline"), "outline.tree", other.Ref(), "task", "trait.nav", "trait.scroll", "trait.filter", "trait.fold", "outline", "app")
+	chain = wantChain(t, OutlineView(nodes, "proj2", "outline"), "outline.tree", other.Ref(), "task", "trait.nav", "trait.scroll", "trait.filter", "trait.select", "trait.fold", "outline", "app")
 	if chain[0].Facts["project"] != true {
 		t.Fatalf("root row facts = %v", chain[0].Facts)
 	}
-	wantChain(t, OutlineView(nodes, "gone", "outline"), "outline.tree", w.project.Ref(), "task", "trait.nav", "trait.scroll", "trait.filter", "trait.fold", "outline", "app")
+	wantChain(t, OutlineView(nodes, "gone", "outline"), "outline.tree", w.project.Ref(), "task", "trait.nav", "trait.scroll", "trait.filter", "trait.select", "trait.fold", "outline", "app")
 	wantText(t, frame(t, OutlineView(nil, "", "outline"), "outline.tree", 60, 6), "0 projects")
 }
 

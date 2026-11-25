@@ -63,18 +63,21 @@ type cachedFileList struct {
 // richComposerSpec configures a reusable multi-line composer modal with
 // @file/@ctx/@agent, $skill, and /command completion plus attachment chips.
 type richComposerSpec struct {
-	ID                string
-	Scope             string
-	Title             string
-	Subtitle          string
-	Placeholder       string
-	InputTitle        string
-	Cwd               string
-	DraftKey          string
-	PaneID            string
-	ShowDeliveryModes bool
-	ContextTaskID     string
-	OnSubmit          func(text string, attachments []data.Attachment, mode ComposerMode) (tea.Cmd, error)
+	ID                   string
+	Scope                string
+	Title                string
+	Subtitle             string
+	Placeholder          string
+	InputTitle           string
+	Cwd                  string
+	DraftKey             string
+	PaneID               string
+	ShowDeliveryModes    bool
+	EnableProjectContext bool
+	IsFirstPrompt        bool
+	ContextTaskID        string
+	OnSubmit             func(text string, attachments []data.Attachment, mode ComposerMode) (tea.Cmd, error)
+	OnSubmitWithContext  func(text string, attachments []data.Attachment, projectCtx []data.Record, mode ComposerMode) (tea.Cmd, error)
 }
 
 // richComposerModal implements modal.Modal for both pane prompt composition and
@@ -91,6 +94,7 @@ type richComposerModal struct {
 	draftIdx    int // -1 = live buffer, 0..N-1 = draft from DraftStore
 	liveStash   string
 	attachments []data.Attachment
+	projCtx     *composerProjectContext
 
 	compTrigger string
 	compStart   int // rune offset of trigger character
@@ -132,6 +136,7 @@ func newRichComposerModal(a *App, spec richComposerSpec) *richComposerModal {
 		delivery: ComposerModeSend,
 		draftKey: spec.DraftKey,
 		draftIdx: -1,
+		projCtx:  newComposerProjectContext(a, spec),
 	}
 	if a != nil {
 		if m.cwd != "" {
@@ -180,6 +185,13 @@ func (m *richComposerModal) ID() string      { return m.spec.ID }
 func (m *richComposerModal) Scope() string   { return m.spec.Scope }
 func (m *richComposerModal) Mode() string    { return ModeComposer }
 func (m *richComposerModal) FocusID() string { return composerInput }
+
+func (m *richComposerModal) selectedProjectContext() []data.Record {
+	if m == nil || m.projCtx == nil {
+		return nil
+	}
+	return m.projCtx.selectedRecords()
+}
 
 // AddAttachment appends an attachment chip if not already attached by path.
 func (m *richComposerModal) AddAttachment(att data.Attachment) bool {
@@ -252,7 +264,14 @@ func (m *richComposerModal) Handle(c core.Command) modal.Result {
 		mode := m.delivery
 		atts := slices.Clone(m.attachments)
 		var submitCmd tea.Cmd
-		if m.spec.OnSubmit != nil {
+		if m.spec.OnSubmitWithContext != nil {
+			var err error
+			submitCmd, err = m.spec.OnSubmitWithContext(rawText, atts, m.selectedProjectContext(), mode)
+			if err != nil {
+				m.a.fail("submit", err)
+				return modal.Result{Handled: true}
+			}
+		} else if m.spec.OnSubmit != nil {
 			var err error
 			submitCmd, err = m.spec.OnSubmit(rawText, atts, mode)
 			if err != nil {
@@ -352,6 +371,12 @@ func (m *richComposerModal) Handle(c core.Command) modal.Result {
 		}
 		return modal.Result{Handled: true, Status: "no attachments to remove", SetStatus: true}
 
+	case CmdComposerContextToggle:
+		return m.handleContextToggle()
+
+	case CmdComposerContextPick:
+		return m.handleContextPick()
+
 	default:
 		if input.IsReadlineCommand(c.ID) {
 			m.in.HandleCommand(c)
@@ -438,6 +463,12 @@ func (m *richComposerModal) View(_, _ int) ui.ViewNode {
 		children = append(children, line("composer.subtitle", " "+m.spec.Subtitle, "muted"))
 	}
 
+	if m.spec.EnableProjectContext && m.projCtx != nil {
+		if banner := m.projCtx.bannerNode(); banner != nil {
+			children = append(children, *banner)
+		}
+	}
+
 	if len(m.attachments) > 0 {
 		chips := make([]string, 0, len(m.attachments))
 		for _, att := range m.attachments {
@@ -490,6 +521,9 @@ func (m *richComposerModal) View(_, _ int) ui.ViewNode {
 	helpText := " ctrl+s submit · ctrl+v attach/paste · ctrl+f file · ctrl+x drop attach · tab complete · esc close"
 	if m.spec.ShowDeliveryModes {
 		helpText = " ctrl+s send · shift+tab mode · ctrl+v/f/x attach · ctrl+p/n drafts · tab complete · esc close"
+		if m.spec.EnableProjectContext && m.projCtx != nil && len(m.projCtx.allProjectCtx) > 0 {
+			helpText = " ctrl+s send · shift+tab mode · ctrl+g/o ctx · ctrl+v/f/x attach · ctrl+p/n drafts · esc close"
+		}
 	}
 	children = append(children, line("composer.help", helpText, "muted"))
 
@@ -504,6 +538,11 @@ func (m *richComposerModal) View(_, _ int) ui.ViewNode {
 	}
 	if len(m.attachments) > 0 {
 		badges = append(badges, ui.Badge{Text: fmt.Sprintf("📎 %d", len(m.attachments)), Tone: "info"})
+	}
+	if m.spec.EnableProjectContext && m.projCtx != nil {
+		if badge := m.projCtx.headerBadge(); badge != nil {
+			badges = append(badges, *badge)
+		}
 	}
 	if m.draftKey != "" && m.a != nil && m.a.cfg != nil && m.a.cfg.drafts != nil {
 		if n := len(m.a.cfg.drafts.List(m.draftKey)); n > 0 {

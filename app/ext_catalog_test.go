@@ -76,7 +76,7 @@ esac
 	}
 
 	// Starring an external record creates its lazy shadow in SQLite without writing to the tool.
-	d.Keys("s")
+	d.Keys("m")
 	ref := core.Ref{Kind: "links.bookmark", ID: "b1"}
 	shadow, err := a.Store.Get(ref)
 	if err != nil || !shadow.IsStarred() {
@@ -87,7 +87,7 @@ esac
 	}
 
 	// Opening the external record's Show page works like any native record.
-	d.Keys("enter")
+	d.Keys("E")
 	if shown, ok := a.Showing(); !ok || shown != ref {
 		t.Fatalf("showing = %v (ok=%v), want %v", shown, ok, ref)
 	}

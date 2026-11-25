@@ -376,8 +376,8 @@ func (d *DataTools) ToolSpecs() []ToolSpec {
 				"id":          text("context ID; generated when omitted"),
 				"title":       text("display title; derived from value when omitted"),
 				"value":       text("URL, PR reference (owner/repo#123), or file path"),
-				"contextKind": oneOf("kind of context item; inferred from value when omitted", []string{"url", "pr", "file", "doc"}),
-				"source":      oneOf("where the context item came from; default tool", []string{"prompt", "response", "screen", "tool"}),
+				"contextKind": oneOf("kind of context item; inferred from value when omitted", []string{"url", "pr", "file", "doc", "gdoc", "sheet"}),
+				"source":      oneOf("where the context item came from; default tool", []string{"prompt", "response", "screen", "tool", "curated"}),
 				"line":        count("optional 1-based line number"),
 				"col":         count("optional 1-based column number"),
 				"pane":        text("pane ID; auto-bound when omitted"),
@@ -811,27 +811,14 @@ func (d *DataTools) CreateDocument(actor core.Actor, args CreateDocumentArgs) (*
 }
 
 var (
-	validContextKinds   = []string{"url", "pr", "file", "doc"}
-	validContextSources = []string{"prompt", "response", "screen", "tool"}
+	validContextKinds   = []string{"url", "pr", "file", "doc", "gdoc", "sheet"}
+	validContextSources = []string{"prompt", "response", "screen", "tool", "curated"}
 	ghPRURLRe           = regexp.MustCompile(`^https?://github\.com/([A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100})/pull/([1-9][0-9]*)(?:[/?#].*)?$`)
-	ghPRRefRe           = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100}#[1-9][0-9]*$`)
 )
 
 func classifyContext(value, explicitKind, explicitTitle string) (kind, title, canonKey string) {
 	val := strings.TrimSpace(value)
-	kind = strings.ToLower(strings.TrimSpace(explicitKind))
-	if kind == "" {
-		switch {
-		case ghPRURLRe.MatchString(val) || ghPRRefRe.MatchString(val):
-			kind = "pr"
-		case strings.HasPrefix(strings.ToLower(val), "http://") || strings.HasPrefix(strings.ToLower(val), "https://"):
-			kind = "url"
-		case strings.EqualFold(filepath.Ext(val), ".md") || strings.EqualFold(filepath.Ext(val), ".markdown"):
-			kind = "doc"
-		default:
-			kind = "file"
-		}
-	}
+	kind = data.ClassifyContextKind(val, explicitKind)
 	title = strings.TrimSpace(explicitTitle)
 	if title == "" {
 		if m := ghPRURLRe.FindStringSubmatch(val); len(m) == 3 {
@@ -849,8 +836,8 @@ func classifyContext(value, explicitKind, explicitTitle string) (kind, title, ca
 		} else {
 			canonKey = "pr:" + strings.ToLower(val)
 		}
-	case "url":
-		canonKey = "url:" + strings.ToLower(strings.TrimRight(val, "/"))
+	case "url", "gdoc", "sheet":
+		canonKey = kind + ":" + strings.ToLower(strings.TrimRight(val, "/"))
 	default:
 		canonKey = kind + ":" + filepath.Clean(val)
 	}
