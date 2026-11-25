@@ -25,8 +25,12 @@ type projectWorkspaceData struct {
 	worktrees                        []data.ProjectWorktree
 	contextItems, officialItems      []CollectedContextItem
 	pinnedItems, prItems             []CollectedContextItem
+	contextRecords                   map[string]data.Record
+	unreadNoteTasks, unreadPagePanes map[string]bool
 	unreadPages, officialCount       int
 	openQuestions                    int
+	unreadTotal                      int
+	runningPanes, needsYouPanes      int
 }
 
 func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) projectWorkspaceData {
@@ -38,11 +42,12 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 	if a.Store != nil {
 		rev, _ = a.Store.LatestChangeSetNumber()
 	}
+	telSeq := a.rt.live.telemetrySeq.Load()
 	pc := a.projectCtrl()
 	ctxGen := a.contextIndexGen()
 	railKey := a.railGroupPanesKey(groupName)
 	if a.Store != nil && pc.wsCache != nil {
-		if c, ok := pc.wsCache[projKey]; ok && c.rev == rev && c.showArchived == a.nav.showArchived && c.ctxGen == ctxGen && c.groupName == groupName && c.projID == projID && c.railPanesKey == railKey {
+		if c, ok := pc.wsCache[projKey]; ok && c.rev == rev && c.telemetrySeq == telSeq && c.showArchived == a.nav.showArchived && c.ctxGen == ctxGen && c.groupName == groupName && c.projID == projID && c.railPanesKey == railKey {
 			return c.data
 		}
 	}
@@ -86,6 +91,14 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 		ws.worktrees = a.projectWorktreesFromWorkspace(ws)
 	}
 	ws.contextItems = a.projectUnifiedContextItems(groupName, projRef, paneTitles)
+	if a.Store != nil && projRef != nil && projRef.ID != "" {
+		if persisted, err := a.Store.ProjectContextAll(projRef.ID); err == nil && len(persisted) > 0 {
+			ws.contextRecords = make(map[string]data.Record, len(persisted))
+			for _, rec := range persisted {
+				ws.contextRecords[rec.ID] = rec
+			}
+		}
+	}
 	for _, it := range ws.contextItems {
 		if it.Official {
 			ws.officialCount++
@@ -102,13 +115,14 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 	ws.notes = a.projectNotes(projRef, ws.taskIDs, ws.paneIDs)
 	ws.questions, ws.openQuestions = a.projectQuestionsList(ws.taskIDs, ws.paneIDs)
 	ws.commands = a.projectScopedByTaskOrPane(data.KindCommand, ws.taskIDs, ws.paneIDs)
+	a.populateProjectWorkspaceActivity(&ws)
 	if a.Store != nil {
 		if pc.wsCache == nil {
 			pc.wsCache = map[string]cachedProjectWorkspace{}
 		}
 		postRev, _ := a.Store.LatestChangeSetNumber()
 		pc.wsCache[projKey] = cachedProjectWorkspace{
-			rev: postRev, showArchived: a.nav.showArchived, ctxGen: a.contextIndexGen(),
+			rev: postRev, telemetrySeq: telSeq, showArchived: a.nav.showArchived, ctxGen: a.contextIndexGen(),
 			groupName: groupName, projID: projID, railPanesKey: railKey, data: ws,
 		}
 	}
@@ -125,6 +139,7 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 	pc := a.projectCtrl()
 	pc.resetNavTargets(ws.projectKey)
 	treeEnabled := a.projectNavTreeEnabled()
+	allowPeek := treeEnabled && a.projectNavSurfaceUnreadEnabled()
 
 	out := make([]views.ProjectNavSection, 0, len(defs))
 	for _, d := range defs {
@@ -136,19 +151,20 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 			Expandable: expandable, Expanded: expanded,
 		}
 		switch d.Key {
-		case "pages":
-			sec.Unread = ws.unreadPages > 0
 		case "signals":
 			sec.Badge = "0"
 		case "context":
 			if ws.officialCount > 0 {
 				sec.Badge = fmt.Sprintf("★%d·%d", ws.officialCount, len(ws.contextItems))
 			}
-		case "questions":
-			sec.Unread = ws.openQuestions > 0
 		}
-		if expanded {
-			sec.Children = a.buildProjectNavChildren(ws, d.Key, focusID)
+		if d.Key != "home" && d.Key != "signals" && counts[d.Key] > 0 {
+			children, unreadCount := a.buildProjectNavChildren(ws, d.Key, focusID, expanded, allowPeek)
+			sec.UnreadCount = unreadCount
+			sec.Unread = unreadCount > 0
+			if treeEnabled && len(children) > 0 {
+				sec.Children = children
+			}
 		}
 		out = append(out, sec)
 	}

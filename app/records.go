@@ -594,6 +594,7 @@ func (a *App) createRecordFromValues(kind string, about *core.Ref, values map[st
 		return nil, false
 	}
 	ref := rec.Ref()
+	a.markOwnerCreated(ref)
 	a.syncManagedFile(rec)
 	if about != nil {
 		if _, _, err := a.Store.Relate(data.RelateInput{From: ref, Kind: data.RelAbout, To: *about}, User); err != nil {

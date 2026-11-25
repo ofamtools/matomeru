@@ -198,6 +198,27 @@ func (a *App) column(s core.State, delta int) core.State {
 	if to == at {
 		return s
 	}
+	// When stepping right from a live-previewed Project Nav pane node into the
+	// previewed child pane's TOC or Screen, commit it as the open child pane so
+	// focus stays anchored and enter/i attach cleanly.
+	if nodes[cur].region == "project.nav" && (regions[to] == "site.toc" || regions[to] == "site.content") &&
+		strings.HasPrefix(nodes[cur].id, projectNavNodePrefix) && a.projectChildPaneViewEnabled() {
+		if projKey := a.activeProjectWorkspaceKey(s); projKey != "" {
+			pc := a.projectCtrl()
+			if target, ok := pc.navTarget(projKey, nodes[cur].id); ok && target.Section == "panes" && target.Ref != nil && target.Ref.Kind == data.KindPane {
+				if pc.childPaneByProject == nil {
+					pc.childPaneByProject = map[string]string{}
+				}
+				pc.childPaneByProject[projKey] = target.Ref.ID
+				if pc.childPaneReturnFocus == nil {
+					pc.childPaneReturnFocus = map[string]string{}
+				}
+				pc.childPaneReturnFocus[projKey] = nodes[cur].id
+				pc.setActiveNavItem(projKey, nil)
+				a.viewMemo.gen++
+			}
+		}
+	}
 	// When stepping right from a live-previewed middle-rail canvas into site.content,
 	// commit the previewed canvas as the pane's active page so content stays aligned.
 	if nodes[cur].region == "site.toc" && regions[to] == "site.content" &&

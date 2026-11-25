@@ -384,10 +384,15 @@ func TestProjectNavTreePanesDocsAndBothSpacesAndOptOut(t *testing.T) {
 		if findNode(a, sideNodeID) == nil {
 			t.Fatalf("[%s] l on mainPane did not expand sidePane %q", label, sideNodeID)
 		}
-		// enter on mainPane opens inline child pane; esc closes and restores paneNodeID!
+		// enter on mainPane opens inline child pane directly in ModeTerminal (panes.railEnterMode=live);
+		// ctrl+a d detaches to ModeNormal, then esc closes and restores paneNodeID!
 		d.Keys("enter")
-		if a.activeChildPaneID(a.State()) != f.mainPane.ID {
-			t.Fatalf("[%s] enter on pane nav node did not open child pane: got %q", label, a.activeChildPaneID(a.State()))
+		if a.activeChildPaneID(a.State()) != f.mainPane.ID || a.Mode() != ModeTerminal {
+			t.Fatalf("[%s] enter on pane nav node did not attach child pane: child=%q mode=%q", label, a.activeChildPaneID(a.State()), a.Mode())
+		}
+		d.Keys("ctrl+a", "d")
+		if a.Mode() != ModeNormal || a.activeChildPaneID(a.State()) != f.mainPane.ID {
+			t.Fatalf("[%s] ctrl+a d did not detach inline child pane: child=%q mode=%q", label, a.activeChildPaneID(a.State()), a.Mode())
 		}
 		d.Keys("esc")
 		if a.activeChildPaneID(a.State()) != "" || a.Focus() != paneNodeID {

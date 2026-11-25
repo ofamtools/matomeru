@@ -554,3 +554,66 @@ func (v *vanishingHost) Snapshot(id string) (ptyhost.Frame, bool) {
 	}
 	return v.inner.Snapshot(id)
 }
+
+func TestPanesUXNewAgentAndProjectNavPaneAttach(t *testing.T) {
+	a, d := demo(t)
+	host := newLaunchCaptureHost()
+	a.panes.Host = host
+	a.panes.Term = ptyhost.NewController(host)
+
+	// 1. Creating a New Agent via n + ctrl+s on 1 Panes must select it, spawn its
+	//    live PTY session, and attach directly into ModeTerminal on siteScreen.
+	d.Keys("1", "n")
+	if a.Modal() != "form" || a.Mode() != ModeForm {
+		t.Fatalf("n on 1 Panes did not open New Agent form: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	d.Keys("ctrl+s")
+	if a.Modal() != "" {
+		t.Fatalf("ctrl+s did not close New Agent form: modal=%q status=%q", a.Modal(), a.Status())
+	}
+	if a.Mode() != ModeTerminal || a.Focus() != siteScreen {
+		t.Fatalf("New Agent submit on 1 Panes: mode=%q focus=%q, want %q/%q (status=%q)",
+			a.Mode(), a.Focus(), ModeTerminal, siteScreen, a.Status())
+	}
+	created, ok := a.SelectedPane()
+	if !ok || created == nil {
+		t.Fatal("expected newly created agent pane selected in rail")
+	}
+	if len(host.opens) != 1 || host.opens[0].id != created.ID {
+		t.Fatalf("expected live PTY open for %q, got %+v", created.ID, host.opens)
+	}
+	d.Keys("ctrl+a", "d")
+
+	// 2. On 1 Panes, stepping into a Project header -> Project Nav -> Panes:
+	//    pressing l on a previewed pane node commits it as the open child pane so
+	//    focus lands in the pane site and enter attaches cleanly into ModeTerminal.
+	d.Keys("g", "g")
+	if _, _, onProj := a.selectedRailProject(); !onProj {
+		t.Fatal("expected g g on grouped rail to focus a project header")
+	}
+	d.Keys("enter") // enters Project Nav
+	projKey := a.activeProjectWorkspaceKey(a.State())
+	if projKey == "" {
+		t.Fatal("expected activeProjectWorkspaceKey on 1 Panes project header")
+	}
+	a.projectCtrl().setNavSectionExpanded(projKey, "panes", true)
+	a.viewMemo.gen++
+	paneFocus := views.ProjectNavNodePrefix + "panes." + created.ID
+	a.Shell.State = withFocus(a.State(), paneFocus)
+	_ = a.View(a.State())
+
+	// Press l from the previewed pane nav node -> commits child pane, lands in TOC/screen.
+	d.Keys("l")
+	if gotChild := a.activeChildPaneID(a.State()); gotChild != created.ID {
+		t.Fatalf("l from previewed pane node did not commit child pane %q: got %q (focus=%q)", created.ID, gotChild, a.Focus())
+	}
+	if a.Focus() != tocPrefix+views.ScreenPageID && a.Focus() != siteScreen {
+		t.Fatalf("l from previewed pane node focus=%q, want Screen TOC or siteScreen", a.Focus())
+	}
+	// Pressing enter from TOC/screen attaches cleanly into ModeTerminal.
+	d.Keys("enter")
+	if a.Mode() != ModeTerminal || a.Focus() != siteScreen {
+		t.Fatalf("enter after l from previewed pane node: mode=%q focus=%q, want %q/%q (status=%q)",
+			a.Mode(), a.Focus(), ModeTerminal, siteScreen, a.Status())
+	}
+}

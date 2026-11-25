@@ -159,7 +159,7 @@ func (a *App) tabsMemoKey(s core.State) string {
 	}
 	f := s.Pages[s.ActivePage]
 	var b strings.Builder
-	fmt.Fprintf(&b, "%d|%s|%s|%s|%t|", rev, s.ActivePage, f.FocusID, f.Mode, a.nav.showArchived)
+	fmt.Fprintf(&b, "%d|%d|%s|%s|%s|%t|", rev, a.rt.live.telemetrySeq.Load(), s.ActivePage, f.FocusID, f.Mode, a.nav.showArchived)
 	if a.Shell != nil {
 		fmt.Fprintf(&b, "%dx%d|", a.Shell.W, a.Shell.H)
 	}
@@ -207,6 +207,8 @@ func (a *App) build(s core.State) ui.ViewNode {
 				if pane, ok := a.SelectedPane(); ok && len(a.pendingApprovalsFor(pane.ID)) > 0 {
 					tab.Facts = map[string]any{"hasPendingApproval": true}
 				}
+			} else if tb.dynamic && tb.projectID != "" {
+				tab.Unread = a.projectTabHasUnread(tb.projectID, tb.title)
 			}
 			tabs.Children = append(tabs.Children, tab)
 		}

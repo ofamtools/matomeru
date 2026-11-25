@@ -396,6 +396,7 @@ func (a *App) leaveProjectPage(s core.State) (core.State, bool) {
 			ret = projectPagesTable
 		}
 		a.viewMemo.gen++
+		ret = a.resolveProjectNavReturnFocus(s, ret)
 		a.say("left page")
 		return withMode(withFocus(s, ret), ModeNormal), true
 	}
@@ -403,6 +404,7 @@ func (a *App) leaveProjectPage(s core.State) (core.State, bool) {
 		ret := locked.FocusID
 		pc.setActiveNavItem(projKey, nil)
 		a.viewMemo.gen++
+		ret = a.resolveProjectNavReturnFocus(s, ret)
 		a.say("left preview")
 		return withMode(withFocus(s, ret), ModeNormal), true
 	}

@@ -534,6 +534,8 @@ func (a *App) attachSized(pane data.Record, cols, rows int) error {
 	}
 	if f, ok := a.panes.Host.Snapshot(pane.ID); ok {
 		if !f.Exited {
+			a.rt.live.frames[pane.ID] = f
+			a.rt.live.shown = pane.ID
 			return nil
 		}
 		_ = a.panes.Host.Close(pane.ID)

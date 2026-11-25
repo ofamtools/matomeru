@@ -276,12 +276,16 @@ func TestProjectTabInlineChildPaneView(t *testing.T) {
 	}
 	d.Keys("enter")
 
-	// Must stay inside 6 Beta with child pane rendered inline in project.content.
+	// Must stay inside 6 Beta with child pane rendered inline in project.content
+	// and attached directly in ModeTerminal when panes.railEnterMode == "live" (default).
 	if a.Space() != tabSpace {
 		t.Fatalf("enter on pane left Project Tab: space=%q want=%q", a.Space(), tabSpace)
 	}
 	if got := a.activeChildPaneID(a.State()); got != betaPane.ID {
 		t.Fatalf("activeChildPaneID = %q, want %q", got, betaPane.ID)
+	}
+	if a.Mode() != ModeTerminal {
+		t.Fatalf("enter on pane in Project Tab with railEnterMode=live: mode=%q, want %q", a.Mode(), ModeTerminal)
 	}
 	frame := d.Frame()
 	for _, want := range []string{"6 Beta", "Screen", "Beta Plan"} {
@@ -290,14 +294,7 @@ func TestProjectTabInlineChildPaneView(t *testing.T) {
 		}
 	}
 
-	// Attach into live terminal screen, type, and detach via ctrl+a d: stays in Project Tab child pane!
-	if a.Focus() != tocPrefix+views.ScreenPageID && a.Focus() != siteScreen {
-		t.Fatalf("unexpected focus inside inline child pane: %q", a.Focus())
-	}
-	d.Keys("enter")
-	if a.Mode() != ModeTerminal || a.Space() != tabSpace {
-		t.Fatalf("enter on inline child pane Screen: mode=%q space=%q", a.Mode(), a.Space())
-	}
+	// Type in the attached live terminal screen and detach via ctrl+a d: stays in Project Tab child pane!
 	d.Type("echo inline")
 	d.Keys("enter", "ctrl+a", "d")
 	if a.Mode() != ModeNormal || a.Space() != tabSpace || a.activeChildPaneID(a.State()) != betaPane.ID {
@@ -312,11 +309,13 @@ func TestProjectTabInlineChildPaneView(t *testing.T) {
 			a.Space(), a.activeChildPaneID(a.State()), a.Focus())
 	}
 
-	// Re-open child pane (focus starts on site.screen), press h to focus inline site.toc,
-	// then h again from site.toc to close back to project.panes.tree.
+	// With panes.railEnterMode == "toc", enter opens inline child pane in ModeNormal (TOC/screen focus).
+	a.cfg.userSettings[SetRailEnterMode] = RailEnterModeTOC
+	a.reloadSettings()
+	a.applySettings()
 	d.Keys("enter")
-	if a.activeChildPaneID(a.State()) != betaPane.ID {
-		t.Fatalf("re-open inline child pane failed: child=%q", a.activeChildPaneID(a.State()))
+	if a.activeChildPaneID(a.State()) != betaPane.ID || a.Mode() != ModeNormal {
+		t.Fatalf("railEnterMode=toc enter on pane: child=%q mode=%q, want ModeNormal", a.activeChildPaneID(a.State()), a.Mode())
 	}
 	if a.Focus() == siteScreen {
 		d.Keys("h")

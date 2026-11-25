@@ -147,30 +147,31 @@ type viewMemoState struct {
 // App is the application state around the engine. Handlers change it and the
 // store; View reads both.
 type App struct {
-	Store         *data.Store
-	Router        *mcpui.Router
-	Engine        *core.Engine
-	Shell         *otea.Shell
-	Warnings      []string
-	opts          Options
-	status        string
-	effects       []core.Effect
-	modals        *modal.Stack
-	escGuard      traits.EscapeGuardState
-	escGuardModal string
-	archiveAnim   *archiveAnimController
-	pendingState  []func(core.State) core.State
-	trees         *treeController
-	viewMemo      viewMemoState
-	cfg           *ConfigController
-	bind          *BindingsController
-	nav           *NavController
-	panes         *PaneController
-	proj          *ProjectController
-	features      *FeaturesController
-	rt            *RuntimeController
-	ext           *ExtensionController
-	ctx           *ContextController
+	Store           *data.Store
+	Router          *mcpui.Router
+	Engine          *core.Engine
+	Shell           *otea.Shell
+	Warnings        []string
+	opts            Options
+	status          string
+	effects         []core.Effect
+	modals          *modal.Stack
+	escGuard        traits.EscapeGuardState
+	escGuardModal   string
+	archiveAnim     *archiveAnimController
+	pendingState    []func(core.State) core.State
+	trees           *treeController
+	viewMemo        viewMemoState
+	cfg             *ConfigController
+	bind            *BindingsController
+	nav             *NavController
+	panes           *PaneController
+	proj            *ProjectController
+	features        *FeaturesController
+	rt              *RuntimeController
+	ext             *ExtensionController
+	ctx             *ContextController
+	navUnreadCutoff time.Time
 }
 
 // WantReload reports whether the user triggered app.reload so the binary
@@ -182,21 +183,22 @@ func (a *App) WantReload() bool { return a.rt.wantReload }
 // reported in Warnings and left out.
 func New(store *data.Store, opts Options) (*App, error) {
 	a := &App{
-		Store:       store,
-		Router:      mcpui.New(store),
-		opts:        opts,
-		modals:      modal.NewStack(),
-		archiveAnim: newArchiveAnimController(),
-		trees:       newTreeController(),
-		cfg:         newConfigController(),
-		bind:        newBindingsController(),
-		nav:         newNavController(),
-		panes:       newPaneController(),
-		proj:        newProjectController(),
-		features:    newFeaturesController(),
-		rt:          newRuntimeController(),
-		ext:         newExtensionController(),
-		ctx:         newContextController(),
+		Store:           store,
+		Router:          mcpui.New(store),
+		opts:            opts,
+		modals:          modal.NewStack(),
+		archiveAnim:     newArchiveAnimController(),
+		trees:           newTreeController(),
+		cfg:             newConfigController(),
+		bind:            newBindingsController(),
+		nav:             newNavController(),
+		panes:           newPaneController(),
+		proj:            newProjectController(),
+		features:        newFeaturesController(),
+		rt:              newRuntimeController(),
+		ext:             newExtensionController(),
+		ctx:             newContextController(),
+		navUnreadCutoff: time.Now().UTC(),
 	}
 	a.bind.specs = CommandSpecs()
 	a.bind.bindings = a.baseBindings()
@@ -431,8 +433,14 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 		prevModal := a.Modal()
 		prevMode := a.Engine.Mode(s)
 		a.syncEscapeGuardModal(prevModal)
+		unreadNavTarget, hasUnreadNav := a.unreadNavTargetAt(s)
 		a.viewMemo.gen++
 		out := fn(s, c)
+		if hasUnreadNav && isProjectNavAckCommand(c.ID) {
+			if a.markProjectNavTargetRead(unreadNavTarget) {
+				out.State = a.settleNavFocusAfterRead(out.State, unreadNavTarget)
+			}
+		}
 		a.afterCommandEscapeGuard(prevModal, prevMode, c, &out)
 		a.viewMemo.gen++
 		out.State = a.settle(out.State)

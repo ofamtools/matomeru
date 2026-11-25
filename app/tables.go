@@ -220,13 +220,27 @@ func next(list []string, cur string) string {
 // --- filter ---------------------------------------------------------------------
 
 // filterTable is the table the filter keys act on: the one being filtered,
-// or the focused one.
+// or the focused one. Lazily ensures the active space's table exists when
+// a space starts in tree view (e.g. 2 Work with work.tasksLayout="tree").
 func (a *App) filterTable(s core.State) (*table.Model, string) {
 	id := a.nav.filterTarget
 	if id == "" || id == "toc" {
 		id = s.ActiveFrame().FocusID
 	}
-	return a.nav.tables[id], id
+	if tbl := a.nav.tables[id]; tbl != nil {
+		return tbl, id
+	}
+	switch id {
+	case workTable:
+		if s.ActivePage == SpaceWork && a.nav.histPos < 0 && a.Store != nil {
+			return a.records(workTable, a.workKind()), id
+		}
+	case railTable:
+		if s.ActivePage == SpacePanes && a.Store != nil {
+			return a.rail(), id
+		}
+	}
+	return nil, id
 }
 
 func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {

@@ -218,3 +218,44 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 	_ = child1
 	_ = root2
 }
+
+func TestWorkTreeSlashFilterInitializesTable(t *testing.T) {
+	a, d := demo(t)
+	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTree
+	a.reloadSettings()
+	a.applySettings()
+
+	// Switch to 2 Work in tree view and ensure work.table is not yet initialized.
+	d.Keys("2")
+	if !a.inWorkTree(a.State()) {
+		t.Fatal("expected 2 Work to start in tree layout")
+	}
+	delete(a.nav.tables, workTable)
+	delete(a.nav.recCacheKeys, workTable)
+
+	// Press / and type a query: must lazily initialize work.table, capture query, and filter rows.
+	d.Keys("/")
+	if a.Mode() != ModeFilter {
+		t.Fatalf("/ in 2 Work tree did not enter ModeFilter: mode=%q", a.Mode())
+	}
+	d.Type("Pane rail")
+	tbl := a.nav.tables[workTable]
+	if tbl == nil {
+		t.Fatal("typing in / on 2 Work tree did not initialize work.table")
+	}
+	if tbl.Query != "Pane rail" {
+		t.Fatalf("work.table query = %q, want %q", tbl.Query, "Pane rail")
+	}
+	if a.inWorkTree(a.State()) {
+		t.Fatal("active filter query should switch 2 Work to filtered table view")
+	}
+	if len(tbl.Filtered()) == 0 {
+		t.Fatal("expected matching filtered rows for 'Pane rail'")
+	}
+
+	// Esc clears filter and returns cleanly to the tree view.
+	d.Keys("esc")
+	if a.Mode() != ModeNormal || tbl.Query != "" || !a.inWorkTree(a.State()) {
+		t.Fatalf("esc after / filter: mode=%q query=%q inWorkTree=%v", a.Mode(), tbl.Query, a.inWorkTree(a.State()))
+	}
+}

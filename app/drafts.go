@@ -271,11 +271,20 @@ func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
 		}
 		a.clearSubmittedDraft(fm, rf.draftKey)
 		if rf.kind == data.KindPane {
-			createdRef := rec.Ref()
+			created := *rec
 			a.afterModal(func(st core.State) core.State {
+				a.viewMemo.gen++
+				if isProjectTab(st.ActivePage) && a.projectChildPaneViewEnabled() {
+					return a.openProjectChildPane(st, projectIDFromTab(st.ActivePage), created.ID, true)
+				}
 				if st.ActivePage == SpacePanes {
-					a.viewMemo.gen++
-					selectRow(a.rail(), data.RefText(createdRef))
+					rail := a.rail()
+					if !selectRow(rail, data.RefText(created.Ref())) {
+						rail.Query = ""
+						selectRow(rail, data.RefText(created.Ref()))
+					}
+					a.panes.activePage[created.ID] = views.ScreenPageID
+					return a.enterScreen(withFocus(withPage(st, SpacePanes, siteScreen, ModeNormal), siteScreen), created)
 				}
 				return st
 			})

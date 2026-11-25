@@ -21,6 +21,7 @@ type projectNavTarget struct {
 	ContextKey    string
 	ContextItem   *CollectedContextItem
 	Worktree      *data.ProjectWorktree
+	Unread        bool
 	Expandable    bool
 	Expanded      bool
 }
@@ -189,7 +190,7 @@ func (pc *ProjectController) takeOpenPageReturnFocus(projKey string) string {
 
 // --- Lazy nav-tree child builders -----------------------------------------------
 
-func (a *App) buildProjectNavChildren(ws projectWorkspaceData, secKey, focusID string) []views.ProjectNavNode {
+func (a *App) buildProjectNavChildren(ws projectWorkspaceData, secKey, focusID string, expanded, allowPeek bool) ([]views.ProjectNavNode, int) {
 	pc := a.projectCtrl()
 	lockedFocus := ""
 	if locked := pc.activeNavItem(ws.projectKey); locked != nil {
@@ -197,62 +198,89 @@ func (a *App) buildProjectNavChildren(ws projectWorkspaceData, secKey, focusID s
 	}
 	switch secKey {
 	case "tasks":
-		return a.projectTaskNavNodes(ws, focusID, lockedFocus)
+		return a.projectTaskNavNodes(ws, focusID, lockedFocus, expanded, allowPeek)
 	case "pages":
-		return a.projectPageNavNodes(ws, focusID, lockedFocus)
+		return a.projectPageNavNodes(ws, focusID, lockedFocus, expanded, allowPeek)
 	case "panes":
-		return a.projectTreeNavNodes(ws.projectKey, "panes", data.KindPane, data.BuildTree(ws.panes, "parentPane", "", a.nav.showArchived), focusID, lockedFocus)
+		return a.projectTreeNavNodes(ws, "panes", data.KindPane, data.BuildTree(ws.panes, "parentPane", "", a.nav.showArchived), focusID, lockedFocus, expanded, allowPeek)
 	case "lanes":
-		return a.projectTreeNavNodes(ws.projectKey, "lanes", data.KindLane, data.BuildTree(ws.allLanes, "parentLane", "", a.nav.showArchived), focusID, lockedFocus)
+		return a.projectTreeNavNodes(ws, "lanes", data.KindLane, data.BuildTree(ws.allLanes, "parentLane", "", a.nav.showArchived), focusID, lockedFocus, expanded, allowPeek)
 	case "documents":
-		return a.projectRecordNavNodes(ws.projectKey, "documents", data.KindDocument, ws.documents, focusID, lockedFocus)
+		return a.projectRecordNavNodes(ws, "documents", data.KindDocument, ws.documents, focusID, lockedFocus, expanded, allowPeek)
 	case "notes":
-		return a.projectRecordNavNodes(ws.projectKey, "notes", data.KindNote, ws.notes, focusID, lockedFocus)
+		return a.projectRecordNavNodes(ws, "notes", data.KindNote, ws.notes, focusID, lockedFocus, expanded, allowPeek)
 	case "questions":
-		return a.projectRecordNavNodes(ws.projectKey, "questions", data.KindQuestion, ws.questions, focusID, lockedFocus)
+		return a.projectRecordNavNodes(ws, "questions", data.KindQuestion, ws.questions, focusID, lockedFocus, expanded, allowPeek)
 	case "commands":
-		return a.projectRecordNavNodes(ws.projectKey, "commands", data.KindCommand, ws.commands, focusID, lockedFocus)
+		return a.projectRecordNavNodes(ws, "commands", data.KindCommand, ws.commands, focusID, lockedFocus, expanded, allowPeek)
 	case "context":
-		return a.projectContextNavNodes(ws.projectKey, "context", ws.contextItems, focusID, lockedFocus)
+		return a.projectContextNavNodes(ws, "context", ws.contextItems, focusID, lockedFocus, expanded, allowPeek)
 	case "pinned":
-		return a.projectContextNavNodes(ws.projectKey, "pinned", ws.pinnedItems, focusID, lockedFocus)
+		return a.projectContextNavNodes(ws, "pinned", ws.pinnedItems, focusID, lockedFocus, expanded, allowPeek)
 	case "prs":
-		return a.projectContextNavNodes(ws.projectKey, "prs", ws.prItems, focusID, lockedFocus)
+		return a.projectContextNavNodes(ws, "prs", ws.prItems, focusID, lockedFocus, expanded, allowPeek)
 	case "worktrees":
-		return a.projectWorktreeNavNodes(ws.projectKey, ws.worktrees, focusID, lockedFocus)
+		if !expanded {
+			return nil, 0
+		}
+		return a.projectWorktreeNavNodes(ws.projectKey, ws.worktrees, focusID, lockedFocus), 0
 	}
-	return nil
+	return nil, 0
 }
 
-func (a *App) projectTaskNavNodes(ws projectWorkspaceData, focusID, lockedFocus string) []views.ProjectNavNode {
+func (a *App) projectTaskNavNodes(ws projectWorkspaceData, focusID, lockedFocus string, expanded, allowPeek bool) ([]views.ProjectNavNode, int) {
 	if a.Store == nil || ws.projectID == "" {
-		return nil
+		return nil, 0
 	}
 	allNodes, err := a.recordTreeNodes(data.KindTask)
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 	projNode, ok := findProjectTreeNode(allNodes, ws.projectID)
 	if !ok || len(projNode.Children) == 0 {
-		return nil
+		return nil, 0
 	}
-	return a.projectTreeNavNodes(ws.projectKey, "tasks", data.KindTask, projNode.Children, focusID, lockedFocus)
+	return a.projectTreeNavNodes(ws, "tasks", data.KindTask, projNode.Children, focusID, lockedFocus, expanded, allowPeek)
 }
 
-func (a *App) projectTreeNavNodes(projKey, secKey, kind string, nodes []data.TreeNode, focusID, lockedFocus string) []views.ProjectNavNode {
+func (a *App) projectTreeNavNodes(ws projectWorkspaceData, secKey, kind string, nodes []data.TreeNode, focusID, lockedFocus string, sectionExpanded, allowPeek bool) ([]views.ProjectNavNode, int) {
 	pc := a.projectCtrl()
+	projKey := ws.projectKey
 	schema := a.schema(kind)
 	styleOpts := a.styleOptions()
-	var build func(ns []data.TreeNode, parentID, parentFocusID string) []views.ProjectNavNode
-	build = func(ns []data.TreeNode, parentID, parentFocusID string) []views.ProjectNavNode {
+
+	var build func(ns []data.TreeNode, parentID string, peekOnly bool) ([]views.ProjectNavNode, int)
+	build = func(ns []data.TreeNode, parentID string, peekOnly bool) ([]views.ProjectNavNode, int) {
 		out := make([]views.ProjectNavNode, 0, len(ns))
+		totalUnread := 0
 		for _, nd := range ns {
 			rec := nd.Record
 			ref := rec.Ref()
 			nodeFocusID := projectNavNodePrefix + secKey + "." + rec.ID
 			expandable := len(nd.Children) > 0
 			nodeKey := secKey + "." + rec.ID
-			expanded := expandable && pc.isNavNodeExpanded(projKey, nodeKey)
+			nodeExpanded := expandable && pc.isNavNodeExpanded(projKey, nodeKey)
+			selfUnread := a.isNavRecordUnread(kind, rec, &ws)
+			if selfUnread {
+				totalUnread++
+			}
+
+			var children []views.ProjectNavNode
+			childUnread := 0
+			if expandable {
+				childPeekOnly := peekOnly || !nodeExpanded
+				children, childUnread = build(nd.Children, rec.ID, childPeekOnly)
+				totalUnread += childUnread
+				if !nodeExpanded && !allowPeek {
+					children = nil
+				}
+			}
+
+			hasUnread := selfUnread || childUnread > 0
+			if peekOnly && !hasUnread {
+				continue
+			}
+
 			title := strings.TrimSpace(views.Title(schema, rec))
 			if title == "" {
 				title = rec.ID
@@ -267,8 +295,7 @@ func (a *App) projectTreeNavNodes(projKey, secKey, kind string, nodes []data.Tre
 				}
 			}
 			active := focusID == nodeFocusID || lockedFocus == nodeFocusID
-			unread := rec.IsUnreadBy(schema.UnreadField)
-			item := views.ProjectNavNode{
+			out = append(out, views.ProjectNavNode{
 				ID:         rec.ID,
 				Section:    secKey,
 				ParentID:   parentID,
@@ -276,38 +303,62 @@ func (a *App) projectTreeNavNodes(projKey, secKey, kind string, nodes []data.Tre
 				Icon:       rs.Icon,
 				Badge:      badge,
 				Ref:        &ref,
-				Unread:     unread,
+				Unread:     selfUnread,
+				Peeked:     peekOnly,
+				HasUnread:  hasUnread,
 				Active:     active,
 				Expandable: expandable,
-				Expanded:   expanded,
-			}
+				Expanded:   nodeExpanded,
+				Children:   children,
+				Facts:      a.projectNavRecordFacts(schema, rec),
+			})
+		}
+		return out, totalUnread
+	}
+
+	roots, unreadTotal := build(nodes, "", !sectionExpanded)
+	if !sectionExpanded && !allowPeek {
+		return nil, unreadTotal
+	}
+	var register func(ns []views.ProjectNavNode, parentFocusID string)
+	register = func(ns []views.ProjectNavNode, parentFocusID string) {
+		for _, item := range ns {
+			nodeFocusID := projectNavNodePrefix + secKey + "." + item.ID
 			pc.registerNavTarget(projKey, projectNavTarget{
 				FocusID:       nodeFocusID,
 				Section:       secKey,
-				NodeID:        rec.ID,
+				NodeID:        item.ID,
 				ParentFocusID: parentFocusID,
-				Label:         title,
-				Ref:           &ref,
-				Expandable:    expandable,
-				Expanded:      expanded,
+				Label:         item.Label,
+				Ref:           item.Ref,
+				Unread:        item.Unread,
+				Expandable:    item.Expandable,
+				Expanded:      item.Expanded,
 			})
-			if expanded {
-				item.Children = build(nd.Children, rec.ID, nodeFocusID)
+			if len(item.Children) > 0 {
+				register(item.Children, nodeFocusID)
 			}
-			out = append(out, item)
 		}
-		return out
 	}
-	return build(nodes, "", projectNavPrefix+secKey)
+	register(roots, projectNavPrefix+secKey)
+	return roots, unreadTotal
 }
 
-func (a *App) projectPageNavNodes(ws projectWorkspaceData, focusID, lockedFocus string) []views.ProjectNavNode {
+func (a *App) projectPageNavNodes(ws projectWorkspaceData, focusID, lockedFocus string, expanded, allowPeek bool) ([]views.ProjectNavNode, int) {
 	pc := a.projectCtrl()
 	schema := a.schema(data.KindPage)
 	openPage := pc.openPageID(ws.projectKey)
 	parentFocus := projectNavPrefix + "pages"
 	out := make([]views.ProjectNavNode, 0, len(ws.pages))
+	unreadCount := 0
 	for _, p := range ws.pages {
+		unread := a.isNavRecordUnread(data.KindPage, p, &ws)
+		if unread {
+			unreadCount++
+		}
+		if !expanded && (!allowPeek || !unread) {
+			continue
+		}
 		ref := p.Ref()
 		nodeFocusID := projectNavNodePrefix + "pages." + p.ID
 		title := strings.TrimSpace(views.Title(schema, p))
@@ -321,23 +372,24 @@ func (a *App) projectPageNavNodes(ws projectWorkspaceData, focusID, lockedFocus 
 		case p.Bool("pinned"):
 			icon = "▪"
 		}
-		unread := p.IsUnread()
 		active := focusID == nodeFocusID || lockedFocus == nodeFocusID || openPage == p.ID
+		facts := a.projectNavRecordFacts(schema, p)
+		facts["pageId"] = p.ID
+		facts["pageKind"] = p.Text("pageKind")
+		facts["pinned"] = p.Bool("pinned")
 		out = append(out, views.ProjectNavNode{
-			ID:       p.ID,
-			Section:  "pages",
-			ParentID: "",
-			Label:    title,
-			Icon:     icon,
-			Badge:    p.Text("pageKind"),
-			Ref:      &ref,
-			Unread:   unread,
-			Active:   active,
-			Facts: map[string]any{
-				"pageId":   p.ID,
-				"pageKind": p.Text("pageKind"),
-				"pinned":   p.Bool("pinned"),
-			},
+			ID:        p.ID,
+			Section:   "pages",
+			ParentID:  "",
+			Label:     title,
+			Icon:      icon,
+			Badge:     p.Text("pageKind"),
+			Ref:       &ref,
+			Unread:    unread,
+			Peeked:    !expanded && unread,
+			HasUnread: unread,
+			Active:    active,
+			Facts:     facts,
 		})
 		pc.registerNavTarget(ws.projectKey, projectNavTarget{
 			FocusID:       nodeFocusID,
@@ -346,18 +398,28 @@ func (a *App) projectPageNavNodes(ws projectWorkspaceData, focusID, lockedFocus 
 			ParentFocusID: parentFocus,
 			Label:         title,
 			Ref:           &ref,
+			Unread:        unread,
 		})
 	}
-	return out
+	return out, unreadCount
 }
 
-func (a *App) projectRecordNavNodes(projKey, secKey, kind string, recs []data.Record, focusID, lockedFocus string) []views.ProjectNavNode {
+func (a *App) projectRecordNavNodes(ws projectWorkspaceData, secKey, kind string, recs []data.Record, focusID, lockedFocus string, expanded, allowPeek bool) ([]views.ProjectNavNode, int) {
 	pc := a.projectCtrl()
+	projKey := ws.projectKey
 	schema := a.schema(kind)
 	styleOpts := a.styleOptions()
 	parentFocus := projectNavPrefix + secKey
 	out := make([]views.ProjectNavNode, 0, len(recs))
+	unreadCount := 0
 	for _, rec := range recs {
+		unread := a.isNavRecordUnread(kind, rec, &ws)
+		if unread {
+			unreadCount++
+		}
+		if !expanded && (!allowPeek || !unread) {
+			continue
+		}
 		ref := rec.Ref()
 		nodeFocusID := projectNavNodePrefix + secKey + "." + rec.ID
 		title := strings.TrimSpace(views.Title(schema, rec))
@@ -369,21 +431,20 @@ func (a *App) projectRecordNavNodes(projKey, secKey, kind string, recs []data.Re
 		if statusField, _, hasStatus := schema.PrimaryStatusField(); hasStatus {
 			badge = strings.TrimSpace(rec.Text(statusField))
 		}
-		unread := rec.IsUnreadBy(schema.UnreadField)
-		if kind == data.KindQuestion && rec.Text("status") == "open" {
-			unread = true
-		}
 		active := focusID == nodeFocusID || lockedFocus == nodeFocusID
 		out = append(out, views.ProjectNavNode{
-			ID:       rec.ID,
-			Section:  secKey,
-			ParentID: "",
-			Label:    title,
-			Icon:     rs.Icon,
-			Badge:    badge,
-			Ref:      &ref,
-			Unread:   unread,
-			Active:   active,
+			ID:        rec.ID,
+			Section:   secKey,
+			ParentID:  "",
+			Label:     title,
+			Icon:      rs.Icon,
+			Badge:     badge,
+			Ref:       &ref,
+			Unread:    unread,
+			Peeked:    !expanded && unread,
+			HasUnread: unread,
+			Active:    active,
+			Facts:     a.projectNavRecordFacts(schema, rec),
 		})
 		pc.registerNavTarget(projKey, projectNavTarget{
 			FocusID:       nodeFocusID,
@@ -392,9 +453,10 @@ func (a *App) projectRecordNavNodes(projKey, secKey, kind string, recs []data.Re
 			ParentFocusID: parentFocus,
 			Label:         title,
 			Ref:           &ref,
+			Unread:        unread,
 		})
 	}
-	return out
+	return out, unreadCount
 }
 
 func projectNavSafeID(raw string, idx int) string {
@@ -415,12 +477,23 @@ func projectNavSafeID(raw string, idx int) string {
 	return s
 }
 
-func (a *App) projectContextNavNodes(projKey, secKey string, items []CollectedContextItem, focusID, lockedFocus string) []views.ProjectNavNode {
+func (a *App) projectContextNavNodes(ws projectWorkspaceData, secKey string, items []CollectedContextItem, focusID, lockedFocus string, expanded, allowPeek bool) ([]views.ProjectNavNode, int) {
 	pc := a.projectCtrl()
+	projKey := ws.projectKey
 	parentFocus := projectNavPrefix + secKey
 	seen := map[string]int{}
 	out := make([]views.ProjectNavNode, 0, len(items))
+	unreadCount := 0
 	for i, it := range items {
+		unread := false
+		if it.RecordID != "" && ws.contextRecords != nil {
+			if rec, ok := ws.contextRecords[it.RecordID]; ok {
+				unread = a.isNavRecordUnread(data.KindContext, rec, &ws)
+			}
+		}
+		if unread {
+			unreadCount++
+		}
 		nodeID := it.RecordID
 		if nodeID == "" {
 			nodeID = projectNavSafeID(it.CanonKey, i)
@@ -429,6 +502,9 @@ func (a *App) projectContextNavNodes(projKey, secKey string, items []CollectedCo
 			nodeID = fmt.Sprintf("%s_%d", nodeID, n)
 		}
 		seen[nodeID]++
+		if !expanded && (!allowPeek || !unread) {
+			continue
+		}
 
 		nodeFocusID := projectNavNodePrefix + secKey + "." + nodeID
 		label := strings.TrimSpace(it.Label)
@@ -439,7 +515,9 @@ func (a *App) projectContextNavNodes(projKey, secKey string, items []CollectedCo
 		tone := ""
 		if it.Official {
 			icon = "★"
-			tone = "accent"
+			if !unread {
+				tone = "accent"
+			}
 		}
 		var ref *core.Ref
 		if it.RecordID != "" {
@@ -449,15 +527,18 @@ func (a *App) projectContextNavNodes(projKey, secKey string, items []CollectedCo
 		active := focusID == nodeFocusID || lockedFocus == nodeFocusID
 		itemCopy := it
 		out = append(out, views.ProjectNavNode{
-			ID:       nodeID,
-			Section:  secKey,
-			ParentID: "",
-			Label:    clip(label, 40),
-			Icon:     icon,
-			Badge:    it.Kind,
-			Tone:     tone,
-			Ref:      ref,
-			Active:   active,
+			ID:        nodeID,
+			Section:   secKey,
+			ParentID:  "",
+			Label:     clip(label, 40),
+			Icon:      icon,
+			Badge:     it.Kind,
+			Tone:      tone,
+			Ref:       ref,
+			Unread:    unread,
+			Peeked:    !expanded && unread,
+			HasUnread: unread,
+			Active:    active,
 			Facts: map[string]any{
 				"contextItem": true,
 				"contextKey":  it.Key,
@@ -473,9 +554,10 @@ func (a *App) projectContextNavNodes(projKey, secKey string, items []CollectedCo
 			Ref:           ref,
 			ContextKey:    it.Key,
 			ContextItem:   &itemCopy,
+			Unread:        unread,
 		})
 	}
-	return out
+	return out, unreadCount
 }
 
 func (a *App) projectWorktreeNavNodes(projKey string, items []data.ProjectWorktree, focusID, lockedFocus string) []views.ProjectNavNode {
@@ -663,6 +745,10 @@ func (a *App) projectNavNodeOpen(s core.State, focusID string) core.StepResult {
 		return core.Next(a.column(s, 1))
 	}
 
+	if target.Unread {
+		a.markProjectNavTargetRead(target)
+	}
+
 	// 1. Pages: full interactive ModePage matching 1 Panes.
 	if target.Section == "pages" && target.Ref != nil && target.Ref.Kind == data.KindPage {
 		page, err := a.Store.Get(*target.Ref)
@@ -675,10 +761,11 @@ func (a *App) projectNavNodeOpen(s core.State, focusID string) core.StepResult {
 
 	// 2. Panes: open inline child pane (or jump to 1 Panes when opted out).
 	if target.Section == "panes" && target.Ref != nil && target.Ref.Kind == data.KindPane {
+		enterLive := a.railEnterLiveEnabled()
 		if a.projectChildPaneViewEnabled() {
-			return core.Next(a.openProjectChildPaneInPlace(s, projKey, target.Ref.ID, target.FocusID, false))
+			return core.Next(a.openProjectChildPaneInPlace(s, projKey, target.Ref.ID, target.FocusID, enterLive))
 		}
-		return core.Next(a.jumpToPane(s, target.Ref.ID, true))
+		return core.Next(a.jumpToPane(s, target.Ref.ID, enterLive))
 	}
 
 	// 3. Documents & Notes with Markdown body or readable .md file: scrollable Markdown reader.
@@ -730,7 +817,7 @@ func (a *App) projectNavViewKey(s core.State) string {
 	}
 	pc := a.proj
 	var b strings.Builder
-	fmt.Fprintf(&b, "|pnt:%t", a.projectNavTreeEnabled())
+	fmt.Fprintf(&b, "|pnt:%t:%t", a.projectNavTreeEnabled(), a.projectNavSurfaceUnreadEnabled())
 	if secs := pc.expandedSections[projKey]; len(secs) > 0 {
 		keys := make([]string, 0, len(secs))
 		for k, v := range secs {

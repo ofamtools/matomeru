@@ -184,6 +184,7 @@ const (
 	SetProjectsDynamicTabs           = "projects.dynamicTabs.enabled"
 	SetProjectsChildPaneView         = "projects.childPaneView.enabled"
 	SetProjectsNavTree               = "projects.navTree"
+	SetProjectsNavSurfaceUnread      = "projects.navSurfaceUnread"
 	SetOutlineGutter                 = "outline.gutter"
 	SetChromeSystemStats             = "ui.chromeSystemStats"
 	SetSelfHostedFeaturesEnabled     = "selfHosted.featuresPage.enabled"
@@ -322,6 +323,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetOutlineGutter, true, "show a 1-character left gutter column on task outlines for queue, dispatch, and agent status indicators"),
 		flag(SetChromeSystemStats, true, "show non-blocking CPU, RAM, and disk stats in the bottom chrome bar"),
 		flag(SetShowContent, true, "Show pages render full Markdown body and long-text fields in readable panels"),
+		flag(SetProjectsNavSurfaceUnread, true, "surface unread/new items visibly underneath collapsed Project left-nav sections and parents"),
 	}
 }
 

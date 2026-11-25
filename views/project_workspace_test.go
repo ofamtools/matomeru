@@ -145,10 +145,14 @@ func TestProjectWorkspaceNavTreeChevronsIndentAndFacts(t *testing.T) {
 			},
 			{
 				Key: "pages", Label: "Pages", Icon: "◫", Group: "Core",
-				Count: 1, Unread: true, Expandable: true, Expanded: false,
+				Count: 2, UnreadCount: 1, Unread: true, Expandable: true, Expanded: false,
 				Children: []ProjectNavNode{
-					{ID: "pg1", Section: "pages", Label: "Spec Page", Ref: &p1Ref, Unread: true},
+					{ID: "pg1", Section: "pages", Label: "Spec Page", Ref: &p1Ref, Unread: true, Peeked: true},
 				},
+			},
+			{
+				Key: "documents", Label: "Documents", Icon: "▤", Group: "Knowledge",
+				Count: 1, Expandable: true, Expanded: false,
 			},
 		},
 	}
@@ -165,15 +169,23 @@ func TestProjectWorkspaceNavTreeChevronsIndentAndFacts(t *testing.T) {
 	}
 
 	pagesSec := root.Find(ProjectNavPrefix + "pages")
-	if pagesSec == nil || pagesSec.Facts["navExpandable"] != true || pagesSec.Facts["navExpanded"] != false {
+	if pagesSec == nil || pagesSec.Facts["navExpandable"] != true || pagesSec.Facts["navExpanded"] != false || pagesSec.Facts["unreadCount"] != 1 || pagesSec.Facts["sectionUnread"] != true {
 		t.Fatalf("unexpected pages section facts: %+v", pagesSec)
 	}
-	if txt, _ := pagesSec.Props["text"].(string); !strings.HasPrefix(txt, "▸ ") {
-		t.Fatalf("collapsed pages section should start with ▸, got %q", txt)
+	if txt, _ := pagesSec.Props["text"].(string); !strings.HasPrefix(txt, "▸ ") || !strings.Contains(txt, "2 · ●1") {
+		t.Fatalf("collapsed pages section should start with ▸ and show 2 · ●1, got %q", txt)
 	}
-	// Collapsed section must NOT emit its children.
-	if root.Find(ProjectNavNodePrefix+"pages.pg1") != nil {
-		t.Fatal("collapsed pages section should not emit child nodes")
+	// Collapsed section with populated peeked unread children MUST emit them with ● + NEW styling!
+	pg1Node := root.Find(ProjectNavNodePrefix + "pages.pg1")
+	if pg1Node == nil || !pg1Node.Unread || pg1Node.Tone != "warning" || pg1Node.Facts["peeked"] != true || pg1Node.Facts["unread"] != true {
+		t.Fatalf("collapsed pages section should emit peeked unread child pg1: %+v", pg1Node)
+	}
+	if txt, _ := pg1Node.Props["text"].(string); !strings.Contains(txt, "● ") || !strings.Contains(txt, "NEW") {
+		t.Fatalf("peeked unread child text = %q, want ● and NEW", txt)
+	}
+	// Collapsed section with no populated children emits none.
+	if docsSec := root.Find(ProjectNavPrefix + "documents"); docsSec == nil || docsSec.Facts["navExpanded"] != false {
+		t.Fatalf("unexpected documents section: %+v", docsSec)
 	}
 
 	// Expanded parent task node (depth 1) & nested subtask node (depth 2).

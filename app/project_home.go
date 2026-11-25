@@ -75,6 +75,7 @@ var defaultProjectNavSections = []projectNavDef{
 
 type cachedProjectWorkspace struct {
 	rev          int64
+	telemetrySeq uint64
 	showArchived bool
 	ctxGen       uint64
 	groupName    string
@@ -96,6 +97,7 @@ type ProjectController struct {
 	expandedNodes        map[string]map[string]bool
 	activeItemByProject  map[string]*projectNavTarget
 	navTargets           map[string]map[string]projectNavTarget
+	ownerCreated         map[core.Ref]bool
 	openTabs             []string
 	lastUsedAt           map[string]time.Time
 	lastUsedGen          uint64
@@ -124,6 +126,7 @@ func newProjectController() *ProjectController {
 		expandedNodes:        map[string]map[string]bool{},
 		activeItemByProject:  map[string]*projectNavTarget{},
 		navTargets:           map[string]map[string]projectNavTarget{},
+		ownerCreated:         map[core.Ref]bool{},
 		lastUsedAt:           map[string]time.Time{},
 		tables:               map[string]*table.Model{},
 		trees:                map[string]*tree.Model{},
@@ -239,7 +242,7 @@ func projectKeyFor(groupName string, projRef *core.Ref) string {
 
 // projectHomeSpecs returns the CommandSpecs owned by the Project Page workspace.
 func projectHomeSpecs() []core.CommandSpec {
-	return []core.CommandSpec{
+	return append([]core.CommandSpec{
 		{
 			ID:          CmdProjectSectionSelect,
 			Description: "Select a Project Page left-navigation section and focus its content",
@@ -250,7 +253,7 @@ func projectHomeSpecs() []core.CommandSpec {
 		spec(CmdProjectContentOpen, "Open the focused item inside the Project Page content area"),
 		spec(CmdContextOfficialToggle, "Promote or demote the focused context item as Official Project Context", "editing"),
 		spec(CmdContextAddOfficial, "Add an Official Project Context link, Google Doc/Sheet, PR, or file", "editing"),
-	}
+	}, projectNavUnreadSpecs()...)
 }
 
 // projectHomeBindings returns key bindings strictly scoped to the Project Page
@@ -260,6 +263,8 @@ func projectHomeBindings() []core.Binding {
 	return []core.Binding{
 		bind(n, views.ScopeProjectNav, "enter", CmdProjectSectionSelect, "open section"),
 		when(bind(n, views.ScopeProjectNav, "space", CmdProjectNavToggle, "expand / collapse"), "facts.navExpandable"),
+		when(bind(n, views.ScopeProjectNav, "r", CmdProjectNavMarkRead, "mark read"), "facts.unread || facts.sectionUnread"),
+		when(bind(n, views.ScopeProjectNav, "R", CmdProjectNavMarkSectionRead, "mark section read"), "facts.unread || facts.sectionUnread || (facts.section == \"home\" && facts.projectUnread)"),
 		when(bind(n, views.ScopeProjectContent, "esc", CmdProjectPageBack, "back to pages"), "facts.projectOpenPage && !facts.inChildPaneView"),
 		hidden(when(bind(n, views.ScopeProjectContent, "h", CmdProjectPageBack, "back to pages"), "facts.projectOpenPage && !facts.inChildPaneView")),
 		hidden(when(bind(n, views.ScopeProjectContent, "esc", CmdProjectPageBack, "back to nav"), "!facts.projectOpenPage && !facts.inChildPaneView && !facts.visualActive && !(facts.markedCount > 0)")),
@@ -279,6 +284,8 @@ func projectHomeBindings() []core.Binding {
 func (a *App) registerProjectHomeHandlers() {
 	a.handle(CmdProjectSectionSelect, a.projectSectionSelect)
 	a.handle(CmdProjectNavToggle, a.projectNavToggle)
+	a.handle(CmdProjectNavMarkRead, a.projectNavMarkRead)
+	a.handle(CmdProjectNavMarkSectionRead, a.projectNavMarkSectionRead)
 	a.handle(CmdProjectPageBack, a.projectPageBack)
 	a.handle(CmdProjectContentOpen, a.projectContentOpen)
 	a.handle(CmdContextOfficialToggle, a.contextOfficialToggle)
@@ -350,9 +357,18 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 	ws := a.collectProjectWorkspaceData(groupName, projRef)
 	navItems := a.buildProjectNavItems(defs, ws, activeKey, focusID)
 
-	badges := make([]ui.Badge, 0, 5)
+	badges := make([]ui.Badge, 0, 8)
 	if ws.projRec != nil {
 		badges = append(badges, views.StatusBadges(a.schema(data.KindTask), *ws.projRec)...)
+	}
+	if ws.unreadTotal > 0 {
+		badges = append(badges, ui.Badge{Text: fmt.Sprintf("● %d new", ws.unreadTotal), Tone: "warning"})
+	}
+	if ws.runningPanes > 0 {
+		badges = append(badges, ui.Badge{Text: fmt.Sprintf("▶ %d running", ws.runningPanes), Tone: "info"})
+	}
+	if ws.needsYouPanes > 0 {
+		badges = append(badges, ui.Badge{Text: fmt.Sprintf("! %d needs you", ws.needsYouPanes), Tone: "error"})
 	}
 	badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d panes", len(ws.panes))})
 	if ws.officialCount > 0 {
@@ -416,6 +432,8 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 		Facts: map[string]any{
 			"projectGroup": groupName, "paneCount": len(ws.panes),
 			"contextCount": len(ws.contextItems), "officialCount": ws.officialCount,
+			"projectUnread":   ws.unreadTotal > 0,
+			"unreadTotal":     ws.unreadTotal,
 			"inChildPaneView": inChildPane,
 		},
 	})
@@ -592,6 +610,7 @@ func (a *App) projectPageBack(s core.State, _ core.Command) core.StepResult {
 			ret = projectPagesTable
 		}
 		a.viewMemo.gen++
+		ret = a.resolveProjectNavReturnFocus(s, ret)
 		a.say("pages index")
 		return core.Next(withMode(withFocus(s, ret), ModeNormal))
 	}
@@ -599,6 +618,7 @@ func (a *App) projectPageBack(s core.State, _ core.Command) core.StepResult {
 		ret := locked.FocusID
 		pc.setActiveNavItem(projKey, nil)
 		a.viewMemo.gen++
+		ret = a.resolveProjectNavReturnFocus(s, ret)
 		a.say("back to nav")
 		return core.Next(withMode(withFocus(s, ret), ModeNormal))
 	}
@@ -656,9 +676,9 @@ func (a *App) projectContentOpen(s core.State, c core.Command) core.StepResult {
 		if tm := pc.trees[projectPanesTree]; tm != nil {
 			if row, ok := tm.Focused(); ok && row.Node.Ref != nil && row.Node.Ref.Kind == data.KindPane {
 				if isProjectTab(s.ActivePage) && a.projectChildPaneViewEnabled() {
-					return core.Next(a.openProjectChildPane(s, projectIDFromTab(s.ActivePage), row.Node.Ref.ID, false))
+					return core.Next(a.openProjectChildPane(s, projectIDFromTab(s.ActivePage), row.Node.Ref.ID, a.railEnterLiveEnabled()))
 				}
-				return core.Next(a.jumpToPane(s, row.Node.Ref.ID, true))
+				return core.Next(a.jumpToPane(s, row.Node.Ref.ID, a.railEnterLiveEnabled()))
 			}
 		}
 		a.say("no pane selected")
@@ -739,6 +759,7 @@ func (a *App) contextOfficialToggle(s core.State, c core.Command) core.StepResul
 		a.fail("promote official context", err)
 		return core.Next(s)
 	}
+	a.markOwnerCreated(updated.Ref())
 	a.invalidateContextIndex()
 	msg := fmt.Sprintf("★ Official context: %s (auto-included)", clip(views.Title(a.schema(data.KindContext), updated), 44))
 	a.say("%s", msg)
@@ -784,6 +805,7 @@ func (a *App) contextAddOfficial(s core.State, c core.Command) core.StepResult {
 			if err != nil {
 				return modal.Result{Handled: true, Status: "add official context: " + err.Error(), SetStatus: true}
 			}
+			a.markOwnerCreated(rec.Ref())
 			a.invalidateContextIndex()
 			verb := "Added"
 			if existed {
