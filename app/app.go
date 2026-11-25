@@ -706,6 +706,7 @@ func (a *App) register() {
 	a.handle(CmdTaskQueueDispatch, a.taskQueueDispatch)
 	a.registerProjectHomeHandlers()
 	a.registerComposerContextHandlers()
+	a.registerInsertPickerHandlers()
 	for _, id := range []string{tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll} {
 		a.handle(id, a.treeFoldCommand(id))
 	}

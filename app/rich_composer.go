@@ -17,7 +17,6 @@ import (
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/modal"
-	"ofam.dev/ochazuke/widgets/pathpicker"
 )
 
 // ComposerMode names how a pane prompt is delivered.
@@ -412,34 +411,7 @@ func (m *richComposerModal) handleAttachClipboard() modal.Result {
 }
 
 func (m *richComposerModal) handleAttachFile() modal.Result {
-	start := any(m.cwd)
-	pm, ok := m.a.newPathPickerModal(start, func(entry pathpicker.DirEntry) modal.Result {
-		if entry.IsDir {
-			return modal.Result{Handled: true, Status: "select a file to attach (not a directory)", SetStatus: true}
-		}
-		att, err := attachmentFromPath(entry.Path, "picker")
-		if err != nil {
-			kind, mimeType := attachmentKindAndMime(entry.Path)
-			att = data.Attachment{
-				Kind:   kind,
-				Path:   entry.Path,
-				Label:  filepath.Base(entry.Path),
-				Mime:   mimeType,
-				Source: "picker",
-			}
-		}
-		m.AddAttachment(att)
-		return modal.Result{Handled: true, Status: "attached " + att.Label, SetStatus: true}
-	})
-	if !ok {
-		return modal.Result{Handled: true}
-	}
-	return modal.Result{
-		Handled:   true,
-		Push:      pm,
-		Status:    "pick a file to attach · " + pathPickerStatus,
-		SetStatus: true,
-	}
+	return m.a.openComposerAttachFilePicker(m)
 }
 
 // View renders the rich composer overlay with multi-line input, optional
