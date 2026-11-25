@@ -592,8 +592,8 @@ func TestShowViewRendersFullBodyMarkdownPanel(t *testing.T) {
 	if panel == nil {
 		t.Fatal("ShowView missing show.content.body panel for multi-line note body")
 	}
-	if panel.Title != "Body" || !panel.Focusable {
-		t.Fatalf("unexpected content panel: title=%q focusable=%v", panel.Title, panel.Focusable)
+	if panel.Title != "Body" {
+		t.Fatalf("unexpected content panel title=%q", panel.Title)
 	}
 	md := panel.Find("show.content.body.md")
 	if md == nil || md.Kind != ui.KindMarkdown || md.Props["markdown"] != fullBody {

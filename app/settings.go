@@ -245,7 +245,6 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetBorderStyle, ui.BorderRounded, "how panels and cards are framed", ui.BorderRounded, ui.BorderSharp, ui.BorderMinimal, ui.BorderNone),
 		flag(SetShowMetadata, true, "Show pages list created, updated and revision"),
 		flag(SetShowEmpty, true, "Show pages keep relation sections that hold nothing"),
-		flag(SetShowContent, true, "Show pages render full Markdown body and long-text fields in readable panels"),
 		flag(SetFlagsColumn, true, "Index tables end with the flags column (unread, star, snooze, archive)"),
 		enum(SetMatchMode, string(table.MatchSubstring), "how a new filter matches", string(table.MatchSubstring), string(table.MatchFuzzy), string(table.MatchRegex)),
 		flag(SetEditUniversal, true, "Edit forms offer star, archive and snooze"),
@@ -322,6 +321,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectsNavTree, true, "allow expanding Project left-nav sections into interactive inline trees with live right-pane preview"),
 		flag(SetOutlineGutter, true, "show a 1-character left gutter column on task outlines for queue, dispatch, and agent status indicators"),
 		flag(SetChromeSystemStats, true, "show non-blocking CPU, RAM, and disk stats in the bottom chrome bar"),
+		flag(SetShowContent, true, "Show pages render full Markdown body and long-text fields in readable panels"),
 	}
 }
 

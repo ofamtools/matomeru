@@ -316,12 +316,11 @@ func contentPanels(schema data.Schema, rec data.Record) []ui.ViewNode {
 			}
 		}
 		out = append(out, ui.ViewNode{
-			ID:        "show.content." + name,
-			Kind:      ui.KindPanel,
-			Title:     fieldTitle(schema, name),
-			Border:    true,
-			Focusable: true,
-			Facts:     map[string]any{"contentField": name},
+			ID:     "show.content." + name,
+			Kind:   ui.KindPanel,
+			Title:  fieldTitle(schema, name),
+			Border: true,
+			Facts:  map[string]any{"contentField": name},
 			Children: []ui.ViewNode{
 				{
 					ID:    "show.content." + name + ".md",
