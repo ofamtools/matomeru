@@ -10,6 +10,9 @@ func (a *App) cleanSlateStateFor(kind, treeID string, create bool) *cleanSlateSt
 	if a.trees == nil {
 		return nil
 	}
+	if treeID == featuresCaptureTree {
+		return &a.trees.featuresCleanSlate
+	}
 	if treeID == workTable {
 		if a.trees.workCleanSlate == nil {
 			if !create {
@@ -99,6 +102,30 @@ func (a *App) outlineCleanSlate(s core.State, _ core.Command) core.StepResult {
 	switch {
 	case a.Modal() == "outline":
 		tm = a.trees.outlineModel()
+	case s.ActivePage == SpaceFeatures && a.Modal() == "":
+		wid := a.ensureFeaturesWishlistTask()
+		if wid == "" {
+			return core.Next(s)
+		}
+		tm = a.trees.projectModel(wid)
+		treeID = featuresCaptureTree
+		returnMode = ModeNormal
+		s = withFocus(s, featuresCaptureTree)
+		hidden := map[string]bool{}
+		if allNodes, err := a.recordTreeNodes(data.KindTask); err == nil {
+			if wNode, ok := findProjectTreeNode(allNodes, wid); ok {
+				for _, ch := range wNode.Children {
+					hidden[ch.Record.ID] = true
+				}
+			}
+		}
+		tm.HoistStack = []string{wid}
+		cs := a.cleanSlateStateFor(kind, treeID, true)
+		cs.active = true
+		cs.roots = hidden
+		a.runTreeStartAdd(tm, kind, treeID, isWork, returnMode, false)
+		a.say("clean slate · type thought · enter adds next · tab indents · esc exits edit")
+		return core.Next(withMode(s, ModeOutlineEdit))
 	case a.inWorkTree(s):
 		kind = a.workKind()
 		tm = a.trees.workModel(kind)

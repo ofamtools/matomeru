@@ -165,6 +165,7 @@ type App struct {
 	nav           *NavController
 	panes         *PaneController
 	proj          *ProjectController
+	features      *FeaturesController
 	rt            *RuntimeController
 	ext           *ExtensionController
 	ctx           *ContextController
@@ -190,6 +191,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		nav:         newNavController(),
 		panes:       newPaneController(),
 		proj:        newProjectController(),
+		features:    newFeaturesController(),
 		rt:          newRuntimeController(),
 		ext:         newExtensionController(),
 		ctx:         newContextController(),
@@ -219,13 +221,18 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.nav.showArchived = a.cfg.Settings.Bool("showArchived", false)
 	a.register()
 
-	frames := make([]core.Frame, 0, len(spaces)+1)
+	frames := make([]core.Frame, 0, len(spaces)+2)
 	for _, sp := range spaces {
 		frames = append(frames, core.Frame{ID: sp.id, Mode: ModeNormal, FocusID: sp.table})
 	}
 	frames = append(frames, core.Frame{ID: SpaceProjects, Mode: ModeNormal, FocusID: projectsDirTable})
+	if a.featuresPageActive() {
+		frames = append(frames, core.Frame{ID: SpaceFeatures, Mode: ModeNormal, FocusID: views.FeaturesNavPrefix + a.featuresCtrl().activeItemKey()})
+	}
 	initial := core.NewState(frames...)
-	if start := a.cfg.Settings.String("startSpace", SpacePanes); slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == start }) || (start == SpaceProjects && a.projectsTopNavTabEnabled()) {
+	if start := a.cfg.Settings.String("startSpace", SpacePanes); slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == start }) ||
+		(start == SpaceProjects && a.projectsTopNavTabEnabled()) ||
+		(start == SpaceFeatures && a.featuresPageActive()) {
 		initial.ActivePage = start
 	}
 	a.Shell = otea.New(a.Engine, initial, a.View, theme)
@@ -235,12 +242,13 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.Shell.AppFacts = func(s core.State) map[string]any {
 		_, recording := a.nav.Macros.Recording()
 		return map[string]any{
-			"space":           s.ActivePage,
-			"recording":       recording,
-			"enterOpensShow":  a.enterOpensShow(),
-			"hlFolds":         a.treeHLFolds(),
-			"isProjectTab":    isProjectTab(s.ActivePage),
-			"inChildPaneView": a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
+			"space":              s.ActivePage,
+			"recording":          recording,
+			"enterOpensShow":     a.enterOpensShow(),
+			"hlFolds":            a.treeHLFolds(),
+			"isProjectTab":       isProjectTab(s.ActivePage),
+			"inChildPaneView":    a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
+			"featuresPageActive": a.featuresPageActive(),
 		}
 	}
 	a.Shell.OnPassThrough = func(e core.PassToWidgetEffect) tea.Cmd {
@@ -724,6 +732,7 @@ func (a *App) register() {
 	a.handle(CmdTaskQueueDispatch, a.taskQueueDispatch)
 	a.registerProjectHomeHandlers()
 	a.registerProjectTabsHandlers()
+	a.registerFeaturesPageHandlers()
 	a.registerComposerContextHandlers()
 	a.registerInsertPickerHandlers()
 	for _, id := range []string{tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll} {

@@ -182,6 +182,11 @@ const (
 	SetProjectsTopNavTab             = "projects.topNavTab.enabled"
 	SetProjectsDynamicTabs           = "projects.dynamicTabs.enabled"
 	SetProjectsChildPaneView         = "projects.childPaneView.enabled"
+	SetSelfHostedFeaturesEnabled     = "selfHosted.featuresPage.enabled"
+	SetSelfHostedFeaturesRepoPath    = "selfHosted.featuresPage.repoPath"
+	SelfHostedFeaturesAuto           = "auto"
+	SelfHostedFeaturesOn             = "on"
+	SelfHostedFeaturesOff            = "off"
 	FocusHintsInline                 = "inline"
 	FocusHintsOverlay                = "overlay"
 	FocusHintsBoth                   = "both"
@@ -307,6 +312,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectsTopNavTab, true, "show permanent 5 Projects tab in the top navigation bar"),
 		flag(SetProjectsDynamicTabs, true, "open selected projects as dedicated 6+ tabs in the top navigation bar"),
 		flag(SetProjectsChildPaneView, true, "open project panes inline inside a Project Tab's content area"),
+		enum(SetSelfHostedFeaturesEnabled, SelfHostedFeaturesAuto, "enable the self-hosted Features page (auto detects local matomeru checkout, on forces visible, off hides)", SelfHostedFeaturesAuto, SelfHostedFeaturesOn, SelfHostedFeaturesOff),
+		{Name: SetSelfHostedFeaturesRepoPath, Type: core.ParamString, Default: "", Description: "override path to local matomeru checkout for Features page auto-detection"},
 	}
 }
 
@@ -465,6 +472,9 @@ func (a *App) applySettings() {
 	a.syncSessionRecorder()
 	a.nav.recCacheKeys = map[string]string{}
 	a.panes.railCacheKey = ""
+	if a.features != nil {
+		a.features.invalidateDetection()
+	}
 	a.viewMemo.gen++
 }
 
@@ -628,6 +638,10 @@ func (a *App) commitSetting(fm *form.Model, name string) {
 	}
 	if name == SetModalEscapeGuard {
 		a.resetEscapeGuard()
+	}
+	if name == SetSelfHostedFeaturesEnabled || name == SetSelfHostedFeaturesRepoPath {
+		a.featuresCtrl().invalidateDetection()
+		a.viewMemo.gen++
 	}
 	saved, err := a.writeConfig(settingsFileName, a.cfg.userSettings)
 	switch {

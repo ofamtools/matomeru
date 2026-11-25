@@ -77,6 +77,9 @@ func (a *App) topTabs() []topTabDef {
 	if a.projectsTopNavTabEnabled() {
 		out = append(out, topTabDef{id: SpaceProjects, title: "Projects"})
 	}
+	if a.featuresPageActive() {
+		out = append(out, topTabDef{id: SpaceFeatures, title: "Features"})
+	}
 	if !a.projectsDynamicTabsEnabled() || a.Store == nil {
 		return out
 	}

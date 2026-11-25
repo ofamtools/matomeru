@@ -29,18 +29,19 @@ type cleanSlateState struct {
 // per-project embedded Project Page outlines, sharing per-kind fold maps and
 // expanded note threads across views.
 type treeController struct {
-	work              map[string]*tree.Model
-	outline           *tree.Model
-	projectTrees      map[string]*tree.Model
-	activeProjectID   string
-	folded            map[string]map[string]bool
-	foldInitialized   map[string]bool
-	layoutOverride    map[string]string
-	workTableRowID    map[string]string
-	editMeta          *treeEditMeta
-	outlineCleanSlate cleanSlateState
-	workCleanSlate    map[string]*cleanSlateState
-	expandedThreads   map[string]bool
+	work               map[string]*tree.Model
+	outline            *tree.Model
+	projectTrees       map[string]*tree.Model
+	activeProjectID    string
+	folded             map[string]map[string]bool
+	foldInitialized    map[string]bool
+	layoutOverride     map[string]string
+	workTableRowID     map[string]string
+	editMeta           *treeEditMeta
+	outlineCleanSlate  cleanSlateState
+	featuresCleanSlate cleanSlateState
+	workCleanSlate     map[string]*cleanSlateState
+	expandedThreads    map[string]bool
 }
 
 func newTreeController() *treeController {
@@ -296,7 +297,7 @@ func (a *App) saveTreeFolded(kind, treeID string, tm *tree.Model) {
 	if kind == data.KindTask {
 		projID = a.trees.projectIDForModel(tm)
 	}
-	if !a.isCleanSlateActive(kind, treeID) && projID == "" && treeID != projectOutlineTree {
+	if !a.isCleanSlateActive(kind, treeID) && projID == "" && treeID != projectOutlineTree && treeID != featuresCaptureTree {
 		a.trees.folded[kind] = tm.Folded
 		return
 	}
@@ -432,6 +433,11 @@ func (a *App) buildTreeNodes(schema data.Schema, kind string, nodes []data.TreeN
 
 func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, []data.TreeNode) {
 	if kind == data.KindTask && a.trees != nil {
+		if wid := a.featuresWishlistTaskID(); wid != "" {
+			if treeID == featuresCaptureTree || a.trees.projectIDForModel(tm) == wid {
+				return a.syncFeaturesCaptureTree(tm, wid)
+			}
+		}
 		if projID := a.trees.projectIDForModel(tm); projID != "" {
 			return a.syncProjectTaskTree(tm, projID, projectOutlineTree)
 		}
@@ -557,6 +563,11 @@ func (a *App) outlineTreeMove(c core.Command) {
 func (a *App) activeTree(s core.State) (tm *tree.Model, kind, treeID string, isWorkTree bool, ok bool) {
 	if a.Modal() == "outline" {
 		return a.trees.outlineModel(), data.KindTask, outlineTree, false, true
+	}
+	if a.inFeaturesCaptureTree(&s) {
+		if wid := a.featuresWishlistTaskID(); wid != "" {
+			return a.trees.projectModel(wid), data.KindTask, featuresCaptureTree, false, true
+		}
 	}
 	if a.inProjectOutlineTree(&s) {
 		if projID := a.activeProjectOutlineID(s); projID != "" {

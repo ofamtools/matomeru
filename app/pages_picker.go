@@ -70,13 +70,23 @@ func (a *App) pagesPick(s core.State, _ core.Command) core.StepResult {
 		{pagePickAppPrefix + "outline", "Outline", "Full task hierarchy outline overlay", "T", []string{"app", "outline", "tree"}},
 		{pagePickAppPrefix + "inspector", "Inspector", "Inspect registered actions, parameters, and modes", ": inspect", []string{"app", "inspector", "actions", "modes"}},
 	}
+	insertAt := 4
 	if a.projectsTopNavTabEnabled() {
-		appPages = append(appPages[:4], append([]struct {
+		appPages = append(appPages[:insertAt], append([]struct {
 			id, title, subtitle, key string
 			keywords                 []string
 		}{
 			{pagePickAppPrefix + "space:" + SpaceProjects, "Projects", "All projects directory with live Home overview preview", "5", []string{"app", "space", "projects", "directory"}},
-		}, appPages[4:]...)...)
+		}, appPages[insertAt:]...)...)
+		insertAt++
+	}
+	if a.featuresPageActive() {
+		appPages = append(appPages[:insertAt], append([]struct {
+			id, title, subtitle, key string
+			keywords                 []string
+		}{
+			{pagePickAppPrefix + "space:" + SpaceFeatures, "Features", "Self-hosted Matomeru features, noun verbs, organized groups, and wishlist capture", fmt.Sprint(insertAt + 1), []string{"app", "space", "features", "wishlist", "self-hosted"}},
+		}, appPages[insertAt:]...)...)
 	}
 	for _, ap := range appPages {
 		badges := []ui.Badge{{Text: "[app]", Tone: "info"}}

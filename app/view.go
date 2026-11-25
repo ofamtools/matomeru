@@ -129,6 +129,9 @@ func (a *App) viewKey(s core.State) string {
 			}
 		}
 	}
+	if fk := a.featuresViewKey(s); fk != "" {
+		b.WriteString("|feat:" + fk)
+	}
 	return b.String()
 }
 
@@ -396,6 +399,8 @@ func (a *App) spaceForTab(s core.State, tb topTabDef) ui.ViewNode {
 		return a.workSpace(s)
 	case SpaceProjects:
 		return a.projectsSpace(s)
+	case SpaceFeatures:
+		return a.featuresSpace(s)
 	}
 	for _, sp := range spaces {
 		if sp.id == tb.id {

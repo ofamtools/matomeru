@@ -705,6 +705,9 @@ func (a *App) paletteEntries() []palette.Entry {
 		if internal(sp) {
 			continue
 		}
+		if selfHosted, _ := sp.Meta["selfHosted"].(bool); selfHosted && !a.featuresPageActive() {
+			continue
+		}
 		specCopy := sp
 		if len(sp.Params) > 0 {
 			specCopy.Params = slices.Clone(sp.Params)

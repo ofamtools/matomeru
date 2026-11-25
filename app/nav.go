@@ -73,7 +73,7 @@ func newNavController() *NavController {
 
 // regionRoots are the nodes whose focusable descendants form one column: h
 // and l move between regions, j and k walk every focusable in drawing order.
-var regionRoots = []string{"panes.rail", "projects.dir", "projects.preview", "project.nav", "project.content", "project.overview", "site.toc", "site.content", "site.side.panel", showHeader, "show.props", "show.related",
+var regionRoots = []string{"panes.rail", "projects.dir", "projects.preview", "project.nav", "project.content", "project.overview", "features.nav", "features.content", "features.capture", "site.toc", "site.content", "site.side.panel", showHeader, "show.props", "show.related",
 	SpaceWork, SpaceRuns, SpaceExtensions, "runs.detail", "extensions.detail"}
 
 type fnode struct{ id, region string }
@@ -106,6 +106,9 @@ func (a *App) defaultFocus(s core.State) string {
 	}
 	if s.ActivePage == SpaceProjects {
 		return projectsDirTable
+	}
+	if s.ActivePage == SpaceFeatures {
+		return views.FeaturesNavPrefix + a.featuresCtrl().activeItemKey()
 	}
 	if isProjectTab(s.ActivePage) {
 		pid := projectIDFromTab(s.ActivePage)
@@ -313,6 +316,11 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 		a.syncVisualStatus(s)
 		return core.Next(s)
 	}
+	if a.inFeaturesCaptureTree(&s) && c.ID != "motion.left" && c.ID != "motion.right" {
+		a.featuresCaptureTreeMove(s, c)
+		a.syncVisualStatus(s)
+		return core.Next(s)
+	}
 	if c.ID != "motion.left" && c.ID != "motion.right" && a.handleProjectTreeMotion(s, c) {
 		a.syncVisualStatus(s)
 		return core.Next(s)
@@ -424,6 +432,11 @@ func (a *App) openSpace(s core.State, id string) core.State {
 			a.say("Projects tab is disabled (projects.topNavTab.enabled=false)")
 			return s
 		}
+	case id == SpaceFeatures:
+		if !a.featuresPageActive() {
+			a.say("Features page is inactive (requires local Matomeru checkout or selfHosted.featuresPage.enabled=on)")
+			return s
+		}
 	case isProjectTab(id):
 		if !a.projectsDynamicTabsEnabled() {
 			a.say("Project tabs are disabled (projects.dynamicTabs.enabled=false)")
@@ -449,6 +462,9 @@ func (a *App) openSpace(s core.State, id string) core.State {
 	if isProjectTab(id) && s.Pages[id].ID == "" {
 		pid := projectIDFromTab(id)
 		s = withPage(s, id, projectNavPrefix+a.projectCtrl().activeSection(pid), ModeNormal)
+	}
+	if id == SpaceFeatures && s.Pages[id].ID == "" {
+		s = withPage(s, id, views.FeaturesNavPrefix+a.featuresCtrl().activeItemKey(), ModeNormal)
 	}
 	a.recordJump(from, a.currentJump(s))
 	return s
@@ -548,6 +564,8 @@ func (a *App) jumpTravel(s core.State, delta int) core.State {
 	s = a.dropModals(s)
 	targetPage := entry.page
 	if targetPage == SpaceProjects && !a.projectsTopNavTabEnabled() {
+		targetPage = SpacePanes
+	} else if targetPage == SpaceFeatures && !a.featuresPageActive() {
 		targetPage = SpacePanes
 	} else if isProjectTab(targetPage) {
 		pid := projectIDFromTab(targetPage)
