@@ -110,6 +110,7 @@ const (
 	SetBorderStyle                   = "ui.borderStyle"
 	SetShowMetadata                  = "show.metadata"
 	SetShowEmpty                     = "show.emptyRelations"
+	SetShowContent                   = "show.content"
 	SetFlagsColumn                   = "index.flagsColumn"
 	SetMatchMode                     = "index.defaultMatchMode"
 	SetEditUniversal                 = "edit.showUniversalFields"
@@ -244,6 +245,7 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetBorderStyle, ui.BorderRounded, "how panels and cards are framed", ui.BorderRounded, ui.BorderSharp, ui.BorderMinimal, ui.BorderNone),
 		flag(SetShowMetadata, true, "Show pages list created, updated and revision"),
 		flag(SetShowEmpty, true, "Show pages keep relation sections that hold nothing"),
+		flag(SetShowContent, true, "Show pages render full Markdown body and long-text fields in readable panels"),
 		flag(SetFlagsColumn, true, "Index tables end with the flags column (unread, star, snooze, archive)"),
 		enum(SetMatchMode, string(table.MatchSubstring), "how a new filter matches", string(table.MatchSubstring), string(table.MatchFuzzy), string(table.MatchRegex)),
 		flag(SetEditUniversal, true, "Edit forms offer star, archive and snooze"),
@@ -413,10 +415,15 @@ func (a *App) theme() ui.Theme {
 }
 
 func (a *App) showOptions() views.ShowOptions {
+	showContent := a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetShowContent, true)
 	if a.nav != nil && a.nav.showCompact {
-		return views.ShowOptions{ShowMetadata: false, ShowEmptyRelations: false}
+		return views.ShowOptions{ShowMetadata: false, ShowEmptyRelations: false, ShowContent: showContent}
 	}
-	return views.ShowOptions{ShowMetadata: a.cfg.Settings.Bool(SetShowMetadata, true), ShowEmptyRelations: a.cfg.Settings.Bool(SetShowEmpty, true)}
+	return views.ShowOptions{
+		ShowMetadata:       a.cfg.Settings.Bool(SetShowMetadata, true),
+		ShowEmptyRelations: a.cfg.Settings.Bool(SetShowEmpty, true),
+		ShowContent:        showContent,
+	}
 }
 
 func (a *App) editOptions() views.EditOptions {

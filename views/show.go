@@ -226,11 +226,112 @@ type ShowOptions struct {
 	// ShowEmptyRelations keeps the declared relation sections that hold
 	// nothing, so every association has its place; false leaves them out.
 	ShowEmptyRelations bool
+	// ShowContent renders full Markdown body and multi-line/long-text fields
+	// in dedicated readable panels at the top of the right column.
+	ShowContent bool
 }
 
 // DefaultShowOptions shows everything.
 func DefaultShowOptions() ShowOptions {
-	return ShowOptions{ShowMetadata: true, ShowEmptyRelations: true}
+	return ShowOptions{ShowMetadata: true, ShowEmptyRelations: true, ShowContent: true}
+}
+
+var proseContentFields = map[string]bool{
+	"body":        true,
+	"description": true,
+	"content":     true,
+	"summary":     true,
+	"answer":      true,
+	"prompt":      true,
+	"output":      true,
+	"notes":       true,
+	"details":     true,
+}
+
+func isPathLikeField(name string, f *data.FieldSpec) bool {
+	if f != nil && (f.Type == core.ParamPath || f.Type == core.ParamRef || len(f.Enum) > 0) {
+		return true
+	}
+	low := strings.ToLower(name)
+	return low == "path" || low == "filepath" || low == "cwd" || low == "defaultdir" || low == "url" || low == "canonicalurl" || low == "transcriptpath"
+}
+
+// contentPanels builds readable Markdown panels for a record's prose/body and
+// multi-line or long-text fields so the owner can read the full content on the
+// Show page without opening the edit modal.
+func contentPanels(schema data.Schema, rec data.Record) []ui.ViewNode {
+	merged := rec.MergedFields()
+	if len(merged) == 0 {
+		return nil
+	}
+	recTitle := strings.TrimSpace(Title(schema, rec))
+
+	byName := make(map[string]*data.FieldSpec, len(schema.Fields))
+	order := make([]string, 0, len(merged))
+	seen := make(map[string]bool, len(merged))
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		byName[f.Name] = f
+		order = append(order, f.Name)
+		seen[f.Name] = true
+	}
+	var extras []string
+	for name := range merged {
+		if !seen[name] {
+			extras = append(extras, name)
+		}
+	}
+	slices.Sort(extras)
+	order = append(order, extras...)
+
+	var out []ui.ViewNode
+	for _, name := range order {
+		if name == "title" || name == "name" || name == "id" || name == "legacyHash" || name == "legacyId" {
+			continue
+		}
+		v, ok := merged[name]
+		if !ok || v == nil {
+			continue
+		}
+		if _, isRef := data.AsRef(v); isRef {
+			continue
+		}
+		if isPathLikeField(name, byName[name]) {
+			continue
+		}
+		raw, isStr := v.(string)
+		if !isStr {
+			continue
+		}
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			continue
+		}
+		multiline := strings.Contains(trimmed, "\n")
+		longText := len([]rune(trimmed)) > 80
+		isProse := proseContentFields[strings.ToLower(name)]
+		if !multiline && !longText {
+			if !isProse || trimmed == recTitle {
+				continue
+			}
+		}
+		out = append(out, ui.ViewNode{
+			ID:        "show.content." + name,
+			Kind:      ui.KindPanel,
+			Title:     fieldTitle(schema, name),
+			Border:    true,
+			Focusable: true,
+			Facts:     map[string]any{"contentField": name},
+			Children: []ui.ViewNode{
+				{
+					ID:    "show.content." + name + ".md",
+					Kind:  ui.KindMarkdown,
+					Props: map[string]any{"markdown": raw, "wrap": true},
+				},
+			},
+		})
+	}
+	return out
 }
 
 // ShowViewWith is ShowView with options. A lane's page leads its related
@@ -248,6 +349,9 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 	}
 
 	var panels []ui.ViewNode
+	if opts.ShowContent {
+		panels = append(panels, contentPanels(schema, *rec)...)
+	}
 	if schema.ShowTimeline {
 		timeline, err := timelinePanel(store, ref)
 		if err != nil {
@@ -320,9 +424,9 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 			badges = append(badges, ui.Badge{Text: mark.text, Tone: "warning"})
 		}
 	}
-	star := ui.ActionHint{Key: "s", Label: "star", Command: CmdStar}
+	star := ui.ActionHint{Key: "m", Label: "star", Command: CmdStar}
 	if rec.IsStarred() {
-		star = ui.ActionHint{Key: "s", Label: "unstar", Command: CmdUnstar}
+		star = ui.ActionHint{Key: "m", Label: "unstar", Command: CmdUnstar}
 	}
 	archive := ui.ActionHint{Key: "a", Label: "archive", Command: CmdArchive}
 	if rec.IsArchived() {

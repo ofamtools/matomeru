@@ -212,7 +212,7 @@ func TestProjectShowPage(t *testing.T) {
 	wantText(t, out,
 		// header: title, Ref badge, kind, status, star, pin, action hints
 		"Matomeru v2", "task:proj", "project", "active", "★ starred", "pinned", "Rebuild on Ochazuke v2",
-		"e edit", "s unstar", "a archive", "enter open claude: views",
+		"e edit", "m unstar", "a archive", "enter open claude: views",
 		// props
 		"Props", "Default dir", "/proj/matomeru-next", "Priority", "P0", "Revision",
 		// one section per association, with its records
@@ -566,5 +566,52 @@ func TestCompactTOCFocusContrastAndMovingCursor(t *testing.T) {
 	}
 	if strings.Contains(ansiRows[rScreen.Y], selBg) {
 		t.Fatalf("unfocused compact TOC row must not carry selection background: %q", ansiRows[rScreen.Y])
+	}
+}
+
+func TestShowViewRendersFullBodyMarkdownPanel(t *testing.T) {
+	w := build(t)
+	fullBody := "**Team update — ALDI link repair**\n\n- Switched audit to live IPP Mesh\n- Fixed and published 174 links across 52 pages"
+	note, _, err := w.store.Create(data.CreateInput{
+		Kind: data.KindNote,
+		Fields: map[string]any{
+			"title": "**Team update — ALDI link repair**",
+			"body":  fullBody,
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Default ShowView includes the full Markdown Body panel at the top of show.related.
+	root, err := ShowView(w.store, note.Ref(), "show.header")
+	if err != nil {
+		t.Fatal(err)
+	}
+	panel := root.Find("show.content.body")
+	if panel == nil {
+		t.Fatal("ShowView missing show.content.body panel for multi-line note body")
+	}
+	if panel.Title != "Body" || !panel.Focusable {
+		t.Fatalf("unexpected content panel: title=%q focusable=%v", panel.Title, panel.Focusable)
+	}
+	md := panel.Find("show.content.body.md")
+	if md == nil || md.Kind != ui.KindMarkdown || md.Props["markdown"] != fullBody {
+		t.Fatalf("expected KindMarkdown with full verbatim body, got %+v", md)
+	}
+	// Verify rendered Show screen displays the full bullet lines without opening edit.
+	frame, _ := ui.Render(root, ui.DefaultDarkTheme(), "show.header", 140, 36)
+	plain := stripANSI(frame.ANSI)
+	if !strings.Contains(plain, "Switched audit to live IPP Mesh") || !strings.Contains(plain, "174 links across 52 pages") {
+		t.Fatalf("rendered Show page missing full body text:\n%s", plain)
+	}
+
+	// Opt-out (ShowContent: false) cleanly omits content panels.
+	noContent, err := ShowViewWith(w.store, note.Ref(), "show.header", ShowOptions{ShowMetadata: true, ShowEmptyRelations: true, ShowContent: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if noContent.Find("show.content.body") != nil {
+		t.Fatal("ShowOptions{ShowContent: false} should omit show.content.body")
 	}
 }
