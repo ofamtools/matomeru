@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -159,268 +159,131 @@ func parseSnoozeTime(text string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// fieldValuesEqual compares a record's stored field value with a form's typed value.
-func fieldValuesEqual(oldVal, newVal any) bool {
-	if oldVal == nil && newVal == nil {
-		return true
-	}
-	if oldVal == nil || newVal == nil {
-		return false
-	}
-	if nr, ok := newVal.(core.Ref); ok {
-		or, ok2 := data.AsRef(oldVal)
-		return ok2 && or == nr
-	}
-	if ns, ok := newVal.([]string); ok {
-		switch ov := oldVal.(type) {
-		case []string:
-			return reflect.DeepEqual(ov, ns)
-		case []any:
-			if len(ov) != len(ns) {
-				return false
-			}
-			for i := range ns {
-				if data.Text(ov[i]) != ns[i] {
-					return false
-				}
-			}
-			return true
-		}
-		return false
-	}
-	switch nv := newVal.(type) {
-	case int:
-		switch ov := oldVal.(type) {
-		case int:
-			return ov == nv
-		case int64:
-			return ov == int64(nv)
-		case float64:
-			return ov == float64(nv)
-		}
-	case float64:
-		switch ov := oldVal.(type) {
-		case float64:
-			return ov == nv
-		case int:
-			return float64(ov) == nv
-		case int64:
-			return float64(ov) == nv
-		}
-	case time.Duration:
-		if ov, ok := oldVal.(string); ok {
-			return ov == nv.String()
-		}
-	}
-	return reflect.DeepEqual(oldVal, newVal)
-}
-
-// submitForm atomically creates or patches the record represented by rf.
-// It reports whether the modal should close.
+// submitForm commits the record form rf as one data.FormSubmission. An edit
+// is one Store.Patch, so its fields and its star, archive and snooze changes
+// are one change set and one undo. It reports whether the modal should close.
 func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
 	if rf == nil || rf.Model() == nil {
 		return false
 	}
 	fm := rf.Model()
-	schema := a.schema(rf.kind)
-
-	merged := maps.Clone(values)
-	if merged == nil {
-		merged = map[string]any{}
+	sub := data.FormSubmission{
+		Schema:        a.schema(rf.kind),
+		Submitted:     values,
+		Defaults:      rf.hiddenDefaults,
+		VisibleFields: fm.Specs,
 	}
-	for k, v := range rf.hiddenDefaults {
-		if _, exists := merged[k]; !exists {
-			merged[k] = v
-		}
+	snoozeVisible := slices.ContainsFunc(fm.Specs, func(sp core.ParamSpec) bool { return sp.Name == data.ColSnoozedUntil })
+	snoozeText := strings.TrimSpace(data.Text(values[data.ColSnoozedUntil]))
+	if snoozeText == "" && rf.ref == nil {
+		snoozeText = strings.TrimSpace(data.Text(rf.hiddenDefaults[data.ColSnoozedUntil]))
 	}
-
-	// Validate snoozedUntil before performing any write.
-	var (
-		hasSnoozeSpec bool
-		snoozeText    string
-		snoozeUntil   time.Time
-		snoozePtr     *time.Time
-	)
-	for _, sp := range fm.Specs {
-		if sp.Name == data.ColSnoozedUntil {
-			hasSnoozeSpec = true
-			break
-		}
-	}
-	if hasSnoozeSpec {
-		snoozeText = strings.TrimSpace(data.Text(merged[data.ColSnoozedUntil]))
-		if snoozeText != "" {
-			t, ok := parseSnoozeTime(snoozeText)
-			if !ok {
-				if fm.Errors == nil {
-					fm.Errors = map[string]string{}
-				}
-				fm.Errors[data.ColSnoozedUntil] = "must be 2006-01-02 15:04 or RFC 3339"
-				a.say("%s %q is not a time (2006-01-02 15:04 or RFC 3339); not written", data.ColSnoozedUntil, snoozeText)
-				return false
+	if snoozeText != "" {
+		t, ok := parseSnoozeTime(snoozeText)
+		switch {
+		case ok:
+			sub.SnoozeUntil = &t
+		case snoozeVisible:
+			if fm.Errors == nil {
+				fm.Errors = map[string]string{}
 			}
-			snoozeUntil = t
-			snoozePtr = &snoozeUntil
+			fm.Errors[data.ColSnoozedUntil] = "must be 2006-01-02 15:04 or RFC 3339"
+			a.say("%s %q is not a time (2006-01-02 15:04 or RFC 3339); not written", data.ColSnoozedUntil, snoozeText)
+			return false
 		}
 	}
 
 	if rf.ref == nil {
-		rec, ok := a.createRecordFromValues(rf.kind, rf.about, merged, snoozePtr)
+		rec, ok := a.createFromSubmission(sub, rf.about)
 		if !ok {
 			return false
 		}
 		a.clearSubmittedDraft(fm, rf.draftKey)
 		if rf.kind == data.KindPane {
-			created := *rec
-			a.afterModal(func(st core.State) core.State {
-				a.viewMemo.gen++
-				if isProjectTab(st.ActivePage) && a.projectChildPaneViewEnabled() {
-					return a.openProjectChildPane(st, projectIDFromTab(st.ActivePage), created.ID, true)
-				}
-				if st.ActivePage == SpacePanes {
-					rail := a.rail()
-					if !selectRow(rail, data.RefText(created.Ref())) {
-						rail.Query = ""
-						selectRow(rail, data.RefText(created.Ref()))
-					}
-					a.panes.activePage[created.ID] = views.ScreenPageID
-					return a.enterScreen(withFocus(withPage(st, SpacePanes, siteScreen, ModeNormal), siteScreen), created)
-				}
-				return st
-			})
+			a.afterPaneCreated(*rec)
 		}
 		return true
 	}
-
-	fields := maps.Clone(merged)
-	maps.DeleteFunc(fields, func(k string, _ any) bool { return views.IsUniversalField(k) })
 
 	cur, err := a.Store.Get(*rf.ref)
 	if err != nil {
 		a.fail("save "+rf.kind, err)
 		return false
 	}
-
-	diff := map[string]any{}
-	var hasStarSpec, hasArchiveSpec bool
-	for _, sp := range fm.Specs {
-		switch sp.Name {
-		case data.ColStarStatus:
-			hasStarSpec = true
-			continue
-		case data.ColArchiveStatus:
-			hasArchiveSpec = true
-			continue
-		case data.ColSnoozedUntil:
-			continue
-		}
-		newVal, hasNew := fields[sp.Name]
-		oldVal, hasOld := cur.Value(sp.Name)
-		if !hasNew {
-			if hasOld && oldVal != nil && oldVal != "" {
-				diff[sp.Name] = nil
-			}
-			continue
-		}
-		if !hasOld || oldVal == nil {
-			if sp.Type == core.ParamBool {
-				if b, ok := newVal.(bool); ok && !b && sp.Default == nil {
-					continue
-				}
-			}
-			diff[sp.Name] = newVal
-			continue
-		}
-		if !fieldValuesEqual(oldVal, newVal) {
-			diff[sp.Name] = newVal
-		}
-	}
-
-	starVal := data.Text(values[data.ColStarStatus])
-	starChanged := hasStarSpec && starVal != "" && starVal != cur.StarStatus
-
-	archiveVal := data.Text(values[data.ColArchiveStatus])
-	archiveChanged := hasArchiveSpec && archiveVal != "" && archiveVal != cur.ArchiveStatus
-
-	var snoozeChanged bool
-	if hasSnoozeSpec {
-		if snoozeText == "" {
-			snoozeChanged = cur.SnoozedUntil != nil
-		} else {
-			snoozeChanged = cur.SnoozedUntil == nil || !cur.SnoozedUntil.Equal(snoozeUntil)
-		}
-	}
-
-	if len(diff) == 0 && !starChanged && !archiveChanged && !snoozeChanged {
+	sub.Before = cur
+	if !sub.HasChanges() {
 		a.say("no changes")
 		return true
 	}
-
-	rec := cur
-	var lastCS *data.ChangeSet
-	if len(diff) > 0 {
-		patched, pcs, err := a.Store.Patch(data.PatchInput{Ref: *rf.ref, Fields: diff}, User)
-		if err != nil {
-			a.fail("save "+rf.kind, err)
-			return false
-		}
-		rec, lastCS = patched, pcs
-		if _, hasBody := diff["body"]; hasBody {
-			a.syncManagedFile(rec)
-		} else if _, hasTitle := diff["title"]; hasTitle {
-			a.syncManagedFile(rec)
-		}
+	in := sub.PatchInput()
+	rec, cs, err := a.Store.Patch(in, User)
+	if err != nil {
+		a.fail("save "+rf.kind, err)
+		return false
 	}
-	if starChanged {
-		var ucs *data.ChangeSet
-		var uerr error
-		if starVal == data.StarStarred {
-			_, ucs, uerr = a.Store.Star(*rf.ref, User)
-		} else {
-			_, ucs, uerr = a.Store.Unstar(*rf.ref, User)
-		}
-		if uerr != nil {
-			a.fail("star "+rf.kind, uerr)
-			return false
-		}
-		if ucs != nil {
-			lastCS = ucs
-		}
-	}
-	if archiveChanged {
-		var ucs *data.ChangeSet
-		var uerr error
-		if archiveVal == data.ArchiveArchived {
-			_, ucs, uerr = a.Store.Archive(*rf.ref, User)
-		} else {
-			_, ucs, uerr = a.Store.Restore(*rf.ref, User)
-		}
-		if uerr != nil {
-			a.fail("archive "+rf.kind, uerr)
-			return false
-		}
-		if ucs != nil {
-			lastCS = ucs
-		}
-	}
-	if snoozeChanged {
-		var ucs *data.ChangeSet
-		var uerr error
-		if snoozeText == "" {
-			_, ucs, uerr = a.Store.Unsnooze(*rf.ref, User)
-		} else {
-			_, ucs, uerr = a.Store.Snooze(*rf.ref, snoozeUntil, User)
-		}
-		if uerr != nil {
-			a.fail("snooze "+rf.kind, uerr)
-			return false
-		}
-		if ucs != nil {
-			lastCS = ucs
-		}
-	}
-
 	a.clearSubmittedDraft(fm, rf.draftKey)
-	a.wrote(fmt.Sprintf("saved %s %q", strings.ToLower(schema.Title), views.Title(schema, *rec)), lastCS, nil)
+	a.wrote(fmt.Sprintf("saved %s %q", strings.ToLower(sub.Schema.Title), views.Title(sub.Schema, *rec)), cs, nil)
+	_, hasBody := in.Fields["body"]
+	_, hasTitle := in.Fields["title"]
+	if hasBody || hasTitle {
+		a.syncManagedFile(rec) // after the commit: the file follows the record
+	}
 	return true
+}
+
+// createFromSubmission creates the new record of sub, then attaches it to
+// about and writes its non-default statuses. Every failure after the create
+// is reported; the record stays, so the form still closes. The managed file
+// is synced after the record is committed.
+func (a *App) createFromSubmission(sub data.FormSubmission, about *core.Ref) (*data.Record, bool) {
+	in := sub.CreateInput()
+	rec, cs, err := a.Store.Create(in, User)
+	if err != nil {
+		a.fail("create "+in.Kind, err)
+		return nil, false
+	}
+	ref := rec.Ref()
+	a.markOwnerCreated(ref)
+	var errs []error
+	if about != nil {
+		if _, _, err := a.Store.Relate(data.RelateInput{From: ref, Kind: data.RelAbout, To: *about}, User); err != nil {
+			errs = append(errs, fmt.Errorf("attach note: %w", err))
+		}
+	}
+	if overlay := sub.CreateOverlay(ref); len(overlay.Fields) > 0 {
+		if patched, _, err := a.Store.Patch(overlay, User); err != nil {
+			errs = append(errs, fmt.Errorf("set status: %w", err))
+		} else {
+			rec = patched
+		}
+	}
+	a.syncManagedFile(rec)
+	what := fmt.Sprintf("created %s %q", strings.ToLower(sub.Schema.Title), views.Title(sub.Schema, *rec))
+	if err := errors.Join(errs...); err != nil {
+		a.fail(what, err)
+		return rec, true
+	}
+	a.wrote(what, cs, nil)
+	return rec, true
+}
+
+// afterPaneCreated opens the pane just created from the form, once the modal
+// has closed.
+func (a *App) afterPaneCreated(created data.Record) {
+	a.afterModal(func(st core.State) core.State {
+		a.viewMemo.gen++
+		if isProjectTab(st.ActivePage) && a.projectChildPaneViewEnabled() {
+			return a.openProjectChildPane(st, projectIDFromTab(st.ActivePage), created.ID, true)
+		}
+		if st.ActivePage == SpacePanes {
+			rail := a.rail()
+			if !selectRow(rail, data.RefText(created.Ref())) {
+				rail.Query = ""
+				selectRow(rail, data.RefText(created.Ref()))
+			}
+			a.panes.activePage[created.ID] = views.ScreenPageID
+			return a.enterScreen(withFocus(withPage(st, SpacePanes, siteScreen, ModeNormal), siteScreen), created)
+		}
+		return st
+	})
 }
