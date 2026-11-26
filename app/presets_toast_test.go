@@ -164,7 +164,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	d.Keys("2", "/")
 	d.Type("tier")
 	d.Keys("enter", "o") // sort title asc
-	d.Keys("g", "b", "/")
+	d.Keys("g", "b", ")", "/")
 	d.Type("workstatus")
 	d.Keys("enter")
 
@@ -199,7 +199,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	d.Keys("esc", "esc")
 
 	// Clear work.table and save a second preset "clean" via direct command.
-	d.Keys("/", "esc", "g", "b", "enter", "o", "o") // clear filter, group, sort
+	d.Keys("/", "esc", "g", "b", ")", "enter", "o", "o") // clear filter, group, sort
 	a.Engine.Step(a.State(), nil, core.CommandEvent{Command: core.Command{
 		ID:   CmdTablePresetSave,
 		Args: map[string]any{"name": "clean"},
@@ -217,7 +217,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	// Configure a completely separate preset on runs.table (proving tableID keying).
 	d.Keys("3", "/")
 	d.Type("gate")
-	d.Keys("enter", "g", "s", "/")
+	d.Keys("enter", "g", "s", ")", "/")
 	d.Type("title")
 	d.Keys("enter", "g", "v", "s", "i")
 	d.Type("gate-runs")

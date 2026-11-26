@@ -296,7 +296,7 @@ func TestWave3ProjectHeaderOverviewAndContextTable(t *testing.T) {
 	if a.nav.tables[projectContextTable].SortField == "" {
 		t.Fatal("o did not sort project context table")
 	}
-	d.Keys("g", "b")
+	d.Keys("g", "b", ")")
 	d.Type("kind")
 	d.Keys("enter")
 	if a.nav.tables[projectContextTable].GroupField != "kind" {

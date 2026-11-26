@@ -163,36 +163,39 @@ type viewMemoState struct {
 // App is the application state around the engine. Handlers change it and the
 // store; View reads both.
 type App struct {
-	Store           *data.Store
-	actionLog       *data.ActionLogStore
-	actionResult    *actionLogResult
-	jobs            jobsController
-	Router          *mcpui.Router
-	Engine          *core.Engine
-	Shell           *otea.Shell
-	Warnings        []string
-	opts            Options
-	noteDeck        *data.NoteDeckStore
-	status          string
-	effects         []core.Effect
-	modals          *modal.Stack
-	escGuard        traits.EscapeGuardState
-	escGuardModal   string
-	archiveAnim     *archiveAnimController
-	pendingState    []func(core.State) core.State
-	trees           *treeController
-	viewMemo        viewMemoState
-	cfg             *ConfigController
-	bind            *BindingsController
-	nav             *NavController
-	panes           *PaneController
-	proj            *ProjectController
-	features        *FeaturesController
-	files           *filesController
-	rt              *RuntimeController
-	ext             *ExtensionController
-	ctx             *ContextController
-	navUnreadCutoff time.Time
+	Store             *data.Store
+	actionLog         *data.ActionLogStore
+	actionResult      *actionLogResult
+	jobs              jobsController
+	Router            *mcpui.Router
+	Engine            *core.Engine
+	Shell             *otea.Shell
+	Warnings          []string
+	opts              Options
+	noteDeck          *data.NoteDeckStore
+	status            string
+	effects           []core.Effect
+	modals            *modal.Stack
+	escGuard          traits.EscapeGuardState
+	escGuardModal     string
+	archiveAnim       *archiveAnimController
+	pendingState      []func(core.State) core.State
+	trees             *treeController
+	viewMemo          viewMemoState
+	cfg               *ConfigController
+	bind              *BindingsController
+	nav               *NavController
+	panes             *PaneController
+	proj              *ProjectController
+	features          *FeaturesController
+	files             *filesController
+	rt                *RuntimeController
+	ext               *ExtensionController
+	ctx               *ContextController
+	genericPresets    *data.PresetStore
+	zeroFieldSpecs    map[string]data.QuerySpec
+	lastFieldPickWhat string
+	navUnreadCutoff   time.Time
 }
 
 // WantReload reports whether the user triggered app.reload so the binary
@@ -670,6 +673,9 @@ func (a *App) register() {
 	a.handle(CmdOutlineCleanSlate, a.outlineCleanSlate)
 	a.handle(CmdOutlineCleanSlateExit, a.outlineCleanSlateExit)
 	a.handle(CmdOutlineTriage, a.outlineTriage)
+	a.initGenericPresets()
+	a.registerZeroFieldHandlers()
+	a.registerPickerPickerHandlers()
 	a.handle(CmdRecentsPick, a.recentsPick)
 	a.handle(CmdPagesPick, a.pagesPick)
 	a.handle(CmdRecordActions, a.recordActionsOpen)

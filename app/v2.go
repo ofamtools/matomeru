@@ -186,55 +186,64 @@ func (a *App) tableKeys(id string, tbl *table.Model) []string {
 // filter field, the sort field or the group field.
 func (a *App) fieldPick(what string) func(core.State, core.Command) core.StepResult {
 	return func(s core.State, _ core.Command) core.StepResult {
-		tbl, id := a.filterTable(s)
-		if a.Modal() != "" || tbl == nil {
-			a.say("no list is focused")
-			return core.Next(s)
+		a.lastFieldPickWhat = what
+		if a.zeroFieldQueryDefaultEnabled() {
+			return a.openZeroFieldModal(s, what)
 		}
-		// Fresh rows: a field written a moment ago is offered too.
-		if id == railTable {
-			tbl = a.rail()
-		} else if kind := a.kindOfTable(id); kind != "" {
-			tbl = a.records(id, kind)
-		}
-		current := map[string]string{"filter": tbl.FilterField, "sort": tbl.SortField, "group": tbl.GroupField}[what]
-		var items []picker.Item
-		switch what {
-		case "filter":
-			items = append(items, picker.Item{ID: views.AnyField, Title: "(any field)", Subtitle: "match every field"})
-		case "sort":
-			items = append(items, picker.Item{ID: "", Title: "(not sorted)", Subtitle: "the order records were made in"})
-		case "group":
-			items = append(items, picker.Item{ID: "", Title: "(not grouped)", Subtitle: "one flat list"})
-		}
-		schema := a.schema(a.kindOfTable(id))
-		for _, k := range a.tableKeys(id, tbl) {
-			item := picker.Item{ID: k, Title: k}
-			if _, declared := schema.Field(k); declared {
-				item.Subtitle = "field"
-			} else if slices.ContainsFunc(tbl.Columns, func(c table.Column) bool { return c.Key == k }) {
-				item.Subtitle = "column"
-			}
-			items = append(items, item)
-		}
-		for i := range items {
-			if items[i].ID == current || (current == "" && what == "filter" && items[i].ID == views.AnyField) {
-				items[i].Badges = []ui.Badge{{Text: "now", Tone: "accent"}}
-			}
-		}
-		pm := picker.New(strings.ToUpper(what[:1])+what[1:]+" by", items)
-		pm.Placeholder = "any field of these rows"
-		tableID := id
-		m := a.newPickerModal(pm, modal.PickerOptions{
-			ID:       "field",
-			PageSize: 10,
-			OnConfirm: func(picked picker.Item) modal.Result {
-				a.fieldPicked(what, tableID, picked.ID)
-				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
-			},
-		})
-		return core.Next(a.pushModal(s, m))
+		return a.openClassicFieldPick(s, what)
 	}
+}
+
+func (a *App) openClassicFieldPick(s core.State, what string) core.StepResult {
+	tbl, id := a.filterTable(s)
+	if a.Modal() != "" || tbl == nil {
+		a.say("no list is focused")
+		return core.Next(s)
+	}
+	// Fresh rows: a field written a moment ago is offered too.
+	if id == railTable {
+		tbl = a.rail()
+	} else if kind := a.kindOfTable(id); kind != "" {
+		tbl = a.records(id, kind)
+	}
+	current := map[string]string{"filter": tbl.FilterField, "sort": tbl.SortField, "group": tbl.GroupField}[what]
+	var items []picker.Item
+	switch what {
+	case "filter":
+		items = append(items, picker.Item{ID: views.AnyField, Title: "(any field)", Subtitle: "match every field"})
+	case "sort":
+		items = append(items, picker.Item{ID: "", Title: "(not sorted)", Subtitle: "the order records were made in"})
+	case "group":
+		items = append(items, picker.Item{ID: "", Title: "(not grouped)", Subtitle: "one flat list"})
+	}
+	schema := a.schema(a.kindOfTable(id))
+	for _, k := range a.tableKeys(id, tbl) {
+		item := picker.Item{ID: k, Title: k}
+		if _, declared := schema.Field(k); declared {
+			item.Subtitle = "field"
+		} else if slices.ContainsFunc(tbl.Columns, func(c table.Column) bool { return c.Key == k }) {
+			item.Subtitle = "column"
+		}
+		items = append(items, item)
+	}
+	for i := range items {
+		if items[i].ID == current || (current == "" && what == "filter" && items[i].ID == views.AnyField) {
+			items[i].Badges = []ui.Badge{{Text: "now", Tone: "accent"}}
+		}
+	}
+	pm := picker.New(strings.ToUpper(what[:1])+what[1:]+" by", items)
+	pm.Placeholder = "any field of these rows · ) switches to Zero-Field view"
+	tableID := id
+	m := a.newPickerModal(pm, modal.PickerOptions{
+		ID:       "field",
+		Scope:    "field",
+		PageSize: 10,
+		OnConfirm: func(picked picker.Item) modal.Result {
+			a.fieldPicked(what, tableID, picked.ID)
+			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		},
+	})
+	return core.Next(a.pushModal(s, m))
 }
 
 func (a *App) fieldPicked(what, tableID, key string) {

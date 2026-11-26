@@ -47,7 +47,7 @@ func TestProjectContextReviewAndFullTableControls(t *testing.T) {
 	}
 	d.Keys("/")
 	d.Type("final-response")
-	d.Keys("enter", "o", "g", "b")
+	d.Keys("enter", "o", "g", "b", ")")
 	d.Type("kind")
 	d.Keys("enter")
 	full := a.nav.tables[projectContextTable]
