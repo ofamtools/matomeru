@@ -75,6 +75,7 @@ const (
 	KindQuestion = "question"
 	KindCommand  = "command"
 	KindContext  = "context"
+	KindConcept  = "concept"
 )
 
 // Pane roles. A pane with no role is a normal one.
@@ -554,11 +555,15 @@ func DefaultSchemas() *Registry {
 				{Name: "attachments", Type: core.ParamList, ShowFormat: ShowFormatList, Description: "attached files, images, URLs, or context references"},
 				{Name: "threadLocked", Type: core.ParamBool, Default: false, Description: "prevent automatic agent replies in this task's note thread"},
 				str("readAt", "when the owner read the task (RFC 3339)"),
+				{Name: FieldTaskType, Type: core.ParamString, Enum: []string{TaskTypeHuman, TaskTypeRewrite, TaskTypeJoin, TaskTypeSplit}, Default: TaskTypeHuman, Description: "how the task originated"},
 			},
 			StatusColumns:  []StatusColumn{work, agentStatus},
 			DefaultColumns: []string{"title", "workStatus", "priority", "parent"},
 			Relations: universalRelations(
 				RelationSpec{Kind: RelDirectory, Title: "Directories", Direction: DirectionOutgoing},
+				RelationSpec{Kind: RelDerivedFrom, Title: "Rewrites", TargetKinds: []string{KindTask}, Direction: DirectionBoth},
+				RelationSpec{Kind: RelSplitFrom, Title: "Splits", TargetKinds: []string{KindTask}, Direction: DirectionBoth},
+				RelationSpec{Kind: RelJoinedFrom, Title: "Joins", TargetKinds: []string{KindTask}, Direction: DirectionBoth},
 			),
 			Hierarchy:  &HierarchySpec{ParentField: "parent", OrderField: "order", RootTitle: "Project", DefaultView: "tree"},
 			FactFields: []string{"forAgent", "agentStatus", "agentDispatchedAt", "threadLocked"},
@@ -870,6 +875,7 @@ func DefaultSchemas() *Registry {
 				{When: `fields.contextKind == "sheet"`, Text: "sheet", Tone: "success"},
 			},
 		},
+		conceptSchema(),
 	)
 	return r
 }

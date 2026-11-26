@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 )
@@ -15,6 +16,66 @@ type featuresPageCatalogEntry struct {
 	Summary    string
 	Highlights []string
 	Keywords   []string
+}
+
+type featuresComponentCatalogEntry struct {
+	Key   string
+	Page  string
+	Nouns []string
+	View  views.FeaturesViewRow
+}
+
+func featuresPageNouns(key string) []string {
+	for _, page := range spaces {
+		if page.id == key {
+			return []string{page.kind}
+		}
+	}
+	return featuresPageReferences[key]
+}
+
+var featuresPageReferences = map[string][]string{
+	SpaceProjects:   {data.KindTask, data.KindLane, data.KindPane},
+	"project_pages": {data.KindTask, data.KindContext, data.KindPane, data.KindDocument},
+	"outline":       {data.KindTask},
+	"questions":     {data.KindQuestion},
+	"documents":     {data.KindDocument},
+	SpaceFeatures:   {data.KindTask, data.KindConcept},
+}
+
+var featuresPageOptOut = map[string]string{
+	"project_pages": SetProjectWorkspaceInPanes,
+	SpaceFeatures:   SetSelfHostedFeaturesEnabled,
+}
+
+var featuresComponentCatalog = []featuresComponentCatalogEntry{
+	{Key: "panes.rail", Page: SpacePanes, Nouns: []string{data.KindPane, data.KindTask},
+		View: views.FeaturesViewRow{Name: "Pane rail", Kind: "Component", Summary: "Lists panes by project or as a flat list."}},
+	{Key: "panes.toc", Page: SpacePanes, Nouns: []string{data.KindPage},
+		View: views.FeaturesViewRow{Name: "Pane page rail", Kind: "Component", Summary: "Lists the active pane’s pages and previews the selection.", OptOutSetting: SetShowTOC}},
+	{Key: "panes.composer", Page: SpacePanes,
+		View: views.FeaturesViewRow{Name: "Prompt composer", Kind: "Component", Summary: "Edits drafts and sends multiline prompts to a pane."}},
+	{Key: "project.home", Page: "project_pages", Nouns: []string{data.KindTask, data.KindQuestion, data.KindPane},
+		View: views.FeaturesViewRow{Name: "Project Home", Kind: "Component", Summary: "Surfaces decisions, new items, and recent project activity.", OptOutSetting: SetProjectHomeDashboard}},
+	{Key: "project.tasks", Page: "project_pages", Nouns: []string{data.KindTask},
+		View: views.FeaturesViewRow{Name: "Project Tasks", Kind: "Component", Summary: "Displays a project’s tasks in its embedded outline.", OptOutSetting: SetProjectOutlineAsPage}},
+	{Key: "work.tasks", Page: SpaceWork, Nouns: []string{data.KindTask},
+		View: views.FeaturesViewRow{Name: "Work Tasks", Kind: "Component", Summary: "Displays tasks as a tree or table."}},
+	{Key: "work.show", Page: SpaceWork,
+		View: views.FeaturesViewRow{Name: "Record detail", Kind: "Component", Summary: "Displays a record’s fields, body, and relations."}},
+	{Key: "extensions.catalog", Page: SpaceExtensions, Nouns: []string{data.KindExtension},
+		View: views.FeaturesViewRow{Name: "Extension catalog", Kind: "Component", Summary: "Surfaces available OFAM extensions alongside installed extensions.", OptOutSetting: SetExtensionsShowCatalog}},
+	{Key: "features.itemization", Page: SpaceFeatures, Nouns: []string{data.KindConcept},
+		View: views.FeaturesViewRow{Name: "Props and views", Kind: "Component", Summary: "Lists schema fields and page views with tracked suggestions.", OptOutSetting: SetFeaturesItemization}},
+}
+
+func lookupFeaturesComponent(key string) (featuresComponentCatalogEntry, bool) {
+	for _, component := range featuresComponentCatalog {
+		if component.Key == key {
+			return component, true
+		}
+	}
+	return featuresComponentCatalogEntry{}, false
 }
 
 type featuresPlannedVerb struct {
@@ -95,6 +156,9 @@ func defaultFeaturesPageCatalog() []featuresPageCatalogEntry {
 		pageEntry("inspector", "Inspector", "◎", "Live runtime inspector exposing registered actions, modes, bindings, and schemas.",
 			[]string{"Inspect every registered command spec and active mode", "Filter actions live and bind unbound actions to free keys", "Ground-truth view of Matomeru's declarative registries"},
 			[]string{"inspector", "actions", "modes", "schemas", "registry", "debug"}),
+		pageEntry(SpaceFeatures, "Features", "◇", "Catalog of Matomeru pages, nouns, feature groups, and concepts.",
+			[]string{"Browse schema props and page views", "Track Concepts and capture feature thoughts"},
+			[]string{"catalog", "concept", "itemization", "wishlist"}),
 	}
 }
 

@@ -158,6 +158,7 @@ func TestServeStdioSession(t *testing.T) {
 		ToolTaskTree, ToolHistory, ToolCreateNote, ToolRecordAgentInput, ToolSuggestCommand, ToolCreateDocument, ToolAddContext, ToolLogQA, ToolCreate, ToolUpdate, ToolRelate, ToolUnrelate,
 		ToolTriageIngest, ToolTriageEvaluate, ToolPaneSearch, ToolPaneSpawn, ToolPaneSnapshot, ToolPaneSend, ToolPaneStatus, ToolPaneClose,
 		ToolTaskQueue, ToolTaskFlagAgent, ToolTaskNote, ToolTaskThread, ToolTaskDispatch,
+		ToolTaskRewrite, ToolTaskSplit, ToolTaskJoin,
 		ToolContextOfficial, ToolContextProject, ToolContextAddOfficial}
 	if !slices.Equal(names, want) {
 		t.Fatalf("tools %v, want %v", names, want)

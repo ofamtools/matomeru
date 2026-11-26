@@ -53,9 +53,13 @@ func (t *txn) isBubbleRefField(kind, field string) bool {
 // not trigger bubbling.
 func (t *txn) bubbleAncestorUpdatedAt(_ core.Actor) error {
 	deleted := map[core.Ref]bool{}
+	lineageSources := map[core.Ref]bool{}
 	for _, ch := range t.changes {
 		if ch.Op == OpDelete {
 			deleted[ch.Ref] = true
+		}
+		if ref, ok := taskLineageSource(ch); ok {
+			lineageSources[ref] = true
 		}
 	}
 
@@ -64,7 +68,8 @@ func (t *txn) bubbleAncestorUpdatedAt(_ core.Actor) error {
 	walked := map[core.Ref]bool{}
 
 	addTarget := func(ref core.Ref) {
-		if ref.Kind == "" || ref.ID == "" || deleted[ref] || t.touched[ref] || targets[ref] {
+		// Provenance targets keep their content timestamps and read state.
+		if ref.Kind == "" || ref.ID == "" || deleted[ref] || lineageSources[ref] || t.touched[ref] || targets[ref] {
 			return
 		}
 		targets[ref] = true
@@ -154,6 +159,9 @@ func (t *txn) bubbleAncestorUpdatedAt(_ core.Actor) error {
 				}
 			}
 		case OpRelate, OpUnrelate:
+			if _, ok := taskLineageSource(ch); ok {
+				continue
+			}
 			raw := ch.New
 			if ch.Op == OpUnrelate {
 				raw = ch.Old

@@ -380,6 +380,9 @@ func DefaultBindings() []core.Binding {
 		bind(n, SpacePanes, "c", CmdPaneCompose, "compose prompt"),
 		bind(n, SpacePanes, "L", CmdPaneAssociate, "associate pane with task"),
 		bind(n, all, "g c", CmdContextPick, "context items"),
+		when(bind(n, all, "g C", CmdFeaturesSuggestConcept, "create concept"), "facts.featuresPageActive"),
+		when(bind(n, views.ScopeFeaturesContent, "p", CmdFeaturesSuggestProp, "suggest prop"), "facts.featuresPageActive && facts.featuresCanSuggestProp"),
+		when(bind(n, views.ScopeFeaturesContent, "v", CmdFeaturesSuggestView, "suggest view"), "facts.featuresPageActive && facts.featuresCanSuggestView"),
 		when(bind(n, data.KindExtension, "enter", CmdExtInstall, "install extension"), "facts.extAvailable"),
 		when(bind(n, data.KindExtension, "enter", CmdExtRun, "run"), "!facts.extAvailable"),
 		when(bind(n, data.KindExtension, "i", CmdExtInstall, "install / update"), "facts.extInstallable"),
@@ -401,6 +404,7 @@ func DefaultBindings() []core.Binding {
 
 		// Record actions, on whatever record is focused.
 		bind(n, all, "e", views.CmdEdit, "edit"),
+		hidden(bind(n, data.KindTask, "g W", CmdTaskRewrite, "rewrite task")),
 		when(bind(n, views.ScopeIndex, "n", "motion.down", "next match"), "facts.hasFilter"),
 		when(bind(n, views.ScopeIndex, "N", "motion.up", "prev match"), "facts.hasFilter"),
 		when(bind(n, all, "n", "motion.down", "next match"), "facts.hasFilter"),

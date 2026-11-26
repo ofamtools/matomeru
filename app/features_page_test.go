@@ -219,11 +219,12 @@ func TestFeaturesPageLeftNavDynamicDiscoveryAndCollapse(t *testing.T) {
 
 	snap := a.collectFeaturesSnapshot()
 	navGroups, valid := a.buildFeaturesNav(snap, a.featuresCtrl().activeItemKey())
-	if len(navGroups) != 3 {
-		t.Fatalf("expected 3 nav groups, got %d", len(navGroups))
+	var keys []string
+	for _, group := range navGroups {
+		keys = append(keys, group.Key)
 	}
-	if navGroups[0].Key != "pages" || navGroups[1].Key != "nouns" || navGroups[2].Key != "groups" {
-		t.Fatalf("unexpected nav group keys: %q, %q, %q", navGroups[0].Key, navGroups[1].Key, navGroups[2].Key)
+	if want := []string{"pages", "nouns", "groups", "concepts"}; !slices.Equal(keys, want) {
+		t.Fatalf("nav group keys = %v, want %v", keys, want)
 	}
 
 	// Dynamic schema + planned nouns (pr, worktree, tag) must appear in By Noun.
