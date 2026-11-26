@@ -179,15 +179,15 @@ func TestRegistersAndMacros(t *testing.T) {
 	if a.nav.tables[workTable].Query != "tier" || a.Register(core.RegSearch) != "tier" {
 		t.Fatalf("filter %q, \"/ = %q", a.nav.tables[workTable].Query, a.Register(core.RegSearch))
 	}
-	d.Keys("/", "esc")
+	d.Keys("/", "ctrl+x", "enter")
 	if a.nav.tables[workTable].Query != "" {
-		t.Fatal("esc did not clear the filter")
+		t.Fatal("ctrl+x did not clear the filter")
 	}
 	d.Keys("@", "b")
 	if a.nav.tables[workTable].Query != "tier" || a.Mode() != ModeNormal {
 		t.Fatalf("@ b: filter %q, mode %q", a.nav.tables[workTable].Query, a.Mode())
 	}
-	d.Keys("/", "esc")
+	d.Keys("/", "ctrl+x", "enter")
 
 	// "% is the focused record: its reference, or its file when it has one.
 	row, _ := a.nav.tables[workTable].FocusedRow()

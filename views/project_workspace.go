@@ -161,10 +161,19 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 		}
 	}
 
+	navFilterID := "project.nav.filter:" + spec.ProjectID
+	if spec.ProjectID == "" {
+		navFilterID = ""
+	}
+	var navFilter *ui.FilterSpec
+	if navFilterID != "" {
+		navFilter = &ui.FilterSpec{ID: navFilterID, Prefix: "nav "}
+	}
 	navPanel := ui.ViewNode{
 		ID:     "project.nav",
 		Kind:   ui.KindPanel,
 		Scope:  ScopeProjectNav,
+		Filter: navFilter,
 		Title:  navTitle,
 		Border: true,
 		Facts:  navFacts,

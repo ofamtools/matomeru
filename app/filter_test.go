@@ -165,7 +165,7 @@ func TestFilterBarBottomLeft(t *testing.T) {
 	if !strings.HasPrefix(bottomLine, " nav /lanes█  [substring]") {
 		t.Fatalf("bottom line not anchored at col 0:\nstatus: %q\nbottom: %q", statusLine, bottomLine)
 	}
-	if !strings.Contains(bottomLine, "enter keep · esc clear · tab mode") {
+	if !strings.Contains(bottomLine, "enter keep · esc cancel · ctrl+x clear · tab mode") {
 		t.Fatalf("bottom line missing filter hints: %q", bottomLine)
 	}
 	if strings.Contains(statusLine, "/lanes") || strings.Contains(statusLine, "nav /") {
@@ -180,7 +180,7 @@ func TestFilterBarBottomLeft(t *testing.T) {
 	}
 
 	// Narrow width clips cleanly without out-of-bounds ToneSpans.
-	clippedNode, ok := a.filterBarNode(a.State(), 18)
+	clippedNode, ok := a.filterBarNode(a.State(), a.View(a.State()), 18)
 	if !ok {
 		t.Fatal("filterBarNode unexpectedly inactive")
 	}
@@ -209,7 +209,21 @@ func TestFilterBarBottomLeft(t *testing.T) {
 	if strings.HasPrefix(lines[len(lines)-1], " nav /lanes") {
 		t.Fatalf("bottom line should restore normal hints after enter: %q", lines[len(lines)-1])
 	}
-	d.Keys("/", "esc")
+	// Re-opening filter and hitting esc restores the kept "lanes" snapshot;
+	// ctrl+x explicitly clears it.
+	d.Keys("/")
+	if a.Mode() != ModeFilter {
+		t.Fatalf("re-opening filter after keep did not enter ModeFilter (focus=%q, mode=%q)", a.State().ActiveFrame().FocusID, a.Mode())
+	}
+	d.Type("extra")
+	d.Keys("esc")
+	if nf := (projectNavFilterable{a: a, projKey: proj.ID}); nf.FilterQuery() != "lanes" {
+		t.Fatalf("esc should restore kept snapshot 'lanes', got %q", nf.FilterQuery())
+	}
+	d.Keys("/", "ctrl+x", "enter")
+	if nf := (projectNavFilterable{a: a, projKey: proj.ID}); nf.FilterQuery() != "" {
+		t.Fatalf("ctrl+x should clear filter query, got %q", nf.FilterQuery())
+	}
 
 	// 2. Invalid regex in ModeFilter renders "invalid regex" inside the bottom-left bar.
 	a.Shell.State = withFocus(a.State(), projectNavPrefix+"home")
@@ -239,4 +253,88 @@ func TestFilterBarBottomLeft(t *testing.T) {
 		t.Fatalf("opt-out should not render bottom-left filter bar: %q", bottomLine)
 	}
 	d.Keys("esc")
+}
+
+func TestW1DataDrivenFilterModalInheritanceAndShowHints(t *testing.T) {
+	a, d := demo(t)
+
+	// 1. ModeGlobal inheritance: opening ':' palette inside Binding Editor ('B') works without modal blocks.
+	d.Keys("2", "B")
+	if a.Modal() != "bindings" || a.Mode() != ModeBindings {
+		t.Fatalf("expected bindings modal, got modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	d.Keys(":")
+	if a.Modal() != "palette" {
+		t.Fatalf("expected ':' inside ModeBindings to push palette modal via ModeGlobal, got modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	for a.Modal() != "" {
+		d.Keys("esc")
+	}
+
+	// 2. shift+backspace erases in ModeFilter + filtered 'n'/'N' navigates matches instead of opening New Record form.
+	_, _, err := a.Store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{"title": "Alpha target one"}}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = a.Store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{"title": "Alpha target two"}}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Keys("2", "/")
+	d.Type("Alphax")
+	d.Keys("shift+backspace", "enter")
+	if a.Modal() != "" {
+		t.Fatalf("unexpected modal after filter accept: %q", a.Modal())
+	}
+	f, _ := a.activeFilterable(a.State())
+	if f == nil || f.FilterQuery() != "Alpha" {
+		t.Fatalf("shift+backspace did not erase trailing rune in ModeFilter: got %q", f.FilterQuery())
+	}
+	// Pressing 'n' while filtered moves to next match instead of opening a new-record modal.
+	d.Keys("n")
+	if a.Modal() != "" {
+		t.Fatalf("pressing 'n' while filtered should jump to next match, not open modal %q", a.Modal())
+	}
+	d.Keys("/", "ctrl+x", "enter")
+
+	// 3. Per-project match mode isolation in projectNavFilterable.
+	nfA := projectNavFilterable{a: a, projKey: "projA"}
+	nfB := projectNavFilterable{a: a, projKey: "projB"}
+	nfA.Filter("foo", "regex")
+	nfB.Filter("bar", "fuzzy")
+	if nfA.FilterMode() != "regex" || nfB.FilterMode() != "fuzzy" {
+		t.Fatalf("project nav match modes collided: A=%q B=%q", nfA.FilterMode(), nfB.FilterMode())
+	}
+
+	// 4. Show Page: Body panel is focusable AND 'f' activates universal screen hints over paths in Body.
+	note, _, err := a.Store.Create(data.CreateInput{
+		Kind: data.KindNote,
+		Fields: map[string]any{
+			"title": "Show hints note",
+			"body":  "Inspect /Users/unixsuperhero/hub/animations/clown-car-chips/index.html and https://example.com/demo",
+		},
+	}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Send(core.CommandEvent{Command: core.Command{
+		ID:     "record.open",
+		Args:   map[string]any{"ref": map[string]any{"kind": note.Kind, "id": note.ID}},
+		Source: "test",
+		Actor:  User,
+	}})
+	view := a.View(a.State())
+	bodyNode := view.Find("show.content.body")
+	if bodyNode == nil || !bodyNode.Focusable {
+		t.Fatalf("expected show.content.body to be Focusable, got %+v", bodyNode)
+	}
+	d.Keys("f")
+	if a.Mode() != ModeHints || !a.screenHintsActive() {
+		t.Fatalf("expected 'f' on Show page to activate universal screen hints: mode=%q screenOverlay=%v status=%q",
+			a.Mode(), a.screenHintsActive(), a.Status())
+	}
+	d.Keys("esc")
+	if a.Mode() != ModeNormal || a.screenHintsActive() {
+		t.Fatalf("expected esc to exit screen hints cleanly: mode=%q", a.Mode())
+	}
 }

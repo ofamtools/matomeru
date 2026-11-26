@@ -32,15 +32,60 @@ var hintsCycleOrder = []hints.Action{
 }
 
 type hintsState struct {
-	session     *hints.Session
-	paneID      string
-	focusJump   bool
-	focusStack  []focusHintFrame
-	returnMode  string
-	returnFocus string
-	returnPage  string
-	inScratch   bool
-	lines       []string
+	session       *hints.Session
+	paneID        string
+	focusJump     bool
+	screenOverlay bool
+	focusStack    []focusHintFrame
+	returnMode    string
+	returnFocus   string
+	returnPage    string
+	inScratch     bool
+	lines         []string
+}
+
+func (a *App) screenHintsActive() bool {
+	return a != nil && a.panes != nil && a.panes.hints != nil && a.panes.hints.screenOverlay && a.panes.hints.session != nil && a.panes.hints.session.Active()
+}
+
+func (a *App) screenVisibleLines(s core.State) []string {
+	w, h := 120, 36
+	if a.Shell != nil && a.Shell.W > 0 && a.Shell.H > 0 {
+		w, h = a.Shell.W, a.Shell.H
+	}
+	r := ui.NewRenderer(0)
+	frame, _ := r.Render(a.View(s), a.theme(), s.ActiveFrame().FocusID, w, h)
+	rawLines := strings.Split(frame.ANSI, "\n")
+	plain := make([]string, len(rawLines))
+	for i, ln := range rawLines {
+		plain[i] = hintsStripSGR.ReplaceAllString(ln, "")
+	}
+	return plain
+}
+
+func (a *App) screenHintsOverlay(w, h int) ui.ViewNode {
+	if w <= 0 {
+		w = 120
+	}
+	if h <= 0 {
+		h = 36
+	}
+	lines := a.hintsRenderLines(a.panes.hints.lines, w, h)
+	return ui.ViewNode{
+		ID:   "screen.hints.overlay",
+		Kind: ui.KindOverlay,
+		Props: map[string]any{
+			"widthPct":  100,
+			"heightPct": 100,
+		},
+		Children: []ui.ViewNode{
+			{
+				ID:    "screen.hints.raw",
+				Kind:  ui.KindRaw,
+				Props: map[string]any{"lines": lines},
+			},
+		},
+	}
 }
 
 func (a *App) hintsModifierActionsEnabled() bool {
@@ -159,18 +204,29 @@ func (a *App) paneVisibleLines(pane data.Record, live bool) []string {
 	return a.termLines(pane, live)
 }
 
-// paneHints activates live terminal hint mode using contextitems.ExtractVisibleMatches
-// and ochazuke/widgets/hints.
+// paneHints activates universal hint mode using contextitems.ExtractVisibleMatches
+// and ochazuke/widgets/hints. When focused on a live terminal pane it overlays
+// the pane screen and records matches into context items; on any other screen
+// (Show pages, Markdown readers, Work tables, Project Home, modals) it extracts
+// visible paths, URLs, and PR refs from the rendered frame and overlays hints
+// in place without switching spaces.
 func (a *App) paneHints(s core.State, c core.Command) core.StepResult {
-	pane, ok := a.termPane(s)
-	if !ok {
-		a.say("no pane is selected")
-		return core.Next(s)
-	}
+	pane, hasPane := a.termPane(s)
 	inScratch := a.activeScratch() != nil
-	lines := a.paneVisibleLines(*pane, s.ActiveFrame().Mode == ModeTerminal)
+	usePane := hasPane && (inScratch || s.ActivePage == SpacePanes || a.activeChildPaneID(s) != "")
+
+	var lines []string
+	var paneID string
+	if usePane {
+		paneID = pane.ID
+		lines = a.paneVisibleLines(*pane, s.ActiveFrame().Mode == ModeTerminal)
+	} else {
+		lines = a.screenVisibleLines(s)
+	}
 	matches := contextitems.ExtractVisibleMatches(lines)
-	a.recordVisibleMatches(*pane, matches)
+	if usePane {
+		a.recordVisibleMatches(*pane, matches)
+	}
 
 	if len(matches) == 0 {
 		a.say("no URLs, paths or PR refs visible on screen")
@@ -205,16 +261,17 @@ func (a *App) paneHints(s core.State, c core.Command) core.StepResult {
 
 	curFrame := s.ActiveFrame()
 	a.panes.hints = &hintsState{
-		session:     sess,
-		paneID:      pane.ID,
-		returnMode:  curFrame.Mode,
-		returnFocus: curFrame.FocusID,
-		returnPage:  s.ActivePage,
-		inScratch:   inScratch,
-		lines:       lines,
+		session:       sess,
+		paneID:        paneID,
+		screenOverlay: !usePane,
+		returnMode:    curFrame.Mode,
+		returnFocus:   curFrame.FocusID,
+		returnPage:    s.ActivePage,
+		inScratch:     inScratch,
+		lines:         lines,
 	}
 
-	if inScratch || len(s.Modals) > 0 {
+	if !usePane || inScratch || len(s.Modals) > 0 {
 		s = withMode(s, ModeHints)
 	} else {
 		targetSpace := SpacePanes
@@ -230,6 +287,7 @@ func (a *App) paneHints(s core.State, c core.Command) core.StepResult {
 		s.ActivePage = targetSpace
 		s = withPage(s, targetSpace, targetFocus, ModeHints)
 	}
+	a.viewMemo.gen++
 	a.say("%s", hintsStatusLine(sess))
 	return core.Next(s)
 }
@@ -306,7 +364,7 @@ func (a *App) exitHints(s core.State) core.State {
 	if len(s.Modals) > 0 {
 		return withMode(s, retMode)
 	}
-	if hs.focusJump {
+	if hs.focusJump || hs.screenOverlay {
 		page := hs.returnPage
 		if page == "" {
 			page = s.ActivePage

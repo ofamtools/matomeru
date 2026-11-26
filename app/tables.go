@@ -8,6 +8,7 @@ import (
 	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/table"
 )
@@ -243,36 +244,21 @@ func (a *App) filterTable(s core.State) (*table.Model, string) {
 }
 
 func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {
-	if a.Modal() == "outline" {
-		if om := a.activeOutline(); om != nil {
-			a.nav.filterTarget = outlineTree
-			om.filtering = true
-			a.say("type to filter outline · enter keeps · esc clears · tab changes the match mode")
-			return core.Next(withMode(s, ModeFilter))
-		}
-	}
-	if a.Modal() != "" {
-		a.say("close this overlay to filter the list under it")
-		return core.Next(s)
-	}
-	if f, id := a.resolveFilterable(s, ""); f != nil {
-		a.nav.filterTarget = id
-		a.say("type to filter · enter keeps · esc clears · tab changes the match mode")
-		return core.Next(withMode(s, ModeFilter))
-	}
-	tbl := ""
-	for _, sp := range spaces {
-		if sp.id == s.ActivePage && !(sp.id == SpaceWork && a.nav.histPos >= 0) {
-			tbl = sp.table
-		}
-	}
-	if tbl == "" {
+	f, spec, id := a.resolveFilterTarget(s, nil, "", true)
+	if f == nil {
 		a.say("no filterable view here")
 		return core.Next(s)
 	}
-	a.nav.filterTarget = tbl
-	s = withFocus(s, tbl)
-	a.say("type to filter · enter keeps · esc clears · tab changes the match mode")
+	curMode := a.Engine.Mode(s)
+	if curMode == "" || curMode == ModeFilter {
+		curMode = ModeNormal
+	}
+	a.nav.filterTarget = id
+	a.nav.filterSpec = spec
+	a.nav.filterModes.Push(curMode)
+	a.filterRegistry().BeginEdit(id, curMode)
+	a.say("type to filter · enter keeps · esc cancels · ctrl+x clears · tab changes the match mode")
+	a.viewMemo.gen++
 	return core.Next(withMode(s, ModeFilter))
 }
 
@@ -288,10 +274,7 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 			}
 		}
 	}
-	switch a.Engine.Mode(s) {
-	case ModeFilter:
-		return a.filterEdit(s, c)
-	case ModeOutlineEdit:
+	if a.Engine.Mode(s) == ModeOutlineEdit {
 		if tm, _, ok := a.activeEditTree(); ok {
 			tm.HandleEditCommand(c)
 		}
@@ -301,45 +284,63 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 }
 
 func (a *App) filterEdit(s core.State, c core.Command) core.StepResult {
-	edit := func(q string) string {
-		a.nav.filterLine.Sync(q)
+	f, _, id := a.activeFilterTarget(s, nil)
+	switch c.ID {
+	case CmdFilterCancel:
+		retMode := a.nav.filterModes.Pop(ModeNormal)
+		if snapMode, had := a.filterRegistry().CancelEdit(id); had && snapMode != "" {
+			retMode = snapMode
+		}
+		a.nav.filterTarget = ""
+		a.nav.filterSpec = nil
+		a.say("")
+		a.viewMemo.gen++
+		s = withMode(s, retMode)
+		s = a.repairFilterFocus(s, id)
+		return core.Next(s)
+	case CmdFilterClear:
+		a.filterRegistry().ClearFilter(id)
+		a.nav.filterLine.Set("")
+		a.viewMemo.gen++
+		if a.Engine.Mode(s) != ModeFilter {
+			a.nav.filterTarget = ""
+			a.nav.filterSpec = nil
+			a.say("filter cleared")
+		}
+		s = a.repairFilterFocus(s, id)
+		return core.Next(s)
+	case CmdFilterAccept:
+		if f != nil {
+			if q := f.FilterQuery(); q != "" {
+				a.nav.Registers.SetSpecial(core.RegSearch, q)
+			}
+		}
+		retMode := a.nav.filterModes.Pop(ModeNormal)
+		if snapMode := a.filterRegistry().AcceptEdit(id); snapMode != "" {
+			retMode = snapMode
+		}
+		a.nav.filterTarget = ""
+		a.nav.filterSpec = nil
+		a.say("")
+		a.viewMemo.gen++
+		s = withMode(s, retMode)
+		s = a.repairFilterFocus(s, id)
+		return core.Next(s)
+	}
+
+	if f != nil {
+		a.nav.filterLine.Sync(f.FilterQuery())
 		switch {
 		case c.ID == CmdFilterInsert:
 			a.nav.filterLine.Insert(c.Arg("text"))
-			return a.nav.filterLine.Value()
 		case c.ID == CmdFilterBack:
 			a.nav.filterLine.HandleCommand(core.Command{ID: input.CmdBackspace})
-			return a.nav.filterLine.Value()
 		case input.IsReadlineCommand(c.ID):
 			a.nav.filterLine.HandleCommand(c)
-			return a.nav.filterLine.Value()
-		default:
-			a.nav.filterLine.Set("")
-			return "" // clear, cancel
 		}
-	}
-	f, _ := a.activeFilterable(s)
-	if c.ID != CmdFilterAccept && f != nil {
-		nextQ := edit(f.FilterQuery())
-		f.Filter(nextQ, f.FilterMode())
+		f.Filter(a.nav.filterLine.Value(), f.FilterMode())
 		a.viewMemo.gen++
-	}
-	if c.ID == CmdFilterAccept && f != nil {
-		// "/ keeps the last filter that was kept.
-		if q := f.FilterQuery(); q != "" {
-			a.nav.Registers.SetSpecial(core.RegSearch, q)
-		}
-	}
-	if c.ID == CmdFilterAccept || c.ID == CmdFilterCancel {
-		a.nav.filterTarget = ""
-		a.say("")
-		if om := a.activeOutline(); om != nil && om.filtering {
-			om.filtering = false
-			s = withMode(s, ModeOutline)
-		} else {
-			s = withMode(s, ModeNormal)
-		}
-		a.viewMemo.gen++
+		s = a.repairFilterFocus(s, id)
 	}
 	return core.Next(s)
 }
@@ -350,6 +351,20 @@ func (a *App) tableCommand(s core.State, c core.Command) core.StepResult {
 			mode := a.cycleFilterableMode(f)
 			a.say("filter matches by %s", mode)
 			a.viewMemo.gen++
+			return core.Next(s)
+		}
+	}
+	if c.ID == CmdFilterField {
+		if f, _ := a.activeFilterable(s); f != nil {
+			if ff, ok := f.(traits.FieldFilterable); ok {
+				field := ff.CycleFilterField()
+				if field == "" {
+					a.say("filter: any field")
+				} else {
+					a.say("filter field: %s", field)
+				}
+				a.viewMemo.gen++
+			}
 			return core.Next(s)
 		}
 	}

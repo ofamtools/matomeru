@@ -333,8 +333,10 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 			Children: []ui.ViewNode{tocBody},
 		}
 	}
-	toc := ui.ViewNode{ID: "site.toc", Kind: ui.KindPanel, Scope: ScopeTOC, Title: "Pages", Border: true, Badges: tocBadges,
-		Facts:    map[string]any{"filter": tocFilter, "unread": unread},
+	toc := ui.ViewNode{ID: "site.toc", Kind: ui.KindPanel, Scope: ScopeTOC,
+		Filter: &ui.FilterSpec{ID: "toc", Prefix: "pages "},
+		Title:  "Pages", Border: true, Badges: tocBadges,
+		Facts:    map[string]any{"filter": tocFilter, "hasFilter": filter != "", "unread": unread},
 		Children: []ui.ViewNode{tocBody}}
 
 	activeRef := active.Ref()

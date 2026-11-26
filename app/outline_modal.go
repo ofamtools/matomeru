@@ -16,8 +16,7 @@ import (
 
 // outlineModal implements modal.Modal for the T task outline overlay.
 type outlineModal struct {
-	a         *App
-	filtering bool
+	a *App
 }
 
 var _ modal.Modal = (*outlineModal)(nil)
@@ -39,7 +38,7 @@ func (m *outlineModal) Scope() string   { return views.ScopeOutline }
 func (m *outlineModal) FocusID() string { return outlineTree }
 
 func (m *outlineModal) Mode() string {
-	if m.filtering {
+	if m.a.nav != nil && m.a.nav.filterTarget == outlineTree {
 		return ModeFilter
 	}
 	if m.a.trees.editingOutline() {
@@ -50,7 +49,8 @@ func (m *outlineModal) Mode() string {
 
 func (m *outlineModal) View(_, _ int) ui.ViewNode {
 	panel := m.a.outlineTreeView()
-	return modal.Overlay(modal.OverlaySpec{
+	m.a.registerTreeFilterable(outlineTree, m.a.trees.outlineModel())
+	ov := modal.Overlay(modal.OverlaySpec{
 		ID:        "outline",
 		Scope:     views.ScopeOutline,
 		Title:     panel.Title,
@@ -60,10 +60,15 @@ func (m *outlineModal) View(_, _ int) ui.ViewNode {
 		Facts:     panel.Facts,
 		Children:  panel.Children,
 	})
+	ov.Filter = panel.Filter
+	return ov
 }
 
 func (m *outlineModal) OnClose(modal.CloseReason) {
-	m.filtering = false
+	if m.a.nav != nil && m.a.nav.filterTarget == outlineTree {
+		m.a.nav.filterTarget = ""
+		m.a.nav.filterSpec = nil
+	}
 	if m.a.trees.editingOutline() {
 		m.a.trees.clearEdit()
 	}

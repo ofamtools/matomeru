@@ -239,12 +239,19 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("E opens the project's Show page", shown == project.Ref() && a.Focus() == showHeader && k.has("Tasks › ochazuke-v2", "Subtasks", "Props", "project"))
 	k.keep("Project Show page")
 	k.Keys("j")
+	if strings.HasPrefix(a.Focus(), "show.content.") {
+		k.Keys("j") // step past focusable Description/Body content panel
+	}
 	card := a.Focus()
 	k.check("j moves from the header to the first related card", strings.HasPrefix(card, "show.sec.task.parent.task:"))
 	k.Keys("enter")
 	sub, _ := a.Showing()
 	k.check("enter on the card opens that record's own Show page", sub.Kind == data.KindTask && sub != project.Ref() && a.Focus() == showHeader && k.has("Tasks › ochazuke-v2 › Tier 0"))
-	k.Keys("j", "enter")
+	k.Keys("j")
+	if strings.HasPrefix(a.Focus(), "show.content.") {
+		k.Keys("j")
+	}
+	k.Keys("enter")
 	up, _ := a.Showing()
 	k.check("its parent link leads back up to the project (a third page)", up == project.Ref() && len(a.nav.history) == 3)
 	k.Keys("backspace")

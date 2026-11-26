@@ -101,6 +101,9 @@ func TestShowScrollAndFocusFollow(t *testing.T) {
 		t.Fatal("expected non-zero showRelatedOff before j")
 	}
 	d.Keys("j")
+	if strings.HasPrefix(a.Focus(), "show.content.") {
+		d.Keys("j") // step past the tall focusable Body panel to the related card
+	}
 	if a.Focus() == showHeader {
 		t.Fatal("j from show.header should move focus to a related section/card")
 	}
@@ -111,7 +114,10 @@ func TestShowScrollAndFocusFollow(t *testing.T) {
 	}
 
 	// Navigating to a different Show record resets scroll state.
-	d.Keys("k", "ctrl+d")
+	for a.Focus() != showHeader {
+		d.Keys("k")
+	}
+	d.Keys("ctrl+d")
 	if explicitOff(a.nav.showRelatedOff) <= 0 {
 		t.Fatal("expected non-zero showRelatedOff before opening other record")
 	}

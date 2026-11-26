@@ -162,7 +162,7 @@ func (a *App) viewKey(s core.State) string {
 	if a.nav != nil && (a.nav.showRelatedOff != nil || a.nav.showPropsOff != nil) {
 		fmt.Fprintf(&b, "|ss:%s:%s:%s", data.RefText(a.nav.showScrollRef), showScrollOffsetText(a.nav.showRelatedOff), showScrollOffsetText(a.nav.showPropsOff))
 	}
-	if f, fid := a.activeFilterable(s); f != nil && (f.IsFiltered() || a.Engine.Mode(s) == ModeFilter) {
+	if f, fid := a.activeFilterableNoBuild(s); f != nil && (f.IsFiltered() || a.Engine.Mode(s) == ModeFilter) {
 		fmt.Fprintf(&b, "|flt:%s:%q:%s", fid, f.FilterQuery(), f.FilterMode())
 		if a.Engine.Mode(s) == ModeFilter {
 			fmt.Fprintf(&b, ":%d:%t", a.nav.filterLine.Cursor, a.filterBarBottomLeftEnabled())
@@ -264,6 +264,13 @@ func (a *App) build(s core.State) ui.ViewNode {
 			overlays = append(overlays, a.panes.hints.session.ViewOverlay("focus.hints.overlay"))
 		}
 	}
+	if a.screenHintsActive() {
+		w, h := 120, 36
+		if a.Shell != nil && a.Shell.W > 0 && a.Shell.H > 0 {
+			w, h = a.Shell.W, a.Shell.H
+		}
+		overlays = append(overlays, a.screenHintsOverlay(w, h))
+	}
 	if toastOv, ok := a.toastOverlay(); ok {
 		overlays = append(overlays, toastOv)
 	}
@@ -275,7 +282,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 	if a.Shell != nil {
 		w = a.Shell.W - 1
 	}
-	leftStatus := a.statusLine(s, chain)
+	leftStatus := a.statusLine(s, root, chain)
 	statusText := clip(leftStatus, w)
 	if a.chromeSystemStatsEnabled() && a.rt.live.sysStats != nil {
 		if rightStats := FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), w); rightStats != "" {
@@ -286,7 +293,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 			}
 		}
 	}
-	bottomLine, ok := a.filterBarNode(s, w)
+	bottomLine, ok := a.filterBarNode(s, root, w)
 	if !ok {
 		bottomLine = line("hints", clip(a.hintLine(s, chain), w), "muted")
 	}
@@ -304,7 +311,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 	return root
 }
 
-func (a *App) statusLine(s core.State, chain []core.ContextFrame) string {
+func (a *App) statusLine(s core.State, root ui.ViewNode, chain []core.ContextFrame) string {
 	scopes := make([]string, 0, len(chain))
 	for _, f := range chain {
 		if strings.HasPrefix(f.Scope, "trait.") {
@@ -325,8 +332,8 @@ func (a *App) statusLine(s core.State, chain []core.ContextFrame) string {
 	// typing when the fixed bottom-left Filter Bar is disabled.
 	typing := a.Engine.Mode(s) == ModeFilter
 	if !typing || !a.filterBarBottomLeftEnabled() {
-		if f, fid := a.activeFilterable(s); f != nil && (f.IsFiltered() || typing) {
-			prefix := a.filterPrefix(fid)
+		if f, spec, _ := a.activeFilterTarget(s, &root); f != nil && (f.IsFiltered() || typing) {
+			prefix := activeFilterPrefix(f, spec)
 			q := f.FilterQuery()
 			shownQuery := q
 			if typing {

@@ -335,6 +335,10 @@ func TableFromRecordsWith(schema data.Schema, recs []data.Record, opts StyleOpti
 // record (its kind and Ref), then the index, then the app.
 func IndexView(schema data.Schema, tbl *table.Model, id string) ui.ViewNode {
 	node := tbl.View(id + ".table")
+	if node.Facts == nil {
+		node.Facts = map[string]any{}
+	}
+	node.Facts["hasFilter"] = tbl.Query != ""
 	if node.Scope == "" {
 		// No row is focused (an empty list): the context is the type alone.
 		node.Scope, node.Ref = schema.Kind, &core.Ref{Kind: schema.Kind}
@@ -373,7 +377,7 @@ func IndexView(schema data.Schema, tbl *table.Model, id string) ui.ViewNode {
 		title = schema.Kind
 	}
 	return ui.ViewNode{
-		ID: id, Kind: ui.KindPanel, Scope: ScopeIndex, Title: title, Border: true, Badges: badges,
+		ID: id, Kind: ui.KindPanel, Scope: ScopeIndex, Filter: &ui.FilterSpec{ID: node.ID}, Title: title, Border: true, Badges: badges,
 		Facts: map[string]any{"kind": schema.Kind, "rowCount": shown, "hasFilter": tbl.Query != ""},
 		Actions: []ui.ActionHint{
 			{Key: "enter", Label: "open", Command: CmdOpen},
