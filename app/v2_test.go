@@ -81,7 +81,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetHintsDefaultAction: HintsActionCopy, SetProjectHomeDashboard: true, SetPanesCompactTopArea: true, SetFilterInPlaceTree: true,
 		SetAttachmentsEnabled: true, SetAttachmentsDir: "",
 		SetProjectsNavSurfaceContextUnread: false, SetProjectsNavUnreadDotOnly: true, SetProjectsNavLaneProgressBar: true,
-		SetFilterBarBottomLeft: true, SetProjectContextReview: true}
+		SetFilterBarBottomLeft: true, SetProjectContextReview: true,
+		SetShowLayout: views.ShowLayoutLedger, SetShowHideEmptyRelations: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

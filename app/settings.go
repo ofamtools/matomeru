@@ -202,6 +202,8 @@ const (
 	SetProjectsNavUnreadDotOnly        = "projects.navUnreadDotOnly"
 	SetProjectsNavLaneProgressBar      = "projects.navLaneProgressBar"
 	SetFilterBarBottomLeft             = "ui.filterBarBottomLeft"
+	SetShowLayout                      = "show.layout"
+	SetShowHideEmptyRelations          = "show.hideEmptyRelations"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -355,6 +357,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectsNavLaneProgressBar, true, "show a compact 4-character colored progress bar on lane rows in the Project left nav"),
 		flag(SetFilterBarBottomLeft, true, "anchor the active filter input in a fixed bottom-left bar instead of inline in the status breadcrumb"),
 		flag(SetProjectContextReview, true, "show new Context items in a review block above the full Project Context table"),
+		enum(SetShowLayout, views.ShowLayoutLedger, "Show page layout: borderless single-column ledger outline, narrow stacked, or classic 2-column opt-out", views.ShowLayoutLedger, views.ShowLayoutStacked, views.ShowLayoutClassic),
+		flag(SetShowHideEmptyRelations, true, "collapse empty Show page relation sections behind one focusable toggle row"),
 	}
 }
 
@@ -450,10 +454,28 @@ func (a *App) theme() ui.Theme {
 
 func (a *App) showOptions() views.ShowOptions {
 	showContent := a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetShowContent, true)
+	layout := views.ShowLayoutLedger
+	hideEmpty := true
+	if a.cfg != nil && a.cfg.Settings != nil {
+		layout = a.cfg.Settings.String(SetShowLayout, views.ShowLayoutLedger)
+		hideEmpty = a.cfg.Settings.Bool(SetShowHideEmptyRelations, true)
+	}
 	if a.nav != nil && a.nav.showCompact {
-		return views.ShowOptions{ShowMetadata: false, ShowEmptyRelations: false, ShowContent: showContent}
+		return views.ShowOptions{
+			Layout:             layout,
+			HideEmptyRelations: hideEmpty,
+			GroupLabelsOnce:    true,
+			SectionTallies:     true,
+			ShowMetadata:       false,
+			ShowEmptyRelations: false,
+			ShowContent:        showContent,
+		}
 	}
 	return views.ShowOptions{
+		Layout:             layout,
+		HideEmptyRelations: hideEmpty,
+		GroupLabelsOnce:    true,
+		SectionTallies:     true,
 		ShowMetadata:       a.cfg.Settings.Bool(SetShowMetadata, true),
 		ShowEmptyRelations: a.cfg.Settings.Bool(SetShowEmpty, true),
 		ShowContent:        showContent,

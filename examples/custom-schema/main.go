@@ -73,7 +73,7 @@ func run() (lines []string, err error) {
 func main() {
 	lines, err := run()
 	text := strings.Join(lines, "\n")
-	for _, want := range []string{`panel links "Links"`, "table links.table", `card show.header "Ochazuke"`, `panel edit "Edit Ochazuke"`, "form edit.form"} {
+	for _, want := range []string{`panel links "Links"`, "table links.table", `show.header "Ochazuke"`, `panel edit "Edit Ochazuke"`, "form edit.form"} {
 		if err == nil && !strings.Contains(text, want) {
 			err = fmt.Errorf("the views lack %s", want)
 		}

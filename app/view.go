@@ -80,6 +80,9 @@ func (a *App) viewKey(s core.State) string {
 	if a.Shell != nil {
 		fmt.Fprintf(&b, "|%dx%d", a.Shell.W, a.Shell.H)
 	}
+	if a.nav != nil && a.nav.showEmptyFoldExpanded {
+		b.WriteString("|sf:1")
+	}
 	if tk := a.toastViewKey(); tk != "" {
 		b.WriteString("|toast:" + tk)
 	}
@@ -751,9 +754,15 @@ func (a *App) resolveContentFiles(schema data.Schema, rec data.Record) map[strin
 
 func (a *App) showOptionsFor(ref core.Ref) views.ShowOptions {
 	opts := a.showOptions()
-	if a.nav != nil && a.nav.showScrollRef == ref {
-		opts.RelatedScrollOffset = a.nav.showRelatedOff
-		opts.PropsScrollOffset = a.nav.showPropsOff
+	if a.Shell != nil && a.Shell.W > 0 {
+		opts.Width = a.Shell.W
+	}
+	if a.nav != nil {
+		if a.nav.showScrollRef == ref {
+			opts.RelatedScrollOffset = a.nav.showRelatedOff
+			opts.PropsScrollOffset = a.nav.showPropsOff
+		}
+		opts.EmptyFoldExpanded = a.nav.showEmptyFoldExpanded
 	}
 	if opts.ShowContent && a.Store != nil {
 		if rec, err := a.Store.Get(ref); err == nil && rec != nil {

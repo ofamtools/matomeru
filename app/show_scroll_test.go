@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/traits"
@@ -266,4 +267,72 @@ func openRelatedHub(t *testing.T, a *App, d *Driver, n int) {
 	d.Send(core.CommandEvent{Command: core.Command{ID: "record.open",
 		Args: map[string]any{"ref": map[string]any{"kind": hub.Kind, "id": hub.ID}}, Source: "test", Actor: User}})
 	d.Frame()
+}
+
+func TestShowLedgerFoldYankRegionsAndClassicOptOut(t *testing.T) {
+	a, d := demo(t)
+	body := "## Findings\n\n- Line one with ~/proj/matomeru/views/show_ledger.go\n- Line two complete"
+	note, _, err := a.Store.Create(data.CreateInput{
+		Kind: data.KindNote,
+		ID:   "w4b-note",
+		Fields: map[string]any{
+			"title": "W4B Ledger Show Note",
+			"body":  body,
+		},
+	}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Send(core.CommandEvent{Command: core.Command{
+		ID:     "record.open",
+		Args:   map[string]any{"ref": map[string]any{"kind": note.Kind, "id": note.ID}},
+		Source: "test",
+		Actor:  User,
+	}})
+	frame := d.Frame()
+	if !strings.Contains(frame, "1 PROPS") || !strings.Contains(frame, "2 BODY") || !strings.Contains(frame, "3 CONNECTIONS") {
+		t.Fatalf("default ledger Show page missing expected regions:\n%s", frame)
+	}
+	if !strings.Contains(frame, "empty") {
+		t.Fatalf("expected collapsed empty relations fold row:\n%s", frame)
+	}
+
+	// Whole-body yank via Y copies the full Markdown body verbatim.
+	d.Keys("Y")
+	if a.rt.live.clipboard != body {
+		t.Fatalf("Y copied %q, want %q", a.rt.live.clipboard, body)
+	}
+
+	// Region jump ] steps through Show regions cleanly.
+	d.Keys("]")
+	if a.Focus() == showHeader {
+		t.Fatal("] should jump focus from show.header to next Show region")
+	}
+
+	// Toggle empty relations fold via space.
+	a.Shell.State = withFocus(a.State(), "show.fold.empty")
+	d.Keys("space")
+	if !a.nav.showEmptyFoldExpanded {
+		t.Fatal("space on show.fold.empty should expand empty relations")
+	}
+	d.Keys("space")
+	if a.nav.showEmptyFoldExpanded {
+		t.Fatal("second space on show.fold.empty should collapse empty relations")
+	}
+
+	// Focused header y copies the title cleanly via facts.copy.
+	a.Shell.State = withFocus(a.State(), showHeader)
+	d.Keys("y")
+	if a.rt.live.clipboard != "W4B Ledger Show Note" {
+		t.Fatalf("y on show.header copied %q, want title", a.rt.live.clipboard)
+	}
+
+	// Opt-out show.layout=classic restores the legacy 2-column split.
+	a.cfg.userSettings[SetShowLayout] = views.ShowLayoutClassic
+	a.reloadSettings()
+	a.applySettings()
+	classicRoot := a.View(a.State())
+	if classicRoot.Find("show.body") == nil || classicRoot.Find("show.props.table") == nil {
+		t.Fatal("show.layout=classic opt-out did not restore legacy 2-column Show layout")
+	}
 }

@@ -762,8 +762,14 @@ func TestShowEmptySectionNewAndBreadcrumbs(t *testing.T) {
 	if a.Focus() != showHeader {
 		t.Fatalf("focus = %q, want %q", a.Focus(), showHeader)
 	}
-	// Step down to the empty Schedules section.
-	for i := 0; i < 20 && a.Focus() != "show.sec.schedule.task"; i++ {
+	// Step down to the collapsed empty relations fold, expand it, then focus empty Schedules.
+	for i := 0; i < 25 && a.Focus() != "show.fold.empty" && a.Focus() != "show.sec.schedule.task"; i++ {
+		d.Keys("j")
+	}
+	if a.Focus() == "show.fold.empty" {
+		d.Keys("space")
+	}
+	for i := 0; i < 25 && a.Focus() != "show.sec.schedule.task"; i++ {
 		d.Keys("j")
 	}
 	if a.Focus() != "show.sec.schedule.task" {

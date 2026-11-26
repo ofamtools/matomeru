@@ -226,6 +226,11 @@ const (
 	CmdTaskNoteReply     = "task.note.reply"
 	CmdTaskQueueDispatch = "task.queue.dispatch"
 	CmdWorkLayoutToggle  = "work.layout.toggle"
+	CmdShowFoldToggle    = "show.fold.toggle"
+	CmdShowYank          = "show.yank"
+	CmdShowYankBody      = "show.yank.body"
+	CmdShowRegionNext    = "show.region.next"
+	CmdShowRegionPrev    = "show.region.prev"
 )
 
 var leader = core.Layer{Name: "leader", Modes: []string{ModeTerminalLeader, ModeNormal}, ExcludeTags: []string{"motion", "editing"}}
@@ -372,7 +377,13 @@ func DefaultBindings() []core.Binding {
 		when(bind(n, data.KindExtension, "enter", CmdExtInstall, "install extension"), "facts.extAvailable"),
 		when(bind(n, data.KindExtension, "enter", CmdExtRun, "run"), "!facts.extAvailable"),
 		when(bind(n, data.KindExtension, "i", CmdExtInstall, "install / update"), "facts.extInstallable"),
+		bind(n, "show.fold", "space", CmdShowFoldToggle, "toggle empty relations"),
+		bind(n, "show.fold", "enter", CmdShowFoldToggle, "toggle empty relations"),
 		bind(n, views.ScopeShow, "enter", views.CmdOpen, "open"),
+		when(bind(n, views.ScopeShow, "y", CmdShowYank, "yank focused value"), "facts.copy != \"\""),
+		bind(n, views.ScopeShow, "Y", CmdShowYankBody, "yank full body"),
+		bind(n, views.ScopeShow, "]", CmdShowRegionNext, "next show region"),
+		bind(n, views.ScopeShow, "[", CmdShowRegionPrev, "previous show region"),
 		bind(n, all, "E", views.CmdOpen, "open show"),
 		when(bind(n, all, "enter", CmdGroupToggle, "fold group"), "facts.isGroupHeader && !facts.enterOpensShow"),
 		when(bind(n, all, "enter", views.CmdOpen, "open"), "facts.enterOpensShow"),

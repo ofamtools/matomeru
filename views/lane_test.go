@@ -294,7 +294,9 @@ func TestLaneShowTimelineAndOptions(t *testing.T) {
 		t.Fatalf("entry = %+v", entries[2])
 	}
 
-	root, err := ShowView(w.store, lane.Ref(), "")
+	classicOpts := DefaultShowOptions()
+	classicOpts.Layout = ShowLayoutClassic
+	root, err := ShowViewWith(w.store, lane.Ref(), "", classicOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +312,7 @@ func TestLaneShowTimelineAndOptions(t *testing.T) {
 		t.Fatal("the task's page has no Lanes section")
 	}
 
-	lean, err := ShowViewWith(w.store, lane.Ref(), "", ShowOptions{})
+	lean, err := ShowViewWith(w.store, lane.Ref(), "", ShowOptions{Layout: ShowLayoutClassic})
 	if err != nil {
 		t.Fatal(err)
 	}
