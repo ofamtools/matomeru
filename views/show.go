@@ -21,141 +21,67 @@ type section struct {
 	cards      []ui.ViewNode
 	entries    []sectionEntry
 	always     bool // shown even when empty
+	creatable  bool // targetKind is a registered schema
 }
 
-// relatedSections computes the right-hand side of a Show page from data
-// alone, with no per-noun code:
-//
-//  1. one section per reference field, in any schema, that can point at this
-//     record (a task's subtasks, panes, pages, documents and runs);
-//  2. one section per relation kind the record's schema declares, shown even
-//     when empty, so an association always has its place;
-//  3. one section per other relation kind the record is on either end of.
-//
-// A record already shown by an earlier section is not repeated.
-func relatedSections(store *data.Store, schema data.Schema, rec data.Record) ([]section, error) {
-	ref := rec.Ref()
-	reg := store.Registry()
-	seen := map[core.Ref]bool{ref: true}
+// sectionTitle names a snapshot section: its declared title, or one made from
+// the relation kind and the side the record is on.
+func sectionTitle(sec data.ShowSection) string {
+	if sec.Title != "" {
+		return sec.Title
+	}
+	if !sec.Always && sec.Direction == data.Incoming {
+		return Label(sec.RelKind) + " of"
+	}
+	return Label(sec.RelKind)
+}
+
+// linkCard is the focusable card of one linked record.
+func linkCard(link data.ShowLink, id string) ui.ViewNode {
+	if link.Record != nil {
+		return RecordCard(link.Schema, *link.Record, id)
+	}
+	// Not a stored record (a tag, a directory): still a focusable thing of its kind.
+	target := link.Ref
+	return ui.ViewNode{ID: id, Kind: ui.KindCard, Scope: target.Kind, Ref: &target, Focusable: true, Border: true,
+		Title: target.ID, Badges: []ui.Badge{{Text: target.Kind, Tone: "info"}}}
+}
+
+// sectionOf lays out one snapshot section: a card and an entry per link.
+func sectionOf(src data.ShowSection) section {
+	sec := section{key: src.Key, title: sectionTitle(src), targetKind: src.TargetKind, field: src.Field, relKind: src.RelKind,
+		always: src.Always, creatable: src.Creatable}
+	for _, link := range src.Links {
+		id := "show.sec." + src.Key + "." + data.RefText(link.Ref)
+		sec.cards = append(sec.cards, linkCard(link, id))
+		sec.entries = append(sec.entries, sectionEntry{id: id, ref: link.Ref, schema: link.Schema, rec: link.Record})
+	}
+	return sec
+}
+
+// relatedSections lays out the related side of a Show page from its snapshot.
+// A relation section named like an earlier one joins it: a task's notes by
+// reference and its notes by "about" are one "Notes" list.
+func relatedSections(snap data.ShowSnapshot) []section {
 	var out []section
-	cardAndEntry := func(key string, target core.Ref) (ui.ViewNode, sectionEntry) {
-		id := "show.sec." + key + "." + data.RefText(target)
-		tSchema := schemaOf(reg, target.Kind)
-		targetRec, err := store.Get(target)
-		if err != nil {
-			// Not a stored record (a tag, a directory): still a focusable thing of its kind.
-			t := target
-			node := ui.ViewNode{ID: id, Kind: ui.KindCard, Scope: target.Kind, Ref: &t, Focusable: true, Border: true,
-				Title: target.ID, Badges: []ui.Badge{{Text: target.Kind, Tone: "info"}}}
-			return node, sectionEntry{id: id, ref: target, schema: tSchema}
-		}
-		cp := *targetRec
-		return RecordCard(tSchema, cp, id), sectionEntry{id: id, ref: target, schema: tSchema, rec: &cp}
-	}
-
-	for _, src := range reg.List() {
-		for _, f := range src.Fields {
-			if f.Type != core.ParamRef || !slices.Contains(f.RefKinds, ref.Kind) {
-				continue
-			}
-			res, err := store.Query(data.Query{Kind: src.Kind, Parent: &ref, ParentField: f.Name, IncludeArchived: f.ShowIncludeArchived})
-			if err != nil {
-				return nil, err
-			}
-			sec := section{key: src.Kind + "." + f.Name, title: src.Plural, targetKind: src.Kind, field: f.Name, always: true}
-			if src.Kind == ref.Kind {
-				sec.title = "Sub" + strings.ToLower(src.Plural)
-			}
-			for _, item := range res.Items {
-				if seen[item.Ref()] {
-					continue
-				}
-				seen[item.Ref()] = true
-				id := "show.sec." + sec.key + "." + data.RefText(item.Ref())
-				cp := item
-				sec.cards = append(sec.cards, RecordCard(src, cp, id))
-				sec.entries = append(sec.entries, sectionEntry{id: id, ref: cp.Ref(), schema: src, rec: &cp})
-			}
+	for _, src := range snap.Sections {
+		sec := sectionOf(src)
+		named := slices.IndexFunc(out, func(s section) bool { return s.title == sec.title })
+		if src.RelKind == "" || named < 0 {
 			out = append(out, sec)
-		}
-	}
-
-	type relKey struct {
-		kind string
-		dir  data.RelationDir
-	}
-	declared := map[relKey]bool{}
-	rels, err := store.RecordRelationMatches(rec)
-	if err != nil {
-		return nil, err
-	}
-	addRelations := func(sec section, kind string, dir data.RelationDir) {
-		for _, rel := range rels {
-			if rel.Kind != kind || (dir != data.Both && rel.Direction != dir) {
-				continue
-			}
-			other := rel.Ref
-			if seen[other] || other == data.WorkspaceRef {
-				continue // pins and marks show as badges in the header
-			}
-			seen[other] = true
-			c, e := cardAndEntry(sec.key, other)
-			sec.cards = append(sec.cards, c)
-			sec.entries = append(sec.entries, e)
-		}
-		// A relation section named like an earlier one joins it: a task's
-		// notes by reference and its notes by "about" are one "Notes" list.
-		for i := range out {
-			if out[i].title == sec.title {
-				out[i].cards = append(out[i].cards, sec.cards...)
-				out[i].entries = append(out[i].entries, sec.entries...)
-				return
-			}
-		}
-		if sec.always || len(sec.cards) > 0 {
-			out = append(out, sec)
-		}
-	}
-	for _, spec := range schema.Relations {
-		dir, suffix := data.Outgoing, "out"
-		switch spec.Direction {
-		case data.DirectionIncoming:
-			dir, suffix = data.Incoming, "in"
-		case data.DirectionBoth:
-			dir, suffix = data.Both, "both"
-		}
-		title := spec.Title
-		if title == "" {
-			title = Label(spec.Kind)
-		}
-		declared[relKey{spec.Kind, dir}] = true
-		if dir == data.Both {
-			declared[relKey{spec.Kind, data.Outgoing}], declared[relKey{spec.Kind, data.Incoming}] = true, true
-		}
-		var targetKind string
-		if len(spec.TargetKinds) == 1 {
-			targetKind = spec.TargetKinds[0]
-		}
-		addRelations(section{key: "rel." + spec.Kind + "." + suffix, title: title, targetKind: targetKind, relKind: spec.Kind, always: true}, spec.Kind, dir)
-	}
-	for _, rel := range rels {
-		key, suffix, title := relKey{rel.Kind, data.Outgoing}, "out", Label(rel.Kind)
-		if rel.Direction == data.Incoming {
-			key, suffix, title = relKey{rel.Kind, data.Incoming}, "in", Label(rel.Kind)+" of"
-		}
-		if declared[key] {
 			continue
 		}
-		declared[key] = true
-		addRelations(section{key: "rel." + rel.Kind + "." + suffix, title: title, relKind: rel.Kind}, rel.Kind, key.dir)
+		out[named].cards = append(out[named].cards, sec.cards...)
+		out[named].entries = append(out[named].entries, sec.entries...)
 	}
-	return out, nil
+	return out
 }
 
 // propsPanel is the left side of a Show page: every schema field as a row
 // (omitting fields already rendered in full show.content.* panels), then one
 // focusable link card per reference field that points somewhere.
-func propsPanel(store *data.Store, schema data.Schema, rec data.Record, opts ShowOptions, omitted map[string]bool) ui.ViewNode {
+func propsPanel(snap data.ShowSnapshot, opts ShowOptions, omitted map[string]bool) ui.ViewNode {
+	schema, rec := snap.Schema, snap.Record
 	merged := rec.MergedFields()
 	names := make([]string, 0, len(schema.Fields))
 	for _, f := range schema.Fields {
@@ -181,10 +107,9 @@ func propsPanel(store *data.Store, schema data.Schema, rec data.Record, opts Sho
 			link := ui.ViewNode{ID: "show.field." + name, Kind: ui.KindCard, Scope: target.Kind, Ref: &target, Focusable: true, Border: true,
 				Title: target.ID, Badges: []ui.Badge{{Text: fieldTitle(schema, name), Tone: "accent"}},
 				Facts: map[string]any{"field": name, "link": true}}
-			if other, err := store.Get(target); err == nil {
-				targetSchema := schemaOf(store.Registry(), target.Kind)
-				link.Title = Title(targetSchema, *other)
-				link.Badges = append(link.Badges, StatusBadges(targetSchema, *other)...)
+			if other := snap.FieldLinks[name]; other.Record != nil {
+				link.Title = Title(other.Schema, *other.Record)
+				link.Badges = append(link.Badges, StatusBadges(other.Schema, *other.Record)...)
 				link.Facts["missing"] = false
 			} else {
 				link.Badges = append(link.Badges, ui.Badge{Text: "not stored here"})
@@ -231,8 +156,11 @@ func propsPanel(store *data.Store, schema data.Schema, rec data.Record, opts Sho
 // card the context chain runs from that record, through the page's record,
 // to the app, and "enter" opens the focused record's own Show page.
 // focusID names the focused node; it is used to say what "enter" opens.
-func ShowView(store *data.Store, ref core.Ref, focusID string) (ui.ViewNode, error) {
-	return ShowViewWith(store, ref, focusID, DefaultShowOptions())
+//
+// The page is drawn from snap alone (the store's LoadShowSnapshot): nothing
+// here reads the store.
+func ShowView(snap data.ShowSnapshot, focusID string) ui.ViewNode {
+	return ShowViewWith(snap, focusID, DefaultShowOptions())
 }
 
 // ShowOptions choose what a Show page includes and which layout it uses.
@@ -644,24 +572,28 @@ func headerSummary(schema data.Schema, rec data.Record, rendered map[string]bool
 // ShowViewWith is ShowView with options. It dispatches to the borderless
 // single-column Ledger Outline presenter by default (or the classic 2-column
 // split when opts.Layout == ShowLayoutClassic).
-func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOptions) (ui.ViewNode, error) {
-	rec, err := store.Get(ref)
-	if err != nil {
-		return ui.ViewNode{}, err
-	}
-	schema := schemaOf(store.Registry(), ref.Kind)
-	sections, err := relatedSections(store, schema, *rec)
-	if err != nil {
-		return ui.ViewNode{}, err
-	}
+func ShowViewWith(snap data.ShowSnapshot, focusID string, opts ShowOptions) ui.ViewNode {
+	sections := relatedSections(snap)
 	if opts.effectiveLayout() != ShowLayoutClassic {
-		return showViewLedger(store, schema, *rec, sections, focusID, opts)
+		return showViewLedger(snap, sections, focusID, opts)
 	}
-	return showViewClassic(store, schema, *rec, sections, focusID, opts)
+	return showViewClassic(snap, sections, focusID, opts)
 }
 
-func showViewClassic(store *data.Store, schema data.Schema, recVal data.Record, sections []section, focusID string, opts ShowOptions) (ui.ViewNode, error) {
-	rec := &recVal
+// markBadges are the header badges of a pinned or marked record.
+func markBadges(snap data.ShowSnapshot) []ui.Badge {
+	var badges []ui.Badge
+	if snap.Pinned {
+		badges = append(badges, ui.Badge{Text: "pinned", Tone: "warning"})
+	}
+	if snap.Marked {
+		badges = append(badges, ui.Badge{Text: "marked", Tone: "warning"})
+	}
+	return badges
+}
+
+func showViewClassic(snap data.ShowSnapshot, sections []section, focusID string, opts ShowOptions) ui.ViewNode {
+	schema, rec := snap.Schema, &snap.Record
 	ref := rec.Ref()
 
 	var panels []ui.ViewNode
@@ -672,13 +604,8 @@ func showViewClassic(store *data.Store, schema data.Schema, recVal data.Record, 
 		panels = append(panels, contentNodes...)
 	}
 	if schema.ShowTimeline {
-		timeline, err := timelinePanel(store, ref)
-		if err != nil {
-			return ui.ViewNode{}, err
-		}
-		panels = append(panels, timeline)
+		panels = append(panels, timelinePanel(snap.Timeline))
 	}
-	reg := store.Registry()
 	for _, sec := range sections {
 		if len(sec.cards) == 0 && !opts.ShowEmptyRelations {
 			continue
@@ -712,9 +639,8 @@ func showViewClassic(store *data.Store, schema data.Schema, recVal data.Record, 
 			} else if sec.relKind != "" {
 				panel.Scope = sec.relKind
 			}
-			_, creatable := reg.Get(sec.targetKind)
 			hint := "none"
-			if creatable || sec.relKind == data.RelDirectory {
+			if sec.creatable || sec.relKind == data.RelDirectory {
 				hint = "none · n adds"
 			}
 			body = []ui.ViewNode{text("", hint, "muted")}
@@ -725,7 +651,7 @@ func showViewClassic(store *data.Store, schema data.Schema, recVal data.Record, 
 	related := ui.ViewNode{ID: "show.related", Kind: ui.KindScroll, Props: showScrollProps(ref, opts.RelatedScrollOffset),
 		Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: panels}}}
 	body := ui.ViewNode{ID: "show.body", Kind: ui.KindSplit, Ratio: 0.42, Gap: 1, Children: []ui.ViewNode{
-		propsPanel(store, schema, *rec, opts, renderedFields),
+		propsPanel(snap, opts, renderedFields),
 		related,
 	}}
 
@@ -733,18 +659,7 @@ func showViewClassic(store *data.Store, schema data.Schema, recVal data.Record, 
 		{Text: data.RefText(ref), Tone: "accent"},
 		{Text: strings.ToLower(KindLabel(schema, *rec)), Tone: "info"},
 	}, StatusBadges(schema, *rec)...)
-	for _, mark := range []struct {
-		is   func(core.Ref) (bool, error)
-		text string
-	}{{store.IsPinned, "pinned"}, {store.IsMarked, "marked"}} {
-		on, err := mark.is(ref)
-		if err != nil {
-			return ui.ViewNode{}, err
-		}
-		if on {
-			badges = append(badges, ui.Badge{Text: mark.text, Tone: "warning"})
-		}
-	}
+	badges = append(badges, markBadges(snap)...)
 	if len(opts.ExtraBadges) > 0 {
 		badges = append(badges, opts.ExtraBadges...)
 	}
@@ -785,5 +700,5 @@ func showViewClassic(store *data.Store, schema data.Schema, recVal data.Record, 
 	facts["kind"] = ref.Kind
 	return ui.ViewNode{ID: "show", Kind: ui.KindVStack, Scope: ScopeShow, Facts: map[string]any{"kind": ref.Kind}, Children: []ui.ViewNode{
 		{ID: "show.record", Kind: ui.KindVStack, Scope: ref.Kind, Ref: &ref, Facts: facts, Children: []ui.ViewNode{header, body}},
-	}}, nil
+	}}
 }

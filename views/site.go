@@ -61,15 +61,14 @@ func PaneSiteView(pane data.Record, pages []data.Record, activePageID string, to
 
 // SiteOptions are the optional parts of a pane's site.
 type SiteOptions struct {
-	// Store is read for the lane progress bar / TOC entry; nil shows none.
-	Store *data.Store
-	// ShowLaneBar puts the ambient lane progress bar (LaneBar) as one line
-	// above the site when the pane works in an active lane tree.
+	// LaneBars are the pane's lane trees (the store's PaneLaneBars), read by
+	// the caller for the lane progress bars and the TOC entry; none shows none.
+	LaneBars []data.LaneBarEntry
+	// ShowLaneBar stacks the lane progress bars (LaneBarStack) above the site:
+	// the pane's finished lane trees, then the tree it works in.
 	ShowLaneBar bool
-	// KeepCompletedLaneBars stacks the pane's finished lane trees above the
-	// active lane bar; DismissedLaneBars holds the LaneBarEntry keys to leave out.
-	KeepCompletedLaneBars bool
-	DismissedLaneBars     map[string]bool
+	// DismissedLaneBars holds the data.LaneBarEntry keys to leave out.
+	DismissedLaneBars map[string]bool
 	// CompactTopArea renders the lane progress bar as a prominent, concise
 	// ui.KindProgress bar instead of the legacy verbose text strip.
 	CompactTopArea bool
@@ -232,9 +231,11 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 
 	var laneRow ui.ViewNode
 	laneID := ""
-	hasLaneTOC := false
-	if opts.Store != nil && opts.LaneInTOC {
-		laneRow, laneID, hasLaneTOC = LaneTOCEntry(opts.Store, pane)
+	activeLane := slices.IndexFunc(opts.LaneBars, func(e data.LaneBarEntry) bool { return !e.Completed })
+	hasLaneTOC := opts.LaneInTOC && activeLane >= 0
+	if hasLaneTOC {
+		roll := opts.LaneBars[activeLane].Roll
+		laneRow, laneID = LaneTOCEntry(roll), roll.Root.ID
 	}
 
 	filter := strings.ToLower(strings.TrimSpace(tocFilter))
@@ -398,10 +399,10 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 		site.Facts["lane"] = laneID
 	}
 	if opts.ShowLaneBar {
-		stack, ok := LaneBarStack(opts.Store, pane, LaneBarStackOptions{
+		stack, ok := LaneBarStack(opts.LaneBars, LaneBarStackOptions{
 			Compact: opts.CompactTopArea, Hint: opts.LaneHint, Width: opts.Width,
 			Suffix: opts.LaneSuffix, SuffixTone: opts.LaneSuffixTone,
-			KeepCompleted: opts.KeepCompletedLaneBars, Dismissed: opts.DismissedLaneBars,
+			Dismissed: opts.DismissedLaneBars,
 		})
 		if ok {
 			if active := stack.Find(LaneBarID); active != nil {
