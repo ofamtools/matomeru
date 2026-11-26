@@ -66,6 +66,17 @@ var spaces = []spaceDef{
 		{Key: "name", Title: "Extension"}, {Key: "runStatus", Title: "Health", Width: 11}, {Key: "binary", Title: "Binary", Width: 12}, {Key: views.FlagsField, Title: "Flags", Width: 5}}},
 }
 
+type standalonePageDef struct {
+	title  string
+	focus  string
+	render func(*App) ui.ViewNode
+}
+
+// Standalone pages have no numbered tab slot in the normal navigation cycle.
+var standalonePages = map[string]standalonePageDef{
+	SpaceFiles: {title: "Files & Directories", focus: views.FilesListID, render: (*App).filesSpace},
+}
+
 // Node IDs the app gives focus to.
 const (
 	ScopeRail  = "rail"
@@ -171,6 +182,7 @@ type App struct {
 	panes           *PaneController
 	proj            *ProjectController
 	features        *FeaturesController
+	files           *filesController
 	rt              *RuntimeController
 	ext             *ExtensionController
 	ctx             *ContextController
@@ -212,6 +224,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		a.loadConfig(dir)
 		a.loadDrafts(dir)
 	}
+	a.initFiles()
 	a.loadPresets()
 	a.initToasts()
 	a.loadHandlers(opts.ConfigDir)
@@ -228,7 +241,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.nav.showArchived = a.cfg.Settings.Bool("showArchived", false)
 	a.register()
 
-	frames := make([]core.Frame, 0, len(spaces)+2)
+	frames := make([]core.Frame, 0, len(spaces)+2+len(standalonePages))
 	for _, sp := range spaces {
 		frames = append(frames, core.Frame{ID: sp.id, Mode: ModeNormal, FocusID: sp.table})
 	}
@@ -236,10 +249,13 @@ func New(store *data.Store, opts Options) (*App, error) {
 	if a.featuresPageActive() {
 		frames = append(frames, core.Frame{ID: SpaceFeatures, Mode: ModeNormal, FocusID: views.FeaturesNavPrefix + a.featuresCtrl().activeItemKey()})
 	}
+	for id, page := range standalonePages {
+		frames = append(frames, core.Frame{ID: id, Mode: ModeNormal, FocusID: page.focus})
+	}
 	initial := core.NewState(frames...)
 	if start := a.cfg.Settings.String("startSpace", SpacePanes); slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == start }) ||
 		(start == SpaceProjects && a.projectsTopNavTabEnabled()) ||
-		(start == SpaceFeatures && a.featuresPageActive()) {
+		(start == SpaceFeatures && a.featuresPageActive()) || standalonePages[start].render != nil {
 		initial.ActivePage = start
 	}
 	a.Shell = otea.New(a.Engine, initial, a.View, theme)
@@ -774,6 +790,7 @@ func (a *App) register() {
 	a.handle(CmdSessionNoteCapture, a.sessionNoteCapture)
 	a.handle(CmdSessionNoteList, a.sessionNoteList)
 	a.handle(CmdSessionSandboxOpen, a.sessionSandboxOpen)
+	a.registerFiles()
 	a.handle(CmdFDSearch, a.fdSearch)
 	a.handle(CmdFDSearchAgain, a.fdSearchAgain)
 	for _, id := range []string{CmdFDResultYank, CmdFDResultOpenWith, CmdFDResultAttach, CmdFDResultRefine} {

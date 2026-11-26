@@ -106,6 +106,8 @@ func (a *App) loadConfig(dir string) {
 // form over them and a change applies at once.
 const (
 	SetTheme                           = "ui.theme"
+	SetFilesScanDepth                  = "files.scanDepth"
+	SetFilesDefaultSort                = "files.defaultSort"
 	SetDensity                         = "ui.density"
 	SetBorderStyle                     = "ui.borderStyle"
 	SetShowMetadata                    = "show.metadata"
@@ -359,6 +361,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectContextReview, true, "show new Context items in a review block above the full Project Context table"),
 		enum(SetShowLayout, views.ShowLayoutLedger, "Show page layout: borderless single-column ledger outline, narrow stacked, or classic 2-column opt-out", views.ShowLayoutLedger, views.ShowLayoutStacked, views.ShowLayoutClassic),
 		flag(SetShowHideEmptyRelations, true, "collapse empty Show page relation sections behind one focusable toggle row"),
+		{Name: SetFilesScanDepth, Type: core.ParamInt, Default: defaultFilesDepth, Description: "default directory depth for Git repository auto-scan"},
+		enum(SetFilesDefaultSort, string(data.PathSortRecent), "default sort order for Files & Frecency path picker", string(data.PathSortRecent), string(data.PathSortFrequent), string(data.PathSortFrecency), string(data.PathSortName)),
 	}
 }
 
@@ -393,6 +397,7 @@ func readUserSettings(b []byte) (map[string]any, error) {
 
 // reloadSettings rebuilds Settings from the keys the user set.
 func (a *App) reloadSettings() {
+	previousPathSort := a.filesDefaultSort()
 	b, err := json.Marshal(a.cfg.userSettings)
 	if err == nil {
 		var s *config.Settings
@@ -402,6 +407,9 @@ func (a *App) reloadSettings() {
 	}
 	if err != nil {
 		a.warn("settings: %v", err)
+	}
+	if a.files != nil && a.files.sortMode == "" && previousPathSort != a.filesDefaultSort() {
+		a.refreshFilesPaths()
 	}
 	a.syncToastSetting()
 	a.syncSessionRecorder()

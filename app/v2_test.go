@@ -82,7 +82,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetAttachmentsEnabled: true, SetAttachmentsDir: "",
 		SetProjectsNavSurfaceContextUnread: false, SetProjectsNavUnreadDotOnly: true, SetProjectsNavLaneProgressBar: true,
 		SetFilterBarBottomLeft: true, SetProjectContextReview: true,
-		SetShowLayout: views.ShowLayoutLedger, SetShowHideEmptyRelations: true}
+		SetShowLayout: views.ShowLayoutLedger, SetShowHideEmptyRelations: true,
+		SetFilesScanDepth: 3, SetFilesDefaultSort: "recent"}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

@@ -567,6 +567,10 @@ func (a *App) appQuit(s core.State, _ core.Command) core.StepResult {
 // newPathPickerModal builds a PathPickerModal starting in the first readable
 // directory among start (or its parent), the working directory, and home.
 func (a *App) newPathPickerModal(start any, onPick func(entry pathpicker.DirEntry) modal.Result) (*modal.PathPickerModal, bool) {
+	return a.newPathPickerModalFor(start, pathpicker.PickAny, onPick)
+}
+
+func (a *App) newPathPickerModalFor(start any, mode pathpicker.PickMode, onPick func(entry pathpicker.DirEntry) modal.Result) (*modal.PathPickerModal, bool) {
 	fs := a.opts.FS
 	if fs == nil {
 		fs = pathpicker.OSFS{}
@@ -593,7 +597,7 @@ func (a *App) newPathPickerModal(start any, onPick func(entry pathpicker.DirEntr
 			continue
 		}
 		var err error
-		if pp, err = pathpicker.New(fs, dir, pathpicker.PickAny); err == nil {
+		if pp, err = pathpicker.New(fs, dir, mode); err == nil {
 			break
 		}
 	}
@@ -611,6 +615,7 @@ func (a *App) newPathPickerModal(start any, onPick func(entry pathpicker.DirEntr
 		WidthPct:      70,
 		HeightPct:     70,
 		OnPick: func(entry pathpicker.DirEntry) modal.Result {
+			a.recordPathUse(entry)
 			if onPick != nil {
 				res := onPick(entry)
 				res.Handled = true

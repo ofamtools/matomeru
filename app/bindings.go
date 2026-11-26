@@ -832,6 +832,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, uxNotesBindings()...)
 	out = append(out, pageModeBindings()...)
 	out = append(out, fdSearchBindings()...)
+	out = append(out, filesBindings()...)
 	out = append(out, paneSearchBindings()...)
 	out = append(out, projectHomeBindings()...)
 	out = append(out, projectTabsBindings()...)
