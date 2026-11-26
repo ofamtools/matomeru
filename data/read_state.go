@@ -70,6 +70,9 @@ func (t *txn) flushTouched(actor core.Actor) error {
 			}
 		}
 	}
+	if err := t.bubbleAncestorUpdatedAt(actor); err != nil {
+		return err
+	}
 	return nil
 }
 
