@@ -157,3 +157,50 @@ func TestShowLedgerCatalogOnlyCustomNoun(t *testing.T) {
 		t.Fatalf("rendered catalog-only noun Show page missing expected content:\n%s", plain)
 	}
 }
+
+func TestShowLedgerStarredRowAlignsTitlesOnOneLine(t *testing.T) {
+	w := build(t)
+	n1, _, err := w.store.Create(data.CreateInput{
+		Kind:   data.KindNote,
+		ID:     "nstar1",
+		Fields: map[string]any{"title": "Starred note alpha", "task": w.project.Ref()},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := w.store.Star(n1.Ref(), owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := w.store.Create(data.CreateInput{
+		Kind:   data.KindNote,
+		ID:     "nplain2",
+		Fields: map[string]any{"title": "Unstarred note beta", "task": w.project.Ref()},
+	}, owner); err != nil {
+		t.Fatal(err)
+	}
+
+	root, err := ShowViewWith(w.store, w.project.Ref(), "show.header", DefaultShowOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame, _ := ui.Render(root, ui.DefaultDarkTheme(), "show.header", 120, 40)
+	plain := stripANSI(frame.ANSI)
+	var starCol, plainCol int = -1, -1
+	for _, ln := range strings.Split(plain, "\n") {
+		if idx := strings.Index(ln, "Starred note alpha"); idx >= 0 {
+			if !strings.Contains(ln, "★") {
+				t.Fatalf("starred note line missing ★ indicator: %q", ln)
+			}
+			starCol = len([]rune(ln[:idx]))
+		}
+		if idx := strings.Index(ln, "Unstarred note beta"); idx >= 0 {
+			plainCol = len([]rune(ln[:idx]))
+		}
+	}
+	if starCol < 0 || plainCol < 0 {
+		t.Fatalf("expected both notes in rendered Show page:\n%s", plain)
+	}
+	if starCol != plainCol {
+		t.Fatalf("expected consistent left alignment between starred (%d) and unstarred (%d) titles:\n%s", starCol, plainCol, plain)
+	}
+}

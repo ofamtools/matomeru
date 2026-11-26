@@ -508,10 +508,19 @@ func ledgerConnectionsRegion(store *data.Store, sections []section, regionNum in
 			secRows = append(secRows, text("show.sec."+sec.key+".hdr", hdrText, "accent"))
 		}
 
+		secHasMarker := false
+		for _, entry := range sec.entries {
+			if entry.rec != nil && (entry.rec.IsUnreadBy(entry.schema.UnreadField) || entry.rec.StarStatus == data.StarStarred) {
+				secHasMarker = true
+				break
+			}
+		}
+
 		for i, entry := range sec.entries {
 			glyph, glyphTone, rowTone, ended := entryStatusStyle(entry.schema, entry.rec)
 			title := entry.ref.ID
 			unread := false
+			starred := false
 			facts := map[string]any{
 				"kind":   "row",
 				"hasRef": true,
@@ -522,6 +531,7 @@ func ledgerConnectionsRegion(store *data.Store, sections []section, regionNum in
 			if entry.rec != nil {
 				title = Title(entry.schema, *entry.rec)
 				unread = entry.rec.IsUnreadBy(entry.schema.UnreadField)
+				starred = entry.rec.StarStatus == data.StarStarred
 				for k, v := range statusFacts(entry.schema, *entry.rec) {
 					facts[k] = v
 				}
@@ -549,11 +559,21 @@ func ledgerConnectionsRegion(store *data.Store, sections []section, regionNum in
 			}
 
 			cols := entrySummaryCols(entry.schema, entry.rec, now)
-			unreadDot := ""
-			if unread {
-				unreadDot = "● "
+			markerText := ""
+			markerTone := ""
+			if secHasMarker {
+				switch {
+				case unread:
+					markerText = "● "
+					markerTone = "warning"
+				case starred:
+					markerText = "★ "
+					markerTone = "warning"
+				default:
+					markerText = "  "
+				}
 			}
-			bodyText := fmt.Sprintf("%s%s %s", unreadDot, glyph, firstLine(title, 64))
+			bodyText := fmt.Sprintf("%s%s %s", markerText, glyph, firstLine(title, 64))
 			suffix := shortRefID(entry.ref.ID)
 			if cols != "" {
 				suffix = cols + "  " + suffix
@@ -561,7 +581,7 @@ func ledgerConnectionsRegion(store *data.Store, sections []section, regionNum in
 			line := fmt.Sprintf("%s%s   %s", pref, bodyText, suffix)
 
 			prefLen := len([]rune(pref))
-			glyphStart := prefLen + len([]rune(unreadDot))
+			glyphStart := prefLen + len([]rune(markerText))
 			glyphEnd := glyphStart + len([]rune(glyph))
 			suffixStart := len([]rune(line)) - len([]rune(suffix))
 			var spans []ui.ToneSpan
@@ -570,8 +590,8 @@ func ledgerConnectionsRegion(store *data.Store, sections []section, regionNum in
 			} else {
 				spans = append(spans, ui.ToneSpan{From: 0, To: prefLen, Tone: "muted"})
 			}
-			if unread {
-				spans = append(spans, ui.ToneSpan{From: prefLen, To: glyphStart, Tone: "warning"})
+			if markerTone != "" {
+				spans = append(spans, ui.ToneSpan{From: prefLen, To: glyphStart, Tone: markerTone})
 			}
 			if glyphTone != "" {
 				spans = append(spans, ui.ToneSpan{From: glyphStart, To: glyphEnd, Tone: glyphTone})
