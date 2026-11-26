@@ -80,7 +80,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetProjectsNavTree: true, SetOutlineGutter: true, SetChromeSystemStats: true, SetProjectsNavSurfaceUnread: true,
 		SetHintsDefaultAction: HintsActionCopy, SetProjectHomeDashboard: true, SetPanesCompactTopArea: true, SetFilterInPlaceTree: true,
 		SetAttachmentsEnabled: true, SetAttachmentsDir: "",
-		SetProjectsNavSurfaceContextUnread: false, SetProjectsNavUnreadDotOnly: true, SetProjectsNavLaneProgressBar: true}
+		SetProjectsNavSurfaceContextUnread: false, SetProjectsNavUnreadDotOnly: true, SetProjectsNavLaneProgressBar: true,
+		SetFilterBarBottomLeft: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

@@ -5,12 +5,119 @@ import (
 
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/traits"
+	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/tree"
 )
 
 func (a *App) inPlaceTreeFilterEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFilterInPlaceTree, true)
+}
+
+func (a *App) filterBarBottomLeftEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFilterBarBottomLeft, true)
+}
+
+func (a *App) filterPrefix(fid string) string {
+	switch {
+	case fid == "toc":
+		return "pages "
+	case strings.HasPrefix(fid, "project.nav.filter:"):
+		return "nav "
+	default:
+		if a != nil && a.nav != nil {
+			if tbl := a.nav.tables[fid]; tbl != nil && tbl.FilterField != views.AnyField && tbl.FilterField != "" {
+				return tbl.FilterField + " "
+			}
+		}
+		return ""
+	}
+}
+
+// filterBarNode builds the fixed bottom-left Filter Bar anchored at column 0
+// in the bottom footer row while ModeFilter is active.
+func (a *App) filterBarNode(s core.State, w int) (ui.ViewNode, bool) {
+	if !a.filterBarBottomLeftEnabled() || a.Engine.Mode(s) != ModeFilter {
+		return ui.ViewNode{}, false
+	}
+	f, fid := a.activeFilterable(s)
+	if f == nil {
+		return ui.ViewNode{}, false
+	}
+
+	var (
+		sb    strings.Builder
+		runes int
+		spans []ui.ToneSpan
+	)
+	write := func(seg, tone string) {
+		if seg == "" {
+			return
+		}
+		n := len([]rune(seg))
+		if tone != "" {
+			spans = append(spans, ui.ToneSpan{From: runes, To: runes + n, Tone: tone})
+		}
+		sb.WriteString(seg)
+		runes += n
+	}
+
+	write(" ", "")
+	if prefix := a.filterPrefix(fid); prefix != "" {
+		write(prefix, "muted")
+	}
+	write("/", "accent")
+
+	q := f.FilterQuery()
+	a.nav.filterLine.Sync(q)
+	rs := []rune(q)
+	ci := min(max(a.nav.filterLine.Cursor, 0), len(rs))
+	shownQuery := string(rs[:ci]) + "█" + string(rs[ci:])
+
+	errMsg := f.FilterError()
+	queryTone := ""
+	if errMsg != "" {
+		queryTone = "error"
+	}
+	write(shownQuery, queryTone)
+	write("  ["+string(f.FilterMode())+"]", "accent")
+
+	if errMsg != "" {
+		label := errMsg
+		if !strings.Contains(strings.ToLower(label), "invalid regex") {
+			label = "invalid regex: " + label
+		}
+		write("  "+label, "error")
+	} else {
+		hints := "    enter keep · esc clear · tab mode"
+		if a.nav != nil && a.nav.tables[fid] != nil {
+			hints += " · ctrl+t field"
+		}
+		write(hints, "muted")
+	}
+
+	clipped := clip(sb.String(), w)
+	maxRunes := len([]rune(clipped))
+	var clamped []ui.ToneSpan
+	for _, sp := range spans {
+		from := max(sp.From, 0)
+		to := min(sp.To, maxRunes)
+		if from < to {
+			clamped = append(clamped, ui.ToneSpan{From: from, To: to, Tone: sp.Tone})
+		}
+	}
+
+	props := map[string]any{"text": clipped}
+	if len(clamped) > 0 {
+		props["spans"] = clamped
+	}
+	return ui.ViewNode{
+		ID:    "hints",
+		Kind:  ui.KindText,
+		Box:   layout.Constraints{FixedH: 1},
+		Props: props,
+	}, true
 }
 
 // tocFilterable adapts the pane TOC filter string into traits.Filterable.
