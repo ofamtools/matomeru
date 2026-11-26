@@ -16,7 +16,8 @@ import (
 
 // outlineModal implements modal.Modal for the T task outline overlay.
 type outlineModal struct {
-	a *App
+	a         *App
+	filtering bool
 }
 
 var _ modal.Modal = (*outlineModal)(nil)
@@ -38,6 +39,9 @@ func (m *outlineModal) Scope() string   { return views.ScopeOutline }
 func (m *outlineModal) FocusID() string { return outlineTree }
 
 func (m *outlineModal) Mode() string {
+	if m.filtering {
+		return ModeFilter
+	}
 	if m.a.trees.editingOutline() {
 		return ModeOutlineEdit
 	}
@@ -59,6 +63,7 @@ func (m *outlineModal) View(_, _ int) ui.ViewNode {
 }
 
 func (m *outlineModal) OnClose(modal.CloseReason) {
+	m.filtering = false
 	if m.a.trees.editingOutline() {
 		m.a.trees.clearEdit()
 	}
@@ -66,6 +71,7 @@ func (m *outlineModal) OnClose(modal.CloseReason) {
 	if tm := m.a.trees.outlineModel(); tm != nil {
 		tm.ClearVisual()
 		tm.ClearHoist()
+		tm.Filter("", "")
 	}
 }
 

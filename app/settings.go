@@ -192,6 +192,7 @@ const (
 	SetHintsDefaultAction            = "hints.defaultAction"
 	SetProjectHomeDashboard          = "project.homeDashboard"
 	SetPanesCompactTopArea           = "panes.compactTopArea"
+	SetFilterInPlaceTree             = "filter.inPlaceTree"
 	HintsActionCopy                  = "copy"
 	HintsActionInsert                = "insert"
 	HintsActionOpen                  = "open"
@@ -335,6 +336,7 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetHintsDefaultAction, HintsActionCopy, "default action when activating a lowercase hint label (copy, insert, open, reveal, or pick)", HintsActionCopy, HintsActionInsert, HintsActionOpen, HintsActionReveal, HintsActionPick),
 		flag(SetProjectHomeDashboard, true, "show interactive Project Page Home dashboard with decisions, new items, panes, recent prompts, and recent questions"),
 		flag(SetPanesCompactTopArea, true, "render a concise, prominent lane progress bar and trim verbose top-area chrome above live panes"),
+		flag(SetFilterInPlaceTree, true, "filter task/pane/lane/outline trees in place as a tree instead of swapping 2 Work to a flat table"),
 	}
 }
 

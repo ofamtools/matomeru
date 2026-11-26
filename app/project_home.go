@@ -360,6 +360,10 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 
 	ws := a.collectProjectWorkspaceData(groupName, projRef)
 	navItems := a.buildProjectNavItems(defs, ws, activeKey, focusID)
+	if nf := (projectNavFilterable{a: a, projKey: projKey}); nf.IsFiltered() {
+		navItems = filterProjectNavItems(navItems, nf.FilterQuery(), nf.FilterMode())
+		navTitle = fmt.Sprintf("%s · /%s", navTitle, nf.FilterQuery())
+	}
 
 	badges := make([]ui.Badge, 0, 8)
 	if ws.projRec != nil {

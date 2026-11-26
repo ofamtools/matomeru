@@ -222,10 +222,11 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 func TestWorkTreeSlashFilterInitializesTable(t *testing.T) {
 	a, d := demo(t)
 	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTree
+	a.cfg.userSettings[SetFilterInPlaceTree] = false
 	a.reloadSettings()
 	a.applySettings()
 
-	// Switch to 2 Work in tree view and ensure work.table is not yet initialized.
+	// Switch to 2 Work in tree view with filter.inPlaceTree=false (opt-out legacy table swap).
 	d.Keys("2")
 	if !a.inWorkTree(a.State()) {
 		t.Fatal("expected 2 Work to start in tree layout")
@@ -247,7 +248,7 @@ func TestWorkTreeSlashFilterInitializesTable(t *testing.T) {
 		t.Fatalf("work.table query = %q, want %q", tbl.Query, "Pane rail")
 	}
 	if a.inWorkTree(a.State()) {
-		t.Fatal("active filter query should switch 2 Work to filtered table view")
+		t.Fatal("active filter query with filter.inPlaceTree=false should switch 2 Work to filtered table view")
 	}
 	if len(tbl.Filtered()) == 0 {
 		t.Fatal("expected matching filtered rows for 'Pane rail'")

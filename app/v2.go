@@ -480,6 +480,7 @@ func (a *App) bindingsOpen(s core.State, _ core.Command) core.StepResult {
 		a.bind.bindEd = bindings.New(Modes(), config.MergeBindings(a.baseBindings(), a.bind.userBindings), a.bind.specs...)
 		a.bind.bindUser = len(a.bind.userBindings)
 	}
+	a.bind.bindEd.SetMatchMode(a.matchMode())
 	a.bind.bindEd.SetQuery("")
 	a.say("/ filters (key: verb: mode: scope: conflict:) · r rebinds · x unbinds · R resets · u undoes · each change is live")
 	return core.Next(a.pushModal(s, &bindingsModal{a: a, mode: ModeBindings}))

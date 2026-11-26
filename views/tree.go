@@ -7,6 +7,7 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/tree"
 )
@@ -192,6 +193,7 @@ func TreeFromNodes(schema data.Schema, nodes []data.TreeNode, opts TreeOptions) 
 				Meta:       meta,
 				Unread:     st.Unread,
 				Facts:      facts,
+				SearchText: RecordFilterableText(schema, rec),
 			}
 			if opts.EnrichNode != nil {
 				opts.EnrichNode(rec, &nd)
@@ -211,6 +213,49 @@ func TreeFromNodes(schema data.Schema, nodes []data.TreeNode, opts TreeOptions) 
 	tm.ShowGutter = opts.ShowGutter && len(schema.GutterRules) > 0
 	tm.Clamp()
 	return tm
+}
+
+// RecordFilterableText returns one concatenated key:value searchable string
+// for rec so universal Filterable trees can match both free-text and
+// "field:value" queries (such as "status:todo" or "priority:high") without
+// per-noun special cases or map allocations.
+func RecordFilterableText(schema data.Schema, rec data.Record) string {
+	pairs := make([]string, 0, 16)
+	pairs = append(pairs, "title", Title(schema, rec), "kind", schema.Kind, "id", rec.ID)
+	for _, sc := range schema.StatusColumns {
+		val := strings.TrimSpace(rec.Text(sc.Name))
+		if val == "" {
+			val = sc.Default
+		}
+		if val != "" {
+			pairs = append(pairs, sc.Name, val)
+			if sc.PrimaryRowStyle {
+				pairs = append(pairs, "status", val)
+			}
+		}
+	}
+	for _, f := range schema.Fields {
+		if f.Name == "" || f.Name == "title" || f.Name == "name" {
+			continue
+		}
+		if _, isStatus := schema.StatusColumn(f.Name); isStatus {
+			continue
+		}
+		val := strings.TrimSpace(rec.Text(f.Name))
+		if val != "" {
+			if len(val) > 512 {
+				val = val[:512]
+			}
+			pairs = append(pairs, f.Name, val)
+		}
+	}
+	if rec.IsStarred() {
+		pairs = append(pairs, "starred", "true")
+	}
+	if rec.IsArchived() {
+		pairs = append(pairs, "archived", "true")
+	}
+	return traits.FormatFilterableText(pairs...)
 }
 
 func countTreeNodes(ns []tree.Node) int {
@@ -262,6 +307,9 @@ func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope st
 	}
 	if h := schema.EffectiveHierarchy(); h != nil && h.RootTitle != "" {
 		badges = append(badges, ui.Badge{Text: count(len(tm.Nodes), strings.ToLower(h.RootTitle))})
+	}
+	if tm.IsFiltered() {
+		badges = append(badges, ui.Badge{Text: "/" + tm.FilterQuery(), Tone: "accent"})
 	}
 	total := countTreeNodes(tm.Nodes)
 	badges = append(badges, ui.Badge{Text: countSchemaRecords(total, schema)})

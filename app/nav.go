@@ -7,6 +7,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/commandline"
 	"ofam.dev/ochazuke/widgets/input"
@@ -32,32 +33,35 @@ const maxJumpHistory = 100
 // Work history, global jump history, focus tracking, filtering, command line,
 // registers, and macros.
 type NavController struct {
-	tables         map[string]*table.Model
-	recCacheKeys   map[string]string
-	presets        *table.PresetStore
-	activePreset   map[string]string
-	showCompact    bool
-	showArchived   bool
-	browseKind     string
-	history        []historyEntry
-	histPos        int
-	showScrollRef  core.Ref
-	showRelatedOff int
-	showPropsOff   int
-	jumps          []jumpEntry
-	jumpPos        int
-	jumping        bool
-	indexFocus     string
-	lastFocus      map[string]string
-	focusRegion    string
-	tocFilter      string
-	filterTarget   string
-	filterLine     input.Line
-	cmdline        *commandline.Model
-	lastFDSearch   map[string]any
-	Registers      core.Registers
-	Macros         core.MacroRecorder
-	replaying      int
+	tables              map[string]*table.Model
+	recCacheKeys        map[string]string
+	presets             *table.PresetStore
+	activePreset        map[string]string
+	showCompact         bool
+	showArchived        bool
+	browseKind          string
+	history             []historyEntry
+	histPos             int
+	showScrollRef       core.Ref
+	showRelatedOff      int
+	showPropsOff        int
+	jumps               []jumpEntry
+	jumpPos             int
+	jumping             bool
+	indexFocus          string
+	lastFocus           map[string]string
+	focusRegion         string
+	tocFilter           string
+	tocMatchMode        traits.MatchMode
+	projectNavFilters   map[string]string
+	projectNavMatchMode traits.MatchMode
+	filterTarget        string
+	filterLine          input.Line
+	cmdline             *commandline.Model
+	lastFDSearch        map[string]any
+	Registers           core.Registers
+	Macros              core.MacroRecorder
+	replaying           int
 }
 
 func newNavController() *NavController {

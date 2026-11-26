@@ -250,7 +250,7 @@ func (a *App) inWorkTree(s core.State) bool {
 	if a.workLayoutFor(a.workKind()) != WorkTasksLayoutTree {
 		return false
 	}
-	if tbl := a.nav.tables[workTable]; tbl != nil && (tbl.Query != "" || tbl.SortField != "" || tbl.GroupField != "") {
+	if tbl := a.nav.tables[workTable]; tbl != nil && (tbl.SortField != "" || tbl.GroupField != "" || (tbl.Query != "" && !a.inPlaceTreeFilterEnabled())) {
 		return false
 	}
 	return true

@@ -162,6 +162,9 @@ func (a *App) viewKey(s core.State) string {
 	if a.nav != nil && (a.nav.showRelatedOff > 0 || a.nav.showPropsOff > 0) {
 		fmt.Fprintf(&b, "|ss:%s:%d:%d", data.RefText(a.nav.showScrollRef), a.nav.showRelatedOff, a.nav.showPropsOff)
 	}
+	if f, fid := a.activeFilterable(s); f != nil && (f.IsFiltered() || a.Engine.Mode(s) == ModeFilter) {
+		fmt.Fprintf(&b, "|flt:%s:%q:%s", fid, f.FilterQuery(), f.FilterMode())
+	}
 	return b.String()
 }
 
@@ -311,28 +314,29 @@ func (a *App) statusLine(s core.State, chain []core.ContextFrame) string {
 	if p := s.Input.Prefix; len(p) > 0 {
 		out += " · " + strings.Join(p, " ") + "…"
 	}
-	// A filter is shown while it is typed and for as long as it narrows a list.
-	typing, cursor := a.Engine.Mode(s) == ModeFilter, map[bool]string{true: "▏"}
-	if onPages := typing && a.nav.filterTarget == "toc"; (s.ActivePage == SpacePanes || isProjectTab(s.ActivePage)) && (a.nav.tocFilter != "" || onPages) {
-		out += " · pages /" + a.nav.tocFilter + cursor[onPages]
-	}
-	list := a.nav.filterTarget
-	if !typing {
-		list = s.ActiveFrame().FocusID
-	}
-	if tbl := a.nav.tables[list]; tbl != nil && (tbl.Query != "" || typing) {
-		field := ""
-		if tbl.FilterField != views.AnyField && tbl.FilterField != "" {
-			field = tbl.FilterField + " "
+	// A filter is shown while it is typed and for as long as it narrows any Filterable.
+	typing := a.Engine.Mode(s) == ModeFilter
+	if f, fid := a.activeFilterable(s); f != nil && (f.IsFiltered() || typing) {
+		prefix := ""
+		switch {
+		case fid == "toc":
+			prefix = "pages "
+		case strings.HasPrefix(fid, "project.nav.filter:"):
+			prefix = "nav "
+		default:
+			if tbl := a.nav.tables[fid]; tbl != nil && tbl.FilterField != views.AnyField && tbl.FilterField != "" {
+				prefix = tbl.FilterField + " "
+			}
 		}
-		shownQuery := tbl.Query
+		q := f.FilterQuery()
+		shownQuery := q
 		if typing {
-			a.nav.filterLine.Sync(tbl.Query)
-			rs := []rune(tbl.Query)
+			a.nav.filterLine.Sync(q)
+			rs := []rune(q)
 			ci := min(max(a.nav.filterLine.Cursor, 0), len(rs))
 			shownQuery = string(rs[:ci]) + "█" + string(rs[ci:])
 		}
-		out += " · " + field + "/" + shownQuery + " (" + string(tbl.MatchMode) + ")"
+		out += " · " + prefix + "/" + shownQuery + " (" + string(f.FilterMode()) + ")"
 	}
 	if a.status != "" {
 		out += " · " + a.status

@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"slices"
-	"strings"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/mcpui"
@@ -244,35 +243,43 @@ func (a *App) filterTable(s core.State) (*table.Model, string) {
 }
 
 func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {
+	if a.Modal() == "outline" {
+		if om := a.activeOutline(); om != nil {
+			a.nav.filterTarget = outlineTree
+			om.filtering = true
+			a.say("type to filter outline · enter keeps · esc clears · tab changes the match mode")
+			return core.Next(withMode(s, ModeFilter))
+		}
+	}
 	if a.Modal() != "" {
 		a.say("close this overlay to filter the list under it")
 		return core.Next(s)
 	}
-	focus := s.ActiveFrame().FocusID
-	switch {
-	case a.nav.tables[focus] != nil:
-		a.nav.filterTarget = focus
-	case strings.HasPrefix(focus, "site."):
-		a.nav.filterTarget = "toc"
-	default:
-		tbl := ""
-		for _, sp := range spaces {
-			if sp.id == s.ActivePage && !(sp.id == SpaceWork && a.nav.histPos >= 0) {
-				tbl = sp.table
-			}
-		}
-		if tbl == "" {
-			a.say("no list here to filter")
-			return core.Next(s)
-		}
-		a.nav.filterTarget = tbl
-		s = withFocus(s, tbl)
+	if f, id := a.resolveFilterable(s, ""); f != nil {
+		a.nav.filterTarget = id
+		a.say("type to filter · enter keeps · esc clears · tab changes the match mode")
+		return core.Next(withMode(s, ModeFilter))
 	}
+	tbl := ""
+	for _, sp := range spaces {
+		if sp.id == s.ActivePage && !(sp.id == SpaceWork && a.nav.histPos >= 0) {
+			tbl = sp.table
+		}
+	}
+	if tbl == "" {
+		a.say("no filterable view here")
+		return core.Next(s)
+	}
+	a.nav.filterTarget = tbl
+	s = withFocus(s, tbl)
 	a.say("type to filter · enter keeps · esc clears · tab changes the match mode")
 	return core.Next(withMode(s, ModeFilter))
 }
 
 func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
+	if a.Engine.Mode(s) == ModeFilter {
+		return a.filterEdit(s, c)
+	}
 	if a.modals != nil {
 		if top := a.modals.Top(); top != nil {
 			res := top.Handle(c)
@@ -311,33 +318,41 @@ func (a *App) filterEdit(s core.State, c core.Command) core.StepResult {
 			return "" // clear, cancel
 		}
 	}
-	if c.ID != CmdFilterAccept {
-		if a.nav.filterTarget == "toc" {
-			a.nav.tocFilter = edit(a.nav.tocFilter)
-		} else if tbl, _ := a.filterTable(s); tbl != nil {
-			tbl.Query = edit(tbl.Query)
-			tbl.SelectedIdx, tbl.Offset = 0, 0
-		}
+	f, _ := a.activeFilterable(s)
+	if c.ID != CmdFilterAccept && f != nil {
+		nextQ := edit(f.FilterQuery())
+		f.Filter(nextQ, f.FilterMode())
+		a.viewMemo.gen++
 	}
-	if c.ID == CmdFilterAccept {
+	if c.ID == CmdFilterAccept && f != nil {
 		// "/ keeps the last filter that was kept.
-		query := a.nav.tocFilter
-		if tbl, _ := a.filterTable(s); a.nav.filterTarget != "toc" && tbl != nil {
-			query = tbl.Query
-		}
-		if query != "" {
-			a.nav.Registers.SetSpecial(core.RegSearch, query)
+		if q := f.FilterQuery(); q != "" {
+			a.nav.Registers.SetSpecial(core.RegSearch, q)
 		}
 	}
 	if c.ID == CmdFilterAccept || c.ID == CmdFilterCancel {
 		a.nav.filterTarget = ""
 		a.say("")
-		s = withMode(s, ModeNormal)
+		if om := a.activeOutline(); om != nil && om.filtering {
+			om.filtering = false
+			s = withMode(s, ModeOutline)
+		} else {
+			s = withMode(s, ModeNormal)
+		}
+		a.viewMemo.gen++
 	}
 	return core.Next(s)
 }
 
 func (a *App) tableCommand(s core.State, c core.Command) core.StepResult {
+	if c.ID == CmdFilterMode {
+		if f, _ := a.activeFilterable(s); f != nil {
+			mode := a.cycleFilterableMode(f)
+			a.say("filter matches by %s", mode)
+			a.viewMemo.gen++
+			return core.Next(s)
+		}
+	}
 	tbl, id := a.filterTable(s)
 	if a.Modal() != "" {
 		tbl = nil // the list is under an overlay
