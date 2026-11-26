@@ -246,7 +246,10 @@ func (a *App) filterTable(s core.State) (*table.Model, string) {
 func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {
 	f, spec, id := a.resolveFilterTarget(s, nil, "", true)
 	if f == nil {
-		a.say("no filterable view here")
+		// Unreachable under default bindings because filter.start is scoped to
+		// trait.filter; only reached if a user manually bound it outside a
+		// filterable view or invoked it directly from the palette/CLI.
+		a.say("filter.start is only available on filterable views (scope %s)", traits.TraitScope(traits.TraitFilter))
 		return core.Next(s)
 	}
 	curMode := a.Engine.Mode(s)

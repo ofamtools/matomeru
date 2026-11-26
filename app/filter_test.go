@@ -339,3 +339,54 @@ func TestW1DataDrivenFilterModalInheritanceAndShowHints(t *testing.T) {
 		t.Fatalf("expected esc to exit screen hints cleanly: mode=%q", a.Mode())
 	}
 }
+
+func TestFilterBindingAbsentOnNonFilterableViews(t *testing.T) {
+	a, d := demo(t)
+
+	// Open a Show page (non-filterable view).
+	d.Keys("2", "E")
+	if _, ok := a.Showing(); !ok {
+		t.Fatal("expected to be on a Show page")
+	}
+
+	// 1. ContextChain must NOT contain trait.filter.
+	root := a.View(a.State())
+	chain := ui.ContextChain(root, a.Focus(), nil)
+	for _, fr := range chain {
+		if fr.Scope == traits.TraitScope(traits.TraitFilter) {
+			t.Fatalf("Show page context chain unexpectedly contains %q: %+v", fr.Scope, chain)
+		}
+	}
+
+	// 2. Pressing '/' on a non-filterable view must NOT trigger any error in the UI or enter ModeFilter.
+	beforeStatus := a.Status()
+	d.Keys("/")
+	if a.Mode() != ModeNormal {
+		t.Fatalf("pressing '/' on non-filterable Show page entered mode %q, want %q", a.Mode(), ModeNormal)
+	}
+	if a.Status() != beforeStatus && strings.Contains(a.Status(), "filter") {
+		t.Fatalf("pressing '/' on non-filterable Show page emitted filter error in UI: %q", a.Status())
+	}
+
+	// 3. Return to 2 Work list (filterable view): trait.filter IS in ContextChain and '/' works cleanly.
+	d.Keys("ctrl+o")
+	if _, ok := a.Showing(); ok {
+		t.Fatal("ctrl+o did not return from Show page to 2 Work list")
+	}
+	workRoot := a.View(a.State())
+	hasTrait := false
+	for _, fr := range ui.ContextChain(workRoot, a.Focus(), nil) {
+		if fr.Scope == traits.TraitScope(traits.TraitFilter) {
+			hasTrait = true
+			break
+		}
+	}
+	if !hasTrait {
+		t.Fatalf("expected %q in 2 Work ContextChain", traits.TraitScope(traits.TraitFilter))
+	}
+	d.Keys("/")
+	if a.Mode() != ModeFilter {
+		t.Fatalf("pressing '/' on filterable 2 Work did not enter ModeFilter: mode=%q status=%q", a.Mode(), a.Status())
+	}
+	d.Keys("esc")
+}

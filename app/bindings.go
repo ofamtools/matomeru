@@ -457,9 +457,14 @@ func DefaultBindings() []core.Binding {
 		when(bind(n, all, "o", CmdOpenTarget, "open"), "facts.openable"),
 		when(bind(n, all, "O", CmdOpenWith, "open with"), "facts.openable"),
 
+		// Filterable views: scoped to trait.filter (emitted automatically by
+		// ochazuke whenever a ViewNode declares FilterSpec or TraitFilter) so
+		// non-filterable views (Show pages, Project Home, Reader, etc.) never
+		// carry / or M in the context chain or footer hints.
+		bind(n, traits.TraitScope(traits.TraitFilter), "/", CmdFilterStart, "filter"),
+		bind(n, traits.TraitScope(traits.TraitFilter), "M", CmdFilterMode, "match mode"),
+
 		// Lists.
-		bind(n, all, "/", CmdFilterStart, "filter"),
-		bind(n, all, "M", CmdFilterMode, "match mode"),
 		bind(n, all, "f", CmdFilterFieldPick, "filter field"),
 		bind(n, all, "o", CmdSortCycle, "sort"),
 		bind(n, all, "O", CmdSortField, "sort column"),
