@@ -137,9 +137,9 @@ var policies = map[string]policy{
 		allow:      []string{sqlite, mod + "/data", ochazuke + "/core"},
 		forbidDeps: noUI,
 	},
-	// Local self-hosted daemon: Unix-socket PTY persistence, HTTP MCP, interactive Markdown web server, and schedule ticker.
+	// Local self-hosted daemon: Unix-socket PTY persistence, HTTP MCP, interactive Markdown web server, harness launch, and schedule ticker.
 	mod + "/daemon": {
-		allow:      []string{mod + "/data", mod + "/mcpui", mod + "/mdweb", mod + "/panesearch", mod + "/ptyhost", ochazuke + "/core"},
+		allow:      []string{mod + "/data", mod + "/mcpui", mod + "/mdweb", mod + "/panesearch", mod + "/ptyhost", mod + "/harness", ochazuke + "/core"},
 		forbidDeps: noTea,
 	},
 	// Interactive deterministic Markdown HTML server: pure stdlib + embedded assets.

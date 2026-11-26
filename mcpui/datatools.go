@@ -34,6 +34,8 @@ const (
 	ToolLogQA            = "data.log_qa"
 	ToolCreate           = "data.create"
 	ToolUpdate           = "data.update"
+	ToolRelate           = "data.relate"
+	ToolUnrelate         = "data.unrelate"
 )
 
 // DefaultAgentID is the actor ID of writes made over MCP without a "by".
@@ -266,7 +268,7 @@ func count(desc string) props { return props{"type": "integer", "minimum": 0, "d
 func (d *DataTools) ToolSpecs() []ToolSpec {
 	by := text("who is writing: an agent ID recorded on the change set; default " + DefaultAgentID)
 	kind := text("record kind, such as task, pane, note, ui.page")
-	return []ToolSpec{
+	return append([]ToolSpec{
 		{
 			Name:        ToolSchemas,
 			Description: "List the registered schemas: kind, fields, status columns (with the universal star and archive ones) and relation sections.",
@@ -420,7 +422,7 @@ func (d *DataTools) ToolSpecs() []ToolSpec {
 				"by":         by,
 			}),
 		},
-	}
+	}, dataRelateToolSpecs(by)...)
 }
 
 // --- dispatch -------------------------------------------------------------------
@@ -529,6 +531,16 @@ func (d *DataTools) Call(ctx context.Context, actor core.Actor, toolName string,
 		var args UpdateRecordArgs
 		if err = decodeArgs(rawArgs, &args); err == nil {
 			out, err = d.UpdateRecord(agentActor(actor, args.By), args)
+		}
+	case ToolRelate:
+		var args RelateArgs
+		if err = decodeArgs(rawArgs, &args); err == nil {
+			out, err = d.Relate(agentActor(actor, args.By), args)
+		}
+	case ToolUnrelate:
+		var args RelateArgs
+		if err = decodeArgs(rawArgs, &args); err == nil {
+			out, err = d.Unrelate(agentActor(actor, args.By), args)
 		}
 	default:
 		return nil, fmt.Errorf("mcpui: unknown tool %q", toolName)
