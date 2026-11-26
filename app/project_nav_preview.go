@@ -178,7 +178,8 @@ func (a *App) buildProjectNavItemBody(s core.State, ws projectWorkspaceData, tar
 		} else {
 			opts.ExtraBadges = append(opts.ExtraBadges, ui.Badge{Text: "esc back to nav", Tone: "muted"})
 		}
-		if node, err := views.ShowViewWith(a.Store, *target.Ref, s.ActiveFrame().FocusID, opts); err == nil {
+		if snap, err := a.Store.LoadShowSnapshot(*target.Ref); err == nil {
+			node := views.ShowViewWith(snap, s.ActiveFrame().FocusID, opts)
 			if node.Facts == nil {
 				node.Facts = map[string]any{}
 			}

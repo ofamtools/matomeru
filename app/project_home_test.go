@@ -402,10 +402,11 @@ func TestProjectWorkspaceSettingsOverridesAndOptOut(t *testing.T) {
 		t.Fatalf("outlineAsPage=false focus = %q, want %q", a.Focus(), projectTasksFlatTable)
 	}
 
-	related, err := views.ShowView(a.Store, f.proj.Ref(), "")
+	snap, err := a.Store.LoadShowSnapshot(f.proj.Ref())
 	if err != nil {
 		t.Fatal(err)
 	}
+	related := views.ShowView(snap, "")
 	if related.Find("show.sec.rel.about.in."+data.RefText(f.aboutNote.Ref())) == nil {
 		t.Fatal("project Show relations did not include the descendant's note")
 	}

@@ -210,7 +210,8 @@ func entrySummaryCols(schema data.Schema, rec *data.Record, now time.Time) strin
 
 // ledgerPropsRegion builds the borderless Props region (region 1) with
 // focusable scalar, path, and reference tokens carrying truthful copy facts.
-func ledgerPropsRegion(store *data.Store, schema data.Schema, rec data.Record, opts ShowOptions, omitted map[string]bool, stacked bool, now time.Time) ui.ViewNode {
+func ledgerPropsRegion(snap data.ShowSnapshot, opts ShowOptions, omitted map[string]bool, stacked bool, now time.Time) ui.ViewNode {
+	schema, rec := snap.Schema, snap.Record
 	merged := rec.MergedFields()
 	names := make([]string, 0, len(schema.Fields))
 	byName := make(map[string]data.FieldSpec, len(schema.Fields))
@@ -262,10 +263,9 @@ func ledgerPropsRegion(store *data.Store, schema data.Schema, rec data.Record, o
 			title := target.ID
 			missing := true
 			var statusBadges []ui.Badge
-			if other, err := store.Get(target); err == nil {
-				targetSchema := schemaOf(store.Registry(), target.Kind)
-				title = Title(targetSchema, *other)
-				statusBadges = StatusBadges(targetSchema, *other)
+			if other := snap.FieldLinks[name]; other.Record != nil {
+				title = Title(other.Schema, *other.Record)
+				statusBadges = StatusBadges(other.Schema, *other.Record)
 				missing = false
 			}
 			line := fmt.Sprintf("%s%-14s → %s (%s)", prefixFor(), label, title, data.RefText(target))
@@ -456,9 +456,8 @@ func ledgerContentRegion(panel ui.ViewNode, regionNum int, opts ShowOptions, sta
 // ledgerConnectionsRegion renders all filled relation sections as compact 1-line
 // borderless rows (group label on row 0 only, status glyph on left, zero type
 // badges) and collapses empty relation sections behind one focusable fold row.
-func ledgerConnectionsRegion(store *data.Store, sections []section, regionNum int, opts ShowOptions, stacked bool, now time.Time) ui.ViewNode {
+func ledgerConnectionsRegion(sections []section, regionNum int, opts ShowOptions, stacked bool, now time.Time) ui.ViewNode {
 	mw := opts.marginWidth()
-	reg := store.Registry()
 
 	var filled, empty []section
 	totalLinked := 0
@@ -646,9 +645,8 @@ func ledgerConnectionsRegion(store *data.Store, sections []section, regionNum in
 		if sec.relKind != "" {
 			secFacts["relationKind"] = sec.relKind
 		}
-		_, creatable := reg.Get(sec.targetKind)
 		hint := "none"
-		if creatable || sec.relKind == data.RelDirectory {
+		if sec.creatable || sec.relKind == data.RelDirectory {
 			hint = "none · n adds"
 		}
 		pref := "  "
@@ -730,11 +728,7 @@ func ledgerConnectionsRegion(store *data.Store, sections []section, regionNum in
 	}
 }
 
-func ledgerTimelineRegion(store *data.Store, ref core.Ref, regionNum int, opts ShowOptions, stacked bool) (ui.ViewNode, error) {
-	entries, err := Timeline(store, ref, 0)
-	if err != nil {
-		return ui.ViewNode{}, err
-	}
+func ledgerTimelineRegion(entries []data.TimelineEntry, regionNum int, opts ShowOptions, stacked bool) ui.ViewNode {
 	mw := opts.marginWidth()
 	heading := fmt.Sprintf("%d TIMELINE", regionNum)
 	children := []ui.ViewNode{{
@@ -748,21 +742,14 @@ func ledgerTimelineRegion(store *data.Store, ref core.Ref, regionNum int, opts S
 			},
 		},
 	}}
-	facts := make([]any, 0, len(entries))
 	for i, e := range entries {
-		glyph := timelineGlyph[e.Kind]
-		if glyph == "" {
-			glyph = "•"
-		}
+		at := e.At.Format(timeLayout)
 		pref := "  "
 		if !stacked {
-			pref = ledgerMargin(e.At, mw)
+			pref = ledgerMargin(at, mw)
 		}
-		what := e.Text
-		if e.By != "" {
-			what += "  (" + e.By + ")"
-		}
-		line := fmt.Sprintf("%s%s %s  %s", pref, glyph, e.Kind, what)
+		what := timelineWhat(e)
+		line := fmt.Sprintf("%s%s %s  %s", pref, timelineKindGlyph(e), e.Kind, what)
 		children = append(children, ui.ViewNode{
 			ID:        fmt.Sprintf("show.timeline.row.%d", i),
 			Kind:      ui.KindText,
@@ -774,10 +761,9 @@ func ledgerTimelineRegion(store *data.Store, ref core.Ref, regionNum int, opts S
 			Facts: map[string]any{
 				"kind":   "row",
 				"hasRef": false,
-				"copy":   strings.TrimSpace(e.At + " " + what),
+				"copy":   strings.TrimSpace(at + " " + what),
 			},
 		})
-		facts = append(facts, map[string]any{"kind": e.Kind, "at": e.At, "text": e.Text})
 	}
 	if len(entries) == 0 {
 		children = append(children, text("show.timeline.rows", prefixForEmpty(stacked, mw)+"nothing logged yet", "muted"))
@@ -787,14 +773,15 @@ func ledgerTimelineRegion(store *data.Store, ref core.Ref, regionNum int, opts S
 		Kind:     ui.KindVStack,
 		Title:    "Activity",
 		Badges:   []ui.Badge{{Text: fmt.Sprintf("%d", len(entries))}},
-		Facts:    map[string]any{"kind": "region", "label": "activity", "crumb": "Activity", "entries": facts},
+		Facts:    map[string]any{"kind": "region", "label": "activity", "crumb": "Activity", "entries": timelineFacts(entries)},
 		Children: children,
-	}, nil
+	}
 }
 
 // showViewLedger renders the council-winning borderless single-column "ledger
 // outline" Show page (or auto-stacked variant on narrow terminals).
-func showViewLedger(store *data.Store, schema data.Schema, rec data.Record, sections []section, focusID string, opts ShowOptions) (ui.ViewNode, error) {
+func showViewLedger(snap data.ShowSnapshot, sections []section, focusID string, opts ShowOptions) ui.ViewNode {
+	schema, rec := snap.Schema, snap.Record
 	ref := rec.Ref()
 	now := time.Now()
 	layoutMode := opts.effectiveLayout()
@@ -811,7 +798,7 @@ func showViewLedger(store *data.Store, schema data.Schema, rec data.Record, sect
 	regionNum := 1
 
 	// 1. Props
-	regions = append(regions, ledgerPropsRegion(store, schema, rec, opts, renderedFields, stacked, now))
+	regions = append(regions, ledgerPropsRegion(snap, opts, renderedFields, stacked, now))
 	regionIndex = append(regionIndex, fmt.Sprintf("%d Props", regionNum))
 	regionNum++
 
@@ -825,19 +812,15 @@ func showViewLedger(store *data.Store, schema data.Schema, rec data.Record, sect
 
 	// 3. Timeline (when schema declares ShowTimeline, placed ahead of Connections so activity is visible immediately)
 	if schema.ShowTimeline {
-		tl, err := ledgerTimelineRegion(store, ref, regionNum, opts, stacked)
-		if err != nil {
-			return ui.ViewNode{}, err
-		}
 		regions = append(regions, text("", "", ""))
-		regions = append(regions, tl)
+		regions = append(regions, ledgerTimelineRegion(snap.Timeline, regionNum, opts, stacked))
 		regionIndex = append(regionIndex, fmt.Sprintf("%d Timeline", regionNum))
 		regionNum++
 	}
 
 	// 4. Connections (1-line rows + collapsed empty fold)
 	regions = append(regions, text("", "", ""))
-	regions = append(regions, ledgerConnectionsRegion(store, sections, regionNum, opts, stacked, now))
+	regions = append(regions, ledgerConnectionsRegion(sections, regionNum, opts, stacked, now))
 	regionIndex = append(regionIndex, fmt.Sprintf("%d Connections", regionNum))
 	regionNum++
 
@@ -856,18 +839,7 @@ func showViewLedger(store *data.Store, schema data.Schema, rec data.Record, sect
 		{Text: data.RefText(ref), Tone: "accent"},
 		{Text: strings.ToLower(KindLabel(schema, rec)), Tone: "info"},
 	}, StatusBadges(schema, rec)...)
-	for _, mark := range []struct {
-		is   func(core.Ref) (bool, error)
-		text string
-	}{{store.IsPinned, "pinned"}, {store.IsMarked, "marked"}} {
-		on, err := mark.is(ref)
-		if err != nil {
-			return ui.ViewNode{}, err
-		}
-		if on {
-			badges = append(badges, ui.Badge{Text: mark.text, Tone: "warning"})
-		}
-	}
+	badges = append(badges, markBadges(snap)...)
 	if len(opts.ExtraBadges) > 0 {
 		badges = append(badges, opts.ExtraBadges...)
 	}
@@ -945,5 +917,5 @@ func showViewLedger(store *data.Store, schema data.Schema, rec data.Record, sect
 		Children: []ui.ViewNode{
 			{ID: "show.record", Kind: ui.KindVStack, Scope: ref.Kind, Ref: &ref, Facts: facts, Children: []ui.ViewNode{header, related}},
 		},
-	}, nil
+	}
 }

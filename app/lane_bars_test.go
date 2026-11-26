@@ -85,7 +85,7 @@ func TestLaneBarsKeepCompletedFocusDismissAndPicker(t *testing.T) {
 	if a.Modal() != laneBarsPickerID {
 		t.Fatalf("D did not open the dismiss picker: modal=%q status=%q", a.Modal(), a.Status())
 	}
-	if ids := pickerIDs(a, laneBarsPickerID); len(ids) != 3 || ids[0] != laneBarsPickAllID || !slices.Contains(ids, views.LaneBarKey(first.ID, true)) {
+	if ids := pickerIDs(a, laneBarsPickerID); len(ids) != 3 || ids[0] != laneBarsPickAllID || !slices.Contains(ids, data.LaneBarKey(first.ID, true)) {
 		t.Fatalf("dismiss picker items = %v", ids)
 	}
 	if !strings.Contains(d.Frame(), laneBarsPickAllTitle) {

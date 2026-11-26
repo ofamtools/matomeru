@@ -842,26 +842,31 @@ func (a *App) workSpace(s core.State) ui.ViewNode {
 	if n := len(a.nav.history) - a.nav.histPos - 1; n > 0 {
 		trail += fmt.Sprintf("   (%d forward)", n)
 	}
-	page, err := views.ShowViewWith(a.Store, ref, s.Pages[SpaceWork].FocusID, a.showOptionsFor(ref))
-	if header := page.Find(showHeader); err == nil && header != nil {
-		// The Show page's record opens with "o" as its row in a list does.
-		if rec, gerr := a.Store.Get(ref); gerr == nil {
-			facts := maps.Clone(header.Facts)
-			if facts == nil {
-				facts = map[string]any{}
-			}
-			if a.openable(*rec) {
-				facts[factOpenable] = true
-			}
-			a.applyExtensionFacts(*rec, facts)
-			header.Facts = facts
-		}
-	}
+	return ui.ViewNode{ID: "work.show", Kind: ui.KindVStack, Children: []ui.ViewNode{
+		line("work.crumbs", trail, "muted"), a.showPage(ref, s.Pages[SpaceWork].FocusID)}}
+}
+
+// showPage is the Show page of ref, drawn from one snapshot of the store.
+func (a *App) showPage(ref core.Ref, focusID string) ui.ViewNode {
+	snap, err := a.Store.LoadShowSnapshot(ref)
 	if err != nil {
-		page = ui.ViewNode{ID: "show", Kind: ui.KindPanel, Border: true, Title: data.RefText(ref), Children: []ui.ViewNode{
+		return ui.ViewNode{ID: "show", Kind: ui.KindPanel, Border: true, Title: data.RefText(ref), Children: []ui.ViewNode{
 			text("", "This record is not in the store any more ("+err.Error()+"). Backspace goes back.", "warning")}}
 	}
-	return ui.ViewNode{ID: "work.show", Kind: ui.KindVStack, Children: []ui.ViewNode{line("work.crumbs", trail, "muted"), page}}
+	page := views.ShowViewWith(snap, focusID, a.showOptionsFor(ref))
+	if header := page.Find(showHeader); header != nil {
+		// The Show page's record opens with "o" as its row in a list does.
+		facts := maps.Clone(header.Facts)
+		if facts == nil {
+			facts = map[string]any{}
+		}
+		if a.openable(snap.Record) {
+			facts[factOpenable] = true
+		}
+		a.applyExtensionFacts(snap.Record, facts)
+		header.Facts = facts
+	}
+	return page
 }
 
 // listSpace is a space that is one noun's table beside the focused record's

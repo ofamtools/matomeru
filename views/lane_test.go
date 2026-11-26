@@ -31,12 +31,32 @@ func nodeText(n *ui.ViewNode) string {
 	return s
 }
 
+// laneBars reads the pane's lane bars, as the app does before it draws a site.
+func laneBars(t *testing.T, w *world) []data.LaneBarEntry {
+	t.Helper()
+	bars, err := w.store.PaneLaneBars(w.pane, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bars
+}
+
+// activeLane is the lane tree the pane works in.
+func activeLane(t *testing.T, w *world) data.LaneRollup {
+	t.Helper()
+	roll, ok, err := w.store.ActiveLane(w.pane)
+	if err != nil || !ok {
+		t.Fatalf("no active lane: %v", err)
+	}
+	return roll
+}
+
 // The bar follows a claim to its root lane, rolls up the root's children and
 // names the running one. It is a line above the site, never a page.
 func TestLaneBar(t *testing.T) {
 	w := build(t)
 	pages := []data.Record{w.page, w.asks}
-	bare := PaneSiteViewWith(w.pane, pages, "", "", SiteOptions{Store: w.store, ShowLaneBar: true})
+	bare := PaneSiteViewWith(w.pane, pages, "", "", SiteOptions{LaneBars: laneBars(t, w), ShowLaneBar: true})
 	if bare.Find(LaneBarID) != nil {
 		t.Fatal("a bar with no lane")
 	}
@@ -57,7 +77,7 @@ func TestLaneBar(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	site := PaneSiteViewWith(w.pane, pages, "", "", SiteOptions{Store: w.store, ShowLaneBar: true, LaneHint: "ctrl+a L"})
+	site := PaneSiteViewWith(w.pane, pages, "", "", SiteOptions{LaneBars: laneBars(t, w), ShowLaneBar: true, LaneHint: "ctrl+a L"})
 	bar := site.Find(LaneBarID)
 	want := " Lane: Ochazuke v2 Wave 3  [███▓░░] 3/6 done · 1 running (picker-worker) · 2 planned  (ctrl+a L)"
 	if got := nodeText(bar); got != want {
@@ -71,14 +91,14 @@ func TestLaneBar(t *testing.T) {
 	}
 	wantText(t, frame(t, site, "", 120, 12), "Lane: Ochazuke v2 Wave 3", "3/6 done", "Pages")
 	// With little room the hint goes first, then the line is clipped.
-	if bar, _ := LaneBar(w.store, w.pane, "ctrl+a L", 90); strings.Contains(nodeText(&bar), "ctrl+a L") || !strings.HasSuffix(nodeText(&bar), "2 planned") {
+	if bar := LaneBar(activeLane(t, w), "ctrl+a L", 90); strings.Contains(nodeText(&bar), "ctrl+a L") || !strings.HasSuffix(nodeText(&bar), "2 planned") {
 		t.Fatalf("bar at 90 = %q", nodeText(&bar))
 	}
-	if bar, _ := LaneBar(w.store, w.pane, "ctrl+a L", 40); len([]rune(nodeText(&bar))) != 40 || !strings.HasSuffix(nodeText(&bar), "…") {
+	if bar := LaneBar(activeLane(t, w), "ctrl+a L", 40); len([]rune(nodeText(&bar))) != 40 || !strings.HasSuffix(nodeText(&bar), "…") {
 		t.Fatalf("bar at 40 = %q", nodeText(&bar))
 	}
 	// Off by option, and the plain view never has it.
-	for _, v := range []ui.ViewNode{PaneSiteViewWith(w.pane, pages, "", "", SiteOptions{Store: w.store}), PaneSiteView(w.pane, pages, "", "")} {
+	for _, v := range []ui.ViewNode{PaneSiteViewWith(w.pane, pages, "", "", SiteOptions{LaneBars: laneBars(t, w)}), PaneSiteView(w.pane, pages, "", "")} {
 		if v.Find(LaneBarID) != nil {
 			t.Fatal("the bar shows though it was not asked for")
 		}
@@ -89,9 +109,9 @@ func TestLaneBar(t *testing.T) {
 	if _, _, err := w.store.Relate(data.RelateInput{From: second.Ref(), Kind: data.RelClaim, To: w.pane.Ref()}, owner); err != nil {
 		t.Fatal(err)
 	}
-	roll, ok, err := ActiveLane(w.store, w.pane)
-	if err != nil || !ok || roll.Root.ID != root.ID || roll.OtherTrees != 1 || !strings.Contains(roll.Text(), "Ochazuke v2 Wave 3 (+1)") {
-		t.Fatalf("two trees: %v %v %q", ok, err, roll.Text())
+	roll, ok, err := w.store.ActiveLane(w.pane)
+	if err != nil || !ok || roll.Root.ID != root.ID || roll.OtherTrees != 1 || !strings.Contains(laneRollupText(roll), "Ochazuke v2 Wave 3 (+1)") {
+		t.Fatalf("two trees: %v %v %q", ok, err, laneRollupText(roll))
 	}
 }
 
@@ -115,7 +135,7 @@ func TestLaneBarCompact(t *testing.T) {
 	}
 
 	site := PaneSiteViewWith(w.pane, pages, "", "", SiteOptions{
-		Store:          w.store,
+		LaneBars:       laneBars(t, w),
 		ShowLaneBar:    true,
 		CompactTopArea: true,
 		LaneHint:       "ctrl+a L",
@@ -153,7 +173,7 @@ func TestLaneBarCompact(t *testing.T) {
 
 	// Folding a compact hook badge onto the progress bar keeps the suffix concise.
 	folded := PaneSiteViewWith(w.pane, pages, "", "", SiteOptions{
-		Store:          w.store,
+		LaneBars:       laneBars(t, w),
 		ShowLaneBar:    true,
 		CompactTopArea: true,
 		LaneSuffix:     "● working",
@@ -172,10 +192,7 @@ func TestLaneBarCompact(t *testing.T) {
 	if _, _, err := w.store.Relate(data.RelateInput{From: second.Ref(), Kind: data.RelClaim, To: w.pane.Ref()}, owner); err != nil {
 		t.Fatal(err)
 	}
-	bar2, ok := LaneBarCompact(w.store, w.pane, "", "")
-	if !ok {
-		t.Fatal("LaneBarCompact returned false for two trees")
-	}
+	bar2 := LaneBarCompact(activeLane(t, w), "", "")
 	if got, _ := bar2.Props["suffix"].(string); got != "▶1 +1" {
 		t.Fatalf("two-tree compact suffix = %q, want %q", got, "▶1 +1")
 	}
@@ -192,18 +209,18 @@ func TestLaneBarFromTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, _ := ActiveLane(w.store, *pane); ok {
+	if _, ok, _ := w.store.ActiveLane(*pane); ok {
 		t.Fatal("a lane with none stored")
 	}
 	// The lane belongs to the project, two levels above the pane's task.
 	lane := laneOf(t, w, "proj-lane", "Ship v2", "running", map[string]any{"task": w.project.Ref()})
-	roll, ok, err := ActiveLane(w.store, *pane)
-	if err != nil || !ok || roll.Root.ID != lane.ID || roll.Text() != "Lane: Ship v2  [▓] 0/1 done · 1 running (Ship v2)" {
-		t.Fatalf("from task: %v %v %q", ok, err, roll.Text())
+	roll, ok, err := w.store.ActiveLane(*pane)
+	if err != nil || !ok || roll.Root.ID != lane.ID || laneRollupText(roll) != "Lane: Ship v2  [▓] 0/1 done · 1 running (Ship v2)" {
+		t.Fatalf("from task: %v %v %q", ok, err, laneRollupText(roll))
 	}
 	// A nearer task's lane wins.
 	near := laneOf(t, w, "sub-lane", "Show pages", "planned", map[string]any{"task": w.sub2.Ref()})
-	if roll, _, _ := ActiveLane(w.store, *pane); roll.Root.ID != near.ID || roll.OtherTrees != 0 {
+	if roll, _, _ := w.store.ActiveLane(*pane); roll.Root.ID != near.ID || roll.OtherTrees != 0 {
 		t.Fatalf("nearest lane = %s (+%d)", roll.Root.ID, roll.OtherTrees)
 	}
 	for _, id := range []string{near.ID, lane.ID} {
@@ -211,7 +228,7 @@ func TestLaneBarFromTask(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, ok, _ := ActiveLane(w.store, *pane); ok {
+	if _, ok, _ := w.store.ActiveLane(*pane); ok {
 		t.Fatal("a finished lane still shows")
 	}
 }
@@ -234,7 +251,11 @@ func TestLaneReviewCountsAsActive(t *testing.T) {
 			if done != tc.done || active != 1 || planned != tc.planned {
 				t.Errorf("nav rollup = (%d, %d, %d), want (%d, 1, %d)", done, active, planned, tc.done, tc.planned)
 			}
-			bar, ok := LaneBarCompact(w.store, w.pane, "", "")
+			roll, ok, err := w.store.ActiveLane(w.pane)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bar := LaneBarCompact(roll, "", "")
 			if !ok || bar.Props["done"] != tc.done || bar.Props["active"] != 1 || bar.Props["total"] != 2 {
 				t.Errorf("pane progress = %v, present = %t, want %d done and 1 active out of 2", bar.Props, ok, tc.done)
 			}
@@ -247,7 +268,7 @@ func TestLaneReviewCountsAsActive(t *testing.T) {
 			if done, active, planned := LaneTreeRollupCounts(node); done != tc.done || active != 0 || planned != tc.planned {
 				t.Errorf("finished nav rollup = (%d, %d, %d), want (%d, 0, %d)", done, active, planned, tc.done, tc.planned)
 			}
-			if _, ok := LaneBarCompact(w.store, w.pane, "", ""); ok != (tc.planned > 0) {
+			if _, ok, _ := w.store.ActiveLane(w.pane); ok != (tc.planned > 0) {
 				t.Errorf("pane progress present = %t after review finishes, planned children = %d", ok, tc.planned)
 			}
 		})
@@ -279,7 +300,7 @@ func TestLaneShowTimelineAndOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries, err := Timeline(w.store, lane.Ref(), 0)
+	entries, err := w.store.Timeline(lane.Ref(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +317,7 @@ func TestLaneShowTimelineAndOptions(t *testing.T) {
 
 	classicOpts := DefaultShowOptions()
 	classicOpts.Layout = ShowLayoutClassic
-	root, err := ShowViewWith(w.store, lane.Ref(), "", classicOpts)
+	root, err := loadShowWith(w.store, lane.Ref(), "", classicOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,13 +327,13 @@ func TestLaneShowTimelineAndOptions(t *testing.T) {
 	}
 	wantText(t, frame(t, root, "", 140, 50), "Timeline", "When", "◆ milestone", "trie merged", "◇ decision", "keep the trie", "✓ verification", "gate passed",
 		"status running", "Claimed by", "Plan", "Created", "Revision")
-	if other, _ := ShowView(w.store, w.project.Ref(), ""); other.Find("show.timeline") != nil {
+	if other, _ := loadShow(w.store, w.project.Ref(), ""); other.Find("show.timeline") != nil {
 		t.Fatal("a task has a timeline")
 	} else if other.Find("show.sec.lane.task") == nil {
 		t.Fatal("the task's page has no Lanes section")
 	}
 
-	lean, err := ShowViewWith(w.store, lane.Ref(), "", ShowOptions{Layout: ShowLayoutClassic})
+	lean, err := loadShowWith(w.store, lane.Ref(), "", ShowOptions{Layout: ShowLayoutClassic})
 	if err != nil {
 		t.Fatal(err)
 	}

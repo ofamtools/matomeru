@@ -58,10 +58,11 @@ func run() (lines []string, err error) {
 	first := res.Items[0]
 
 	// 3. The three views, straight from the schema.
-	show, err := views.ShowView(store, first.Ref(), "")
+	snap, err := store.LoadShowSnapshot(first.Ref())
 	if err != nil {
 		return nil, err
 	}
+	show := views.ShowView(snap, "")
 	index := views.IndexView(link, views.TableFromRecords(link, res.Items), "links")
 	edit := views.EditView(link, &first, views.FormForRecord(link, &first), "edit")
 	for _, v := range []ui.ViewNode{index, show, edit} {

@@ -37,7 +37,7 @@ const (
 var columnSkippedRegions = []string{views.LaneBarsID}
 
 // laneBarController remembers the dismissed lane bars: pane ID to the
-// views.LaneBarEntry keys dismissed there.
+// data.LaneBarEntry keys dismissed there.
 type laneBarController struct {
 	dismissed map[string]map[string]bool
 }
@@ -106,17 +106,17 @@ func (a *App) registerLaneBarHandlers() {
 
 // paneLaneBars are the bars the pane's stack holds now: what the settings
 // allow, less what was dismissed.
-func (a *App) paneLaneBars(pane data.Record) []views.LaneBarEntry {
+func (a *App) paneLaneBars(pane data.Record) []data.LaneBarEntry {
 	if a.Store == nil || a.cfg == nil || a.cfg.Settings == nil || !a.cfg.Settings.Bool(SetLaneBar, false) {
 		return nil
 	}
-	entries, err := views.PaneLaneBars(a.Store, pane, a.keepCompletedLaneBarsEnabled())
+	entries, err := a.Store.PaneLaneBars(pane, a.keepCompletedLaneBarsEnabled())
 	if err != nil {
 		a.fail("read lanes", err)
 		return nil
 	}
 	gone := a.laneBarCtrl().dismissedFor(pane.ID)
-	return slices.DeleteFunc(entries, func(e views.LaneBarEntry) bool { return gone[e.Key()] })
+	return slices.DeleteFunc(entries, func(e data.LaneBarEntry) bool { return gone[e.Key()] })
 }
 
 // laneBarPane resolves the pane a lane bar command acts on.
@@ -161,8 +161,8 @@ func (a *App) laneBarDismiss(s core.State, c core.Command) core.StepResult {
 		}
 	}
 	if len(keys) == 1 {
-		if i := slices.IndexFunc(bars, func(e views.LaneBarEntry) bool { return e.Key() == keys[0] }); i >= 0 {
-			label = "lane bar " + bars[i].Title()
+		if i := slices.IndexFunc(bars, func(e data.LaneBarEntry) bool { return e.Key() == keys[0] }); i >= 0 {
+			label = "lane bar " + views.Title(a.schema(data.KindLane), bars[i].Roll.Root)
 		} else {
 			keys = nil
 		}

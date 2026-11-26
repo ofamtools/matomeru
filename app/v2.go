@@ -790,7 +790,7 @@ func (a *App) laneShow(s core.State, c core.Command) core.StepResult {
 		a.say("no pane is selected")
 		return core.Next(s)
 	}
-	roll, found, err := views.ActiveLane(a.Store, *pane)
+	roll, found, err := a.Store.ActiveLane(*pane)
 	switch {
 	case err != nil:
 		a.fail("lane", err)

@@ -24,7 +24,7 @@ func TestShowHeaderLongTitleWithAttachmentPath(t *testing.T) {
 	opts := DefaultShowOptions()
 	opts.Width = width
 
-	root, err := ShowViewWith(w.store, rec.Ref(), "show.header", opts)
+	root, err := loadShowWith(w.store, rec.Ref(), "show.header", opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestShowHeaderLongTitleWithAttachmentPath(t *testing.T) {
 
 	// Classic layout: the bordered header card keeps every row inside its border.
 	opts.Layout = ShowLayoutClassic
-	classic, err := ShowViewWith(w.store, rec.Ref(), "show.header", opts)
+	classic, err := loadShowWith(w.store, rec.Ref(), "show.header", opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestShowHeaderLongTitleWithAttachmentPath(t *testing.T) {
 
 	// Opt-out (show.titleAttachmentChips off): the path stays in the title.
 	opts.Layout, opts.TitleAttachmentChips = ShowLayoutLedger, false
-	plain, err := ShowViewWith(w.store, rec.Ref(), "show.header", opts)
+	plain, err := loadShowWith(w.store, rec.Ref(), "show.header", opts)
 	if err != nil {
 		t.Fatal(err)
 	}

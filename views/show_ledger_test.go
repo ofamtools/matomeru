@@ -37,7 +37,7 @@ func TestShowLedgerLayoutFoldTalliesAndOptOut(t *testing.T) {
 	opts.HideEmptyRelations = true
 	opts.Width = 120
 
-	root, err := ShowViewWith(w.store, longNote.Ref(), "show.header", opts)
+	root, err := loadShowWith(w.store, longNote.Ref(), "show.header", opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestShowLedgerLayoutFoldTalliesAndOptOut(t *testing.T) {
 
 	// Expanding the fold reveals the empty relation rows.
 	opts.EmptyFoldExpanded = true
-	expanded, err := ShowViewWith(w.store, longNote.Ref(), "show.fold.empty", opts)
+	expanded, err := loadShowWith(w.store, longNote.Ref(), "show.fold.empty", opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestShowLedgerLayoutFoldTalliesAndOptOut(t *testing.T) {
 	narrowOpts := DefaultShowOptions()
 	narrowOpts.HideEmptyRelations = true
 	narrowOpts.Width = 84
-	narrow, err := ShowViewWith(w.store, longNote.Ref(), "show.header", narrowOpts)
+	narrow, err := loadShowWith(w.store, longNote.Ref(), "show.header", narrowOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestShowLedgerLayoutFoldTalliesAndOptOut(t *testing.T) {
 	// Classic opt-out restores the legacy 2-column split with show.props.table.
 	classicOpts := DefaultShowOptions()
 	classicOpts.Layout = ShowLayoutClassic
-	classic, err := ShowViewWith(w.store, longNote.Ref(), "show.header", classicOpts)
+	classic, err := loadShowWith(w.store, longNote.Ref(), "show.header", classicOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestShowLedgerCatalogOnlyCustomNoun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	root, err := ShowViewWith(w.store, rec.Ref(), "show.header", DefaultShowOptions())
+	root, err := loadShowWith(w.store, rec.Ref(), "show.header", DefaultShowOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestShowLedgerStarredRowAlignsTitlesOnOneLine(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	root, err := ShowViewWith(w.store, w.project.Ref(), "show.header", DefaultShowOptions())
+	root, err := loadShowWith(w.store, w.project.Ref(), "show.header", DefaultShowOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
