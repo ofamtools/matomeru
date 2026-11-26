@@ -213,7 +213,7 @@ func propsPanel(store *data.Store, schema data.Schema, rec data.Record, opts Sho
 		Kind:     ui.KindScroll,
 		Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: append([]ui.ViewNode{tbl}, links...)}},
 	}
-	if opts.PropsScrollOffset > 0 {
+	if opts.PropsScrollOffset > 0 || opts.PropsScrollSet {
 		scroll.Props = map[string]any{"offset": opts.PropsScrollOffset}
 	}
 	return ui.ViewNode{ID: "show.props", Kind: ui.KindPanel, Title: "Props", Border: true,
@@ -251,6 +251,10 @@ type ShowOptions struct {
 	// PropsScrollOffset is the manual vertical scroll offset for show.props.scroll.
 	// When <= 0, automatic focus-following applies.
 	PropsScrollOffset int
+	// RelatedScrollSet / PropsScrollSet pass the offset even when it is 0, so
+	// the caller's focus-following replaces the renderer's.
+	RelatedScrollSet bool
+	PropsScrollSet   bool
 }
 
 // DefaultShowOptions shows everything.
@@ -657,7 +661,7 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 		panels = append(panels, panel)
 	}
 	related := ui.ViewNode{ID: "show.related", Kind: ui.KindScroll, Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: panels}}}
-	if opts.RelatedScrollOffset > 0 {
+	if opts.RelatedScrollOffset > 0 || opts.RelatedScrollSet {
 		related.Props = map[string]any{"offset": opts.RelatedScrollOffset}
 	}
 	body := ui.ViewNode{ID: "show.body", Kind: ui.KindSplit, Ratio: 0.42, Gap: 1, Children: []ui.ViewNode{

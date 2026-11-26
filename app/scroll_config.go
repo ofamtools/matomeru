@@ -1,6 +1,7 @@
 package app
 
 import (
+	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/traits"
 )
@@ -56,4 +57,31 @@ func scrollSpanOf(info layout.ScrollInfo, id string) (traits.ItemSpan, bool) {
 		return traits.ItemSpan{ID: id, Y: y, H: 1}, true
 	}
 	return traits.ItemSpan{}, false
+}
+
+// enclosingScroll returns the innermost laid-out scroll container whose
+// content holds id (from the previous frame's layout).
+func enclosingScroll(s core.State, id string) (string, layout.ScrollInfo, bool) {
+	best := ""
+	var bestInfo layout.ScrollInfo
+	for sid, info := range s.Layout.Scrolls {
+		if _, ok := info.ChildRects[id]; !ok {
+			continue
+		}
+		if _, inner := bestInfo.ChildRects[sid]; best == "" || inner {
+			best, bestInfo = sid, info
+		}
+	}
+	return best, bestInfo, best != ""
+}
+
+// scrollFollowOffset returns the offset that keeps child id of info visible
+// starting from off, under the shared scroll config (ui.scrolloff padding,
+// measured from the item's near edge; tall items align to their top).
+func (a *App) scrollFollowOffset(off int, info layout.ScrollInfo, id string) int {
+	span, ok := scrollSpanOf(info, id)
+	if !ok {
+		return off
+	}
+	return traits.ScrollReveal(scrollStateFromInfo(off, info, true), a.scrollConfig(), span).OffsetY
 }

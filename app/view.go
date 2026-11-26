@@ -159,8 +159,8 @@ func (a *App) viewKey(s core.State) string {
 	if ss := a.chromeSysStatsKey(); ss != "" {
 		b.WriteString("|sys:" + ss)
 	}
-	if a.nav != nil && (a.nav.showRelatedOff > 0 || a.nav.showPropsOff > 0) {
-		fmt.Fprintf(&b, "|ss:%s:%d:%d", data.RefText(a.nav.showScrollRef), a.nav.showRelatedOff, a.nav.showPropsOff)
+	if a.nav != nil && (a.nav.showRelatedOff > 0 || a.nav.showPropsOff > 0 || a.nav.showRelatedSet || a.nav.showPropsSet) {
+		fmt.Fprintf(&b, "|ss:%s:%d:%d:%t:%t", data.RefText(a.nav.showScrollRef), a.nav.showRelatedOff, a.nav.showPropsOff, a.nav.showRelatedSet, a.nav.showPropsSet)
 	}
 	if f, fid := a.activeFilterable(s); f != nil && (f.IsFiltered() || a.Engine.Mode(s) == ModeFilter) {
 		fmt.Fprintf(&b, "|flt:%s:%q:%s", fid, f.FilterQuery(), f.FilterMode())
@@ -747,6 +747,8 @@ func (a *App) showOptionsFor(ref core.Ref) views.ShowOptions {
 	if a.nav != nil && a.nav.showScrollRef == ref {
 		opts.RelatedScrollOffset = a.nav.showRelatedOff
 		opts.PropsScrollOffset = a.nav.showPropsOff
+		opts.RelatedScrollSet = a.nav.showRelatedSet
+		opts.PropsScrollSet = a.nav.showPropsSet
 	}
 	if opts.ShowContent && a.Store != nil {
 		if rec, err := a.Store.Get(ref); err == nil && rec != nil {

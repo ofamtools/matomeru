@@ -45,6 +45,8 @@ type NavController struct {
 	showScrollRef       core.Ref
 	showRelatedOff      int
 	showPropsOff        int
+	showRelatedSet      bool // showRelatedOff is known and passed to the view, even at 0
+	showPropsSet        bool // showPropsOff is known and passed to the view, even at 0
 	jumps               []jumpEntry
 	jumpPos             int
 	jumping             bool
@@ -346,10 +348,9 @@ func (a *App) resetShowScroll(ref core.Ref) {
 	if a.nav == nil {
 		return
 	}
-	if a.nav.showScrollRef != ref || a.nav.showRelatedOff != 0 || a.nav.showPropsOff != 0 {
+	if a.nav.showScrollRef != ref || a.nav.showRelatedOff != 0 || a.nav.showPropsOff != 0 || a.nav.showRelatedSet || a.nav.showPropsSet {
 		a.nav.showScrollRef = ref
-		a.nav.showRelatedOff = 0
-		a.nav.showPropsOff = 0
+		a.clearShowScroll(true, true)
 		a.viewMemo.gen++
 	}
 }
@@ -362,15 +363,13 @@ func (a *App) showScrollMotion(s core.State, c core.Command) (core.StepResult, b
 	focus := s.ActiveFrame().FocusID
 	inProps := focus == "show.props" || focus == "show.props.scroll" || strings.HasPrefix(focus, "show.field.")
 	scrollID := "show.related"
-	offPtr := &a.nav.showRelatedOff
 	if inProps {
 		scrollID = "show.props.scroll"
-		offPtr = &a.nav.showPropsOff
 	}
+	offPtr, setPtr := a.showScrollSlot(scrollID)
 	if a.nav.showScrollRef != ref {
 		a.nav.showScrollRef = ref
-		a.nav.showRelatedOff = 0
-		a.nav.showPropsOff = 0
+		a.clearShowScroll(true, true)
 	}
 	info, hasInfo := s.Layout.Scrolls[scrollID]
 	explicitScroll := c.ID == "motion.scroll.down" || c.ID == "motion.scroll.up"
@@ -389,8 +388,8 @@ func (a *App) showScrollMotion(s core.State, c core.Command) (core.StepResult, b
 	}
 	next, _, _ := traits.ScrollStep(scrollStateFromInfo(cur, info, hasInfo), a.scrollConfig(), c)
 	cur = next.OffsetY
-	if *offPtr != cur {
-		*offPtr = cur
+	if *offPtr != cur || !*setPtr {
+		*offPtr, *setPtr = cur, true
 		a.viewMemo.gen++
 	}
 	return core.Next(s), true
@@ -465,24 +464,7 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 		s = a.edge(s, true)
 	}
 	if nextFocus := s.ActiveFrame().FocusID; nextFocus != focus && a.nav != nil {
-		switch {
-		case nextFocus == showHeader:
-			if a.nav.showRelatedOff != 0 || a.nav.showPropsOff != 0 {
-				a.nav.showRelatedOff = 0
-				a.nav.showPropsOff = 0
-				a.viewMemo.gen++
-			}
-		case strings.HasPrefix(nextFocus, "show.sec.") || nextFocus == "show.related":
-			if a.nav.showRelatedOff != 0 {
-				a.nav.showRelatedOff = 0
-				a.viewMemo.gen++
-			}
-		case strings.HasPrefix(nextFocus, "show.field.") || nextFocus == "show.props":
-			if a.nav.showPropsOff != 0 {
-				a.nav.showPropsOff = 0
-				a.viewMemo.gen++
-			}
-		}
+		a.showFollowFocus(s, nextFocus)
 	}
 	return core.Next(s)
 }
