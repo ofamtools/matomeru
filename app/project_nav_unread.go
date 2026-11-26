@@ -30,6 +30,18 @@ func (a *App) projectNavSurfaceUnreadEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectsNavSurfaceUnread, true)
 }
 
+func (a *App) projectNavSurfaceContextUnreadEnabled() bool {
+	return a != nil && a.cfg != nil && a.cfg.Settings != nil && a.cfg.Settings.Bool(SetProjectsNavSurfaceContextUnread, false)
+}
+
+func (a *App) projectNavUnreadDotOnlyEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectsNavUnreadDotOnly, true)
+}
+
+func (a *App) projectNavLaneProgressBarEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectsNavLaneProgressBar, true)
+}
+
 func (a *App) railEnterLiveEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.String(SetRailEnterMode, RailEnterModeLive) == RailEnterModeLive
 }

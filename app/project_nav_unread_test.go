@@ -162,9 +162,9 @@ func TestProjectNavCollapsedSectionsSurfaceUnreadChildrenAndStyling(t *testing.T
 
 	root := a.View(a.State())
 
-	// 1. Collapsed Pages section surfaces unreadPage, hides readPage, keeps ▸ chevron + ●1 suffix.
+	// 1. Collapsed Pages section surfaces unreadPage, hides readPage, keeps ▸ chevron + ●1 suffix (dot-only warning, NOT whole-row warning).
 	pagesSec := root.Find(projectNavPrefix + "pages")
-	if pagesSec == nil || !pagesSec.Unread || pagesSec.Tone != "warning" || pagesSec.Facts["unreadCount"] != 1 || pagesSec.Facts["sectionUnread"] != true {
+	if pagesSec == nil || !pagesSec.Unread || pagesSec.Tone == "warning" || pagesSec.Facts["unreadCount"] != 1 || pagesSec.Facts["sectionUnread"] != true {
 		t.Fatalf("pages section unread metadata wrong: %+v", pagesSec)
 	}
 	if txt, _ := pagesSec.Props["text"].(string); !strings.Contains(txt, "▸") || !strings.Contains(txt, "2 · ●1") {
@@ -177,7 +177,7 @@ func TestProjectNavCollapsedSectionsSurfaceUnreadChildrenAndStyling(t *testing.T
 	if root.Find(projectNavNodePrefix+"pages."+f.readPage.ID) != nil {
 		t.Fatal("collapsed Pages section should hide already-viewed readPage")
 	}
-	if !unreadPageNode.Unread || unreadPageNode.Tone != "warning" || unreadPageNode.Facts["unread"] != true || unreadPageNode.Facts["peeked"] != true {
+	if !unreadPageNode.Unread || unreadPageNode.Tone == "warning" || unreadPageNode.Facts["unread"] != true || unreadPageNode.Facts["peeked"] != true {
 		t.Fatalf("unreadPage node styling/facts wrong: %+v", unreadPageNode)
 	}
 	if txt, _ := unreadPageNode.Props["text"].(string); !strings.Contains(txt, "●") || !strings.Contains(txt, "NEW") {
@@ -311,7 +311,7 @@ func TestProjectNavFocusNeverClearsUnreadAndExplicitActionsDo(t *testing.T) {
 	if frame := d.Frame(); !strings.Contains(frame, "Fresh Report") {
 		t.Fatalf("expected live preview for unreadPage:\n%s", frame)
 	}
-	if nd := findNode(a, pageNodeID); nd == nil || !nd.Unread || nd.Tone != "warning" {
+	if nd := findNode(a, pageNodeID); nd == nil || !nd.Unread {
 		t.Fatalf("focusing unreadPage via j should NEVER clear unread: %+v", nd)
 	}
 	// Moving away with k also leaves it unread!
@@ -617,5 +617,63 @@ func TestProjectNavOwnerCreatedAndEditedTasksNeverSurfaceAsNew(t *testing.T) {
 	}
 	if nd := root.Find(projectNavNodePrefix + "tasks." + cliTask.ID); nd == nil || !nd.Unread {
 		t.Fatalf("agent-patched task should surface as unread in collapsed Tasks: %+v", nd)
+	}
+}
+
+func TestProjectNavContextItemsHiddenFromNavAndLaneProgressBar(t *testing.T) {
+	f := setupNavUnreadFixture(t)
+	a, d := f.app, f.driver
+
+	// Create an official context item after startup: still marked unread in data,
+	// but NOT surfaced in the Project left nav by default.
+	ctxRec, _, err := a.Store.Create(data.CreateInput{Kind: data.KindContext, Fields: map[string]any{
+		"label":    "API Spec",
+		"value":    "https://example.com/api",
+		"kind":     "url",
+		"official": true,
+		"source":   "agent",
+		"task":     f.proj.Ref(),
+	}}, core.Actor{Kind: "agent", ID: "worker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Create an active lane under the project to verify the 4-char progress bar.
+	laneRec, _, err := a.Store.Create(data.CreateInput{Kind: data.KindLane, Fields: map[string]any{
+		"title":      "Build portal",
+		"laneStatus": "running",
+		"task":       f.proj.Ref(),
+	}}, core.Actor{Kind: "agent", ID: "worker"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.invalidateProjectUnreadCaches("")
+
+	if !a.isNavRecordUnread(data.KindContext, *ctxRec, nil) {
+		t.Fatal("official context item should still be marked unread in data")
+	}
+
+	d.Keys("P")
+	root := a.View(a.State())
+	if ctxSec := root.Find(projectNavPrefix + "context"); ctxSec == nil || ctxSec.Unread {
+		t.Fatalf("Context nav section should not surface unread by default: %+v", ctxSec)
+	}
+	if root.Find(projectNavNodePrefix+"context."+ctxRec.ID) != nil {
+		t.Fatal("Context item should not peek into Project nav when projects.navSurfaceContextUnread=false")
+	}
+	laneNode := root.Find(projectNavNodePrefix + "lanes." + laneRec.ID)
+	if laneNode == nil || laneNode.Facts["hasProgressBar"] != true {
+		t.Fatalf("expected lane nav row with 4-char progress bar: %+v", laneNode)
+	}
+	if txt, _ := laneNode.Props["text"].(string); !strings.Contains(txt, "▓▓░░") {
+		t.Fatalf("running lane nav text = %q, want ▓▓░░ progress bar", txt)
+	}
+
+	// Opt-in projects.navSurfaceContextUnread=true surfaces it again.
+	a.cfg.userSettings[SetProjectsNavSurfaceContextUnread] = true
+	a.reloadSettings()
+	a.invalidateProjectUnreadCaches("")
+	rootOptIn := a.View(a.State())
+	if rootOptIn.Find(projectNavNodePrefix+"context."+ctxRec.ID) == nil {
+		t.Fatal("projects.navSurfaceContextUnread=true should surface unread context item in nav")
 	}
 }

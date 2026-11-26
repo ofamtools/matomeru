@@ -9,6 +9,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/ui"
 )
 
 type projectNavTarget struct {
@@ -214,7 +215,7 @@ func (a *App) buildProjectNavChildren(ws projectWorkspaceData, secKey, focusID s
 	case "commands":
 		return a.projectRecordNavNodes(ws, "commands", data.KindCommand, ws.commands, focusID, lockedFocus, expanded, allowPeek)
 	case "context":
-		return a.projectContextNavNodes(ws, "context", ws.contextItems, focusID, lockedFocus, expanded, allowPeek)
+		return a.projectContextNavNodes(ws, "context", ws.contextItems, focusID, lockedFocus, expanded, allowPeek && a.projectNavSurfaceContextUnreadEnabled())
 	case "pinned":
 		return a.projectContextNavNodes(ws, "pinned", ws.pinnedItems, focusID, lockedFocus, expanded, allowPeek)
 	case "prs":
@@ -294,23 +295,31 @@ func (a *App) projectTreeNavNodes(ws projectWorkspaceData, secKey, kind string, 
 					badge = st
 				}
 			}
+			var progressBar []ui.InlineRun
+			if kind == data.KindLane && a.projectNavLaneProgressBarEnabled() {
+				done, activeCnt, planned := views.LaneTreeRollupCounts(nd)
+				progressBar = views.CompactLaneBarRuns(done, activeCnt, planned, 4)
+			}
 			active := focusID == nodeFocusID || lockedFocus == nodeFocusID
 			out = append(out, views.ProjectNavNode{
-				ID:         rec.ID,
-				Section:    secKey,
-				ParentID:   parentID,
-				Label:      title,
-				Icon:       rs.Icon,
-				Badge:      badge,
-				Ref:        &ref,
-				Unread:     selfUnread,
-				Peeked:     peekOnly,
-				HasUnread:  hasUnread,
-				Active:     active,
-				Expandable: expandable,
-				Expanded:   nodeExpanded,
-				Children:   children,
-				Facts:      a.projectNavRecordFacts(schema, rec),
+				ID:          rec.ID,
+				Section:     secKey,
+				ParentID:    parentID,
+				Label:       title,
+				Icon:        rs.Icon,
+				IconTone:    rs.IconTone,
+				Badge:       badge,
+				Tone:        rs.RowTone,
+				ProgressBar: progressBar,
+				Ref:         &ref,
+				Unread:      selfUnread,
+				Peeked:      peekOnly,
+				HasUnread:   hasUnread,
+				Active:      active,
+				Expandable:  expandable,
+				Expanded:    nodeExpanded,
+				Children:    children,
+				Facts:       a.projectNavRecordFacts(schema, rec),
 			})
 		}
 		return out, totalUnread
@@ -438,7 +447,9 @@ func (a *App) projectRecordNavNodes(ws projectWorkspaceData, secKey, kind string
 			ParentID:  "",
 			Label:     title,
 			Icon:      rs.Icon,
+			IconTone:  rs.IconTone,
 			Badge:     badge,
+			Tone:      rs.RowTone,
 			Ref:       &ref,
 			Unread:    unread,
 			Peeked:    !expanded && unread,
@@ -455,6 +466,9 @@ func (a *App) projectRecordNavNodes(ws projectWorkspaceData, secKey, kind string
 			Ref:           &ref,
 			Unread:        unread,
 		})
+	}
+	if secKey == "context" && !a.projectNavSurfaceContextUnreadEnabled() {
+		unreadCount = 0
 	}
 	return out, unreadCount
 }
@@ -609,6 +623,9 @@ func (a *App) projectContextNavNodes(ws projectWorkspaceData, secKey string, ite
 			ParentFocusID: parentFocus,
 			Label:         label,
 		})
+	}
+	if secKey == "context" && !a.projectNavSurfaceContextUnreadEnabled() {
+		unreadCount = 0
 	}
 	return out, unreadCount
 }

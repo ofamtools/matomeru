@@ -79,7 +79,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetSelfHostedFeaturesEnabled: SelfHostedFeaturesAuto, SetSelfHostedFeaturesRepoPath: "",
 		SetProjectsNavTree: true, SetOutlineGutter: true, SetChromeSystemStats: true, SetProjectsNavSurfaceUnread: true,
 		SetHintsDefaultAction: HintsActionCopy, SetProjectHomeDashboard: true, SetPanesCompactTopArea: true, SetFilterInPlaceTree: true,
-		SetAttachmentsEnabled: true, SetAttachmentsDir: ""}
+		SetAttachmentsEnabled: true, SetAttachmentsDir: "",
+		SetProjectsNavSurfaceContextUnread: false, SetProjectsNavUnreadDotOnly: true, SetProjectsNavLaneProgressBar: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

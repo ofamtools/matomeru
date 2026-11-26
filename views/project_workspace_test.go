@@ -175,13 +175,16 @@ func TestProjectWorkspaceNavTreeChevronsIndentAndFacts(t *testing.T) {
 	if txt, _ := pagesSec.Props["text"].(string); !strings.HasPrefix(txt, "▸ ") || !strings.Contains(txt, "2 · ●1") {
 		t.Fatalf("collapsed pages section should start with ▸ and show 2 · ●1, got %q", txt)
 	}
-	// Collapsed section with populated peeked unread children MUST emit them with ● + NEW styling!
+	// Collapsed section with populated peeked unread children MUST emit them with ● warning span (dot-only, NOT whole-row warning)!
 	pg1Node := root.Find(ProjectNavNodePrefix + "pages.pg1")
-	if pg1Node == nil || !pg1Node.Unread || pg1Node.Tone != "warning" || pg1Node.Facts["peeked"] != true || pg1Node.Facts["unread"] != true {
-		t.Fatalf("collapsed pages section should emit peeked unread child pg1: %+v", pg1Node)
+	if pg1Node == nil || !pg1Node.Unread || pg1Node.Tone == "warning" || pg1Node.Facts["peeked"] != true || pg1Node.Facts["unread"] != true {
+		t.Fatalf("collapsed pages section should emit peeked unread child pg1 with dot-only styling: %+v", pg1Node)
 	}
 	if txt, _ := pg1Node.Props["text"].(string); !strings.Contains(txt, "● ") || !strings.Contains(txt, "NEW") {
 		t.Fatalf("peeked unread child text = %q, want ● and NEW", txt)
+	}
+	if spans, ok := pg1Node.Props["spans"].([]ui.ToneSpan); !ok || len(spans) == 0 || spans[0].Tone != "warning" || spans[0].To-spans[0].From != 1 {
+		t.Fatalf("expected 1-rune warning span for ● ball only, got %+v", pg1Node.Props["spans"])
 	}
 	// Collapsed section with no populated children emits none.
 	if docsSec := root.Find(ProjectNavPrefix + "documents"); docsSec == nil || docsSec.Facts["navExpanded"] != false {
@@ -213,4 +216,67 @@ func TestProjectWorkspaceNavTreeChevronsIndentAndFacts(t *testing.T) {
 
 	rendered := frame(t, root, ProjectNavNodePrefix+"tasks.t1a", 120, 28)
 	wantText(t, rendered, "▾ ☐ Tasks", "Parent Task", "Nested Subtask", "▸ ◫ Pages")
+}
+
+func TestProjectNavUnreadDotOnlyGreenDoneCheckAndLaneProgressBar(t *testing.T) {
+	spec := ProjectWorkspaceSpec{
+		ProjectID: "proj-1",
+		Title:     "Alpha",
+		ActiveKey: "tasks",
+		NavItems: []ProjectNavSection{
+			{
+				Key: "tasks", Label: "Tasks", Icon: "☐", Group: "Core", Count: 1, UnreadCount: 1, Unread: true, Expandable: true, Expanded: true,
+				Children: []ProjectNavNode{
+					{ID: "t-done", Section: "tasks", Label: "Shipped task", Icon: "✓", IconTone: "success", Unread: true},
+				},
+			},
+			{
+				Key: "lanes", Label: "Lanes", Icon: "⌥", Group: "Workspace", Count: 1, Expandable: true, Expanded: true,
+				Children: []ProjectNavNode{
+					{ID: "l-run", Section: "lanes", Label: "Active lane", Icon: "●", IconTone: "state.working", ProgressBar: CompactLaneBarRuns(1, 1, 2, 4), Unread: true},
+				},
+			},
+		},
+	}
+	root := ProjectWorkspaceView(spec)
+
+	// Done + unread task: ONLY ● is warning; ✓ stays success (green); label is NOT tinted warning.
+	doneNode := root.Find(ProjectNavNodePrefix + "tasks.t-done")
+	if doneNode == nil || doneNode.Tone == "warning" {
+		t.Fatalf("unread done task must not tint whole row warning: %+v", doneNode)
+	}
+	spans, _ := doneNode.Props["spans"].([]ui.ToneSpan)
+	var hasWarnDot, hasGreenCheck bool
+	txt, _ := doneNode.Props["text"].(string)
+	rs := []rune(txt)
+	for _, sp := range spans {
+		seg := string(rs[sp.From:sp.To])
+		if seg == "●" && sp.Tone == "warning" {
+			hasWarnDot = true
+		}
+		if seg == "✓" && sp.Tone == "success" {
+			hasGreenCheck = true
+		}
+	}
+	if !hasWarnDot || !hasGreenCheck {
+		t.Fatalf("expected warning ● + green ✓ spans on %q, got %+v", txt, spans)
+	}
+
+	// Lane row carries 4-char colored progress bar distinct from label text.
+	laneNode := root.Find(ProjectNavNodePrefix + "lanes.l-run")
+	if laneNode == nil || laneNode.Facts["hasProgressBar"] != true {
+		t.Fatalf("lane nav node missing progress bar: %+v", laneNode)
+	}
+	lTxt, _ := laneNode.Props["text"].(string)
+	if !strings.Contains(lTxt, "█▓░░") {
+		t.Fatalf("lane nav text = %q, want 4-char progress bar █▓░░", lTxt)
+	}
+
+	// Opt-out (UnreadDotOnly=false) restores whole-row warning tint.
+	off := false
+	spec.UnreadDotOnly = &off
+	legacyRoot := ProjectWorkspaceView(spec)
+	if nd := legacyRoot.Find(ProjectNavNodePrefix + "tasks.t-done"); nd == nil || nd.Tone != "warning" {
+		t.Fatalf("UnreadDotOnly=false should restore whole-row warning tone: %+v", nd)
+	}
 }

@@ -431,12 +431,14 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 		}
 	}
 
+	dotOnly := a.projectNavUnreadDotOnlyEnabled()
 	return views.ProjectWorkspaceView(views.ProjectWorkspaceSpec{
 		ProjectID: ws.projectID, Title: groupName, Subtitle: strings.Join(subParts, " · "),
 		Ref: projRef, Badges: badges, NavRatio: navRatio, NavTitle: navTitle, HideHeader: hideHeader,
-		ActiveKey:  activeKey,
-		NavItems:   navItems,
-		ActiveBody: activeBody,
+		UnreadDotOnly: &dotOnly,
+		ActiveKey:     activeKey,
+		NavItems:      navItems,
+		ActiveBody:    activeBody,
 		Facts: map[string]any{
 			"projectGroup": groupName, "paneCount": len(ws.panes),
 			"contextCount": len(ws.contextItems), "officialCount": ws.officialCount,
