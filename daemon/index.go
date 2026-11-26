@@ -4,9 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/panesearch"
 	"ofam.dev/ochazuke/core"
 )
 
@@ -14,26 +17,31 @@ var (
 	hookURLRe     = regexp.MustCompile(`https?://[^\s<>"{}|\\^` + "`" + `]+`)
 	hookPRRefRe   = regexp.MustCompile(`(?:^|[\s(\[{"',;:])([A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100}#[1-9][0-9]*)\b`)
 	hookGHPRURLRe = regexp.MustCompile(`^https?://github\.com/([A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100})/pull/([1-9][0-9]*)(?:[/?#].*)?$`)
+	hookPathRe    = regexp.MustCompile(`[A-Za-z0-9@%+=_.~/-]+(?::([0-9]+)(?::([0-9]+))?)?`)
 )
 
 type extractedContext struct {
 	title       string
 	value       string
 	contextKind string
-	source      string
 	canonKey    string
+	line        int
+	col         int
 }
 
 // indexHookEvent runs lightweight auto-indexing into s.cfg.Store for hook
-// events carrying transcript metadata, written files, user prompts, or
-// assistant responses.
+// events carrying transcript metadata, Markdown documents, or final answers.
 func (s *Server) indexHookEvent(ev HookEvent) {
 	if s.cfg.Store == nil {
 		return
 	}
 	transcriptPath := extractTranscriptPath(ev.Payload)
 	sessionID := extractSessionID(ev.Payload)
-	hasContextWork := len(ev.Files) > 0 || strings.TrimSpace(ev.Prompt) != "" || strings.TrimSpace(ev.Response) != ""
+	final := ""
+	if ev.Kind == HookKindState && ev.State == StateDone && ev.SubagentID == "" && ev.Tool == "" {
+		final = strings.TrimSpace(ev.FinalResponse)
+	}
+	hasContextWork := len(ev.Files) > 0 || final != ""
 	if transcriptPath == "" && sessionID == "" && !hasContextWork {
 		return
 	}
@@ -71,7 +79,7 @@ func (s *Server) indexHookEvent(ev HookEvent) {
 		return
 	}
 
-	// 1. Written/edited files from PostToolUse.
+	// Markdown registration is independent of response context extraction.
 	for _, rawPath := range ev.Files {
 		p := strings.TrimSpace(rawPath)
 		if p == "" {
@@ -80,27 +88,11 @@ func (s *Server) indexHookEvent(ev HookEvent) {
 		ext := strings.ToLower(filepath.Ext(p))
 		if ext == ".md" || ext == ".markdown" {
 			s.upsertHookDocument(p, paneID, taskID, actor)
-		} else {
-			s.upsertHookContext(extractedContext{
-				title:       filepath.Base(p),
-				value:       p,
-				contextKind: "file",
-				source:      "tool",
-				canonKey:    "file:" + filepath.Clean(p),
-			}, paneID, taskID, actor)
 		}
 	}
 
-	// 2. URLs and owner/repo#123 PR refs from Prompt and Response.
-	if prompt := strings.TrimSpace(ev.Prompt); prompt != "" {
-		for _, item := range extractTextContext(prompt, "prompt") {
-			s.upsertHookContext(item, paneID, taskID, actor)
-		}
-	}
-	if resp := strings.TrimSpace(ev.Response); resp != "" {
-		for _, item := range extractTextContext(resp, "response") {
-			s.upsertHookContext(item, paneID, taskID, actor)
-		}
+	for _, item := range extractResponseContext(final) {
+		s.upsertHookContext(item, paneID, taskID, actor)
 	}
 }
 
@@ -136,6 +128,7 @@ func (s *Server) upsertHookDocument(filePath, paneID, taskID string, actor core.
 		fields := map[string]any{
 			"title":    title,
 			"filePath": filePath,
+			"source":   data.DocumentSourceTool,
 		}
 		if taskID != "" {
 			fields["task"] = core.Ref{Kind: data.KindTask, ID: taskID}
@@ -203,6 +196,16 @@ func (s *Server) upsertHookContext(item extractedContext, paneID, taskID string,
 		if strings.HasPrefix(strings.ToLower(item.value), "http") && !strings.HasPrefix(strings.ToLower(existing.Text("value")), "http") {
 			patchFields["value"] = item.value
 		}
+		if line := existing.Text("line"); (line == "" || line == "0") && item.line > 0 {
+			patchFields["value"] = item.value
+			patchFields["line"] = item.line
+			if item.col > 0 {
+				patchFields["col"] = item.col
+			}
+		}
+		if src := existing.Text("source"); src != "response" && src != "curated" {
+			patchFields["source"] = "response"
+		}
 		if len(patchFields) > 0 {
 			_, _, _ = s.cfg.Store.Patch(data.PatchInput{
 				Ref:     ctxRef,
@@ -215,8 +218,14 @@ func (s *Server) upsertHookContext(item extractedContext, paneID, taskID string,
 			"title":       item.title,
 			"value":       item.value,
 			"contextKind": item.contextKind,
-			"source":      item.source,
+			"source":      "response",
 			"canonKey":    item.canonKey,
+		}
+		if item.line > 0 {
+			fields["line"] = item.line
+		}
+		if item.col > 0 {
+			fields["col"] = item.col
 		}
 		if paneID != "" {
 			fields["pane"] = core.Ref{Kind: data.KindPane, ID: paneID}
@@ -265,10 +274,11 @@ func markdownTitle(filePath string) string {
 	return filepath.Base(filePath)
 }
 
-func extractTextContext(text, source string) []extractedContext {
+func extractResponseContext(text string) []extractedContext {
+	text = panesearch.MaskSecrets(text)
 	seen := map[string]bool{}
 	var out []extractedContext
-	var urlSpans [][2]int
+	var spans [][2]int
 
 	for _, loc := range hookURLRe.FindAllStringIndex(text, -1) {
 		raw := text[loc[0]:loc[1]]
@@ -276,7 +286,7 @@ func extractTextContext(text, source string) []extractedContext {
 		if cleaned == "" {
 			continue
 		}
-		urlSpans = append(urlSpans, [2]int{loc[0], loc[0] + len(cleaned)})
+		spans = append(spans, [2]int{loc[0], loc[0] + len(cleaned)})
 
 		var it extractedContext
 		if m := hookGHPRURLRe.FindStringSubmatch(cleaned); len(m) == 3 {
@@ -285,7 +295,6 @@ func extractTextContext(text, source string) []extractedContext {
 				title:       prRef,
 				value:       cleaned,
 				contextKind: "pr",
-				source:      source,
 				canonKey:    "pr:" + strings.ToLower(prRef),
 			}
 		} else {
@@ -293,7 +302,6 @@ func extractTextContext(text, source string) []extractedContext {
 				title:       cleaned,
 				value:       cleaned,
 				contextKind: "url",
-				source:      source,
 				canonKey:    "url:" + strings.ToLower(strings.TrimRight(cleaned, "/")),
 			}
 		}
@@ -308,16 +316,10 @@ func extractTextContext(text, source string) []extractedContext {
 			continue
 		}
 		start, end := m[2], m[3]
-		inURL := false
-		for _, sp := range urlSpans {
-			if start >= sp[0] && end <= sp[1] {
-				inURL = true
-				break
-			}
-		}
-		if inURL {
+		if overlapsHookText(spans, start, end) {
 			continue
 		}
+		spans = append(spans, [2]int{start, end})
 		ref := text[start:end]
 		key := "pr:" + strings.ToLower(ref)
 		if seen[key] {
@@ -328,11 +330,97 @@ func extractTextContext(text, source string) []extractedContext {
 			title:       ref,
 			value:       ref,
 			contextKind: "pr",
-			source:      source,
 			canonKey:    key,
 		})
 	}
+	for _, m := range hookPathRe.FindAllStringSubmatchIndex(text, -1) {
+		start, end := m[0], m[1]
+		if overlapsHookText(spans, start, end) {
+			continue
+		}
+		if item, ok := responseFile(text, m); ok {
+			out = append(out, item)
+		}
+	}
 	return out
+}
+
+func overlapsHookText(spans [][2]int, start, end int) bool {
+	for _, span := range spans {
+		if start < span[1] && end > span[0] {
+			return true
+		}
+	}
+	return false
+}
+
+func responseFile(text string, match []int) (extractedContext, bool) {
+	start, end := match[0], match[1]
+	pathEnd := end
+	line, col := 0, 0
+	if match[2] >= 0 {
+		pathEnd = match[2] - 1
+		line, _ = strconv.Atoi(text[match[2]:match[3]])
+	}
+	if match[4] >= 0 {
+		col, _ = strconv.Atoi(text[match[4]:match[5]])
+	}
+	path := strings.TrimRight(text[start:pathEnd], ".")
+	clean := filepath.Clean(path)
+	if clean == "." || clean == ".." || clean == "/" {
+		return extractedContext{}, false
+	}
+
+	explicit := strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") ||
+		strings.HasPrefix(path, "../") || strings.HasPrefix(path, "~/")
+	extension := filepath.Ext(clean)
+	fileSuffix := len(extension) > 1 && unicode.IsLetter(rune(extension[1]))
+	nested := strings.Contains(clean, "/")
+	marked := start > 0 && end < len(text) && (text[start-1] == '`' && text[end] == '`' ||
+		start > 1 && text[start-2:start] == "](" && text[end] == ')')
+	if !explicit && !(nested && (fileSuffix || line > 0)) &&
+		!knownResponseFileExtension(extension) && !(marked && fileSuffix) &&
+		!(line > 0 && knownResponseFileName(clean)) {
+		return extractedContext{}, false
+	}
+	value := path
+	if pathEnd < end {
+		value += text[pathEnd:end]
+	}
+	return extractedContext{
+		title: filepath.Base(clean), value: value, contextKind: "file",
+		canonKey: "file:" + clean, line: line, col: col,
+	}, true
+}
+
+// Bare words need a known file suffix or a recognized extensionless filename
+// with a line number. This leaves identifiers, dotted prose, and versions out.
+func knownResponseFileExtension(extension string) bool {
+	switch strings.ToLower(extension) {
+	case ".go", ".mod", ".sum",
+		".md", ".markdown", ".txt", ".rst", ".org", ".pdf", ".docx",
+		".json", ".jsonc", ".jsonl", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".env", ".xml",
+		".csv", ".tsv", ".sql", ".db", ".sqlite",
+		".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css", ".scss", ".html", ".htm", ".svg",
+		".py", ".rb", ".rs", ".c", ".h", ".cc", ".cpp", ".hpp", ".java", ".kt", ".swift", ".zig", ".lua", ".php",
+		".sh", ".bash", ".zsh", ".fish",
+		".proto", ".graphql", ".gql", ".tf", ".hcl",
+		".log", ".diff", ".patch", ".lock",
+		".png", ".jpg", ".jpeg", ".gif", ".webp":
+		return true
+	default:
+		return false
+	}
+}
+
+func knownResponseFileName(name string) bool {
+	switch strings.ToLower(name) {
+	case "makefile", "dockerfile", "justfile", "procfile", "vagrantfile",
+		"readme", "license", "changelog", "agents", "claude", "gemfile", "rakefile":
+		return true
+	default:
+		return false
+	}
 }
 
 func trimURLPunctuation(u string) string {

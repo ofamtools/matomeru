@@ -216,6 +216,44 @@ func TestLaneBarFromTask(t *testing.T) {
 	}
 }
 
+func TestLaneReviewCountsAsActive(t *testing.T) {
+	for _, tc := range []struct {
+		childStatus   string
+		done, planned int
+	}{
+		{childStatus: "merged", done: 1},
+		{childStatus: "planned", planned: 1},
+	} {
+		t.Run(tc.childStatus, func(t *testing.T) {
+			w := build(t)
+			lane := laneOf(t, w, "review-lane", "Review release", "review", map[string]any{"task": w.project.Ref()})
+			child := laneOf(t, w, "review-child", "Ship changes", tc.childStatus, map[string]any{"parentLane": lane.Ref()})
+			node := data.TreeNode{Record: lane, Children: []data.TreeNode{{Record: child}}}
+
+			done, active, planned := LaneTreeRollupCounts(node)
+			if done != tc.done || active != 1 || planned != tc.planned {
+				t.Errorf("nav rollup = (%d, %d, %d), want (%d, 1, %d)", done, active, planned, tc.done, tc.planned)
+			}
+			bar, ok := LaneBarCompact(w.store, w.pane, "", "")
+			if !ok || bar.Props["done"] != tc.done || bar.Props["active"] != 1 || bar.Props["total"] != 2 {
+				t.Errorf("pane progress = %v, present = %t, want %d done and 1 active out of 2", bar.Props, ok, tc.done)
+			}
+
+			finished, _, err := w.store.Patch(data.PatchInput{Ref: lane.Ref(), Fields: map[string]any{"laneStatus": "done"}}, owner)
+			if err != nil {
+				t.Fatal(err)
+			}
+			node.Record = *finished
+			if done, active, planned := LaneTreeRollupCounts(node); done != tc.done || active != 0 || planned != tc.planned {
+				t.Errorf("finished nav rollup = (%d, %d, %d), want (%d, 0, %d)", done, active, planned, tc.done, tc.planned)
+			}
+			if _, ok := LaneBarCompact(w.store, w.pane, "", ""); ok != (tc.planned > 0) {
+				t.Errorf("pane progress present = %t after review finishes, planned children = %d", ok, tc.planned)
+			}
+		})
+	}
+}
+
 // A lane's Show page leads with a timeline: logged notes and change sets in
 // the order they happened. The options drop metadata and empty sections.
 func TestLaneShowTimelineAndOptions(t *testing.T) {

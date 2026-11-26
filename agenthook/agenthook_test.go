@@ -327,6 +327,26 @@ func startFakeDaemon(t *testing.T, handler func(agenthook.HookEvent) agenthook.D
 	}
 }
 
+func TestRunSendsFinalResponse(t *testing.T) {
+	sock, events := startFakeDaemon(t, func(agenthook.HookEvent) agenthook.DaemonResponse {
+		return agenthook.DaemonResponse{OK: true}
+	})
+	env := func(key string) string {
+		if key == "MTM_SOCKET" {
+			return sock
+		}
+		return ""
+	}
+	const answer = "Updated app/final.go"
+	in := strings.NewReader(`{"hook_event_name":"Stop","last_assistant_message":"Updated app/final.go"}`)
+	if code := agenthook.RunWithEnv([]string{"claude"}, env, in, nil, nil); code != 0 {
+		t.Fatalf("hook exit = %d", code)
+	}
+	if got := events(); len(got) != 1 || got[0].FinalResponse != answer {
+		t.Fatalf("wire events = %+v, want final answer %q", got, answer)
+	}
+}
+
 func TestRunBlockingApprovalAllowAndDeny(t *testing.T) {
 	t.Run("claude allow", func(t *testing.T) {
 		sock, events := startFakeDaemon(t, func(ev agenthook.HookEvent) agenthook.DaemonResponse {

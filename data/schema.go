@@ -485,15 +485,7 @@ func DefaultSchemas() *Registry {
 		{Name: "failed", Label: "Failed", Tone: "state.errored", RowTone: "row.error", Icon: "✕", IconTone: "state.errored", Position: 3, Ends: true},
 	}}
 
-	laneStatus := StatusColumn{Name: "laneStatus", Title: "Status", Default: "planned", PrimaryRowStyle: true, Values: []StatusValue{
-		{Name: "planned", Label: "Planned", Tone: "state.planned", RowTone: "row.muted", Icon: "○", IconTone: "state.planned", Position: 0, Open: true},
-		{Name: "running", Label: "Running", Tone: "state.working", RowTone: "row.active", Icon: "▶", IconTone: "state.working", Position: 1, Starts: true, Open: true},
-		{Name: "review", Label: "Review", Tone: "state.review", RowTone: "row.attention", Icon: "◉", IconTone: "state.review", Position: 2, Open: true},
-		{Name: "merged", Label: "Merged", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 3, Ends: true},
-		{Name: "done", Label: "Done", Tone: "state.done.dim", RowTone: "row.dim", Icon: "✓", IconTone: "state.done.dim", Position: 4, Ends: true},
-		{Name: "parked", Label: "Parked", Tone: "muted", RowTone: "row.muted", Icon: "⏸", IconTone: "muted", Position: 5, Open: true},
-		{Name: "cancelled", Label: "Cancelled", Tone: "state.cancelled", RowTone: "row.cancelled", Icon: "✕", IconTone: "state.cancelled", Position: 6, Ends: true},
-	}}
+	laneStatus := laneStatusColumn()
 
 	triage := StatusColumn{Name: "triageState", Title: "Triage", Default: TriageUnreviewed, PrimaryRowStyle: true, Values: []StatusValue{
 		{Name: TriageUnreviewed, Label: "Unreviewed", Tone: "warning", RowTone: "row.attention", Icon: "●", IconTone: "warning", Position: 0, Open: true},

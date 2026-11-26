@@ -448,7 +448,7 @@ func TestDaemonHookAutoIndexing(t *testing.T) {
 		t.Fatalf("documents = %+v, err=%v; want 1", docs.Items, err)
 	}
 	doc := docs.Items[0]
-	if doc.Text("title") != "Daily Architecture" || doc.Text("filePath") != mdPath {
+	if doc.Text("title") != "Daily Architecture" || doc.Text("filePath") != mdPath || doc.Text("source") != data.DocumentSourceTool {
 		t.Fatalf("document fields = %+v", doc.Fields)
 	}
 	if tr, ok := doc.RefField("task"); !ok || tr != task.Ref() {
@@ -458,38 +458,58 @@ func TestDaemonHookAutoIndexing(t *testing.T) {
 		t.Fatalf("pane RelCreated = %+v, err=%v", rels, err)
 	}
 
-	// 2. UserPromptSubmit + Stop with GitHub PR URL, shorthand PR ref, and docs URL creates/dedupes KindContext linked to BOTH pane and task (+ RelContext).
+	// 2. Neither prompt nor progress text creates a Context record.
 	if _, err := client.HookEvent(ctx, HookEvent{
 		PaneID:  pane.ID,
 		Harness: "claude",
 		Kind:    HookKindState,
 		State:   StateRunning,
-		Prompt:  "Please review https://github.com/ofam/matomeru/pull/42 and check ofam/ochazuke#17.",
+		Prompt:  "Please review https://prompt.example.com and app/prompt.go.",
 	}); err != nil {
 		t.Fatalf("UserPromptSubmit HookEvent: %v", err)
 	}
 	if _, err := client.HookEvent(ctx, HookEvent{
-		PaneID:   pane.ID,
-		Harness:  "claude",
-		Kind:     HookKindState,
-		State:    StateDone,
-		Response: "Reviewed ofam/matomeru#42 and updated https://docs.example.com/guide.",
+		PaneID:        pane.ID,
+		Harness:       "claude",
+		Kind:          HookKindActivity,
+		State:         StateRunning,
+		Tool:          "Write",
+		Response:      "Progress: https://progress.example.com and app/progress.go.",
+		FinalResponse: "Bogus: https://tool.example.com and app/tool.go.",
 	}); err != nil {
-		t.Fatalf("Stop HookEvent: %v", err)
+		t.Fatalf("activity HookEvent: %v", err)
+	}
+	if ctxs, err := store.Query(data.Query{Kind: data.KindContext}); err != nil || len(ctxs.Items) != 0 {
+		t.Fatalf("intermediate hook context = %+v, err=%v; want none", ctxs.Items, err)
+	}
+
+	// 3. A final answer arrives on the real daemon socket.
+	if _, err := client.HookEvent(ctx, HookEvent{
+		PaneID:        pane.ID,
+		Harness:       "claude",
+		Kind:          HookKindState,
+		State:         StateDone,
+		Response:      "Previous app/telemetry.go",
+		FinalResponse: "See https://github.com/ofam/matomeru/pull/42, ofam/matomeru#42, app/final.go:17 and https://docs.example.com/guide. Updated README.md, main.go:4:2 and Makefile:12, e.g. for `v1.2.3`.",
+	}); err != nil {
+		t.Fatalf("completed HookEvent: %v", err)
 	}
 
 	ctxs, err := store.Query(data.Query{Kind: data.KindContext})
 	if err != nil {
 		t.Fatalf("query context: %v", err)
 	}
-	// Expect 4 unique context items: index.go (file), matomeru#42 (pr, deduped across prompt & response), ochazuke#17 (pr), docs.example.com/guide (url).
-	if len(ctxs.Items) != 4 {
-		t.Fatalf("got %d context items, want 4: %+v", len(ctxs.Items), ctxs.Items)
+	const wantContextCount = 6
+	if len(ctxs.Items) != wantContextCount {
+		t.Fatalf("got %d context items, want %d: %+v", len(ctxs.Items), wantContextCount, ctxs.Items)
 	}
 
 	byTitle := map[string]data.Record{}
 	for _, rec := range ctxs.Items {
 		byTitle[rec.Text("title")] = rec
+		if rec.Text("source") != "response" {
+			t.Errorf("context %q source = %q, want response", rec.Text("title"), rec.Text("source"))
+		}
 		if pr, ok := rec.RefField("pane"); !ok || pr != pane.Ref() {
 			t.Errorf("context %q pane = %v (%v), want %v", rec.Text("title"), pr, ok, pane.Ref())
 		}
@@ -501,22 +521,29 @@ func TestDaemonHookAutoIndexing(t *testing.T) {
 	if !ok || prRec.Text("contextKind") != "pr" || prRec.Text("value") != "https://github.com/ofam/matomeru/pull/42" {
 		t.Fatalf("PR context record = %+v (ok=%v)", prRec.Fields, ok)
 	}
-	if _, ok := byTitle["index.go"]; !ok {
-		t.Fatalf("missing non-md file context record: %+v", byTitle)
+	if rec, ok := byTitle["final.go"]; !ok || rec.Text("value") != "app/final.go:17" || rec.Text("line") != "17" {
+		t.Fatalf("final path context record = %+v", rec.Fields)
 	}
-	if _, ok := byTitle["ofam/ochazuke#17"]; !ok {
-		t.Fatalf("missing shorthand PR context record: %+v", byTitle)
+	for _, want := range []struct{ title, value, line, col string }{
+		{"README.md", "README.md", "", ""},
+		{"main.go", "main.go:4:2", "4", "2"},
+		{"Makefile", "Makefile:12", "12", ""},
+	} {
+		rec := byTitle[want.title]
+		if rec.Text("value") != want.value || rec.Text("line") != want.line || rec.Text("col") != want.col {
+			t.Errorf("%s context record = %+v, want %+v", want.title, rec.Fields, want)
+		}
 	}
 	if _, ok := byTitle["https://docs.example.com/guide"]; !ok {
 		t.Fatalf("missing URL context record: %+v", byTitle)
 	}
 
-	// Verify RelContext relations exist from BOTH pane and task to all 4 context records.
-	if rels, err := store.Related(task.Ref(), data.RelContext, data.Outgoing); err != nil || len(rels) != 4 {
-		t.Fatalf("task RelContext count = %d, err=%v; want 4", len(rels), err)
+	// Both pane and task relate to each final context record.
+	if rels, err := store.Related(task.Ref(), data.RelContext, data.Outgoing); err != nil || len(rels) != wantContextCount {
+		t.Fatalf("task RelContext count = %d, err=%v; want %d", len(rels), err, wantContextCount)
 	}
-	if rels, err := store.Related(pane.Ref(), data.RelContext, data.Outgoing); err != nil || len(rels) != 4 {
-		t.Fatalf("pane RelContext count = %d, err=%v; want 4", len(rels), err)
+	if rels, err := store.Related(pane.Ref(), data.RelContext, data.Outgoing); err != nil || len(rels) != wantContextCount {
+		t.Fatalf("pane RelContext count = %d, err=%v; want %d", len(rels), err, wantContextCount)
 	}
 }
 

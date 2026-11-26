@@ -213,14 +213,7 @@ func translateClaude(evName string, payload map[string]any) Result {
 
 	case "Stop":
 		resp := firstNonEmpty(strField(payload, "last_assistant_message"), strField(payload, "response"), strField(payload, "message"))
-		return okResult(HookEvent{
-			Harness:  "claude",
-			Kind:     KindState,
-			State:    StateDone,
-			Summary:  cleanSummary(resp),
-			Response: sanitizeHookText(resp),
-			Payload:  sanitizePayload(payload),
-		})
+		return completedTurn("claude", payload, resp, resp, claudeFinalResponse(payload))
 
 	case "StopFailure":
 		errType := strField(payload, "error_type")
@@ -280,16 +273,9 @@ func translateClaude(evName string, payload map[string]any) Result {
 
 func translateCodex(evName string, payload map[string]any) Result {
 	switch evName {
-	case "agent-turn-complete":
-		resp := firstNonEmpty(strField(payload, "last-assistant-message"), strField(payload, "last_assistant_message"), strField(payload, "response"))
-		return okResult(HookEvent{
-			Harness:  "codex",
-			Kind:     KindState,
-			State:    StateDone,
-			Summary:  cleanSummary(resp),
-			Response: sanitizeHookText(resp),
-			Payload:  sanitizePayload(payload),
-		})
+	case "agent-turn-complete", "Stop":
+		resp := firstNonEmpty(strField(payload, "last_assistant_message"), strField(payload, "last-assistant-message"), strField(payload, "response"))
+		return completedTurn("codex", payload, resp, resp, codexFinalResponse(payload))
 
 	case "SessionStart":
 		return okResult(HookEvent{
@@ -359,17 +345,6 @@ func translateCodex(evName string, payload map[string]any) Result {
 
 	case "Notification":
 		return translateNotification("codex", payload)
-
-	case "Stop":
-		resp := firstNonEmpty(strField(payload, "last_assistant_message"), strField(payload, "last-assistant-message"), strField(payload, "response"))
-		return okResult(HookEvent{
-			Harness:  "codex",
-			Kind:     KindState,
-			State:    StateDone,
-			Summary:  cleanSummary(resp),
-			Response: sanitizeHookText(resp),
-			Payload:  sanitizePayload(payload),
-		})
 
 	case "StopFailure":
 		errType := strField(payload, "error_type")
@@ -453,15 +428,12 @@ func translateOMP(evName string, payload map[string]any) Result {
 		})
 
 	case "agent_end", "Stop", "StopFailure":
+		if continuation, _ := payload["willContinue"].(bool); continuation {
+			return Result{SkipReason: "agent turn continuing"}
+		}
 		resp := firstNonEmpty(strField(payload, "last_assistant_message"), strField(payload, "response"), strField(payload, "summary"))
-		return okResult(HookEvent{
-			Harness:  "omp",
-			Kind:     KindState,
-			State:    StateDone,
-			Summary:  cleanSummary(firstNonEmpty(strField(payload, "summary"), strField(payload, "last_assistant_message"), strField(payload, "response"))),
-			Response: sanitizeHookText(resp),
-			Payload:  sanitizePayload(payload),
-		})
+		sum := firstNonEmpty(strField(payload, "summary"), resp)
+		return completedTurn("omp", payload, sum, resp, terminalResponse(evName, payload, "last_assistant_message", "response"))
 
 	case "session_end", "SessionEnd":
 		return okResult(HookEvent{
@@ -643,16 +615,13 @@ func translateGemini(harness, evName string, payload map[string]any) Result {
 		}
 		return translateNotification(harness, payload)
 
-	case "AfterAgent", "PostInvocation", "Stop", "StopFailure":
+	case "AfterAgent", "Stop", "StopFailure":
 		resp := firstNonEmpty(strField(payload, "prompt_response"), strField(payload, "last_assistant_message"), strField(payload, "response"))
-		return okResult(HookEvent{
-			Harness:  harness,
-			Kind:     KindState,
-			State:    StateDone,
-			Summary:  cleanSummary(resp),
-			Response: sanitizeHookText(resp),
-			Payload:  sanitizePayload(payload),
-		})
+		return completedTurn(harness, payload, resp, resp, terminalResponse(evName, payload, "prompt_response", "last_assistant_message", "response"))
+
+	case "PostInvocation":
+		resp := firstNonEmpty(strField(payload, "prompt_response"), strField(payload, "last_assistant_message"), strField(payload, "response"))
+		return completedTurn(harness, payload, resp, resp, "")
 
 	case "SessionEnd":
 		return okResult(HookEvent{
@@ -773,14 +742,7 @@ func translateGeneric(harness, evName string, payload map[string]any) Result {
 
 	case "stop", "stopfailure", "afteragent", "postinvocation", "agent_end", "done":
 		resp := firstNonEmpty(strField(payload, "last_assistant_message"), strField(payload, "prompt_response"), strField(payload, "response"), strField(payload, "summary"), strField(payload, "message"))
-		return okResult(HookEvent{
-			Harness:  harness,
-			Kind:     KindState,
-			State:    StateDone,
-			Summary:  cleanSummary(resp),
-			Response: sanitizeHookText(resp),
-			Payload:  sanitizePayload(payload),
-		})
+		return completedTurn(harness, payload, resp, resp, terminalResponse(norm, payload, "last_assistant_message", "prompt_response", "response"))
 
 	case "sessionstart", "session_start", "sessionend", "session_end", "interrupt", "idle":
 		return okResult(HookEvent{

@@ -687,6 +687,17 @@ func (a *App) projectHomeItemOpen(s core.State, _ core.Command) core.StepResult 
 
 func (a *App) projectMarkRead(s core.State, c core.Command) core.StepResult {
 	focus := s.ActiveFrame().FocusID
+	if tbl := a.nav.tables[focus]; tbl != nil {
+		if row, ok := tbl.FocusedRow(); ok && row.Ref != nil && row.Unread && a.markRecordRead(*row.Ref) {
+			a.invalidateProjectUnreadCaches("")
+			root := a.View(s)
+			if root.Find(focus) == nil {
+				s = withFocus(s, projectContextTable)
+			}
+			a.say("marked read")
+		}
+		return core.Next(s)
+	}
 	if !a.isProjectHomeFocus(focus) {
 		return a.projectNavMarkRead(s, c)
 	}

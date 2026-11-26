@@ -153,7 +153,15 @@ func setupProjectWorkspaceFixture(t *testing.T) *projectWorkspaceFixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
-	a.harvestPrompt(f.mainPane, "Check https://example.com/scraped and https://github.com/ofam/apollo/pull/42")
+	for _, item := range []struct{ kind, value string }{
+		{"url", "https://example.com/scraped"},
+		{"pr", "https://github.com/ofam/apollo/pull/42"},
+	} {
+		mk(data.KindContext, map[string]any{
+			"title": item.value, "value": item.value, "contextKind": item.kind, "source": "response",
+			"pane": f.mainPane.Ref(), "task": f.subTask.Ref(), "readAt": data.WriteTime{},
+		})
+	}
 
 	f.app = a
 	f.driver = NewDriver(a, 165, 40)
@@ -390,6 +398,14 @@ func TestProjectWorkspaceSettingsOverridesAndOptOut(t *testing.T) {
 		t.Fatalf("outlineAsPage=false focus = %q, want %q", a.Focus(), projectTasksFlatTable)
 	}
 
+	related, err := views.ShowView(a.Store, f.proj.Ref(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if related.Find("show.sec.rel.about.in."+data.RefText(f.aboutNote.Ref())) == nil {
+		t.Fatal("project Show relations did not include the descendant's note")
+	}
+
 	// 3. project.workspaceInPanes = false opts out of workspace shell and restores P -> Show page.
 	a.cfg.userSettings[SetProjectWorkspaceInPanes] = false
 	a.reloadSettings()
@@ -407,4 +423,42 @@ func TestProjectWorkspaceSettingsOverridesAndOptOut(t *testing.T) {
 		t.Fatalf("P with workspaceInPanes=false: space=%q showing=%v ok=%v, want %v", a.Space(), shown, ok, f.proj.Ref())
 	}
 	_ = views.ScopeProjectNav
+}
+
+func TestProjectLaneMembershipInNavAndSection(t *testing.T) {
+	f := setupProjectWorkspaceFixture(t)
+	a, d := f.app, f.driver
+	addLane := func(title, relation string, target core.Ref) *data.Record {
+		t.Helper()
+		lane, _, err := a.Store.Create(data.CreateInput{Kind: data.KindLane, Fields: map[string]any{"title": title}}, User)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := a.Store.Relate(data.RelateInput{From: lane.Ref(), Kind: relation, To: target}, User); err != nil {
+			t.Fatal(err)
+		}
+		return lane
+	}
+	tracked := addLane("Tracked to child task", "track", f.subTask.Ref())
+	claimed := addLane("Claimed by side pane", data.RelClaim, f.sidePane.Ref())
+
+	d.Keys("P")
+	a.Shell.State = withFocus(a.State(), projectNavPrefix+"lanes")
+	d.Keys("space")
+	root := a.View(a.State())
+	for _, lane := range []*data.Record{tracked, claimed} {
+		if root.Find(projectNavNodePrefix+"lanes."+lane.ID) == nil {
+			t.Errorf("%s did not appear in Project Nav", lane.Text("title"))
+		}
+	}
+	selectProjectSection(t, f, "lanes")
+	treeModel := a.projectCtrl().trees[projectLanesTree]
+	if treeModel == nil {
+		t.Fatal("Lanes section did not build a tree")
+	}
+	for _, lane := range []*data.Record{tracked, claimed} {
+		if !strings.Contains(d.Frame(), lane.Text("title")) {
+			t.Errorf("%s did not appear in Project Lanes", lane.Text("title"))
+		}
+	}
 }

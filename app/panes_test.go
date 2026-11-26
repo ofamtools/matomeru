@@ -245,7 +245,7 @@ func TestWave3ProjectHeaderOverviewAndContextTable(t *testing.T) {
 	a.cfg.userSettings[SetProjectWorkspaceInPanes] = false
 	a.reloadSettings()
 	pane := titled(t, a, data.KindPane, "claude: wave 5B")
-	a.harvestPrompt(pane, "Check https://example.com/spec and app/wave3_rail.go:42 and ofam/matomeru#101")
+	seedResponseContext(a, pane, "Check https://example.com/spec and app/wave3_rail.go:42 and ofam/matomeru#101")
 
 	// Move cursor up from first pane to the "matomeru-v2" Project header row.
 	d.Keys("k")

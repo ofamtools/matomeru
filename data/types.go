@@ -19,6 +19,9 @@ var ErrNotFound = errors.New("data: not found")
 // TimeFormat is how times are written into record fields (always UTC).
 const TimeFormat = time.RFC3339Nano
 
+// DocumentSourceTool identifies documents registered automatically from a tool write.
+const DocumentSourceTool = "tool"
+
 // WriteTime is a field value the store replaces with the timestamp of the
 // write, formatted with TimeFormat. A field written this way equals the
 // record's UpdatedAt exactly (a page's viewedAt, for example).

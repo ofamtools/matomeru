@@ -253,7 +253,7 @@ func TestModalStackScopeBindings(t *testing.T) {
 	if !ok {
 		t.Fatal("demo has no selected pane")
 	}
-	a.harvestPrompt(*pane, "Check https://example.com/spec")
+	seedResponseContext(a, *pane, "Check https://example.com/spec")
 	d.Keys("1", "g", "c")
 	if a.Modal() != "context" {
 		t.Fatalf("g c did not open context picker: %q", a.Modal())

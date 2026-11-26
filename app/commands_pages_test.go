@@ -387,8 +387,8 @@ func TestWaveD2UnlinkedPaneWarningContextPersistAndAssociateBackfill(t *testing.
 		t.Fatal(err)
 	}
 
-	// Harvest context from a prompt -> persists as KindContext in SQLite linked to pane.
-	a.harvestPrompt(*unlinked, "Check https://example.com/pr/42 and owner/repo#99")
+	// Final-response context persists as KindContext in SQLite linked to pane.
+	seedResponseContext(a, *unlinked, "Check https://example.com/pr/42 and owner/repo#99")
 	ctxRes, err := a.Store.Query(data.Query{Kind: data.KindContext})
 	if err != nil {
 		t.Fatal(err)
@@ -396,8 +396,8 @@ func TestWaveD2UnlinkedPaneWarningContextPersistAndAssociateBackfill(t *testing.
 	if ctxRes.Total < 2 {
 		t.Fatalf("expected harvested context persisted as KindContext records, got %d", ctxRes.Total)
 	}
-	// Harvesting the same prompt again deduplicates cleanly.
-	a.harvestPrompt(*unlinked, "Check https://example.com/pr/42 and owner/repo#99")
+	// Harvesting the same response again deduplicates cleanly.
+	seedResponseContext(a, *unlinked, "Check https://example.com/pr/42 and owner/repo#99")
 	ctxRes2, _ := a.Store.Query(data.Query{Kind: data.KindContext})
 	if ctxRes2.Total != ctxRes.Total {
 		t.Fatalf("context persistence did not dedupe: before=%d after=%d", ctxRes.Total, ctxRes2.Total)

@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -53,7 +52,7 @@ const (
 )
 
 type projectNavDef struct {
-	Key, Label, Icon, Group string
+	Key, Label, Icon, Group, EntryFocus string
 }
 
 var defaultProjectNavSections = []projectNavDef{
@@ -61,7 +60,7 @@ var defaultProjectNavSections = []projectNavDef{
 	{Key: "tasks", Label: "Tasks", Icon: "☐", Group: "Core"},
 	{Key: "pages", Label: "Pages", Icon: "◫", Group: "Core"},
 	{Key: "signals", Label: "Needs Attention", Icon: "!", Group: "Core"},
-	{Key: "context", Label: "Context", Icon: "◈", Group: "Context"},
+	{Key: "context", Label: "Context", Icon: "◈", Group: "Context", EntryFocus: projectContextTable},
 	{Key: "pinned", Label: "Pinned Links & Files", Icon: "★", Group: "Context"},
 	{Key: "panes", Label: "Panes", Icon: "▣", Group: "Workspace"},
 	{Key: "lanes", Label: "Lanes", Icon: "⎇", Group: "Workspace"},
@@ -275,6 +274,7 @@ func projectHomeBindings() []core.Binding {
 		bind(n, scopeProjectDocuments, "enter", CmdProjectContentOpen, "read document"),
 		bind(n, scopeProjectWorktrees, "enter", CmdProjectContentOpen, "open worktree"),
 		when(bind(n, ScopeProjectContext, "p", CmdContextOfficialToggle, "toggle official"), "facts.contextItem"),
+		when(bind(n, ScopeProjectContext, "r", CmdProjectNavMarkRead, "mark read"), "facts.contextItem && facts.unread"),
 		hidden(when(bind(n, ScopeProjectOverview, "p", CmdContextOfficialToggle, "toggle official"), "facts.contextItem")),
 		when(bind(n, views.ScopeProjectNav, "m", CmdProjectContextStar, "star context item"), "facts.contextItem"),
 		hidden(when(bind(n, views.ScopeProjectNav, "*", CmdProjectContextStar, "star context item"), "facts.contextItem")),
@@ -605,7 +605,13 @@ func (a *App) projectSectionSelect(s core.State, c core.Command) core.StepResult
 	pc.setSection(projKey, sec)
 	s = withFocus(s, projectNavPrefix+sec)
 	a.viewMemo.gen++
-	for _, n := range a.focusables(s) {
+	nodes := a.focusables(s)
+	for _, def := range defaultProjectNavSections {
+		if def.Key == sec && def.EntryFocus != "" && slices.Contains(nodes, fnode{def.EntryFocus, "project.content"}) {
+			return core.Next(withFocus(s, def.EntryFocus))
+		}
+	}
+	for _, n := range nodes {
 		if n.region == "project.content" {
 			return core.Next(withFocus(s, n.id))
 		}
@@ -895,90 +901,5 @@ func flattenTreeDescendants(children []data.TreeNode) []data.Record {
 		}
 	}
 	collect(children)
-	return out
-}
-
-func (a *App) projectWorktreesFromWorkspace(ws projectWorkspaceData) []data.ProjectWorktree {
-	byPath := map[string]data.ProjectWorktree{}
-	add := func(wt data.ProjectWorktree) {
-		p := strings.TrimSpace(wt.Path)
-		if p == "" {
-			return
-		}
-		p = filepath.Clean(p)
-		wt.Path = p
-		if cur, exists := byPath[p]; exists {
-			if cur.Branch == "" {
-				cur.Branch = wt.Branch
-			}
-			if cur.Repo == "" {
-				cur.Repo = wt.Repo
-			}
-			byPath[p] = cur
-			return
-		}
-		byPath[p] = wt
-	}
-	activeTaskIDs := map[string]bool{}
-	var activeTasks []data.Record
-	if ws.projRec != nil && !ws.projRec.IsArchived() {
-		activeTaskIDs[ws.projRec.ID] = true
-		activeTasks = append(activeTasks, *ws.projRec)
-	}
-	for _, t := range ws.tasks {
-		if !t.IsArchived() {
-			activeTaskIDs[t.ID] = true
-			activeTasks = append(activeTasks, t)
-		}
-	}
-	for _, lane := range ws.allLanes {
-		if lane.IsArchived() {
-			continue
-		}
-		if tRef, ok := lane.RefField("task"); !ok || tRef.Kind != data.KindTask || !activeTaskIDs[tRef.ID] {
-			continue
-		}
-		if p := strings.TrimSpace(lane.Text("worktree")); p != "" {
-			add(data.ProjectWorktree{Path: p, Branch: strings.TrimSpace(lane.Text("branch")), Repo: strings.TrimSpace(lane.Text("repo")), Source: "lane", Ref: lane.Ref()})
-		}
-	}
-	for _, t := range activeTasks {
-		if p := strings.TrimSpace(t.Text("defaultDir")); p != "" {
-			add(data.ProjectWorktree{Path: p, Repo: strings.TrimSpace(t.Text("repo")), Source: "task", Ref: t.Ref()})
-		}
-		if a.Store != nil {
-			if rels, err := a.Store.Related(t.Ref(), data.RelDirectory, data.Outgoing); err == nil {
-				for _, rel := range rels {
-					p := strings.TrimSpace(rel.To.ID)
-					if rel.To.Kind != "directory" {
-						if rec, gerr := a.Store.Get(rel.To); gerr == nil && rec != nil {
-							for _, field := range []string{"path", "cwd", "worktree", "defaultDir"} {
-								if v := strings.TrimSpace(rec.Text(field)); v != "" {
-									p = v
-									break
-								}
-							}
-						}
-					}
-					if p != "" {
-						add(data.ProjectWorktree{Path: p, Source: "directory", Ref: rel.To})
-					}
-				}
-			}
-		}
-	}
-	out := make([]data.ProjectWorktree, 0, len(byPath))
-	for _, wt := range byPath {
-		out = append(out, wt)
-	}
-	slices.SortStableFunc(out, func(x, y data.ProjectWorktree) int {
-		if c := strings.Compare(x.Path, y.Path); c != 0 {
-			return c
-		}
-		if c := strings.Compare(x.Source, y.Source); c != 0 {
-			return c
-		}
-		return strings.Compare(data.RefText(x.Ref), data.RefText(y.Ref))
-	})
 	return out
 }

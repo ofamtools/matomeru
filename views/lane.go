@@ -19,28 +19,7 @@ const LaneBarID = "site.lanebar"
 // LaneTOCPrefix prefixes the compact lane entry rendered inside a pane's TOC.
 const LaneTOCPrefix = "site.toc.lane."
 
-// Lane status groups of the progress bar.
-const (
-	laneDone    = "done"    // done, merged
-	laneActive  = "active"  // running, review
-	lanePlanned = "planned" // planned, parked
-	laneDropped = "dropped" // cancelled: not counted
-)
-
-func laneGroup(status string) string {
-	switch status {
-	case "done", "merged":
-		return laneDone
-	case "running", "review":
-		return laneActive
-	case "cancelled":
-		return laneDropped
-	}
-	return lanePlanned
-}
-
-// LaneRollup is the progress of one lane tree: its root and the state of the
-// lanes under it (or of the root itself when it has none).
+// LaneRollup is the progress of one lane tree and the state of its direct work.
 type LaneRollup struct {
 	Root    data.Record
 	Done    int
@@ -86,28 +65,14 @@ func (r LaneRollup) Cells() string {
 	return strings.Repeat("█", r.Done) + strings.Repeat("▓", r.Active) + strings.Repeat("░", r.Planned)
 }
 
-// LaneTreeRollupCounts counts direct children of nd (or nd itself when a leaf)
-// into done, active, and planned buckets matching RollupLane.
+// LaneTreeRollupCounts reports done, active, and planned counts for a tree node.
 func LaneTreeRollupCounts(nd data.TreeNode) (done, active, planned int) {
-	items := make([]data.Record, 0, max(1, len(nd.Children)))
-	if len(nd.Children) == 0 {
-		items = append(items, nd.Record)
-	} else {
-		for _, ch := range nd.Children {
-			items = append(items, ch.Record)
-		}
+	children := make([]data.Record, 0, len(nd.Children))
+	for _, child := range nd.Children {
+		children = append(children, child.Record)
 	}
-	for _, rec := range items {
-		switch laneGroup(rec.Text("laneStatus")) {
-		case laneDone:
-			done++
-		case laneActive:
-			active++
-		case lanePlanned:
-			planned++
-		}
-	}
-	return done, active, planned
+	progress := data.LaneTreeProgress(nd.Record, children)
+	return progress.Done, len(progress.Active), progress.Planned
 }
 
 // CompactLaneBarRuns builds a fixed-width (default 4-char) colored progress bar
@@ -213,29 +178,15 @@ func laneRoot(store *data.Store, lane data.Record) data.Record {
 	}
 }
 
-// RollupLane counts the lanes directly under root, or root itself when it
-// has none.
+// RollupLane reports the current progress of the stored lane tree.
 func RollupLane(store *data.Store, root data.Record) (LaneRollup, error) {
-	out := LaneRollup{Root: root}
-	ref := root.Ref()
-	res, err := store.Query(data.Query{Kind: data.KindLane, Parent: &ref, ParentField: "parentLane"})
+	progress, err := store.LaneProgress(root)
 	if err != nil {
-		return out, err
+		return LaneRollup{Root: root}, err
 	}
-	lanes := res.Items
-	if len(lanes) == 0 {
-		lanes = []data.Record{root}
-	}
-	for _, lane := range lanes {
-		switch laneGroup(lane.Text("laneStatus")) {
-		case laneDone:
-			out.Done++
-		case laneActive:
-			out.Active++
-			out.Running = append(out.Running, Title(data.Schema{SummaryField: "title"}, lane))
-		case lanePlanned:
-			out.Planned++
-		}
+	out := LaneRollup{Root: root, Done: progress.Done, Active: len(progress.Active), Planned: progress.Planned}
+	for _, lane := range progress.Active {
+		out.Running = append(out.Running, Title(data.Schema{SummaryField: "title"}, lane))
 	}
 	return out, nil
 }

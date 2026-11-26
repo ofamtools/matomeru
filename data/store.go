@@ -275,7 +275,7 @@ func (s *Store) coerce(rec *Record) {
 
 const recordCols = "kind, id, fields, read_only, archive_status, star_status, change_set, created_at, updated_at, archived_at, snoozed_until"
 
-func scanRecord(sc interface{ Scan(...any) error }) (Record, error) {
+func scanRecord(sc interface{ Scan(...any) error }, extraColumns ...any) (Record, error) {
 	var (
 		rec              Record
 		fields, readOnly string
@@ -283,7 +283,8 @@ func scanRecord(sc interface{ Scan(...any) error }) (Record, error) {
 		archived         sql.NullInt64
 		snoozed          sql.NullInt64
 	)
-	err := sc.Scan(&rec.Kind, &rec.ID, &fields, &readOnly, &rec.ArchiveStatus, &rec.StarStatus, &rec.ChangeSetNumber, &created, &updated, &archived, &snoozed)
+	columns := []any{&rec.Kind, &rec.ID, &fields, &readOnly, &rec.ArchiveStatus, &rec.StarStatus, &rec.ChangeSetNumber, &created, &updated, &archived, &snoozed}
+	err := sc.Scan(append(columns, extraColumns...)...)
 	if err != nil {
 		return rec, err
 	}

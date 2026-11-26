@@ -32,7 +32,8 @@ type section struct {
 //  3. one section per other relation kind the record is on either end of.
 //
 // A record already shown by an earlier section is not repeated.
-func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]section, error) {
+func relatedSections(store *data.Store, schema data.Schema, rec data.Record) ([]section, error) {
+	ref := rec.Ref()
 	reg := store.Registry()
 	seen := map[core.Ref]bool{ref: true}
 	var out []section
@@ -77,13 +78,16 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 		dir  data.RelationDir
 	}
 	declared := map[relKey]bool{}
-	addRelations := func(sec section, kind string, dir data.RelationDir) error {
-		rels, err := store.Related(ref, kind, dir)
-		if err != nil {
-			return err
-		}
+	rels, err := store.RecordRelationMatches(rec)
+	if err != nil {
+		return nil, err
+	}
+	addRelations := func(sec section, kind string, dir data.RelationDir) {
 		for _, rel := range rels {
-			other := rel.Other(ref)
+			if rel.Kind != kind || (dir != data.Both && rel.Direction != dir) {
+				continue
+			}
+			other := rel.Ref
 			if seen[other] || other == data.WorkspaceRef {
 				continue // pins and marks show as badges in the header
 			}
@@ -95,13 +99,12 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 		for i := range out {
 			if out[i].title == sec.title {
 				out[i].cards = append(out[i].cards, sec.cards...)
-				return nil
+				return
 			}
 		}
 		if sec.always || len(sec.cards) > 0 {
 			out = append(out, sec)
 		}
-		return nil
 	}
 	for _, spec := range schema.Relations {
 		dir, suffix := data.Outgoing, "out"
@@ -123,26 +126,18 @@ func relatedSections(store *data.Store, schema data.Schema, ref core.Ref) ([]sec
 		if len(spec.TargetKinds) == 1 {
 			targetKind = spec.TargetKinds[0]
 		}
-		if err := addRelations(section{key: "rel." + spec.Kind + "." + suffix, title: title, targetKind: targetKind, relKind: spec.Kind, always: true}, spec.Kind, dir); err != nil {
-			return nil, err
-		}
+		addRelations(section{key: "rel." + spec.Kind + "." + suffix, title: title, targetKind: targetKind, relKind: spec.Kind, always: true}, spec.Kind, dir)
 	}
-	all, err := store.Related(ref, "", data.Both)
-	if err != nil {
-		return nil, err
-	}
-	for _, rel := range all {
+	for _, rel := range rels {
 		key, suffix, title := relKey{rel.Kind, data.Outgoing}, "out", Label(rel.Kind)
-		if rel.To == ref {
+		if rel.Direction == data.Incoming {
 			key, suffix, title = relKey{rel.Kind, data.Incoming}, "in", Label(rel.Kind)+" of"
 		}
 		if declared[key] {
 			continue
 		}
 		declared[key] = true
-		if err := addRelations(section{key: "rel." + rel.Kind + "." + suffix, title: title, relKind: rel.Kind}, rel.Kind, key.dir); err != nil {
-			return nil, err
-		}
+		addRelations(section{key: "rel." + rel.Kind + "." + suffix, title: title, relKind: rel.Kind}, rel.Kind, key.dir)
 	}
 	return out, nil
 }
@@ -601,7 +596,7 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 		return ui.ViewNode{}, err
 	}
 	schema := schemaOf(store.Registry(), ref.Kind)
-	sections, err := relatedSections(store, schema, ref)
+	sections, err := relatedSections(store, schema, *rec)
 	if err != nil {
 		return ui.ViewNode{}, err
 	}
