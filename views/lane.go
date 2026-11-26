@@ -86,6 +86,94 @@ func (r LaneRollup) Cells() string {
 	return strings.Repeat("█", r.Done) + strings.Repeat("▓", r.Active) + strings.Repeat("░", r.Planned)
 }
 
+// LaneTreeRollupCounts counts direct children of nd (or nd itself when a leaf)
+// into done, active, and planned buckets matching RollupLane.
+func LaneTreeRollupCounts(nd data.TreeNode) (done, active, planned int) {
+	items := make([]data.Record, 0, max(1, len(nd.Children)))
+	if len(nd.Children) == 0 {
+		items = append(items, nd.Record)
+	} else {
+		for _, ch := range nd.Children {
+			items = append(items, ch.Record)
+		}
+	}
+	for _, rec := range items {
+		switch laneGroup(rec.Text("laneStatus")) {
+		case laneDone:
+			done++
+		case laneActive:
+			active++
+		case lanePlanned:
+			planned++
+		}
+	}
+	return done, active, planned
+}
+
+// CompactLaneBarRuns builds a fixed-width (default 4-char) colored progress bar
+// as declarative ui.InlineRun segments whose tones (success, state.working,
+// muted) stay distinct from the surrounding label text.
+func CompactLaneBarRuns(done, active, planned, width int) []ui.InlineRun {
+	if width <= 0 {
+		width = 4
+	}
+	total := done + active + planned
+	if total <= 0 {
+		return []ui.InlineRun{{Text: strings.Repeat("·", width), Tone: "muted"}}
+	}
+	var dCells, aCells, pCells int
+	if total == 1 {
+		switch {
+		case done == 1:
+			dCells = width
+		case active == 1:
+			aCells = max(1, width/2)
+			pCells = width - aCells
+		default:
+			pCells = width
+		}
+	} else {
+		dCells = int(math.Round(float64(done) * float64(width) / float64(total)))
+		aCells = int(math.Round(float64(active) * float64(width) / float64(total)))
+		if done > 0 && dCells == 0 {
+			dCells = 1
+		}
+		if active > 0 && aCells == 0 {
+			aCells = 1
+		}
+		for dCells+aCells > width {
+			if dCells >= aCells && dCells > 1 {
+				dCells--
+			} else if aCells > 1 {
+				aCells--
+			} else {
+				break
+			}
+		}
+		pCells = max(0, width-dCells-aCells)
+		if planned > 0 && pCells == 0 && width >= 3 {
+			if dCells > 1 {
+				dCells--
+				pCells++
+			} else if aCells > 1 {
+				aCells--
+				pCells++
+			}
+		}
+	}
+	var runs []ui.InlineRun
+	if dCells > 0 {
+		runs = append(runs, ui.InlineRun{Text: strings.Repeat("█", dCells), Tone: "success"})
+	}
+	if aCells > 0 {
+		runs = append(runs, ui.InlineRun{Text: strings.Repeat("▓", aCells), Tone: "state.working"})
+	}
+	if pCells > 0 {
+		runs = append(runs, ui.InlineRun{Text: strings.Repeat("░", pCells), Tone: "muted"})
+	}
+	return runs
+}
+
 // Text is the one-line strip: "Lane: title  [███▓░░] 3/6 done · 1 running
 // (name) · 2 planned".
 func (r LaneRollup) Text() string {

@@ -287,11 +287,14 @@ func TestProjectPerfContextNavUnreadFilterAndOverflowCap(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	a.cfg.userSettings[SetProjectsNavSurfaceContextUnread] = true
+	a.reloadSettings()
+
 	d := NewDriver(a, 165, 42)
 	d.Keys("P")
 	root := a.View(a.State())
 
-	// Collapsed Context must ONLY count/surface the explicit agent "tool" item (not the 60 auto-harvested ones!).
+	// With projects.navSurfaceContextUnread=true, collapsed Context must ONLY count/surface the explicit agent "tool" item (not the 60 auto-harvested ones!).
 	ctxSec := root.Find(projectNavPrefix + "context")
 	if ctxSec == nil || ctxSec.Facts["unreadCount"] != 1 {
 		t.Fatalf("collapsed Context unreadCount = %v, want 1 (auto-harvested items must not flood unread)", ctxSec)

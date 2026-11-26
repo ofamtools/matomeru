@@ -22,22 +22,26 @@ const (
 // ProjectNavNode is a pure recursive value object describing one expandable or
 // leaf child entry under a Project Page left-navigation section.
 type ProjectNavNode struct {
-	ID         string
-	Section    string
-	ParentID   string // "" if direct child of section; parent node ID if nested
-	Label      string
-	Icon       string
-	Badge      string
-	Tone       string
-	Ref        *core.Ref
-	Unread     bool
-	Peeked     bool
-	HasUnread  bool // true if this node itself is unread or has an unread descendant
-	Active     bool
-	Expandable bool
-	Expanded   bool
-	Children   []ProjectNavNode
-	Facts      map[string]any
+	ID          string
+	Section     string
+	ParentID    string // "" if direct child of section; parent node ID if nested
+	Label       string
+	Icon        string
+	IconTone    string
+	Badge       string
+	BadgeTone   string
+	Tone        string
+	UnreadTone  string // optional tone for the left-gutter ● indicator (default "warning"; e.g. "success" for done lanes)
+	ProgressBar []ui.InlineRun
+	Ref         *core.Ref
+	Unread      bool
+	Peeked      bool
+	HasUnread   bool // true if this node itself is unread or has an unread descendant
+	Active      bool
+	Expandable  bool
+	Expanded    bool
+	Children    []ProjectNavNode
+	Facts       map[string]any
 }
 
 // ProjectNavSection is a pure value object describing one entry in the
@@ -61,18 +65,19 @@ type ProjectNavSection struct {
 // ProjectWorkspaceSpec is the pure data contract for ProjectWorkspaceView.
 // Callers resolve store queries and section bodies before passing this value.
 type ProjectWorkspaceSpec struct {
-	ProjectID  string
-	Title      string
-	Subtitle   string
-	NavTitle   string
-	HideHeader bool
-	Ref        *core.Ref
-	Badges     []ui.Badge
-	NavItems   []ProjectNavSection
-	ActiveKey  string
-	ActiveBody ui.ViewNode
-	NavRatio   float64
-	Facts      map[string]any
+	ProjectID     string
+	Title         string
+	Subtitle      string
+	NavTitle      string
+	HideHeader    bool
+	UnreadDotOnly *bool // nil or true: color only the leading ● ball on unread nav rows; false: legacy whole-row warning tint
+	Ref           *core.Ref
+	Badges        []ui.Badge
+	NavItems      []ProjectNavSection
+	ActiveKey     string
+	ActiveBody    ui.ViewNode
+	NavRatio      float64
+	Facts         map[string]any
 }
 
 // ProjectWorkspaceView renders the Project Page workspace: a compact header
@@ -109,6 +114,8 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 		},
 	}
 
+	unreadDotOnly := spec.UnreadDotOnly == nil || *spec.UnreadDotOnly
+
 	navRows := make([]ui.ViewNode, 0, len(spec.NavItems)+4)
 	lastGroup := ""
 	for _, item := range spec.NavItems {
@@ -120,12 +127,12 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 				Kind:  ui.KindText,
 				Tone:  "muted",
 				Box:   layout.Constraints{FixedH: 1},
-				Props: map[string]any{"text": " " + strings.ToUpper(item.Group)},
+				Props: map[string]any{"text": "  " + strings.ToUpper(item.Group)},
 			})
 		}
-		navRows = append(navRows, projectNavRow(item, spec.ActiveKey))
+		navRows = append(navRows, projectNavRow(item, spec.ActiveKey, unreadDotOnly))
 		if len(item.Children) > 0 {
-			navRows = appendProjectNavChildren(navRows, item.Children, 1)
+			navRows = appendProjectNavChildren(navRows, item.Children, 1, unreadDotOnly)
 		}
 	}
 	if len(navRows) == 0 {
@@ -249,7 +256,25 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 	}
 }
 
-func projectNavRow(item ProjectNavSection, activeKey string) ui.ViewNode {
+type navSpanBuilder struct {
+	sb    strings.Builder
+	runes int
+	spans []ui.ToneSpan
+}
+
+func (b *navSpanBuilder) write(s, tone string) {
+	if s == "" {
+		return
+	}
+	n := len([]rune(s))
+	if tone != "" {
+		b.spans = append(b.spans, ui.ToneSpan{From: b.runes, To: b.runes + n, Tone: tone})
+	}
+	b.sb.WriteString(s)
+	b.runes += n
+}
+
+func projectNavRow(item ProjectNavSection, activeKey string, unreadDotOnly bool) ui.ViewNode {
 	isActive := item.Active || (activeKey != "" && item.Key == activeKey)
 	isUnread := item.Unread || item.UnreadCount > 0
 	icon := strings.TrimSpace(item.Icon)
@@ -257,52 +282,87 @@ func projectNavRow(item ProjectNavSection, activeKey string) ui.ViewNode {
 		icon = "·"
 	}
 
-	var lineText, focusedText string
+	// Fixed 2-column left indicator gutter ("● " or "  ") keeps the tree
+	// anchored at column 2 with zero horizontal shift when unread state changes.
+	var b navSpanBuilder
+	var gutterPlain string
+	if isUnread {
+		gutterTone := ""
+		if unreadDotOnly {
+			gutterTone = "warning"
+		}
+		b.write("●", gutterTone)
+		b.write(" ", "")
+		gutterPlain = "● "
+	} else {
+		b.write("  ", "")
+		gutterPlain = "  "
+	}
+
+	var focusedText string
 	if item.Expandable {
 		chev := "▸"
 		if item.Expanded {
 			chev = "▾"
 		}
-		lineText = fmt.Sprintf("%s %s %s", chev, icon, item.Label)
-		focusedText = fmt.Sprintf("%s %s %s", chev, icon, item.Label)
+		b.write(chev+" "+icon+" "+item.Label, "")
+		focusedText = fmt.Sprintf("%s%s %s %s", gutterPlain, chev, icon, item.Label)
 	} else {
 		marker := " "
-		switch {
-		case isActive:
+		if isActive {
 			marker = "▸"
-		case isUnread:
-			marker = "●"
 		}
-		lineText = fmt.Sprintf("%s %s %s", marker, icon, item.Label)
-		focusedText = fmt.Sprintf("▸ %s %s", icon, item.Label)
+		b.write(marker+" "+icon+" "+item.Label, "")
+		focusedText = fmt.Sprintf("%s▸ %s %s", gutterPlain, icon, item.Label)
 	}
 
-	suffix := strings.TrimSpace(item.Badge)
+	badgeStr := strings.TrimSpace(item.Badge)
 	if item.UnreadCount > 0 {
-		switch {
-		case suffix != "":
-			suffix = fmt.Sprintf("%s · ●%d", suffix, item.UnreadCount)
-		case item.Count > item.UnreadCount:
-			suffix = fmt.Sprintf("%d · ●%d", item.Count, item.UnreadCount)
-		default:
-			suffix = fmt.Sprintf("●%d", item.UnreadCount)
+		unreadPart := fmt.Sprintf("●%d", item.UnreadCount)
+		unreadTone := ""
+		if unreadDotOnly {
+			unreadTone = "warning"
 		}
-	} else if suffix == "" && item.Count > 0 {
-		suffix = fmt.Sprintf("%d", item.Count)
-	}
-	if suffix != "" {
-		lineText = fmt.Sprintf("%s  %s", lineText, suffix)
-		focusedText = fmt.Sprintf("%s  %s", focusedText, suffix)
+		switch {
+		case badgeStr != "":
+			b.write("  "+badgeStr+" · ", "muted")
+			b.write(unreadPart, unreadTone)
+			focusedText += fmt.Sprintf("  %s · %s", badgeStr, unreadPart)
+		case item.Count > item.UnreadCount:
+			prefix := fmt.Sprintf("%d · ", item.Count)
+			b.write("  "+prefix, "muted")
+			b.write(unreadPart, unreadTone)
+			focusedText += fmt.Sprintf("  %s%s", prefix, unreadPart)
+		default:
+			b.write("  ", "")
+			b.write(unreadPart, unreadTone)
+			focusedText += "  " + unreadPart
+		}
+	} else if badgeStr != "" {
+		b.write("  "+badgeStr, "muted")
+		focusedText += "  " + badgeStr
+	} else if item.Count > 0 {
+		cnt := fmt.Sprintf("%d", item.Count)
+		b.write("  "+cnt, "muted")
+		focusedText += "  " + cnt
 	}
 
 	tone := item.Tone
 	if tone == "" {
 		switch {
-		case isUnread:
+		case !unreadDotOnly && isUnread:
 			tone = "warning"
 		case isActive:
 			tone = "accent"
 		}
+	}
+
+	props := map[string]any{
+		"text":        b.sb.String(),
+		"focusedText": focusedText,
+	}
+	if len(b.spans) > 0 && unreadDotOnly {
+		props["spans"] = b.spans
 	}
 
 	return ui.ViewNode{
@@ -313,10 +373,7 @@ func projectNavRow(item ProjectNavSection, activeKey string) ui.ViewNode {
 		Unread:    isUnread,
 		Tone:      tone,
 		Box:       layout.Constraints{FixedH: 1},
-		Props: map[string]any{
-			"text":        lineText,
-			"focusedText": focusedText,
-		},
+		Props:     props,
 		Facts: map[string]any{
 			"section":       item.Key,
 			"active":        isActive,
@@ -331,35 +388,78 @@ func projectNavRow(item ProjectNavSection, activeKey string) ui.ViewNode {
 	}
 }
 
-func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, depth int) []ui.ViewNode {
-	indent := strings.Repeat("  ", depth)
+func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, depth int, unreadDotOnly bool) []ui.ViewNode {
+	// Section text starts 4 cols past the fixed 2-col gutter (chev + space + icon + space).
+	// Indenting depth-1 children by 4 spaces (and +2 per deeper level) aligns the child's
+	// tree bullet/chevron right under the section label so child text is clearly indented
+	// even when items have no icon (e.g. Notes).
+	indent := strings.Repeat(" ", 2+2*depth)
 	for _, child := range children {
-		glyph := "·"
+		var b navSpanBuilder
+		hasDot := child.Unread || (child.Expandable && child.HasUnread)
+		gutterPlain := "  "
+		if hasDot {
+			dotTone := ""
+			if unreadDotOnly {
+				dotTone = child.UnreadTone
+				if dotTone == "" {
+					dotTone = "warning"
+				}
+			}
+			b.write("●", dotTone)
+			b.write(" ", "")
+			gutterPlain = "● "
+		} else {
+			b.write("  ", "")
+		}
+
+		b.write(indent, "")
+
+		var focusedPrefix string
 		if child.Expandable {
+			chev := "▸"
 			if child.Expanded {
-				glyph = "▾"
-			} else {
-				glyph = "▸"
+				chev = "▾"
 			}
-			if child.Unread || child.HasUnread {
-				glyph += " ●"
-			}
-		} else if child.Unread {
-			glyph = "●"
+			b.write(chev, "muted")
+			focusedPrefix = gutterPlain + indent + chev
+		} else {
+			b.write("·", "muted")
+			focusedPrefix = gutterPlain + indent + "▸"
 		}
-		body := child.Label
+
+		b.write(" ", "")
+		var focusedBody strings.Builder
 		if icon := strings.TrimSpace(child.Icon); icon != "" {
-			body = icon + " " + body
+			iconTone := child.IconTone
+			if !unreadDotOnly && child.Unread {
+				iconTone = ""
+			}
+			b.write(icon, iconTone)
+			b.write(" ", "")
+			focusedBody.WriteString(icon + " ")
 		}
-		lineText := fmt.Sprintf("%s%s %s", indent, glyph, body)
-		focusedText := lineText
-		if !child.Expandable {
-			if child.Unread {
-				focusedText = fmt.Sprintf("%s▸ ● %s", indent, body)
-			} else {
-				focusedText = fmt.Sprintf("%s▸ %s", indent, body)
+		if len(child.ProgressBar) > 0 {
+			for _, run := range child.ProgressBar {
+				b.write(run.Text, run.Tone)
+				focusedBody.WriteString(run.Text)
+			}
+			b.write(" ", "")
+			focusedBody.WriteString(" ")
+		}
+
+		labelTone := ""
+		if unreadDotOnly {
+			if child.Active {
+				labelTone = "accent"
+			} else if child.Tone != "" {
+				labelTone = child.Tone
 			}
 		}
+		b.write(child.Label, labelTone)
+		focusedBody.WriteString(child.Label)
+
+		focusedText := focusedPrefix + " " + focusedBody.String()
 		badge := strings.TrimSpace(child.Badge)
 		if child.Unread {
 			if badge != "" {
@@ -369,18 +469,24 @@ func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, dept
 			}
 		}
 		if badge != "" {
-			lineText += "  " + badge
+			bTone := child.BadgeTone
+			if bTone == "" {
+				bTone = "muted"
+			}
+			if !unreadDotOnly && child.Unread {
+				bTone = ""
+			}
+			b.write("  "+badge, bTone)
 			focusedText += "  " + badge
 		}
+
 		tone := child.Tone
-		if tone == "" {
-			switch {
-			case child.Unread:
-				tone = "warning"
-			case child.Active:
-				tone = "accent"
-			}
+		if !unreadDotOnly && child.Unread {
+			tone = "warning"
+		} else if tone == "" && child.Active {
+			tone = "accent"
 		}
+
 		var refCopy *core.Ref
 		if child.Ref != nil {
 			r := *child.Ref
@@ -401,9 +507,21 @@ func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, dept
 		if child.HasUnread {
 			facts["hasUnread"] = true
 		}
+		if len(child.ProgressBar) > 0 {
+			facts["hasProgressBar"] = true
+		}
 		if child.Facts != nil {
 			maps.Copy(facts, child.Facts)
 		}
+
+		props := map[string]any{
+			"text":        b.sb.String(),
+			"focusedText": focusedText,
+		}
+		if len(b.spans) > 0 && (unreadDotOnly || len(child.ProgressBar) > 0) {
+			props["spans"] = b.spans
+		}
+
 		dst = append(dst, ui.ViewNode{
 			ID:        ProjectNavNodePrefix + child.Section + "." + child.ID,
 			Kind:      ui.KindText,
@@ -413,14 +531,11 @@ func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, dept
 			Unread:    child.Unread,
 			Tone:      tone,
 			Box:       layout.Constraints{FixedH: 1},
-			Props: map[string]any{
-				"text":        lineText,
-				"focusedText": focusedText,
-			},
-			Facts: facts,
+			Props:     props,
+			Facts:     facts,
 		})
 		if len(child.Children) > 0 {
-			dst = appendProjectNavChildren(dst, child.Children, depth+1)
+			dst = appendProjectNavChildren(dst, child.Children, depth+1, unreadDotOnly)
 		}
 	}
 	return dst

@@ -164,24 +164,27 @@ func TestProjectWorkspaceNavTreeChevronsIndentAndFacts(t *testing.T) {
 	if tasksSec == nil || tasksSec.Facts["isNavSection"] != true || tasksSec.Facts["navExpandable"] != true || tasksSec.Facts["navExpanded"] != true {
 		t.Fatalf("unexpected tasks section facts: %+v", tasksSec)
 	}
-	if txt, _ := tasksSec.Props["text"].(string); !strings.HasPrefix(txt, "▾ ") {
-		t.Fatalf("expanded tasks section should start with ▾, got %q", txt)
+	if txt, _ := tasksSec.Props["text"].(string); !strings.HasPrefix(txt, "  ▾ ") {
+		t.Fatalf("expanded tasks section should start with fixed gutter + ▾, got %q", txt)
 	}
 
 	pagesSec := root.Find(ProjectNavPrefix + "pages")
 	if pagesSec == nil || pagesSec.Facts["navExpandable"] != true || pagesSec.Facts["navExpanded"] != false || pagesSec.Facts["unreadCount"] != 1 || pagesSec.Facts["sectionUnread"] != true {
 		t.Fatalf("unexpected pages section facts: %+v", pagesSec)
 	}
-	if txt, _ := pagesSec.Props["text"].(string); !strings.HasPrefix(txt, "▸ ") || !strings.Contains(txt, "2 · ●1") {
-		t.Fatalf("collapsed pages section should start with ▸ and show 2 · ●1, got %q", txt)
+	if txt, _ := pagesSec.Props["text"].(string); !strings.HasPrefix(txt, "● ▸ ") || !strings.Contains(txt, "2 · ●1") {
+		t.Fatalf("collapsed unread pages section should start with ● ▸ and show 2 · ●1, got %q", txt)
 	}
-	// Collapsed section with populated peeked unread children MUST emit them with ● + NEW styling!
+	// Collapsed section with populated peeked unread children MUST emit them with ● warning span (dot-only, NOT whole-row warning)!
 	pg1Node := root.Find(ProjectNavNodePrefix + "pages.pg1")
-	if pg1Node == nil || !pg1Node.Unread || pg1Node.Tone != "warning" || pg1Node.Facts["peeked"] != true || pg1Node.Facts["unread"] != true {
-		t.Fatalf("collapsed pages section should emit peeked unread child pg1: %+v", pg1Node)
+	if pg1Node == nil || !pg1Node.Unread || pg1Node.Tone == "warning" || pg1Node.Facts["peeked"] != true || pg1Node.Facts["unread"] != true {
+		t.Fatalf("collapsed pages section should emit peeked unread child pg1 with dot-only styling: %+v", pg1Node)
 	}
 	if txt, _ := pg1Node.Props["text"].(string); !strings.Contains(txt, "● ") || !strings.Contains(txt, "NEW") {
 		t.Fatalf("peeked unread child text = %q, want ● and NEW", txt)
+	}
+	if spans, ok := pg1Node.Props["spans"].([]ui.ToneSpan); !ok || len(spans) == 0 || spans[0].Tone != "warning" || spans[0].To-spans[0].From != 1 {
+		t.Fatalf("expected 1-rune warning span for ● ball only, got %+v", pg1Node.Props["spans"])
 	}
 	// Collapsed section with no populated children emits none.
 	if docsSec := root.Find(ProjectNavPrefix + "documents"); docsSec == nil || docsSec.Facts["navExpanded"] != false {
@@ -196,8 +199,8 @@ func TestProjectWorkspaceNavTreeChevronsIndentAndFacts(t *testing.T) {
 	if t1Node.Facts["navNode"] != true || t1Node.Facts["navNodeId"] != "t1" || t1Node.Facts["navParentId"] != "" || t1Node.Facts["navDepth"] != 1 || t1Node.Facts["navExpandable"] != true || t1Node.Facts["navExpanded"] != true {
 		t.Fatalf("unexpected t1 facts: %+v", t1Node.Facts)
 	}
-	if txt, _ := t1Node.Props["text"].(string); !strings.HasPrefix(txt, "  ▾ ") {
-		t.Fatalf("depth-1 expanded node text = %q, want prefix \"  ▾ \"", txt)
+	if txt, _ := t1Node.Props["text"].(string); !strings.HasPrefix(txt, "      ▾ ") {
+		t.Fatalf("depth-1 expanded node text = %q, want fixed 2-col gutter + 4-col indent + ▾", txt)
 	}
 
 	t1aNode := root.Find(ProjectNavNodePrefix + "tasks.t1a")
@@ -207,10 +210,98 @@ func TestProjectWorkspaceNavTreeChevronsIndentAndFacts(t *testing.T) {
 	if t1aNode.Facts["navNode"] != true || t1aNode.Facts["navNodeId"] != "t1a" || t1aNode.Facts["navParentId"] != "t1" || t1aNode.Facts["navDepth"] != 2 || t1aNode.Facts["navExpandable"] != false || t1aNode.Facts["customFlag"] != true {
 		t.Fatalf("unexpected t1a facts: %+v", t1aNode.Facts)
 	}
-	if txt, _ := t1aNode.Props["text"].(string); !strings.HasPrefix(txt, "    · ") {
-		t.Fatalf("depth-2 leaf node text = %q, want prefix \"    · \"", txt)
+	if txt, _ := t1aNode.Props["text"].(string); !strings.HasPrefix(txt, "        · ") {
+		t.Fatalf("depth-2 leaf node text = %q, want fixed 2-col gutter + 6-col indent + ·", txt)
 	}
 
-	rendered := frame(t, root, ProjectNavNodePrefix+"tasks.t1a", 120, 28)
+	rendered := frame(t, root, ProjectNavNodePrefix+"tasks.t1a", 140, 28)
 	wantText(t, rendered, "▾ ☐ Tasks", "Parent Task", "Nested Subtask", "▸ ◫ Pages")
+}
+
+func TestProjectNavUnreadDotOnlyGreenDoneCheckAndLaneProgressBar(t *testing.T) {
+	spec := ProjectWorkspaceSpec{
+		ProjectID: "proj-1",
+		Title:     "Alpha",
+		ActiveKey: "tasks",
+		NavItems: []ProjectNavSection{
+			{
+				Key: "tasks", Label: "Tasks", Icon: "☐", Group: "Core", Count: 1, UnreadCount: 1, Unread: true, Expandable: true, Expanded: true,
+				Children: []ProjectNavNode{
+					{ID: "t-done", Section: "tasks", Label: "Shipped task", Icon: "✓", IconTone: "success", Unread: true},
+				},
+			},
+			{
+				Key: "lanes", Label: "Lanes", Icon: "⌥", Group: "Workspace", Count: 2, Expandable: true, Expanded: true,
+				Children: []ProjectNavNode{
+					{ID: "l-run", Section: "lanes", Label: "Active lane", Icon: "●", IconTone: "state.working", ProgressBar: CompactLaneBarRuns(1, 1, 2, 4), Unread: true},
+					{ID: "l-done", Section: "lanes", Label: "Done lane", Icon: "✓", IconTone: "success", UnreadTone: "success", ProgressBar: CompactLaneBarRuns(1, 0, 0, 4), Unread: true},
+				},
+			},
+			{
+				Key: "notes", Label: "Notes", Icon: "✎", Group: "Knowledge", Count: 1, UnreadCount: 1, Unread: true, Expandable: true, Expanded: true,
+				Children: []ProjectNavNode{
+					{ID: "n-1", Section: "notes", Label: "Scouted item", Unread: true},
+				},
+			},
+		},
+	}
+	root := ProjectWorkspaceView(spec)
+
+	// Done + unread task: ONLY ● is warning; ✓ stays success (green); label is NOT tinted warning.
+	doneNode := root.Find(ProjectNavNodePrefix + "tasks.t-done")
+	if doneNode == nil || doneNode.Tone == "warning" {
+		t.Fatalf("unread done task must not tint whole row warning: %+v", doneNode)
+	}
+	spans, _ := doneNode.Props["spans"].([]ui.ToneSpan)
+	var hasWarnDot, hasGreenCheck bool
+	txt, _ := doneNode.Props["text"].(string)
+	rs := []rune(txt)
+	for _, sp := range spans {
+		seg := string(rs[sp.From:sp.To])
+		if seg == "●" && sp.Tone == "warning" {
+			hasWarnDot = true
+		}
+		if seg == "✓" && sp.Tone == "success" {
+			hasGreenCheck = true
+		}
+	}
+	if !hasWarnDot || !hasGreenCheck {
+		t.Fatalf("expected warning ● + green ✓ spans on %q, got %+v", txt, spans)
+	}
+
+	// Lane row carries 4-char colored progress bar distinct from label text.
+	laneNode := root.Find(ProjectNavNodePrefix + "lanes.l-run")
+	if laneNode == nil || laneNode.Facts["hasProgressBar"] != true {
+		t.Fatalf("lane nav node missing progress bar: %+v", laneNode)
+	}
+	lTxt, _ := laneNode.Props["text"].(string)
+	if !strings.Contains(lTxt, "█▓░░") {
+		t.Fatalf("lane nav text = %q, want 4-char progress bar █▓░░", lTxt)
+	}
+
+	// Done unread lane: gutter ball ● is green ("success"), not yellow/warning.
+	doneLane := root.Find(ProjectNavNodePrefix + "lanes.l-done")
+	if doneLane == nil {
+		t.Fatal("missing l-done node")
+	}
+	if dSpans, _ := doneLane.Props["spans"].([]ui.ToneSpan); len(dSpans) == 0 || dSpans[0].From != 0 || dSpans[0].To != 1 || dSpans[0].Tone != "success" {
+		t.Fatalf("done lane gutter ball should be green success at col 0, got %+v", dSpans)
+	}
+
+	// Fixed-width gutter + deeper indentation: iconless Notes child label starts strictly right of parent "Notes" label.
+	notesSecTxt, _ := root.Find(ProjectNavPrefix + "notes").Props["text"].(string)
+	noteChildTxt, _ := root.Find(ProjectNavNodePrefix + "notes.n-1").Props["text"].(string)
+	secCol := len([]rune(notesSecTxt[:strings.Index(notesSecTxt, "Notes")]))
+	childCol := len([]rune(noteChildTxt[:strings.Index(noteChildTxt, "Scouted item")]))
+	if childCol <= secCol {
+		t.Fatalf("Notes child label col=%d must be strictly indented past parent Notes col=%d (%q vs %q)", childCol, secCol, noteChildTxt, notesSecTxt)
+	}
+
+	// Opt-out (UnreadDotOnly=false) restores whole-row warning tint.
+	off := false
+	spec.UnreadDotOnly = &off
+	legacyRoot := ProjectWorkspaceView(spec)
+	if nd := legacyRoot.Find(ProjectNavNodePrefix + "tasks.t-done"); nd == nil || nd.Tone != "warning" {
+		t.Fatalf("UnreadDotOnly=false should restore whole-row warning tone: %+v", nd)
+	}
 }
