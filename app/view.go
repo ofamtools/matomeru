@@ -58,18 +58,9 @@ func (a *App) View(s core.State) ui.ViewNode {
 }
 
 func (a *App) viewKey(s core.State) string {
-	var rev int64
-	if a.Store != nil {
-		rev, _ = a.Store.LatestChangeSetNumber()
-	}
-	var telSeq uint64
-	if a.rt != nil {
-		telSeq = a.rt.live.telemetrySeq.Load()
-	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%d|%d|%d|%s|%s|", a.viewMemo.gen, rev, telSeq, s.ActivePage, a.status)
-	f := s.Pages[s.ActivePage]
-	fmt.Fprintf(&b, "%s|%s|", f.FocusID, f.Mode)
+	b.WriteString(a.tabsMemoKey(s))
+	fmt.Fprintf(&b, "|cg:%d|st:%s|", a.viewMemo.chromeGen, a.status)
 	for _, m := range s.Modals {
 		fmt.Fprintf(&b, "%s:%s:%s|", m.ID, m.FocusID, m.Mode)
 	}
@@ -77,21 +68,11 @@ func (a *App) viewKey(s core.State) string {
 		b.WriteString("layer:" + l.Name + "|")
 	}
 	b.WriteString(strings.Join(s.Input.Prefix, " "))
-	if a.Shell != nil {
-		fmt.Fprintf(&b, "|%dx%d", a.Shell.W, a.Shell.H)
-	}
-	if a.nav != nil && a.nav.showEmptyFoldExpanded {
-		b.WriteString("|sf:1")
-	}
-	fmt.Fprintf(&b, "|tc:%t", a.topChromeRedesignEnabled())
 	if tk := a.toastViewKey(); tk != "" {
 		b.WriteString("|toast:" + tk)
 	}
 	if gk := a.escapeGuardViewKey(); gk != "" {
 		b.WriteString("|eg:" + gk)
-	}
-	if ak := a.archiveAnimCacheKey(); ak != "" {
-		b.WriteString("|aa:" + ak)
 	}
 	if a.panes.hints != nil && a.panes.hints.session != nil && a.panes.hints.session.Active() {
 		fmt.Fprintf(&b, "|hints:%t:%s:%d:%s:%d:%s",
@@ -103,12 +84,52 @@ func (a *App) viewKey(s core.State) string {
 			a.panes.hints.session.ActiveAction(),
 		)
 	}
+	if ss := a.chromeSysStatsKey(); ss != "" {
+		b.WriteString("|sys:" + ss)
+	}
+	return b.String()
+}
+
+func (a *App) chromeSystemStatsEnabled() bool {
+	return a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetChromeSystemStats, true)
+}
+
+func (a *App) chromeSysStatsKey() string {
+	if !a.chromeSystemStatsEnabled() || a.rt.live.sysStats == nil {
+		return ""
+	}
+	return FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), 200)
+}
+
+func (a *App) tabsMemoKey(s core.State) string {
+	var rev int64
+	if a.Store != nil {
+		rev, _ = a.Store.LatestChangeSetNumber()
+	}
+	var telSeq uint64
+	if a.rt != nil {
+		telSeq = a.rt.live.telemetrySeq.Load()
+	}
+	f := s.Pages[s.ActivePage]
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d|%d|%d|%s|%s|%s|%t|", a.viewMemo.gen, rev, telSeq, s.ActivePage, f.FocusID, f.Mode, a.nav.showArchived)
+	if a.Shell != nil {
+		fmt.Fprintf(&b, "%dx%d|", a.Shell.W, a.Shell.H)
+	}
+	if a.nav != nil && a.nav.showEmptyFoldExpanded {
+		b.WriteString("|sf:1")
+	}
+	fmt.Fprintf(&b, "|tc:%t", a.topChromeRedesignEnabled())
+	if ak := a.archiveAnimCacheKey(); ak != "" {
+		b.WriteString("|aa:" + ak)
+	}
 	if a.proj != nil {
-		fmt.Fprintf(&b, "|pt:%t:%t:%t:%s",
+		fmt.Fprintf(&b, "|pt:%t:%t:%t:%s:%s",
 			a.projectsTopNavTabEnabled(),
 			a.projectsDynamicTabsEnabled(),
 			a.projectChildPaneViewEnabled(),
 			strings.Join(a.proj.openTabs, ","),
+			a.proj.activeProjectKey,
 		)
 	}
 	if s.ActivePage == SpacePanes || isProjectTab(s.ActivePage) {
@@ -160,9 +181,6 @@ func (a *App) viewKey(s core.State) string {
 	if fk := a.featuresViewKey(s); fk != "" {
 		b.WriteString("|feat:" + fk)
 	}
-	if ss := a.chromeSysStatsKey(); ss != "" {
-		b.WriteString("|sys:" + ss)
-	}
 	if a.nav != nil && (a.nav.showRelatedOff != nil || a.nav.showPropsOff != nil) {
 		fmt.Fprintf(&b, "|ss:%s:%s:%s", data.RefText(a.nav.showScrollRef), showScrollOffsetText(a.nav.showRelatedOff), showScrollOffsetText(a.nav.showPropsOff))
 	}
@@ -175,48 +193,17 @@ func (a *App) viewKey(s core.State) string {
 	return b.String()
 }
 
-func (a *App) chromeSystemStatsEnabled() bool {
-	return a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetChromeSystemStats, true)
-}
-
-func (a *App) chromeSysStatsKey() string {
-	if !a.chromeSystemStatsEnabled() || a.rt.live.sysStats == nil {
-		return ""
-	}
-	return FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), 200)
-}
-
-func (a *App) tabsMemoKey(s core.State) string {
-	var rev int64
-	if a.Store != nil {
-		rev, _ = a.Store.LatestChangeSetNumber()
-	}
-	f := s.Pages[s.ActivePage]
-	var b strings.Builder
-	fmt.Fprintf(&b, "%d|%d|%s|%s|%s|%t|", rev, a.rt.live.telemetrySeq.Load(), s.ActivePage, f.FocusID, f.Mode, a.nav.showArchived)
-	if a.Shell != nil {
-		fmt.Fprintf(&b, "%dx%d|", a.Shell.W, a.Shell.H)
-	}
-	if ak := a.archiveAnimCacheKey(); ak != "" {
-		b.WriteString("aa:" + ak + "|")
-	}
-	if a.proj != nil {
-		fmt.Fprintf(&b, "pt:%s:%s|", strings.Join(a.proj.openTabs, ","), a.proj.activeProjectKey)
-	}
-	fmt.Fprintf(&b, "tc:%t|", a.topChromeRedesignEnabled())
-	return b.String()
-}
-
 func (a *App) build(s core.State) ui.ViewNode {
 	a.viewMemo.builds++
 	var tabs ui.ViewNode
-	canReuseTabs := len(s.Modals) > 0 && s.Modals[len(s.Modals)-1].ID != "settings"
+	canReuseTabs := !a.focusHintsActive() && (len(s.Modals) == 0 || s.Modals[len(s.Modals)-1].ID != "settings")
 	tKey := a.tabsMemoKey(s)
 	if s.ActivePage == SpaceJobs {
 		tabs = a.jobsView()
 	} else if canReuseTabs && tKey != "" && tKey == a.viewMemo.tabsKey && a.viewMemo.tabs.ID != "" {
 		tabs = a.viewMemo.tabs
 	} else {
+		a.viewMemo.tabsBuilds++
 		topTabs := a.topTabs()
 		active := slices.IndexFunc(topTabs, func(tb topTabDef) bool { return tb.id == s.ActivePage })
 		standalone, isStandalone := standalonePages[s.ActivePage]
@@ -266,7 +253,9 @@ func (a *App) build(s core.State) ui.ViewNode {
 				Children: []ui.ViewNode{standalone.render(a)},
 			})
 		}
-		a.viewMemo.tabsKey, a.viewMemo.tabs = tKey, tabs
+		if !a.focusHintsActive() {
+			a.viewMemo.tabsKey, a.viewMemo.tabs = a.tabsMemoKey(s), tabs
+		}
 	}
 	root := ui.ViewNode{
 		ID:       "root",
@@ -311,7 +300,16 @@ func (a *App) build(s core.State) ui.ViewNode {
 		// Insert the separator (CPU/RAM/disk + context chain + MODE) cleanly
 		// between the top tab bar and the active page content.
 		if activeTab := slices.IndexFunc(tabs.Children, func(ch ui.ViewNode) bool { return len(ch.Children) > 0 }); activeTab >= 0 {
-			tabs.Children[activeTab].Children = append([]ui.ViewNode{sep}, tabs.Children[activeTab].Children...)
+			tabs.Children = slices.Clone(tabs.Children)
+			ch := tabs.Children[activeTab].Children
+			if len(ch) > 0 && ch[0].ID == "chrome.sep" {
+				next := make([]ui.ViewNode, len(ch))
+				copy(next, ch)
+				next[0] = sep
+				tabs.Children[activeTab].Children = next
+			} else {
+				tabs.Children[activeTab].Children = append([]ui.ViewNode{sep}, ch...)
+			}
 		}
 		hintsLine := line("hints", clip(a.hintLine(s, chain), w), "muted")
 		bottomLine, ok := a.filterBarNode(s, root, w)

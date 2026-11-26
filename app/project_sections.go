@@ -145,16 +145,40 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 }
 
 func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData, activeKey, focusID string) []views.ProjectNavSection {
+	pc := a.projectCtrl()
+	treeEnabled := a.projectNavTreeEnabled()
+	allowPeek := treeEnabled && a.projectNavSurfaceUnreadEnabled()
+	lockedFocus := ""
+	if locked := pc.activeNavItem(ws.projectKey); locked != nil {
+		lockedFocus = locked.FocusID
+	}
+	navKey := fmt.Sprintf("%d|%d|%d|%t|%t|%t|%t|%t|%t|%s|%s|%s|%d|%s",
+		ws.cacheRev, ws.cacheCtxGen, a.rt.live.telemetrySeq.Load(),
+		a.nav.showArchived, treeEnabled, allowPeek,
+		a.projectNavSurfaceContextUnreadEnabled(), a.projectNavUnreadDotOnlyEnabled(), a.projectNavLaneProgressBarEnabled(),
+		activeKey,
+		sortedTrueKeys(pc.expandedSections[ws.projectKey]),
+		sortedTrueKeys(pc.expandedNodes[ws.projectKey]),
+		a.navUnreadCutoff.UnixNano(),
+		lockedFocus,
+	)
+	if pc.navCache != nil {
+		if cached, ok := pc.navCache[ws.projectKey]; ok && cached.key == navKey {
+			if pc.navTargets == nil {
+				pc.navTargets = map[string]map[string]projectNavTarget{}
+			}
+			pc.navTargets[ws.projectKey] = cached.targets
+			return cloneNavSectionsWithFocus(cached.sections, focusID, lockedFocus)
+		}
+	}
+
 	counts := map[string]int{
 		"tasks": len(ws.tasks), "pages": len(ws.pages), "context": len(ws.contextItems),
 		"pinned": len(ws.pinnedItems), "panes": len(ws.panes), "lanes": len(ws.allLanes),
 		"worktrees": len(ws.worktrees), "prs": len(ws.prItems), "documents": len(ws.documents),
 		"notes": len(ws.notes), "questions": len(ws.questions), "commands": len(ws.commands),
 	}
-	pc := a.projectCtrl()
 	pc.resetNavTargets(ws.projectKey)
-	treeEnabled := a.projectNavTreeEnabled()
-	allowPeek := treeEnabled && a.projectNavSurfaceUnreadEnabled()
 
 	out := make([]views.ProjectNavSection, 0, len(defs))
 	for _, d := range defs {
@@ -182,6 +206,39 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 			}
 		}
 		out = append(out, sec)
+	}
+	pc.navBuilds++
+	if pc.navCache == nil {
+		pc.navCache = map[string]cachedProjectNav{}
+	}
+	pc.navCache[ws.projectKey] = cachedProjectNav{
+		key:      navKey,
+		sections: out,
+		targets:  pc.navTargets[ws.projectKey],
+	}
+	return cloneNavSectionsWithFocus(out, focusID, lockedFocus)
+}
+
+func cloneNavSectionsWithFocus(src []views.ProjectNavSection, focusID, lockedFocus string) []views.ProjectNavSection {
+	out := make([]views.ProjectNavSection, len(src))
+	for i, s := range src {
+		if len(s.Children) > 0 {
+			s.Children = cloneNavNodesWithFocus(s.Children, focusID, lockedFocus)
+		}
+		out[i] = s
+	}
+	return out
+}
+
+func cloneNavNodesWithFocus(src []views.ProjectNavNode, focusID, lockedFocus string) []views.ProjectNavNode {
+	out := make([]views.ProjectNavNode, len(src))
+	for i, n := range src {
+		nfid := projectNavNodePrefix + n.Section + "." + n.ID
+		n.Active = focusID == nfid || lockedFocus == nfid
+		if len(n.Children) > 0 {
+			n.Children = cloneNavNodesWithFocus(n.Children, focusID, lockedFocus)
+		}
+		out[i] = n
 	}
 	return out
 }
