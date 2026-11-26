@@ -140,37 +140,6 @@ func (s *Store) RootProjectID(taskID string) string {
 	}
 }
 
-// ProjectTaskIDs returns a set containing projectID and all descendant task IDs.
-func (s *Store) ProjectTaskIDs(projectID string, includeArchived bool) (map[string]bool, error) {
-	projectID = strings.TrimSpace(projectID)
-	if projectID == "" {
-		return map[string]bool{}, nil
-	}
-	res, err := s.Query(Query{Kind: KindTask, IncludeArchived: includeArchived})
-	if err != nil {
-		return nil, err
-	}
-	children := map[string][]string{}
-	for _, rec := range res.Items {
-		if parent, ok := rec.RefField("parent"); ok && parent.Kind == KindTask && parent.ID != "" {
-			children[parent.ID] = append(children[parent.ID], rec.ID)
-		}
-	}
-	ids := map[string]bool{projectID: true}
-	queue := []string{projectID}
-	for len(queue) > 0 {
-		cur := queue[0]
-		queue = queue[1:]
-		for _, child := range children[cur] {
-			if !ids[child] {
-				ids[child] = true
-				queue = append(queue, child)
-			}
-		}
-	}
-	return ids, nil
-}
-
 const sqlInBatchSize = 400
 
 func placeholders(n int) string {
@@ -181,136 +150,18 @@ func placeholders(n int) string {
 }
 
 func (s *Store) projectScopedContext(projectID string) ([]Record, error) {
-	projectID = strings.TrimSpace(projectID)
-	if projectID == "" {
+	if strings.TrimSpace(projectID) == "" {
 		return nil, nil
 	}
-	taskIDs, err := s.ProjectTaskIDs(projectID, false)
+	scope, err := s.ProjectScope(projectID, nil, false)
 	if err != nil {
 		return nil, err
 	}
-	if len(taskIDs) == 0 {
-		return nil, nil
-	}
-	taskIDList := make([]string, 0, len(taskIDs))
-	for id := range taskIDs {
-		taskIDList = append(taskIDList, id)
-	}
-	slices.Sort(taskIDList)
-
-	relLinked := map[string]bool{}
-	for start := 0; start < len(taskIDList); start += sqlInBatchSize {
-		end := min(start+sqlInBatchSize, len(taskIDList))
-		batch := taskIDList[start:end]
-		args := make([]any, 0, len(batch)+3)
-		args = append(args, KindTask)
-		for _, id := range batch {
-			args = append(args, id)
-		}
-		args = append(args, RelContext, KindContext)
-		rels, err := queryRelations(s.db, "from_kind = ? AND from_id IN ("+placeholders(len(batch))+") AND kind = ? AND to_kind = ?", args...)
-		if err != nil {
-			return nil, err
-		}
-		for _, rel := range rels {
-			if taskIDs[rel.From.ID] && rel.To.ID != "" {
-				relLinked[rel.To.ID] = true
-			}
-		}
-	}
-
-	local, err := loadLocal(s.db, KindContext, "")
-	if err != nil {
-		return nil, err
-	}
-	fetchIDSet := make(map[string]bool, len(relLinked))
-	for id := range relLinked {
-		fetchIDSet[id] = true
-	}
-	for ref, fields := range local {
-		if ref.Kind == KindContext {
-			if _, hasTask := fields["task"]; hasTask {
-				fetchIDSet[ref.ID] = true
-			}
-		}
-	}
-
-	seen := map[string]bool{}
-	var out []Record
-	appendRows := func(query string, args ...any) error {
-		rows, err := s.db.Query(query, args...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			rec, err := scanRecord(rows)
-			if err != nil {
-				return err
-			}
-			rec.Local = local[rec.Ref()]
-			s.coerce(&rec)
-			if rec.IsArchived() || seen[rec.ID] {
-				continue
-			}
-			inScope := relLinked[rec.ID]
-			if !inScope {
-				if tRef, ok := rec.RefField("task"); ok && tRef.Kind == KindTask && taskIDs[tRef.ID] {
-					inScope = true
-				}
-			}
-			if !inScope {
-				continue
-			}
-			seen[rec.ID] = true
-			out = append(out, rec)
-		}
-		return rows.Err()
-	}
-
-	for start := 0; start < len(taskIDList); start += sqlInBatchSize {
-		end := min(start+sqlInBatchSize, len(taskIDList))
-		batch := taskIDList[start:end]
-		args := make([]any, 0, len(batch)+3)
-		args = append(args, KindContext, ArchiveActive, KindTask)
-		for _, id := range batch {
-			args = append(args, id)
-		}
-		q := "SELECT " + recordCols + " FROM records WHERE kind = ? AND +archive_status = ? AND json_extract(fields, '$.task.kind') = ? AND json_extract(fields, '$.task.id') IN (" + placeholders(len(batch)) + ") ORDER BY created_at, seq"
-		if err := appendRows(q, args...); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(fetchIDSet) > 0 {
-		fetchIDs := make([]string, 0, len(fetchIDSet))
-		for id := range fetchIDSet {
-			if !seen[id] {
-				fetchIDs = append(fetchIDs, id)
-			}
-		}
-		slices.Sort(fetchIDs)
-		for start := 0; start < len(fetchIDs); start += sqlInBatchSize {
-			end := min(start+sqlInBatchSize, len(fetchIDs))
-			batch := fetchIDs[start:end]
-			args := make([]any, 0, len(batch)+2)
-			args = append(args, KindContext, ArchiveActive)
-			for _, id := range batch {
-				args = append(args, id)
-			}
-			q := "SELECT " + recordCols + " FROM records WHERE kind = ? AND +archive_status = ? AND id IN (" + placeholders(len(batch)) + ") ORDER BY created_at, seq"
-			if err := appendRows(q, args...); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	return out, nil
+	return s.ProjectRecords(scope, KindContext, false)
 }
 
 // OfficialProjectContext returns active KindContext records explicitly marked
-// official == true scoped to projectID (via task in ProjectTaskIDs or outgoing
-// RelContext from the project/descendant tasks), deduplicated by ID and sorted
+// official == true scoped to projectID, deduplicated by ID and sorted
 // deterministically (pinned/starred desc, title asc, id asc).
 func (s *Store) OfficialProjectContext(projectID string) ([]Record, error) {
 	scoped, err := s.projectScopedContext(projectID)
@@ -327,16 +178,19 @@ func (s *Store) OfficialProjectContext(projectID string) ([]Record, error) {
 	return out, nil
 }
 
-// ProjectContextAll returns all active KindContext records scoped to projectID,
-// sorted with official first, then pinned/starred, then remaining by UpdatedAt
-// descending.
+// ProjectContextAll returns all active context items in the project.
 func (s *Store) ProjectContextAll(projectID string) ([]Record, error) {
 	out, err := s.projectScopedContext(projectID)
-	if err != nil {
-		return nil, err
-	}
 	slices.SortStableFunc(out, compareProjectContextAll)
-	return out, nil
+	return out, err
+}
+
+// ProjectContextRecords returns the scope's context items with official and
+// pinned context first, then by recency.
+func (s *Store) ProjectContextRecords(scope ProjectScope, includeArchived bool) ([]Record, error) {
+	out, err := s.ProjectRecords(scope, KindContext, includeArchived)
+	slices.SortStableFunc(out, compareProjectContextAll)
+	return out, err
 }
 
 func boolDesc(a, b bool) int {
@@ -526,18 +380,26 @@ func (s *Store) AddOfficialProjectContext(in OfficialContextInput, actor core.Ac
 }
 
 // ProjectWorktrees aggregates deduplicated worktree and directory paths for
-// projectID and its descendant tasks from active lane.worktree, task.defaultDir,
+// projectID and its descendant tasks from related lane.worktree, task.defaultDir,
 // and outgoing RelDirectory relations, sorted by path.
 func (s *Store) ProjectWorktrees(projectID string) ([]ProjectWorktree, error) {
 	projectID = strings.TrimSpace(projectID)
 	if projectID == "" {
 		return nil, nil
 	}
-	taskIDs, err := s.ProjectTaskIDs(projectID, false)
+	scope, err := s.ProjectScope(projectID, nil, false)
 	if err != nil {
 		return nil, err
 	}
+	lanes, err := s.ProjectRecords(scope, KindLane, false)
+	if err != nil {
+		return nil, err
+	}
+	return s.ProjectScopeWorktrees(scope, lanes), nil
+}
 
+// ProjectScopeWorktrees returns the worktrees attached to the scoped lanes and tasks.
+func (s *Store) ProjectScopeWorktrees(scope ProjectScope, lanes []Record) []ProjectWorktree {
 	byPath := map[string]ProjectWorktree{}
 	add := func(wt ProjectWorktree) {
 		p := strings.TrimSpace(wt.Path)
@@ -559,56 +421,25 @@ func (s *Store) ProjectWorktrees(projectID string) ([]ProjectWorktree, error) {
 		byPath[p] = wt
 	}
 
-	// 1. Active lanes attached to the project or its descendant tasks.
-	if lanes, err := s.Query(Query{Kind: KindLane}); err != nil {
-		return nil, err
-	} else {
-		for _, lane := range lanes.Items {
-			if lane.IsArchived() {
-				continue
-			}
-			tRef, ok := lane.RefField("task")
-			if !ok || tRef.Kind != KindTask || !taskIDs[tRef.ID] {
-				continue
-			}
-			if p := strings.TrimSpace(lane.Text("worktree")); p != "" {
-				add(ProjectWorktree{
-					Path:   p,
-					Branch: strings.TrimSpace(lane.Text("branch")),
-					Repo:   strings.TrimSpace(lane.Text("repo")),
-					Source: "lane",
-					Ref:    lane.Ref(),
-				})
-			}
+	for _, lane := range lanes {
+		if lane.IsArchived() {
+			continue
 		}
+		add(ProjectWorktree{
+			Path: lane.Text("worktree"), Branch: strings.TrimSpace(lane.Text("branch")),
+			Repo: strings.TrimSpace(lane.Text("repo")), Source: "lane", Ref: lane.Ref(),
+		})
 	}
-
-	// 2. Project and descendant task.defaultDir values.
-	if tasks, err := s.Query(Query{Kind: KindTask}); err != nil {
-		return nil, err
-	} else {
-		for _, task := range tasks.Items {
-			if task.IsArchived() || !taskIDs[task.ID] {
-				continue
-			}
-			if p := strings.TrimSpace(task.Text("defaultDir")); p != "" {
-				add(ProjectWorktree{
-					Path:   p,
-					Repo:   strings.TrimSpace(task.Text("repo")),
-					Source: "task",
-					Ref:    task.Ref(),
-				})
-			}
+	activeTaskIDs := map[string]bool{}
+	for _, task := range scope.Tasks {
+		if task.IsArchived() {
+			continue
 		}
+		activeTaskIDs[task.ID] = true
+		add(ProjectWorktree{Path: task.Text("defaultDir"), Repo: strings.TrimSpace(task.Text("repo")), Source: "task", Ref: task.Ref()})
 	}
-
-	// 3. Outgoing RelDirectory relations from project or descendant tasks.
-	rels, err := queryRelations(s.db, "from_kind = ? AND kind = ?", KindTask, RelDirectory)
-	if err != nil {
-		return nil, err
-	}
-	for _, rel := range rels {
-		if !taskIDs[rel.From.ID] {
+	for _, rel := range scope.Relations {
+		if rel.Kind != RelDirectory || rel.From.Kind != KindTask || !activeTaskIDs[rel.From.ID] {
 			continue
 		}
 		p := strings.TrimSpace(rel.To.ID)
@@ -644,7 +475,7 @@ func (s *Store) ProjectWorktrees(projectID string) ([]ProjectWorktree, error) {
 		}
 		return strings.Compare(RefText(a.Ref), RefText(b.Ref))
 	})
-	return out, nil
+	return out
 }
 
 // ResolveProjectContextBundle resolves the context records to inject for a

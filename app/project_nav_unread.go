@@ -168,36 +168,20 @@ func (a *App) populateProjectWorkspaceActivity(ws *projectWorkspaceData) {
 		}
 	}
 
-	if !a.nav.showArchived {
-		if threads, err := a.taskNoteThreads(); err == nil {
-			for tid, notes := range threads {
-				if !ws.taskIDs[tid] {
-					continue
-				}
-				for _, n := range notes {
-					if a.isNavRecordUnread(data.KindNote, n, ws) {
-						ws.unreadNoteTasks[tid] = true
-						break
-					}
-				}
-			}
-		}
-	}
+	unreadNotes := map[string]bool{}
 	for _, n := range ws.notes {
 		if !a.isNavRecordUnread(data.KindNote, n, ws) {
 			continue
 		}
+		unreadNotes[n.ID] = true
 		if tRef, ok := n.RefField("task"); ok && tRef.Kind == data.KindTask && ws.taskIDs[tRef.ID] {
 			ws.unreadNoteTasks[tRef.ID] = true
 		}
-		if a.Store != nil {
-			if rels, err := a.Store.Related(n.Ref(), data.RelAbout, data.Outgoing); err == nil {
-				for _, rel := range rels {
-					if rel.To.Kind == data.KindTask && ws.taskIDs[rel.To.ID] {
-						ws.unreadNoteTasks[rel.To.ID] = true
-					}
-				}
-			}
+	}
+	for _, rel := range ws.relations {
+		if rel.Kind == data.RelAbout && rel.From.Kind == data.KindNote && unreadNotes[rel.From.ID] &&
+			rel.To.Kind == data.KindTask && ws.taskIDs[rel.To.ID] {
+			ws.unreadNoteTasks[rel.To.ID] = true
 		}
 	}
 
@@ -218,11 +202,7 @@ func (a *App) populateProjectWorkspaceActivity(ws *projectWorkspaceData) {
 	baseUnread += countRecs(data.KindNote, ws.notes)
 	baseUnread += countRecs(data.KindQuestion, ws.questions)
 	baseUnread += countRecs(data.KindCommand, ws.commands)
-	for _, rec := range ws.contextRecords {
-		if a.isNavRecordUnread(data.KindContext, rec, ws) {
-			baseUnread++
-		}
-	}
+	baseUnread += len(ws.reviewContext)
 	ws.baseUnreadTotal = baseUnread
 	a.populateProjectLiveTelemetry(ws)
 }
@@ -369,7 +349,11 @@ func (a *App) markRecordRead(ref core.Ref) bool {
 		if err != nil || rec == nil {
 			return false
 		}
-		if !a.isNavRecordUnread(ref.Kind, *rec, nil) {
+		unread := a.isNavRecordUnread(ref.Kind, *rec, nil)
+		if ref.Kind == data.KindContext {
+			unread = a.isProjectContextUnread(*rec)
+		}
+		if !unread {
 			return false
 		}
 		_, _, err = a.Store.Patch(data.PatchInput{Ref: ref, Fields: map[string]any{"readAt": data.WriteTime{}}}, viewer)
@@ -531,7 +515,7 @@ func (a *App) markProjectNavSectionRead(ws projectWorkspaceData, secKey string) 
 	case "commands":
 		markAll(ws.commands)
 	case "context", "pinned", "prs":
-		items := ws.contextItems
+		items := ws.reviewContext
 		if secKey == "pinned" {
 			items = ws.pinnedItems
 		} else if secKey == "prs" {

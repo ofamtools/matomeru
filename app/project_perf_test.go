@@ -484,7 +484,9 @@ func TestProjectContextStarAppearsInPinnedAndPersists(t *testing.T) {
 		}
 	}
 
-	// 5. Starring from project.nav context node stars the context item (not the project task).
+	// 5. With unread context enabled in nav, starring there still targets the context item.
+	a.cfg.userSettings[SetProjectsNavSurfaceContextUnread] = true
+	a.reloadSettings()
 	d.Keys("esc")
 	a.Shell.State = withFocus(a.State(), projectNavPrefix+"context")
 	a.viewMemo.gen++

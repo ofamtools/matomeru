@@ -22,7 +22,7 @@ import (
 )
 
 // CollectedContextItem is one deduplicated high-signal context item harvested
-// from a pane's prompts, agent pages, documents, or visible terminal screen,
+// from final agent responses, pages, documents, or shell terminal text,
 // or curated as official project context.
 type CollectedContextItem struct {
 	RecordID  string
@@ -51,7 +51,7 @@ type CollectedContextItem struct {
 var contextHarvestActor = core.Actor{Kind: "system", ID: "mtm.context", Label: "context"}
 
 // ContextController owns the deduplicated high-signal context index harvested
-// from prompts, agent pages, documents, and visible terminal screens.
+// from final agent responses, agent pages, documents, and shell terminal text.
 type ContextController struct {
 	mu              sync.RWMutex
 	items           map[string]*CollectedContextItem // paneID\x00canonKey -> item
@@ -425,8 +425,6 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 	}
 }
 
-// harvestPrompt extracts and indexes high-signal context items from a user
-// prompt sent to pane.
 func stripInjectedPromptSections(text string) string {
 	for _, marker := range []string{"\n\n## Official Project Context\n", "\n## Official Project Context\n", "\n\n[Attachments]\n"} {
 		if idx := strings.Index(text, marker); idx >= 0 {
@@ -436,7 +434,18 @@ func stripInjectedPromptSections(text string) string {
 	return text
 }
 
+// Agent panes publish verified answers through their hooks. Raw terminal text
+// cannot distinguish those answers from progress, reasoning, or tool output.
+func (a *App) canHarvestTerminalContext(pane data.Record) bool {
+	name := strings.TrimSpace(pane.Text("harness"))
+	entry, ok := a.lookupHarness(name)
+	return name == "" || ok && entry.Shell
+}
+
 func (a *App) harvestPrompt(pane data.Record, text string) {
+	if !a.canHarvestTerminalContext(pane) {
+		return
+	}
 	text = stripInjectedPromptSections(text)
 	if strings.TrimSpace(text) == "" {
 		return
@@ -474,6 +483,10 @@ func (a *App) harvestScreenLines(pane data.Record, lines []string, wrapWidth int
 	}
 	idx.screenHarvestAt[pane.ID] = now
 	idx.mu.Unlock()
+
+	if !a.canHarvestTerminalContext(pane) {
+		return
+	}
 
 	if a.opts.Live {
 		paneCopy := pane
@@ -598,6 +611,9 @@ func (a *App) syncContextItems() {
 		// 2. Documents with filePath / path.
 		if docs, err := a.Store.Query(data.Query{Kind: data.KindDocument, IncludeArchived: a.nav.showArchived}); err == nil {
 			for _, doc := range docs.Items {
+				if doc.Text("source") == data.DocumentSourceTool {
+					continue // The file was registered as a document by a tool hook.
+				}
 				idx.mu.RLock()
 				seenRev, ok := idx.docRevs[doc.ID]
 				idx.mu.RUnlock()
@@ -686,12 +702,8 @@ func (a *App) paneContextItems(paneID string) []CollectedContextItem {
 	return out
 }
 
-func (a *App) projectContextItems(groupName string, projRef *core.Ref) []CollectedContextItem {
+func (a *App) projectContextItems(groupName string, projRef *core.Ref, paneSet map[string]bool) []CollectedContextItem {
 	a.syncContextItems()
-	paneSet := map[string]bool{}
-	for _, p := range a.panes.railGroupPanes[groupName] {
-		paneSet[p.ID] = true
-	}
 	idx := a.ensureContextIndex()
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()

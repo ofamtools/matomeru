@@ -230,18 +230,7 @@ func (a *App) buildProjectNavChildren(ws projectWorkspaceData, secKey, focusID s
 }
 
 func (a *App) projectTaskNavNodes(ws projectWorkspaceData, focusID, lockedFocus string, expanded, allowPeek bool) ([]views.ProjectNavNode, int) {
-	if a.Store == nil || ws.projectID == "" {
-		return nil, 0
-	}
-	allNodes, err := a.recordTreeNodes(data.KindTask)
-	if err != nil {
-		return nil, 0
-	}
-	projNode, ok := findProjectTreeNode(allNodes, ws.projectID)
-	if !ok || len(projNode.Children) == 0 {
-		return nil, 0
-	}
-	return a.projectTreeNavNodes(ws, "tasks", data.KindTask, projNode.Children, focusID, lockedFocus, expanded, allowPeek)
+	return a.projectTreeNavNodes(ws, "tasks", data.KindTask, ws.taskTree, focusID, lockedFocus, expanded, allowPeek)
 }
 
 func (a *App) projectTreeNavNodes(ws projectWorkspaceData, secKey, kind string, nodes []data.TreeNode, focusID, lockedFocus string, sectionExpanded, allowPeek bool) ([]views.ProjectNavNode, int) {
@@ -298,7 +287,7 @@ func (a *App) projectTreeNavNodes(ws projectWorkspaceData, secKey, kind string, 
 			var progressBar []ui.InlineRun
 			unreadTone := ""
 			if kind == data.KindLane {
-				if st := strings.ToLower(strings.TrimSpace(rec.Text("laneStatus"))); st == "done" || st == "merged" {
+				if data.LaneProgressOf(rec) == data.LaneProgressDone {
 					unreadTone = "success"
 				}
 				if a.projectNavLaneProgressBarEnabled() {
@@ -527,13 +516,13 @@ func (a *App) projectContextNavNodes(ws projectWorkspaceData, secKey string, ite
 	var out []views.ProjectNavNode
 	unreadCount := 0
 	overflow := 0
+	reviewInSection := a.projectContextReviewEnabled() && !a.projectNavSurfaceContextUnreadEnabled()
 	for i, it := range items {
-		unread := false
-		if it.RecordID != "" && ws.contextRecords != nil {
-			if rec, ok := ws.contextRecords[it.RecordID]; ok {
-				unread = a.isNavRecordUnread(data.KindContext, rec, &ws)
-			}
+		rec, persisted := ws.contextRecords[it.RecordID]
+		if reviewInSection && persisted && a.isProjectContextUnread(rec) {
+			continue
 		}
+		unread := persisted && a.isNavRecordUnread(data.KindContext, rec, &ws)
 		if unread {
 			unreadCount++
 		}

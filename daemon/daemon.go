@@ -798,6 +798,7 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 			Files:          req.Files,
 			Prompt:         req.Prompt,
 			Response:       req.Response,
+			FinalResponse:  req.FinalResponse,
 			SubagentID:     req.SubagentID,
 			SubagentAction: req.SubagentAction,
 			RequestID:      req.RequestID,

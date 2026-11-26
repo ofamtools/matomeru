@@ -105,14 +105,7 @@ func translateAntigravity(evName string, payload map[string]any) Result {
 			strField(payload, "terminationReason"),
 			resp,
 		)
-		return okResult(HookEvent{
-			Harness:  "antigravity",
-			Kind:     KindState,
-			State:    StateDone,
-			Summary:  cleanSummary(sum),
-			Response: sanitizeHookText(resp),
-			Payload:  sanitizePayload(payload),
-		})
+		return completedTurn("antigravity", payload, sum, resp, terminalResponse(evName, payload, "prompt_response", "last_assistant_message", "response"))
 
 	case "SessionEnd":
 		return okResult(HookEvent{

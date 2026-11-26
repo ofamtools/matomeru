@@ -75,6 +75,7 @@ type HookEvent struct {
 	Files          []string       `json:"files,omitempty"`
 	Prompt         string         `json:"prompt,omitempty"`
 	Response       string         `json:"response,omitempty"`
+	FinalResponse  string         `json:"finalResponse,omitempty"` // Answer text verified by the harness adapter.
 	SubagentID     string         `json:"subagentId,omitempty"`
 	SubagentAction string         `json:"subagentAction,omitempty"`
 	RequestID      string         `json:"requestId,omitempty"`

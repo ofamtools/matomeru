@@ -20,6 +20,17 @@ function extractToolInput(event) {
   return input && typeof input === "object" ? input : undefined;
 }
 
+function finalResponse(event) {
+  const message = event?.messages?.at(-1);
+  if (message?.role !== "assistant" || message.stopReason !== "stop") {
+    return "";
+  }
+  if (!Array.isArray(message.content) || message.content.some(block => block.type === "toolCall")) {
+    return "";
+  }
+  return message.content.filter(block => block.type === "text").map(block => block.text).join("");
+}
+
 function report(event, ctx, extra = {}) {
   let sessionID = "";
   let sessionFile = "";
@@ -75,7 +86,8 @@ export default function (pi) {
     if (mainTUI(ctx) && !event?.willContinue) {
       const extra = {};
       if (typeof event?.summary === "string") extra.summary = event.summary;
-      if (typeof event?.response === "string") extra.response = event.response;
+      const response = finalResponse(event);
+      if (response) extra.response = response;
       report("agent_end", ctx, extra);
     }
   });
