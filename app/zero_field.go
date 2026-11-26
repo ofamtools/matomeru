@@ -75,7 +75,7 @@ func zeroFieldSpecs() []core.CommandSpec {
 func zeroFieldBindings() []core.Binding {
 	n, m := ModeNormal, ModeZeroField
 	return []core.Binding{
-		bind(n, "", "g z", CmdZeroFieldOpen, "zero-field filter/group/sort"),
+		when(bind(n, "", "g z", CmdZeroFieldOpen, "zero-field filter/group/sort"), "facts.listTarget"),
 		{Mode: m, Class: core.ClassPrintable, Command: CmdZeroFieldKey, Args: map[string]any{"text": "$text"}, Hidden: true},
 		bind(m, "", "esc", CmdZeroFieldApply, "apply & close"),
 		bind(m, "", "enter", CmdZeroFieldApply, "apply & close"),
@@ -107,8 +107,7 @@ func (a *App) registerZeroFieldHandlers() {
 func (a *App) openZeroFieldModal(s core.State, startMode string) core.StepResult {
 	tbl, tableID := a.filterTable(s)
 	if tbl == nil {
-		a.say("no list is focused")
-		return core.Next(s)
+		return core.Next(s) // no list on the page: nothing to query
 	}
 	if a.genericPresets == nil {
 		a.initGenericPresets()

@@ -262,6 +262,9 @@ func (a *App) build(s core.State) ui.ViewNode {
 		Facts:    map[string]any{"enterOpensShow": a.enterOpensShow(), "hlFolds": a.treeHLFolds()},
 		Children: []ui.ViewNode{tabs},
 	}
+	// The page's own list (not a modal's), for the list verbs and
+	// facts.listTarget when focus is not on a table.
+	a.viewMemo.PageListID = pageListTableID(tabs, a.nav.tables)
 	var overlays []ui.ViewNode
 	for i, m := range s.Modals {
 		ov := a.modal(m)

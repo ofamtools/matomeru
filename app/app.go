@@ -162,6 +162,9 @@ type viewMemoState struct {
 	tabs       ui.ViewNode
 	binds      *compiledBindingsIndex
 	fileCache  *contentFileCache
+	// PageListID is the first table drawn on the page by the last build
+	// (pageListTableID), "" when the page draws none.
+	PageListID string
 }
 
 // App is the application state around the engine. Handlers change it and the
@@ -299,6 +302,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 			"isProjectTab":       isProjectTab(s.ActivePage),
 			"inChildPaneView":    a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
 			"featuresPageActive": a.featuresPageActive(),
+			factListTarget:       a.listTargetFact(s),
 		}
 	}
 	a.Shell.OnPassThrough = func(e core.PassToWidgetEffect) tea.Cmd {

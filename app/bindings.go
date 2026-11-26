@@ -468,12 +468,13 @@ func DefaultBindings() []core.Binding {
 		bind(n, traits.TraitScope(traits.TraitFilter), "/", CmdFilterStart, "filter"),
 		bind(n, traits.TraitScope(traits.TraitFilter), "M", CmdFilterMode, "match mode"),
 
-		// Lists.
-		bind(n, all, "f", CmdFilterFieldPick, "filter field"),
-		bind(n, all, "o", CmdSortCycle, "sort"),
-		bind(n, all, "O", CmdSortField, "sort column"),
-		bind(n, all, "g s", CmdSortFieldPick, "sort by any field"),
-		bind(n, all, "g b", CmdGroupFieldPick, "group by any field"),
+		// Lists: guarded on facts.listTarget so a page with no table hides
+		// these keys (they fall through) instead of refusing.
+		when(bind(n, all, "f", CmdFilterFieldPick, "filter field"), "facts.listTarget"),
+		when(bind(n, all, "o", CmdSortCycle, "sort"), "facts.listTarget"),
+		when(bind(n, all, "O", CmdSortField, "sort column"), "facts.listTarget"),
+		when(bind(n, all, "g s", CmdSortFieldPick, "sort by any field"), "facts.listTarget"),
+		when(bind(n, all, "g b", CmdGroupFieldPick, "group by any field"), "facts.listTarget"),
 		bind(n, all, "g v", CmdTablePresetPick, "table presets"),
 		bind(ModeGlobal, all, "g f", CmdFocusHints, "focus jump hints"),
 		bind(ModeGlobal, all, "g h", CmdPaneHints, "screen hints"),

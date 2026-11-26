@@ -197,8 +197,7 @@ func (a *App) fieldPick(what string) func(core.State, core.Command) core.StepRes
 func (a *App) openClassicFieldPick(s core.State, what string) core.StepResult {
 	tbl, id := a.filterTable(s)
 	if a.Modal() != "" || tbl == nil {
-		a.say("no list is focused")
-		return core.Next(s)
+		return core.Next(s) // no list on the page: nothing to pick for
 	}
 	// Fresh rows: a field written a moment ago is offered too.
 	if id == railTable {

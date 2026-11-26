@@ -225,28 +225,19 @@ func next(list []string, cur string) string {
 
 // --- filter ---------------------------------------------------------------------
 
-// filterTable is the table the filter keys act on: the one being filtered,
-// or the focused one. Lazily ensures the active space's table exists when
-// a space starts in tree view (e.g. 2 Work with work.tasksLayout="tree").
+// filterTable is the table the list verbs act on: the one being filtered,
+// the focused one, or (when focus is on something that is not a table, such
+// as a nav rail or a tree) the first table drawn on the page. It returns nil
+// only when the page draws no table.
 func (a *App) filterTable(s core.State) (*table.Model, string) {
-	id := a.nav.filterTarget
-	if id == "" || id == "toc" {
-		id = s.ActiveFrame().FocusID
-	}
-	if tbl := a.nav.tables[id]; tbl != nil {
+	if tbl, id := a.focusedListTable(s); tbl != nil {
 		return tbl, id
 	}
-	switch id {
-	case workTable:
-		if s.ActivePage == SpaceWork && a.nav.histPos < 0 && a.Store != nil {
-			return a.records(workTable, a.workKind()), id
-		}
-	case railTable:
-		if s.ActivePage == SpacePanes && a.Store != nil {
-			return a.rail(), id
-		}
+	a.View(s) // keeps viewMemo.PageListID current for this state
+	if id := a.viewMemo.PageListID; id != "" && a.nav.tables[id] != nil {
+		return a.nav.tables[id], id
 	}
-	return nil, id
+	return nil, a.focusedListID(s)
 }
 
 func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {
@@ -390,9 +381,8 @@ func (a *App) tableCommand(s core.State, c core.Command) core.StepResult {
 		tbl = nil // the list is under an overlay
 	}
 	if tbl == nil {
-		if c.ID != CmdFilterMode && c.ID != CmdFilterField {
-			a.say("no list is focused")
-		}
+		// No list on the page: the default keys are hidden (facts.listTarget)
+		// and a palette or CLI call does nothing.
 		return core.Next(s)
 	}
 	keys := a.tableKeys(id, tbl)
