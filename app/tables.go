@@ -82,27 +82,8 @@ func (a *App) records(id, kind string) *table.Model {
 			}()
 		}
 	}
-	var items []data.Record
-	if extItems, ok := a.externalRecords(kind); ok {
-		items = extItems
-	} else {
-		// A kind with a hierarchy reads its archived records too, so the
-		// table hides what its tree hides: everything under an archived one.
-		hierarchical := a.schema(kind).EffectiveHierarchy() != nil && !a.nav.showArchived
-		res, err := a.Store.Query(data.Query{Kind: kind, IncludeArchived: a.nav.showArchived || hierarchical})
-		if err != nil {
-			a.fail("read "+kind, err)
-		}
-		items = res.Items
-		switch {
-		case hierarchical:
-			items = a.activeRecords(kind, items)
-		case !a.nav.showArchived:
-			items = a.appendAnimatingRecords(kind, items)
-		}
-	}
-	items = a.filterExtensionItems(kind, items)
 	schema := a.schema(kind)
+	items := a.tableQuery(id, schema).Filter(a.tableCandidates(kind))
 	fresh := views.TableFromRecordsWith(schema, items, styleOpts)
 	// A reference shows the record it points at, not its ID.
 	names := map[core.Ref]string{}
@@ -152,6 +133,41 @@ func (a *App) records(id, kind string) *table.Model {
 	a.pageSize(tbl, id)
 	a.nav.tables[id] = tbl
 	return tbl
+}
+
+// tableCandidates returns the records a table of kind can show before any
+// query narrows them: the mounted extension's, or the store's under the
+// archive and hierarchy rules. The Zero-Field preview counts over this same
+// collection, so its count is the row count the table will have.
+func (a *App) tableCandidates(kind string) []data.Record {
+	if extItems, ok := a.externalRecords(kind); ok {
+		return a.filterExtensionItems(kind, extItems)
+	}
+	if a.Store == nil || kind == "" {
+		return nil
+	}
+	// A kind with a hierarchy reads its archived records too, so the
+	// table hides what its tree hides: everything under an archived one.
+	hierarchical := a.schema(kind).EffectiveHierarchy() != nil && !a.nav.showArchived
+	res, err := a.Store.Query(data.Query{Kind: kind, IncludeArchived: a.nav.showArchived || hierarchical})
+	if err != nil {
+		a.fail("read "+kind, err)
+	}
+	items := res.Items
+	switch {
+	case hierarchical:
+		items = a.activeRecords(kind, items)
+	case !a.nav.showArchived:
+		items = a.appendAnimatingRecords(kind, items)
+	}
+	return a.filterExtensionItems(kind, items)
+}
+
+// tableQuery compiles the Zero-Field query applied to a table (none applied
+// compiles to "every record matches"). Rows are rebuilt only when the store
+// or the applied query changes, so this runs once per rebuild, never per row.
+func (a *App) tableQuery(id string, schema data.Schema) data.CompiledQuery {
+	return a.zeroFieldSpecs[id].Compile(schema)
 }
 
 // attention reports whether a pane has something for the owner: an unread

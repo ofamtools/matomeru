@@ -26,14 +26,23 @@ const (
 	ExprTokenRParen ExprTokenKind = "rparen"
 )
 
-// ExprToken is one clause, boolean operator (AND/OR), or parenthesis in QuerySpec.
+// Boolean operators of a filter expression. NOT is a prefix operator that
+// negates the operand after it; a clause's own Invert flag is the same thing
+// written on the clause.
+const (
+	ExprOpAnd = "AND"
+	ExprOpOr  = "OR"
+	ExprOpNot = "NOT"
+)
+
+// ExprToken is one clause, boolean operator (AND/OR/NOT), or parenthesis in QuerySpec.
 type ExprToken struct {
 	Kind   ExprTokenKind `json:"kind"`
 	Field  string        `json:"field,omitempty"`
 	Values []string      `json:"values,omitempty"`
 	All    bool          `json:"all,omitempty"` // false = any/in, true = all
 	Invert bool          `json:"invert,omitempty"`
-	Op     string        `json:"op,omitempty"` // "AND" or "OR"
+	Op     string        `json:"op,omitempty"` // "AND", "OR" or "NOT"
 }
 
 // QuerySpec is the pure serializable data representation of a unified
@@ -224,107 +233,212 @@ func (q QuerySpec) HasFilter() bool {
 	return false
 }
 
-// Matches evaluates q's boolean filter tokens against rec using s's field definitions.
+// Matches evaluates q's filter against one record. A caller that tests many
+// records compiles once (Compile) and asks the CompiledQuery instead.
 func (q QuerySpec) Matches(rec Record, s Schema) bool {
-	if !q.HasFilter() {
-		return true
-	}
-	fieldMap := map[string]QueryFieldDef{}
+	return q.Compile(s).Matches(rec)
+}
+
+// recordPredicate is one compiled node of a filter expression.
+type recordPredicate func(Record) bool
+
+// CompiledQuery is a QuerySpec's filter parsed once against a Schema. It is
+// the one predicate the Zero-Field preview, an applied table and a replayed
+// preset all ask, so the three always agree on which records match.
+//
+// Precedence is NOT > AND > OR, and parentheses group. Compiling never fails,
+// because the spec is edited one token at a time: a clause without values is
+// ignored, an operator with a missing operand is dropped, two operands with
+// no operator between them are joined by AND, an unclosed "(" is closed at
+// the end, and a ")" that closes nothing is skipped.
+type CompiledQuery struct {
+	spec  QuerySpec
+	match recordPredicate // nil: no active clause, every record matches
+}
+
+// Compile parses q's filter tokens against s's field definitions.
+func (q QuerySpec) Compile(s Schema) CompiledQuery {
+	fields := map[string]QueryFieldDef{}
 	for _, fd := range SchemaFieldDefs(s) {
-		fieldMap[fd.Name] = fd
+		fields[fd.Name] = fd
 	}
-	toks := q.Tokens
-	pos := 0
-	var parseOr, parseAnd, parseAtom func() bool
-	parseAtom = func() bool {
-		if pos >= len(toks) {
-			return true
-		}
-		tok := toks[pos]
-		switch tok.Kind {
-		case ExprTokenLParen:
-			pos++
-			res := parseOr()
-			if pos < len(toks) && toks[pos].Kind == ExprTokenRParen {
-				pos++
-			}
-			return res
-		case ExprTokenClause:
-			pos++
-			return clauseMatchesRecord(rec, tok, fieldMap[tok.Field])
-		default:
-			pos++
-			return true
-		}
-	}
-	parseAnd = func() bool {
-		left := parseAtom()
-		for pos < len(toks) && toks[pos].Kind == ExprTokenOp && toks[pos].Op == "AND" {
-			pos++
-			left = left && parseAtom()
-		}
-		return left
-	}
-	parseOr = func() bool {
-		left := parseAnd()
-		for pos < len(toks) && toks[pos].Kind == ExprTokenOp && toks[pos].Op == "OR" {
-			pos++
-			left = left || parseAnd()
-		}
-		return left
-	}
-	return parseOr()
-}
-
-func clauseMatchesRecord(rec Record, tok ExprToken, fd QueryFieldDef) bool {
-	val := RecordFieldText(rec, tok.Field)
-	lower := strings.ToLower(val)
-	matchOne := func(candidate string) bool {
-		if fd.Substring {
-			return strings.Contains(lower, strings.ToLower(candidate))
-		}
-		return strings.EqualFold(val, candidate)
-	}
-	var matched bool
-	if tok.All {
-		matched = len(tok.Values) > 0
-		for _, v := range tok.Values {
-			if !matchOne(v) {
-				matched = false
-				break
-			}
-		}
-	} else {
-		for _, v := range tok.Values {
-			if matchOne(v) {
-				matched = true
-				break
-			}
-		}
-	}
-	if tok.Invert {
-		return !matched
-	}
-	return matched
-}
-
-// ToSimpleTableFilter translates a simple single-clause QuerySpec into a table
-// field+query pair (returning field, query, true), or ("", summary, false) for
-// compound boolean expressions that evaluate directly on QuerySpec.
-func (q QuerySpec) ToSimpleTableFilter() (field, query string, simple bool) {
-	var clauses []ExprToken
+	p := exprParser{fields: fields}
 	for _, tok := range q.Tokens {
-		if tok.Kind == ExprTokenClause && len(tok.Values) > 0 {
-			clauses = append(clauses, tok)
-		} else if tok.Kind == ExprTokenOp || tok.Kind == ExprTokenLParen {
-			return "", q.FilterSummary(), false
+		if tok.Kind != ExprTokenClause || len(tok.Values) > 0 {
+			p.toks = append(p.toks, tok)
 		}
 	}
-	if len(clauses) == 0 {
-		return "", "", true
+	return CompiledQuery{spec: q, match: p.expression()}
+}
+
+// Spec returns the query this was compiled from.
+func (c CompiledQuery) Spec() QuerySpec { return c.spec }
+
+// HasFilter reports whether the compiled filter can exclude a record.
+func (c CompiledQuery) HasFilter() bool { return c.match != nil }
+
+// Matches reports whether rec passes the filter. It parses nothing.
+func (c CompiledQuery) Matches(rec Record) bool {
+	return c.match == nil || c.match(rec)
+}
+
+// Filter returns the records that match, in their given order.
+func (c CompiledQuery) Filter(recs []Record) []Record {
+	if c.match == nil {
+		return recs
 	}
-	if len(clauses) == 1 && !clauses[0].Invert && len(clauses[0].Values) == 1 {
-		return clauses[0].Field, clauses[0].Values[0], true
+	out := make([]Record, 0, len(recs))
+	for _, rec := range recs {
+		if c.match(rec) {
+			out = append(out, rec)
+		}
 	}
-	return "", q.FilterSummary(), false
+	return out
+}
+
+// exprParser is a recursive-descent parser over filter tokens. Every parse
+// step returns nil for "no operand here", which its caller skips.
+type exprParser struct {
+	toks   []ExprToken
+	pos    int
+	fields map[string]QueryFieldDef
+}
+
+func (p *exprParser) peek() (ExprToken, bool) {
+	if p.pos >= len(p.toks) {
+		return ExprToken{}, false
+	}
+	return p.toks[p.pos], true
+}
+
+func (p *exprParser) atOp(op string) bool {
+	tok, ok := p.peek()
+	return ok && tok.Kind == ExprTokenOp && strings.EqualFold(strings.TrimSpace(tok.Op), op)
+}
+
+// startsOperand reports whether the next token can begin an operand, which is
+// what makes two adjacent operands an implicit AND.
+func (p *exprParser) startsOperand() bool {
+	tok, ok := p.peek()
+	return ok && (tok.Kind == ExprTokenClause || tok.Kind == ExprTokenLParen || p.atOp(ExprOpNot))
+}
+
+// expression parses the whole token list. A ")" that closes nothing is
+// skipped, and what follows it is joined by AND.
+func (p *exprParser) expression() recordPredicate {
+	var out recordPredicate
+	for p.pos < len(p.toks) {
+		before := p.pos
+		out = allOf(out, p.or())
+		if p.pos == before {
+			p.pos++
+		}
+	}
+	return out
+}
+
+func (p *exprParser) or() recordPredicate {
+	left := p.and()
+	for p.atOp(ExprOpOr) {
+		p.pos++
+		left = anyOf(left, p.and())
+	}
+	return left
+}
+
+func (p *exprParser) and() recordPredicate {
+	left := p.not()
+	for {
+		switch {
+		case p.atOp(ExprOpAnd):
+			p.pos++
+		case !p.startsOperand():
+			return left
+		}
+		left = allOf(left, p.not())
+	}
+}
+
+func (p *exprParser) not() recordPredicate {
+	negate := false
+	for p.atOp(ExprOpNot) {
+		p.pos++
+		negate = !negate
+	}
+	operand := p.atom()
+	if !negate || operand == nil {
+		return operand
+	}
+	return func(r Record) bool { return !operand(r) }
+}
+
+func (p *exprParser) atom() recordPredicate {
+	tok, ok := p.peek()
+	if !ok {
+		return nil
+	}
+	switch tok.Kind {
+	case ExprTokenClause:
+		p.pos++
+		return clausePredicate(tok, p.fields[tok.Field])
+	case ExprTokenLParen:
+		p.pos++
+		inner := p.or()
+		if next, ok := p.peek(); ok && next.Kind == ExprTokenRParen {
+			p.pos++
+		}
+		return inner
+	case ExprTokenOp:
+		if !p.atOp(ExprOpAnd) && !p.atOp(ExprOpOr) {
+			p.pos++ // an operator nobody knows: skip it
+			return p.atom()
+		}
+	}
+	return nil // ")" or a binary operator: no operand here
+}
+
+// allOf is left AND right; a missing side leaves the other.
+func allOf(left, right recordPredicate) recordPredicate {
+	if left == nil {
+		return right
+	}
+	if right == nil {
+		return left
+	}
+	return func(r Record) bool { return left(r) && right(r) }
+}
+
+// anyOf is left OR right; a missing side leaves the other.
+func anyOf(left, right recordPredicate) recordPredicate {
+	if left == nil {
+		return right
+	}
+	if right == nil {
+		return left
+	}
+	return func(r Record) bool { return left(r) || right(r) }
+}
+
+// clausePredicate compiles one clause: any (or all) of its values match the
+// record's field, by substring for free-text fields and by equality otherwise.
+func clausePredicate(tok ExprToken, fd QueryFieldDef) recordPredicate {
+	field, substring, all, invert := tok.Field, fd.Substring, tok.All, tok.Invert
+	values := make([]string, len(tok.Values))
+	for i, v := range tok.Values {
+		values[i] = strings.ToLower(v)
+	}
+	return func(rec Record) bool {
+		text := strings.ToLower(RecordFieldText(rec, field))
+		matchOne := func(v string) bool {
+			if substring {
+				return strings.Contains(text, v)
+			}
+			return text == v
+		}
+		matched := slices.ContainsFunc(values, matchOne)
+		if all {
+			matched = !slices.ContainsFunc(values, func(v string) bool { return !matchOne(v) })
+		}
+		return matched != invert
+	}
 }
