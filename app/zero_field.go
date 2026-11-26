@@ -114,12 +114,7 @@ func (a *App) openZeroFieldModal(s core.State, startMode string) core.StepResult
 	}
 	kind := a.kindOfTable(tableID)
 	schema := a.schema(kind)
-	var records []data.Record
-	if a.Store != nil && kind != "" {
-		if res, err := a.Store.Query(data.Query{Kind: kind}); err == nil {
-			records = res.Items
-		}
-	}
+	records := a.tableCandidates(kind)
 	spec := a.zeroFieldSpecs[tableID]
 	spec.GroupBy = tbl.GroupField
 	spec.SortBy = tbl.SortField
@@ -227,45 +222,46 @@ func (m *zeroFieldModal) OnClose(reason modal.CloseReason) {
 }
 
 func (m *zeroFieldModal) applyToTable() {
-	if m.a == nil {
-		return
+	if m.a != nil {
+		m.a.applyQuerySpec(m.tableID, m.query)
 	}
-	if m.a.zeroFieldSpecs == nil {
-		m.a.zeroFieldSpecs = map[string]data.QuerySpec{}
+}
+
+// applyQuerySpec makes q the query of a table: its filter narrows the rows
+// where they are built (records, through tableQuery), and its group and sort
+// go onto the table model. The Zero-Field modal and a replayed preset both
+// end here.
+func (a *App) applyQuerySpec(tableID string, q data.QuerySpec) {
+	if a.zeroFieldSpecs == nil {
+		a.zeroFieldSpecs = map[string]data.QuerySpec{}
 	}
-	m.a.zeroFieldSpecs[m.tableID] = m.query
-	tbl := m.a.nav.tables[m.tableID]
+	filterChanged := a.zeroFieldSpecs[tableID].FilterSummary() != q.FilterSummary()
+	a.zeroFieldSpecs[tableID] = q
+	delete(a.nav.recCacheKeys, tableID) // the rows depend on the filter: rebuild them
+	a.viewMemo.gen++
+	tbl := a.nav.tables[tableID]
 	if tbl == nil {
 		return
 	}
-	// Apply Group & Sort directly onto the table model.
-	if tbl.GroupField != m.query.GroupBy {
-		tbl.GroupField, tbl.Collapsed = m.query.GroupBy, nil
+	if tbl.GroupField != q.GroupBy {
+		tbl.GroupField, tbl.Collapsed = q.GroupBy, nil
 		tbl.SelectedIdx, tbl.Offset = 0, 0
 	}
-	tbl.SortField = m.query.SortBy
+	tbl.SortField = q.SortBy
 	switch {
-	case m.query.SortBy == "":
+	case q.SortBy == "":
 		tbl.SortDir = table.SortNone
-	case m.query.SortDir == "desc":
+	case q.SortDir == "desc":
 		tbl.SortDir = table.SortDesc
 	default:
 		tbl.SortDir = table.SortAsc
 	}
-	// Apply Filter onto the table model cleanly.
-	field, query, simple := m.query.ToSimpleTableFilter()
-	if simple {
-		if field == "" {
-			tbl.FilterField = views.AnyField
-		} else {
-			tbl.FilterField = field
-		}
-		tbl.Query = query
-	} else {
-		tbl.FilterField = views.AnyField
-		tbl.Query = ""
+	// The query's filter replaces the table's own text filter; it is not
+	// translated into one, so every shape of filter matches the same way.
+	tbl.FilterField, tbl.Query = views.AnyField, ""
+	if filterChanged {
+		tbl.SelectedIdx, tbl.Offset = 0, 0
 	}
-	m.a.viewMemo.gen++
 }
 
 func (m *zeroFieldModal) Handle(c core.Command) modal.Result {
@@ -496,16 +492,33 @@ func (m *zeroFieldModal) trimTrailingOps() {
 }
 
 func (m *zeroFieldModal) applyPreset(p data.Preset) {
-	if raw, ok := p.Values["query"]; ok {
-		if b, err := json.Marshal(raw); err == nil {
-			var q data.QuerySpec
-			if json.Unmarshal(b, &q) == nil {
-				m.query = q
-				m.flash = "applied preset: " + p.Name
-				return
-			}
-		}
+	if q, ok := presetQuery(p); ok {
+		m.query = q
+		m.flash = "applied preset: " + p.Name
 	}
+}
+
+// presetQuery reads the query a preset saved, when it saved one.
+func presetQuery(p data.Preset) (data.QuerySpec, bool) {
+	raw, ok := p.Values["query"]
+	if !ok {
+		return data.QuerySpec{}, false
+	}
+	if q, isSpec := raw.(data.QuerySpec); isSpec {
+		return q, true
+	}
+	var q data.QuerySpec
+	b, err := json.Marshal(raw)
+	if err != nil || json.Unmarshal(b, &q) != nil {
+		return data.QuerySpec{}, false
+	}
+	return q, true
+}
+
+// matched returns the records the edited query keeps: what the table shows
+// once the query is applied.
+func (m *zeroFieldModal) matched() []data.Record {
+	return m.query.Compile(m.schema).Filter(m.records)
 }
 
 func (m *zeroFieldModal) View(w, _ int) ui.ViewNode {
@@ -653,14 +666,6 @@ func (m *zeroFieldModal) View(w, _ int) ui.ViewNode {
 		}
 	}
 
-	// Count live matches.
-	matched := 0
-	for _, rec := range m.records {
-		if m.query.Matches(rec, m.schema) {
-			matched++
-		}
-	}
-
 	title := "Zero-Field Query"
 	if m.schema.Title != "" {
 		title += " · " + m.schema.Title
@@ -678,7 +683,7 @@ func (m *zeroFieldModal) View(w, _ int) ui.ViewNode {
 		FieldRows:       fieldRows,
 		ValueChips:      valChips,
 		PresetChips:     presetChips,
-		MatchedCount:    matched,
+		MatchedCount:    len(m.matched()),
 		TotalCount:      len(m.records),
 		StatusHint:      m.flash,
 		Width:           min(w-6, 92),
@@ -785,16 +790,10 @@ func (a *App) applyGenericPresetToFocused(s core.State, p data.Preset) {
 		a.say("preset %q ready (%s)", p.Name, p.Kind)
 		return
 	}
-	if raw, ok := p.Values["query"]; ok {
-		if b, err := json.Marshal(raw); err == nil {
-			var q data.QuerySpec
-			if json.Unmarshal(b, &q) == nil {
-				m := &zeroFieldModal{a: a, tableID: id, query: q}
-				m.applyToTable()
-				a.say("applied preset %q", p.Name)
-				return
-			}
-		}
+	if q, ok := presetQuery(p); ok {
+		a.applyQuerySpec(id, q)
+		a.say("applied preset %q", p.Name)
+		return
 	}
 	if g := data.Text(p.Values["groupBy"]); g != "" {
 		tbl.GroupField = g
