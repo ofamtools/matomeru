@@ -111,6 +111,13 @@
       "row":    {"titleFields": ["title", "value"], "metaFields": ["contextKind"]},
       "card":   {"titleFields": ["title", "value"], "subtitleFields": ["value"], "metaFields": ["contextKind", "source"]},
       "detail": {"titleFields": ["title", "value"], "subtitleFields": ["value"], "metaFields": ["contextKind", "source"]}
+    }},
+    {"kind": "repo", "forms": {
+      "chip":   {"icon": "⎇", "titleFields": ["name", "path"], "maxLen": 32},
+      "inline": {"icon": "⎇", "titleFields": ["name", "path"], "maxLen": 48},
+      "row":    {"titleFields": ["name", "path"], "metaFields": ["defaultBranch", "source"]},
+      "card":   {"titleFields": ["name", "path"], "subtitleFields": ["path", "remoteUrl"], "metaFields": ["defaultBranch", "source"]},
+      "detail": {"titleFields": ["name", "path"], "subtitleFields": ["path", "remoteUrl"], "metaFields": ["defaultBranch", "source"]}
     }}
   ]
 }

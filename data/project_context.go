@@ -557,9 +557,10 @@ func (s *Store) ProjectScopeWorktrees(scope ProjectScope, lanes []Record) []Proj
 		if lane.IsArchived() {
 			continue
 		}
+		_, repoLabels := RecordRepos(s, lane)
 		add(ProjectWorktree{
 			Path: lane.Text("worktree"), Branch: strings.TrimSpace(lane.Text("branch")),
-			Repo: strings.TrimSpace(lane.Text("repo")), Source: "lane", Ref: lane.Ref(),
+			Repo: strings.Join(repoLabels, ", "), Source: "lane", Ref: lane.Ref(),
 		})
 	}
 	activeTaskIDs := map[string]bool{}
@@ -568,7 +569,8 @@ func (s *Store) ProjectScopeWorktrees(scope ProjectScope, lanes []Record) []Proj
 			continue
 		}
 		activeTaskIDs[task.ID] = true
-		add(ProjectWorktree{Path: task.Text("defaultDir"), Repo: strings.TrimSpace(task.Text("repo")), Source: "task", Ref: task.Ref()})
+		_, repoLabels := RecordRepos(s, task)
+		add(ProjectWorktree{Path: task.Text("defaultDir"), Repo: strings.Join(repoLabels, ", "), Source: "task", Ref: task.Ref()})
 	}
 	for _, rel := range scope.Relations {
 		if rel.Kind != RelDirectory || rel.From.Kind != KindTask || !activeTaskIDs[rel.From.ID] {

@@ -159,6 +159,100 @@ func parseSnoozeTime(text string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+func (a *App) outgoingRelationRefs(ref core.Ref, kind string) []core.Ref {
+	rows, err := a.Store.Related(ref, kind, data.Outgoing)
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	refs := make([]core.Ref, 0, len(rows))
+	for _, r := range rows {
+		if r.To.Kind != "" && r.To.ID != "" {
+			refs = append(refs, r.To)
+		}
+	}
+	return refs
+}
+
+func (a *App) loadFormRelations(schema data.Schema, ref core.Ref) map[string][]core.Ref {
+	if a == nil || a.Store == nil || ref.Kind == "" || ref.ID == "" {
+		return nil
+	}
+	rels := schema.FormRelations()
+	if len(rels) == 0 {
+		return nil
+	}
+	out := map[string][]core.Ref{}
+	for _, spec := range rels {
+		if refs := a.outgoingRelationRefs(ref, spec.Kind); len(refs) > 0 {
+			out[spec.Kind] = refs
+		}
+	}
+	return out
+}
+
+func (a *App) editOptionsFor(schema data.Schema, rec *data.Record) views.EditOptions {
+	opts := a.editOptions()
+	if rec != nil {
+		opts.InitialRelations = a.loadFormRelations(schema, rec.Ref())
+	}
+	return opts
+}
+
+func (a *App) findRecordByTitle(schema data.Schema, raw string) (core.Ref, bool) {
+	res, err := a.Store.Query(data.Query{Kind: schema.Kind})
+	if err != nil {
+		return core.Ref{}, false
+	}
+	for _, rec := range res.Items {
+		if strings.EqualFold(views.Title(schema, rec), raw) {
+			return rec.Ref(), true
+		}
+	}
+	return core.Ref{}, false
+}
+
+func (a *App) resolveFormRef(kind, raw string) (core.Ref, bool) {
+	if a == nil || a.Store == nil {
+		return core.Ref{}, false
+	}
+	raw = strings.TrimSpace(raw)
+	if kind == "" || raw == "" {
+		return core.Ref{}, false
+	}
+	if rec, err := a.Store.Get(core.Ref{Kind: kind, ID: raw}); err == nil && rec != nil {
+		return rec.Ref(), true
+	}
+	schema := a.schema(kind)
+	if sf := schema.SummaryField; sf != "" {
+		if rec, err := a.Store.GetByField(kind, sf, raw); err == nil && rec != nil {
+			return rec.Ref(), true
+		}
+	}
+	return a.findRecordByTitle(schema, raw)
+}
+
+func (a *App) applyRelationDiff(from core.Ref, changes []data.RelationChange) (*data.ChangeSet, []error) {
+	var lastCS *data.ChangeSet
+	var errs []error
+	for _, ch := range changes {
+		for _, to := range ch.Add {
+			if _, cs, err := a.Store.Relate(data.RelateInput{From: from, Kind: ch.Kind, To: to}, User); err != nil {
+				errs = append(errs, fmt.Errorf("relate %s %s: %w", ch.Kind, data.RefText(to), err))
+			} else if cs != nil {
+				lastCS = cs
+			}
+		}
+		for _, to := range ch.Remove {
+			if cs, err := a.Store.Unrelate(from, ch.Kind, to, User); err != nil {
+				errs = append(errs, fmt.Errorf("unrelate %s %s: %w", ch.Kind, data.RefText(to), err))
+			} else if cs != nil {
+				lastCS = cs
+			}
+		}
+	}
+	return lastCS, errs
+}
+
 // submitForm commits the record form rf as one data.FormSubmission. An edit
 // is one Store.Patch, so its fields and its star, archive and snooze changes
 // are one change set and one undo. It reports whether the modal should close.
@@ -172,6 +266,7 @@ func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
 		Submitted:     values,
 		Defaults:      rf.hiddenDefaults,
 		VisibleFields: fm.Specs,
+		ResolveRef:    a.resolveFormRef,
 	}
 	snoozeVisible := slices.ContainsFunc(fm.Specs, func(sp core.ParamSpec) bool { return sp.Name == data.ColSnoozedUntil })
 	snoozeText := strings.TrimSpace(data.Text(values[data.ColSnoozedUntil]))
@@ -211,18 +306,19 @@ func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
 		return false
 	}
 	sub.Before = cur
+	sub.BeforeRelations = a.loadFormRelations(sub.Schema, cur.Ref())
 	if !sub.HasChanges() {
 		a.say("no changes")
 		return true
 	}
 	in := sub.PatchInput()
-	rec, cs, err := a.Store.Patch(in, User)
+	rec, cs, relErrs, err := a.commitFormEdit(cur, in, sub)
 	if err != nil {
 		a.fail("save "+rf.kind, err)
 		return false
 	}
 	a.clearSubmittedDraft(fm, rf.draftKey)
-	a.wrote(fmt.Sprintf("saved %s %q", strings.ToLower(sub.Schema.Title), views.Title(sub.Schema, *rec)), cs, nil)
+	a.reportFormSave(sub.Schema, *rec, cs, relErrs)
 	_, hasBody := in.Fields["body"]
 	_, hasTitle := in.Fields["title"]
 	if hasBody || hasTitle {
@@ -231,10 +327,36 @@ func (a *App) submitForm(rf *recordFormModal, values map[string]any) bool {
 	return true
 }
 
+func (a *App) commitFormEdit(cur *data.Record, in data.PatchInput, sub data.FormSubmission) (*data.Record, *data.ChangeSet, []error, error) {
+	rec := cur
+	var cs *data.ChangeSet
+	if len(in.Fields) > 0 {
+		var err error
+		rec, cs, err = a.Store.Patch(in, User)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	relCS, relErrs := a.applyRelationDiff(rec.Ref(), sub.RelationDiff())
+	if cs == nil {
+		cs = relCS
+	}
+	return rec, cs, relErrs, nil
+}
+
+func (a *App) reportFormSave(schema data.Schema, rec data.Record, cs *data.ChangeSet, relErrs []error) {
+	what := fmt.Sprintf("saved %s %q", strings.ToLower(schema.Title), views.Title(schema, rec))
+	if err := errors.Join(relErrs...); err != nil {
+		a.fail(what, err)
+		return
+	}
+	a.wrote(what, cs, nil)
+}
+
 // createFromSubmission creates the new record of sub, then attaches it to
-// about and writes its non-default statuses. Every failure after the create
-// is reported; the record stays, so the form still closes. The managed file
-// is synced after the record is committed.
+// about, writes its non-default statuses, and links any InForm relations. Every
+// failure after the create is reported; the record stays, so the form still
+// closes. The managed file is synced after the record is committed.
 func (a *App) createFromSubmission(sub data.FormSubmission, about *core.Ref) (*data.Record, bool) {
 	in := sub.CreateInput()
 	rec, cs, err := a.Store.Create(in, User)
@@ -249,6 +371,9 @@ func (a *App) createFromSubmission(sub data.FormSubmission, about *core.Ref) (*d
 		if _, _, err := a.Store.Relate(data.RelateInput{From: ref, Kind: data.RelAbout, To: *about}, User); err != nil {
 			errs = append(errs, fmt.Errorf("attach note: %w", err))
 		}
+	}
+	if _, relErrs := a.applyRelationDiff(ref, sub.RelationDiff()); len(relErrs) > 0 {
+		errs = append(errs, relErrs...)
 	}
 	if overlay := sub.CreateOverlay(ref); len(overlay.Fields) > 0 {
 		if patched, _, err := a.Store.Patch(overlay, User); err != nil {
@@ -270,6 +395,7 @@ func (a *App) createFromSubmission(sub data.FormSubmission, about *core.Ref) (*d
 // afterPaneCreated opens the pane just created from the form, once the modal
 // has closed.
 func (a *App) afterPaneCreated(created data.Record) {
+	a.maybeHarvestPaneRepo(created.Text("cwd"))
 	a.afterModal(func(st core.State) core.State {
 		a.viewMemo.gen++
 		if isProjectTab(st.ActivePage) && a.projectChildPaneViewEnabled() {

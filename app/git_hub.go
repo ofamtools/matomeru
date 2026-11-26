@@ -352,6 +352,10 @@ func (a *App) registerGitHubHandlers() {
 	}
 }
 
+func (t gitTarget) hasDirAndRepo() bool {
+	return t.Repository != "" && t.Dir != ""
+}
+
 func (a *App) gitActionTarget(s core.State, c core.Command) gitTarget {
 	var target gitTarget
 	ref, ok := a.subject(s, c)
@@ -389,11 +393,14 @@ func (a *App) gitActionTarget(s core.State, c core.Command) gitTarget {
 		cwd, projectID := a.resolveTaskDirAndProject(target.Task.ID)
 		target.Dir = firstNonEmpty(target.Dir, cwd)
 		for _, taskID := range []string{target.Task.ID, projectID} {
-			if target.Repository != "" || taskID == "" {
+			if target.hasDirAndRepo() || taskID == "" {
 				break
 			}
 			if rec, err := a.Store.Get(core.Ref{Kind: data.KindTask, ID: taskID}); err == nil {
-				target.Repository = rec.Text("repo")
+				repoDir, repoID, repoBranch := data.RepoTargetInfo(a.Store, *rec)
+				target.Dir = firstNonEmpty(target.Dir, repoDir)
+				target.Repository = firstNonEmpty(target.Repository, repoID)
+				target.Branch = firstNonEmpty(target.Branch, repoBranch)
 			}
 		}
 	} else if target.Dir == "" && a.opts.FS == nil {
@@ -434,10 +441,11 @@ func (a *App) gitTargetForRef(ref core.Ref) gitTarget {
 	if rec.Kind == data.KindTask {
 		target.Task = ref
 	}
-	target.Dir = firstNonEmpty(rec.Text("worktree"), rec.Text("cwd"), rec.Text("defaultDir"))
+	repoDir, repoID, repoBranch := data.RepoTargetInfo(a.Store, *rec)
+	target.Dir = firstNonEmpty(rec.Text("worktree"), rec.Text("cwd"), rec.Text("defaultDir"), repoDir)
 	target.Worktree = rec.Text("worktree")
-	target.Branch = rec.Text("branch")
-	target.Repository = firstNonEmpty(rec.Text("repo"), rec.Text("repository"))
+	target.Branch = firstNonEmpty(rec.Text("branch"), repoBranch)
+	target.Repository = firstNonEmpty(repoID, rec.Text("repository"))
 	switch rec.Kind {
 	case "directory", "dir":
 		target.Dir = firstNonEmpty(target.Dir, rec.Text("path"))

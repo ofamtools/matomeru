@@ -567,6 +567,7 @@ func (a *App) attachSized(pane data.Record, cols, rows int) error {
 	}
 	cmd, env := a.buildPaneLaunch(pane)
 	cwd := expandHome(pane.Text("cwd"))
+	a.maybeHarvestPaneRepo(cwd)
 	var err error
 	if host, ok := a.panes.Host.(ptyhost.EnvOpener); ok {
 		// The program learns which pane it is in and which task it works on:

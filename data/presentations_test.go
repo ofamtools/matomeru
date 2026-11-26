@@ -10,7 +10,7 @@ import (
 func TestPresentationDefaultsCoverBuiltInNouns(t *testing.T) {
 	reg := DefaultPresentations()
 	for _, kind := range []string{KindTask, KindPane, KindLane, KindDocument, KindNote, KindQuestion, KindCommand, KindPage,
-		KindRun, KindSignal, KindSchedule, KindTriageRule, KindExtension, "directory", KindContext} {
+		KindRun, KindSignal, KindSchedule, KindTriageRule, KindExtension, "directory", KindContext, KindRepo} {
 		for _, form := range PresentationForms {
 			if spec, ok := reg.Declared(kind, form); !ok || len(spec.TitleFields) == 0 {
 				t.Errorf("%s %s: declared = %v, title fields %v", kind, form, ok, spec.TitleFields)

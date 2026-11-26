@@ -69,6 +69,7 @@ func CommandSpecs() []core.CommandSpec {
 	)
 	base = append(base, chipSpecs()...)
 	base = append(base, gitHubSpecs()...)
+	base = append(base, repoSyncSpecs()...)
 	base = append(base, zeroFieldSpecs()...)
 	base = append(base, pickerPickerSpecs()...)
 	return append(append(base, []core.CommandSpec{
@@ -224,6 +225,7 @@ func CommandSpecs() []core.CommandSpec {
 		{ID: CmdPickerInsert, Description: "Type into the picker", Params: text, Meta: map[string]any{"internal": true}},
 		{ID: CmdPickerBack, Description: "Erase the last character of the picker's query", Meta: map[string]any{"internal": true}},
 		{ID: picker.CmdConfirm, Description: "Choose the highlighted item", Meta: map[string]any{"internal": true}},
+		{ID: picker.CmdMarkToggle, Description: "Toggle selection mark on the highlighted picker item", Meta: map[string]any{"internal": true}},
 		{ID: picker.CmdModeCycle, Description: "Change how the picker matches", Meta: map[string]any{"internal": true}},
 		{ID: picker.CmdFilterStart, Description: "Enter filter mode in the picker", Meta: map[string]any{"internal": true}},
 		{ID: picker.CmdFilterStop, Description: "Leave picker filter mode", Meta: map[string]any{"internal": true}},

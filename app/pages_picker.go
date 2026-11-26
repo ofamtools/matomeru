@@ -27,6 +27,7 @@ const (
 var coreNounOrder = []string{
 	data.KindTask,
 	data.KindLane,
+	data.KindRepo,
 	data.KindDocument,
 	data.KindNote,
 	data.KindQuestion,

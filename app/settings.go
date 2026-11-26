@@ -247,6 +247,7 @@ const (
 	SetInputFilterScrollMotions        = "input.filterScrollMotions"
 	SetSplitResize                     = "ui.splitResize"
 	SetProjectNavCompact               = "ui.projectNavCompact"
+	SetRepoAutoHarvestPanes            = "repo.autoHarvestPanes"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -436,6 +437,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetInputFilterScrollMotions, true, "use ctrl+f/b/d/u as page and half-page list motions while typing in filter fields (off: readline editing)"),
 		flag(SetSplitResize, true, "allow resizing UI splits interactively with ctrl+w >/< / +/- / ="),
 		flag(SetProjectNavCompact, true, "use a less dense Project Portal left nav: hide zero-count badges, cap auto-expanded unread previews, and add group spacing"),
+		flag(SetRepoAutoHarvestPanes, true, "automatically register git repositories discovered from pane working directories"),
 	}
 }
 
@@ -619,6 +621,9 @@ func (a *App) projectNavCompactEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectNavCompact, true)
 }
 
+func (a *App) repoAutoHarvestPanesEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetRepoAutoHarvestPanes, true)
+}
 func (a *App) detachFocusTarget() string {
 	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
 		return DetachFocusLeft
