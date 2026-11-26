@@ -519,6 +519,9 @@ func (a *App) projectTabOpen(s core.State, c core.Command) core.StepResult {
 	if !a.projectsDynamicTabsEnabled() {
 		return a.projectHomeOpen(s, c)
 	}
+	if a.focusRefuseProject(projRef.ID) {
+		return core.Next(s)
+	}
 	a.ensureProjectTabOpen(projRef.ID)
 	tabID := projectTabID(projRef.ID)
 	s = a.openSpace(s, tabID)

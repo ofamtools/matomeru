@@ -230,6 +230,9 @@ const (
 	SetProjectNavShowNewItems          = "projects.navShowNewItems"
 	SetShowTitleAttachmentChips        = "show.titleAttachmentChips"
 	SetPanesKeepCompletedLaneBars      = "panes.keepCompletedLaneBars"
+	SetFocusHideNonPriority            = "focus.hideNonPriorityProjects"
+	SetFocusEnforceLocks               = "focus.enforceLocks"
+	SetFocusChromeCountdown            = "focus.chromeCountdown"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -408,6 +411,9 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectNavShowNewItems, true, "the Project left nav auto-expands and lists new (unread) items; off keeps only the unread count badges"),
 		flag(SetShowTitleAttachmentChips, true, "Show page headers lift @/path attachments out of a long title onto their own chip line"),
 		flag(SetPanesKeepCompletedLaneBars, true, "keep the bars of a pane's finished lanes stacked above its site until dismissed (needs panes.laneProgressBar)"),
+		flag(SetFocusHideNonPriority, true, "while today has priority projects (g Z), the task outline hides every other top-level project; the capture bucket stays"),
+		flag(SetFocusEnforceLocks, true, "refuse to open a project locked by a Pomodoro, a scheduled focus window or a time-budget cooldown (off: locks are shown but not enforced)"),
+		flag(SetFocusChromeCountdown, true, "show a short Pomodoro countdown chip in the chrome while a Pomodoro runs"),
 	}
 }
 

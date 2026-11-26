@@ -97,10 +97,7 @@ func (a *App) chromeSystemStatsEnabled() bool {
 }
 
 func (a *App) chromeSysStatsKey() string {
-	if !a.chromeSystemStatsEnabled() || a.rt.live.sysStats == nil {
-		return ""
-	}
-	return FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), 200)
+	return a.chromeStats(200)
 }
 
 func (a *App) tabsMemoKey(s core.State) string {
@@ -319,13 +316,11 @@ func (a *App) build(s core.State) ui.ViewNode {
 	} else {
 		leftStatus := a.statusLine(s, root, chain)
 		statusText := clip(leftStatus, w)
-		if a.chromeSystemStatsEnabled() && a.rt.live.sysStats != nil {
-			if rightStats := FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), w); rightStats != "" {
-				if w > 0 {
-					statusText = MergeChromeStatusLine(leftStatus, rightStats, w)
-				} else {
-					statusText = leftStatus + "  " + rightStats
-				}
+		if rightStats := a.chromeStats(w); rightStats != "" {
+			if w > 0 {
+				statusText = MergeChromeStatusLine(leftStatus, rightStats, w)
+			} else {
+				statusText = leftStatus + "  " + rightStats
 			}
 		}
 		bottomLine, ok := a.filterBarNode(s, root, w)

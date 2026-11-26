@@ -30,6 +30,22 @@ func (a *App) cleanSlateStateFor(kind, treeID string, create bool) *cleanSlateSt
 	return &a.trees.outlineCleanSlate
 }
 
+// visibleTreeRoots are the top-level nodes an outline shows: the clean
+// slate's roots when one is active, else every root the focus priority
+// filter keeps.
+func (a *App) visibleTreeRoots(all []data.TreeNode, cs *cleanSlateState, kind string) []data.TreeNode {
+	if cs == nil {
+		return a.focusOutlineRoots(all, kind)
+	}
+	filtered := make([]data.TreeNode, 0, len(cs.roots))
+	for _, nd := range all {
+		if cs.roots[nd.Record.ID] {
+			filtered = append(filtered, nd)
+		}
+	}
+	return filtered
+}
+
 func (a *App) activeCleanSlate(kind, treeID string) *cleanSlateState {
 	cs := a.cleanSlateStateFor(kind, treeID, false)
 	if cs == nil || !cs.active {

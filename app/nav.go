@@ -582,6 +582,9 @@ func (a *App) openSpace(s core.State, id string) core.State {
 			a.say("project %q not found", pid)
 			return s
 		}
+		if a.focusRefuseProject(pid) {
+			return s
+		}
 		a.ensureProjectTabOpen(pid)
 	default:
 		a.say("no space %q", id)
@@ -611,7 +614,14 @@ func (a *App) cycleSpace(s core.State, delta int) core.State {
 		i = 0
 	}
 	n := len(tabs)
-	return a.openSpace(s, tabs[((i+delta)%n+n)%n].id)
+	for step := 1; step <= n; step++ {
+		// A locked project's tab is stepped over, not a dead end.
+		id := tabs[((i+delta*step)%n+n)%n].id
+		if !isProjectTab(id) || !a.focusAccess(projectIDFromTab(id)).Locked {
+			return a.openSpace(s, id)
+		}
+	}
+	return s
 }
 
 // leave remembers the Work space's focus on the page it is leaving.
@@ -715,6 +725,9 @@ func (a *App) jumpTravel(s core.State, delta int) core.State {
 			} else {
 				targetPage = SpacePanes
 			}
+		} else if a.focusRefuseProject(pid) {
+			// Jumping back into a locked project lands on the page that says why.
+			targetPage = SpaceFocus
 		} else {
 			a.ensureProjectTabOpen(pid)
 		}

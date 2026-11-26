@@ -72,6 +72,9 @@ func (a *App) projectPortalOpen(s core.State, c core.Command) core.StepResult {
 		return a.projectHomeOpen(s, c)
 	}
 
+	if a.focusRefuseProject(projRef.ID) {
+		return core.Next(s)
+	}
 	a.ensureProjectTabOpen(projRef.ID)
 	tabID := projectTabID(projRef.ID)
 	pc := a.projectCtrl()
