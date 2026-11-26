@@ -134,9 +134,9 @@ func TestProjectsSpaceDirectorySortingAndLivePreview(t *testing.T) {
 
 	// Right 80% live preview shows Beta's Home overview.
 	frame := d.Frame()
-	for _, want := range []string{"5 Projects", "Beta", "Active pane project", "Beta Spec", "WORKSPACE COUNTS"} {
+	for _, want := range []string{"Projects", "Beta", "Active pane project", "Beta Spec", "WORKSPACE COUNTS"} {
 		if !strings.Contains(frame, want) {
-			t.Fatalf("5 Projects preview for Beta missing %q:\n%s", want, frame)
+			t.Fatalf("Projects preview for Beta missing %q:\n%s", want, frame)
 		}
 	}
 
@@ -176,14 +176,15 @@ func TestProjectTabWorkspaceSectionsOutlineAndQuickNote(t *testing.T) {
 		t.Fatalf("expected 6 top-bar tabs (1..5 + 6 Apollo), got %d", len(tabsNode.Children))
 	}
 	tab6 := tabsNode.Children[5]
-	if tab6.Scope != wantSpace || !strings.Contains(tab6.Title, "6 Apollo") {
+	if tab6.Scope != wantSpace || !strings.Contains(tab6.Title, "Apollo") {
 		t.Fatalf("unexpected 6th tab metadata: id=%q scope=%q title=%q", tab6.ID, tab6.Scope, tab6.Title)
 	}
-	if len(tab6.Children) == 0 || tab6.Children[0].Scope != views.ScopeProjectTab {
+	tabInner := tab6.Find("project.tab." + f.proj.ID)
+	if tabInner == nil || tabInner.Scope != views.ScopeProjectTab {
 		t.Fatalf("expected inner ProjectTab scope wrapper, got %+v", tab6.Children)
 	}
-	if tab6.Children[0].Facts["isProjectTab"] != true || tab6.Children[0].Facts["canCloseTab"] != true {
-		t.Fatalf("missing ProjectTab facts: %+v", tab6.Children[0].Facts)
+	if tabInner.Facts["isProjectTab"] != true || tabInner.Facts["canCloseTab"] != true {
+		t.Fatalf("missing ProjectTab facts: %+v", tabInner.Facts)
 	}
 
 	// Verify 20/80 split, project name as nav title, and hidden redundant header.
@@ -288,7 +289,7 @@ func TestProjectTabInlineChildPaneView(t *testing.T) {
 		t.Fatalf("enter on pane in Project Tab with railEnterMode=live: mode=%q, want %q", a.Mode(), ModeTerminal)
 	}
 	frame := d.Frame()
-	for _, want := range []string{"6 Beta", "Screen", "Beta Plan"} {
+	for _, want := range []string{"Beta", "Screen", "Beta Plan"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("inline child pane frame missing %q:\n%s", want, frame)
 		}
@@ -344,8 +345,8 @@ func TestMultipleProjectTabsNavigationClosingAndOptOuts(t *testing.T) {
 	if a.Space() != gammaTab {
 		t.Fatalf("expected %q, got %q", gammaTab, a.Space())
 	}
-	if frame := d.Frame(); !strings.Contains(frame, "6 Beta") || !strings.Contains(frame, "7 Gamma") {
-		t.Fatalf("top bar missing 6 Beta / 7 Gamma:\n%s", frame)
+	if frame := d.Frame(); !strings.Contains(frame, "Beta") || !strings.Contains(frame, "Gamma") {
+		t.Fatalf("top bar missing Beta / Gamma:\n%s", frame)
 	}
 
 	// Switch with digits 5, 6, 7 and [ / ] cycling.

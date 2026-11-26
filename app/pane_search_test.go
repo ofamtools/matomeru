@@ -67,7 +67,9 @@ func TestPaneSearchBindingsAndLeaderParity(t *testing.T) {
 	if targetPageID == "" {
 		t.Fatal("expected a non-screen ui.page on selected demo pane")
 	}
-	d.Keys("l")
+	if !strings.HasPrefix(a.Focus(), tocPrefix) {
+		d.Keys("l")
+	}
 	for range 12 {
 		if a.Focus() == tocPrefix+targetPageID {
 			break

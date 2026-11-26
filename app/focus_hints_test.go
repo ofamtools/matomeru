@@ -52,13 +52,13 @@ func TestFocusHintsInlineAndDrilldown(t *testing.T) {
 			}
 
 			targets := a.panes.hints.session.Targets()
-			// Level 1 must label space tabs (1 Panes, 2 Work, ...) and top-level rails (Panes, Pages, Screen).
+			// Level 1 must label space tabs (Panes, Work, ...) and top-level rails (Panes, Pages, Screen).
 			tabPanes, ok := findFocusTargetByID(targets, "space.panes")
-			if !ok || tabPanes.Value != "1 Panes" {
+			if !ok || tabPanes.Value != "Panes" {
 				t.Fatalf("missing space.panes tab target, got %+v", targets)
 			}
 			tabWork, ok := findFocusTargetByID(targets, "space.work")
-			if !ok || tabWork.Value != "2 Work" {
+			if !ok || tabWork.Value != "Work" {
 				t.Fatalf("missing space.work tab target, got %+v", targets)
 			}
 			railPanel, ok := findFocusTargetByID(targets, "panes.rail")
@@ -91,8 +91,8 @@ func TestFocusHintsInlineAndDrilldown(t *testing.T) {
 			// Verify badges render inline on screen right next to real titles.
 			frame1 := d.Frame()
 			for _, want := range []string{
-				"[" + tabPanes.Label + "] 1 Panes",
-				"[" + tabWork.Label + "] 2 Work",
+				"[" + tabPanes.Label + "] Panes",
+				"[" + tabWork.Label + "] Work",
 				"[" + railPanel.Label + "] Panes",
 				"[" + tocPanel.Label + "] Pages",
 				"[" + contentPanel.Label + "] " + contentPanel.Value,
@@ -126,7 +126,7 @@ func TestFocusHintsInlineAndDrilldown(t *testing.T) {
 			}
 			// Level 2 frame badges items inside Pages and does NOT badge outer tabs or Panes rail.
 			frame2 := d.Frame()
-			if strings.Contains(frame2, "["+tabPanes.Label+"] 1 Panes") {
+			if strings.Contains(frame2, "["+tabPanes.Label+"] Panes") {
 				t.Fatalf("Level 2 frame unexpectedly kept Level 1 tab badge:\n%s", frame2)
 			}
 			if !strings.Contains(frame2, "["+tocScreen.Label+"]") {
