@@ -20,6 +20,7 @@ import (
 
 // Modes.
 const (
+	ModeGlobal         = "global" // universal app overlays inherited by non-typing modes
 	ModeNormal         = "normal"
 	ModeTerminal       = "terminal"        // passthrough: keys go to the pane
 	ModeTerminalLeader = "terminal-leader" // reached only through the leader layer
@@ -232,27 +233,28 @@ var leader = core.Layer{Name: "leader", Modes: []string{ModeTerminalLeader, Mode
 // Modes returns the app's modes.
 func Modes() []core.Mode {
 	return []core.Mode{
-		{Name: ModeNormal},
+		{Name: ModeGlobal},
+		{Name: ModeNormal, Base: ModeGlobal},
 		{Name: ModeTerminal, Passthrough: true},
 		{Name: ModeTerminalLeader},
 		{Name: ModeFilter},
-		{Name: ModePicker},
+		{Name: ModePicker, Base: ModeGlobal},
 		{Name: ModePickerFilter},
-		{Name: ModeForm},
+		{Name: ModeForm, Base: ModeGlobal},
 		{Name: ModeFormEdit},
 		{Name: ModeOutline, Base: ModeNormal},
 		{Name: ModeOutlineEdit},
-		{Name: ModeBindings},
+		{Name: ModeBindings, Base: ModeGlobal},
 		{Name: ModeBindingsFilter},
 		{Name: ModeBindingsCapture},
-		{Name: ModeReader},
-		{Name: ModeInspect},
+		{Name: ModeReader, Base: ModeGlobal},
+		{Name: ModeInspect, Base: ModeGlobal},
 		{Name: ModeCommandLine},
 		{Name: ModeHints},
 		{Name: ModeComposer},
-		{Name: ModeConfirm},
-		{Name: ModeAbout},
-		{Name: ModePage},
+		{Name: ModeConfirm, Base: ModeGlobal},
+		{Name: ModeAbout, Base: ModeGlobal},
+		{Name: ModePage, Base: ModeGlobal},
 	}
 }
 
@@ -358,9 +360,12 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(n, ScopeProjectContext, "*", CmdProjectContextStar, "star context item")),
 		bind(n, ScopeProjectContext, "a", CmdProjectContextAttach, "attach context item"),
 		bind(n, SpacePanes, "g p", CmdPanesGroupToggle, "toggle rail grouping"),
-		bind(n, ScopeRail, "f", CmdPaneHints, "terminal hints"),
-		bind(n, "terminal", "f", CmdPaneHints, "terminal hints"),
-		bind(n, views.ScopeTOC, "f", CmdPaneHints, "terminal hints"),
+		bind(n, ScopeRail, "f", CmdPaneHints, "screen hints"),
+		bind(n, "terminal", "f", CmdPaneHints, "screen hints"),
+		bind(n, views.ScopeTOC, "f", CmdPaneHints, "screen hints"),
+		bind(n, views.ScopeShow, "f", CmdPaneHints, "screen hints"),
+		bind(ModeReader, all, "f", CmdPaneHints, "screen hints"),
+		bind(ModePage, all, "f", CmdPaneHints, "screen hints"),
 		bind(n, SpacePanes, "c", CmdPaneCompose, "compose prompt"),
 		bind(n, SpacePanes, "L", CmdPaneAssociate, "associate pane with task"),
 		bind(n, all, "g c", CmdContextPick, "context items"),
@@ -379,21 +384,25 @@ func DefaultBindings() []core.Binding {
 
 		// Record actions, on whatever record is focused.
 		bind(n, all, "e", views.CmdEdit, "edit"),
-		with(bind(n, all, "n", views.CmdNew, "new task"), map[string]any{"kind": "task"}),
+		when(bind(n, views.ScopeIndex, "n", "motion.down", "next match"), "facts.hasFilter"),
+		when(bind(n, views.ScopeIndex, "N", "motion.up", "prev match"), "facts.hasFilter"),
+		when(bind(n, all, "n", "motion.down", "next match"), "facts.hasFilter"),
+		when(bind(n, all, "N", "motion.up", "prev match"), "facts.hasFilter"),
+		when(with(bind(n, all, "n", views.CmdNew, "new task"), map[string]any{"kind": "task"}), "!facts.hasFilter"),
 		with(bind(n, SpacePanes, "C", views.CmdNew, "new terminal"), map[string]any{
 			"kind":     data.KindPane,
 			"defaults": map[string]any{"harness": "zsh"},
 			"submit":   true,
 		}),
-		with(bind(n, SpacePanes, "n", views.CmdNew, "new agent"), map[string]any{
+		when(with(bind(n, SpacePanes, "n", views.CmdNew, "new agent"), map[string]any{
 			"kind":           data.KindPane,
 			"title":          "New Agent",
 			"excludeChoices": map[string]any{"harness": []string{"zsh"}},
-		}),
+		}), "!facts.hasFilter"),
 		when(bind(n, SpacePanes, "t", CmdSiteTOCToggle, "toggle pages"), "layer == nil"),
-		bind(n, SpaceWork, "n", CmdNewHere, "new"),
+		when(bind(n, SpaceWork, "n", CmdNewHere, "new"), "!facts.hasFilter"),
 		bind(n, all, "g m", CmdAssign, "move to a task"),
-		with(bind(n, all, "N", views.CmdNew, "new note"), map[string]any{"kind": "note"}),
+		when(with(bind(n, all, "N", views.CmdNew, "new note"), map[string]any{"kind": "note"}), "!facts.hasFilter"),
 		when(bind(n, all, "s", CmdStatusCycle, "cycle status"), "facts.hasStatus"),
 		when(bind(n, all, "m", views.CmdStar, "star"), "facts.starStatus != \"starred\""),
 		when(bind(n, all, "m", views.CmdUnstar, "unstar"), "facts.starStatus == \"starred\""),
@@ -436,7 +445,8 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, "g s", CmdSortFieldPick, "sort by any field"),
 		bind(n, all, "g b", CmdGroupFieldPick, "group by any field"),
 		bind(n, all, "g v", CmdTablePresetPick, "table presets"),
-		bind(n, all, "g f", CmdFocusHints, "focus jump hints"),
+		bind(ModeGlobal, all, "g f", CmdFocusHints, "focus jump hints"),
+		bind(ModeGlobal, all, "g h", CmdPaneHints, "screen hints"),
 		bind(n, all, "g n", CmdNounsPick, "browse any noun"),
 		bind(n, all, "g r", CmdRecentsPick, "recents"),
 		when(bind(n, all, "space", CmdGroupToggle, "fold group"), "facts.isGroupHeader"),
@@ -447,24 +457,24 @@ func DefaultBindings() []core.Binding {
 		when(bind(n, all, "esc", traits.SelectCmdMarkClear, "clear marks"), "!facts.visualActive && facts.markedCount > 0"),
 		bind(n, all, "A", CmdArchivedToggle, "show archived"),
 
-		// Overlays, from anywhere.
+		// Overlays, from anywhere (ModeGlobal is inherited by normal and modal normal modes).
 		bind(n, all, "T", CmdOutlineOpen, "outline"),
 		bind(n, all, "b", CmdOutlineCleanSlate, "blank outline"),
 		bind(n, all, "'", CmdPagesPick, "pages"),
 		bind(n, all, ";", CmdRecordActions, "record actions"),
-		bind(n, all, ":", CmdPaletteOpen, "commands"),
+		bind(ModeGlobal, all, ":", CmdPaletteOpen, "commands"),
 		with(bind(n, all, "!", CmdShellOpen, "shell command"), map[string]any{"prefix": string(commandline.PrefixShell)}),
 		with(bind(n, all, "|", CmdShellOpen, "pipe record to shell"), map[string]any{"prefix": string(commandline.PrefixPipe)}),
 		with(bind(n, all, "g !", CmdShellOpen, "read shell into note"), map[string]any{"prefix": string(commandline.PrefixReadShell)}),
-		bind(n, all, "?", CmdHelpOpen, "bindings"),
+		bind(ModeGlobal, all, "?", CmdHelpOpen, "bindings"),
 		bind(n, all, "g o", CmdPathOpen, "path"),
 		bind(n, all, "S", CmdSettingsOpen, "settings"),
-		bind(n, all, "B", CmdBindingsOpen, "edit bindings"),
+		bind(ModeGlobal, all, "B", CmdBindingsOpen, "edit bindings"),
 		bind(n, all, "g A", CmdAppAbout, "about"),
 		bind(n, all, "W", CmdPaneAttention, "next pane that wants you"),
 		{Mode: n, Keys: keys("ctrl+a"), Layer: &leader, Hint: "leader"},
 		bind(n, all, "Q", core.CmdAppQuit, "quit"),
-		hidden(bind(n, all, "ctrl+c", core.CmdAppQuit, "quit")),
+		hidden(bind(ModeGlobal, all, "ctrl+c", core.CmdAppQuit, "quit")),
 
 		// Terminal: everything but the leader goes to the pane.
 		{Mode: ModeTerminal, Keys: keys("ctrl+a"), Layer: &leader, Hint: "leader"},
@@ -487,8 +497,10 @@ func DefaultBindings() []core.Binding {
 		{Mode: ModeFilter, Class: core.ClassPrintable, Command: CmdFilterInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
 		{Mode: ModeFilter, Class: core.ClassPaste, Command: CmdFilterInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
 		bind(ModeFilter, all, "backspace", CmdFilterBack, "erase"),
+		hidden(bind(ModeFilter, all, "shift+backspace", CmdFilterBack, "erase")),
 		bind(ModeFilter, all, "enter", CmdFilterAccept, "keep"),
-		bind(ModeFilter, all, "esc", CmdFilterCancel, "clear"),
+		bind(ModeFilter, all, "esc", CmdFilterCancel, "cancel"),
+		bind(ModeFilter, all, "ctrl+x", CmdFilterClear, "clear"),
 		bind(ModeFilter, all, "tab", CmdFilterMode, "match mode"),
 		bind(ModeFilter, all, "ctrl+t", CmdFilterField, "filter field"),
 
@@ -546,6 +558,7 @@ func DefaultBindings() []core.Binding {
 		when(bind(ModePickerFilter, "table.presets", "d", CmdPresetPickerDefault, "set default preset"), "facts.query == \"\""),
 		when(bind(ModePickerFilter, "table.presets", "x", CmdPresetPickerDelete, "delete preset"), "facts.query == \"\""),
 		bind(ModePickerFilter, all, "backspace", CmdPickerBack, "erase"),
+		hidden(bind(ModePickerFilter, all, "shift+backspace", CmdPickerBack, "erase")),
 		bind(ModePickerFilter, all, "enter", picker.CmdConfirm, "choose"),
 		bind(ModePickerFilter, all, "esc", picker.CmdFilterStop, "normal mode"),
 		bind(ModePickerFilter, all, "down", "motion.down", "down"),
@@ -594,6 +607,7 @@ func DefaultBindings() []core.Binding {
 		bind(ModeFormEdit, all, "ctrl+s", form.CmdSubmit, "submit"),
 		hidden(bind(ModeFormEdit, all, "ctrl+enter", form.CmdSubmit, "submit")),
 		bind(ModeFormEdit, all, "backspace", form.CmdBackspace, "erase"),
+		hidden(bind(ModeFormEdit, all, "shift+backspace", form.CmdBackspace, "erase")),
 		bind(ModeFormEdit, all, "enter", form.CmdStop, "done"),
 		bind(ModeFormEdit, all, "esc", form.CmdStop, "done"),
 
@@ -621,6 +635,7 @@ func DefaultBindings() []core.Binding {
 		{Mode: ModeBindingsFilter, Class: core.ClassPrintable, Command: "bindings.filter.append", Args: map[string]any{"text": "$text"}, Hidden: true},
 		{Mode: ModeBindingsFilter, Class: core.ClassPaste, Command: "bindings.filter.append", Args: map[string]any{"text": "$text"}, Hidden: true},
 		bind(ModeBindingsFilter, all, "backspace", "bindings.filter.backspace", "erase"),
+		hidden(bind(ModeBindingsFilter, all, "shift+backspace", "bindings.filter.backspace", "erase")),
 		bind(ModeBindingsFilter, all, "enter", CmdBindingsFilterDone, "keep"),
 		bind(ModeBindingsFilter, all, "esc", CmdBindingsFilterClear, "clear"),
 		bind(ModeBindingsFilter, all, "tab", CmdBindingsMatchMode, "match mode"),
@@ -730,6 +745,7 @@ func DefaultBindings() []core.Binding {
 		{Mode: ModeOutlineEdit, Class: core.ClassPrintable, Command: CmdOutlineEditInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
 		{Mode: ModeOutlineEdit, Class: core.ClassPaste, Command: CmdOutlineEditInsert, Args: map[string]any{"text": "$text"}, Hidden: true},
 		bind(ModeOutlineEdit, all, "backspace", CmdOutlineEditBackspace, "erase"),
+		hidden(bind(ModeOutlineEdit, all, "shift+backspace", CmdOutlineEditBackspace, "erase")),
 		bind(ModeOutlineEdit, all, "tab", CmdOutlineEditIndent, "indent"),
 		bind(ModeOutlineEdit, all, "shift+tab", CmdOutlineEditOutdent, "outdent"),
 		bind(ModeOutlineEdit, all, "enter", CmdOutlineEditNewline, "commit & new item"),
@@ -773,6 +789,7 @@ func DefaultBindings() []core.Binding {
 		bind(ModeComposer, all, "ctrl+f", CmdComposerAttachFile, "attach file"),
 		bind(ModeComposer, all, "ctrl+x", CmdComposerAttachRemove, "remove last attachment"),
 		bind(ModeComposer, all, "backspace", CmdComposerBackspace, "erase"),
+		hidden(bind(ModeComposer, all, "shift+backspace", CmdComposerBackspace, "erase")),
 
 		// Shared confirmation modal.
 		bind(ModeConfirm, all, "y", CmdConfirmAccept, "confirm"),

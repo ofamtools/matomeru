@@ -417,12 +417,14 @@ func buildContentPanel(schema data.Schema, name, format, raw string) ui.ViewNode
 		}
 	}
 	return ui.ViewNode{
-		ID:       "show.content." + name,
-		Kind:     ui.KindPanel,
-		Title:    fieldTitle(schema, name),
-		Border:   true,
-		Facts:    map[string]any{"contentField": name, "showFormat": format},
-		Children: []ui.ViewNode{child},
+		ID:        "show.content." + name,
+		Kind:      ui.KindPanel,
+		Scope:     "show.content",
+		Focusable: true,
+		Title:     fieldTitle(schema, name),
+		Border:    true,
+		Facts:     map[string]any{"contentField": name, "showFormat": format},
+		Children:  []ui.ViewNode{child},
 	}
 }
 

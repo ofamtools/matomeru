@@ -289,6 +289,10 @@ func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope st
 		node.Props = map[string]any{}
 	}
 	node.Props["scrollKey"] = schema.Kind + "|" + tm.HoistID()
+	if node.Facts == nil {
+		node.Facts = map[string]any{}
+	}
+	node.Facts["hasFilter"] = tm.IsFiltered()
 	if node.Scope == "" {
 		node.Scope = schema.Kind
 		node.Ref = &core.Ref{Kind: schema.Kind}
@@ -333,6 +337,7 @@ func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope st
 		"kind":       schema.Kind,
 		"rowCount":   total,
 		"isTree":     true,
+		"hasFilter":  tm.IsFiltered(),
 		"hoisted":    tm.Hoisted(),
 		"hoistDepth": len(tm.HoistStack),
 	}
@@ -343,6 +348,7 @@ func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope st
 		ID:     panelID,
 		Kind:   ui.KindPanel,
 		Scope:  panelScope,
+		Filter: &ui.FilterSpec{ID: treeID},
 		Title:  title,
 		Border: true,
 		Badges: badges,
