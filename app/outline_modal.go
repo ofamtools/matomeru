@@ -236,15 +236,16 @@ func (a *App) outlineStartEdit(atEnd bool) func(core.State, core.Command) core.S
 		if a.Modal() == "outline" {
 			return a.handleModal(s, c)
 		}
-		tm, kind, treeID, isWork, ok := a.activeTree(s)
+		// The focused tree, else the page's (focus moves to it for the edit).
+		ts, _ := a.treeTargetState(s)
+		tm, kind, treeID, isWork, ok := a.activeTree(ts)
 		if !ok {
-			a.say("no tree is focused")
 			return core.Next(s)
 		}
-		if !a.runTreeStartEdit(tm, kind, treeID, isWork, s.ActiveFrame().Mode, atEnd) {
+		if !a.runTreeStartEdit(tm, kind, treeID, isWork, ts.ActiveFrame().Mode, atEnd) {
 			return core.Next(s)
 		}
-		return core.Next(withMode(s, ModeOutlineEdit))
+		return core.Next(withMode(ts, ModeOutlineEdit))
 	}
 }
 
@@ -253,13 +254,13 @@ func (a *App) outlineStartAdd(above bool) func(core.State, core.Command) core.St
 		if a.Modal() == "outline" {
 			return a.handleModal(s, c)
 		}
-		tm, kind, treeID, isWork, ok := a.activeTree(s)
+		ts, _ := a.treeTargetState(s) // as outlineStartEdit
+		tm, kind, treeID, isWork, ok := a.activeTree(ts)
 		if !ok {
-			a.say("no tree is focused")
 			return core.Next(s)
 		}
-		a.runTreeStartAdd(tm, kind, treeID, isWork, s.ActiveFrame().Mode, above)
-		return core.Next(withMode(s, ModeOutlineEdit))
+		a.runTreeStartAdd(tm, kind, treeID, isWork, ts.ActiveFrame().Mode, above)
+		return core.Next(withMode(ts, ModeOutlineEdit))
 	}
 }
 

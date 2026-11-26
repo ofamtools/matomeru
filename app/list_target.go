@@ -61,15 +61,7 @@ func (a *App) lazyListTable(s core.State, id string) bool {
 // non-table widget (a nav rail, a tree, a card) beside a table therefore
 // still gives the list verbs the page's list to act on.
 func pageListTableID(root ui.ViewNode, tables map[string]*table.Model) string {
-	if root.Kind == ui.KindTable && root.ID != "" && tables[root.ID] != nil {
-		return root.ID
-	}
-	for _, ch := range root.Children {
-		if id := pageListTableID(ch, tables); id != "" {
-			return id
-		}
-	}
-	return ""
+	return firstDrawnID(root, func(n ui.ViewNode) bool { return n.Kind == ui.KindTable && tables[n.ID] != nil })
 }
 
 // listTargetFact reports the factListTarget value without building the

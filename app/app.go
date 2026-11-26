@@ -165,6 +165,11 @@ type viewMemoState struct {
 	// PageListID is the first table drawn on the page by the last build
 	// (pageListTableID), "" when the page draws none.
 	PageListID string
+	// PageTreeID is the first tree drawn on the page by the last build, ""
+	// when it draws none; Page is that page (no modals), for the
+	// page-target fallbacks (page_target.go).
+	PageTreeID string
+	Page       ui.ViewNode
 }
 
 // App is the application state around the engine. Handlers change it and the
@@ -303,6 +308,8 @@ func New(store *data.Store, opts Options) (*App, error) {
 			"inChildPaneView":    a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
 			"featuresPageActive": a.featuresPageActive(),
 			factListTarget:       a.listTargetFact(s),
+			factTreeTarget:       a.treeTargetFact(),
+			factSelectTarget:     a.selectTargetFact(s),
 		}
 	}
 	a.Shell.OnPassThrough = func(e core.PassToWidgetEffect) tea.Cmd {
@@ -584,18 +591,7 @@ func (a *App) register() {
 	a.handle(CmdSitePageOpen, a.sitePageOpen)
 	a.handle(CmdSiteTOCToggle, a.siteTOCToggle)
 	a.handle(CmdAnswer, a.answerQuestion)
-	a.handle(CmdTermAttach, func(s core.State, _ core.Command) core.StepResult {
-		if s.ActiveFrame().FocusID != siteScreen && s.ActiveFrame().FocusID != sideScreen {
-			a.say("no terminal is focused")
-			return core.Next(s)
-		}
-		pane, ok := a.termPane(s)
-		if !ok {
-			a.say("no pane is selected")
-			return core.Next(s)
-		}
-		return core.Next(a.enterScreen(s, *pane))
-	})
+	a.handle(CmdTermAttach, a.terminalAttach)
 	a.handle(CmdTermDetach, func(s core.State, c core.Command) core.StepResult {
 		if a.Modal() == "scratch" {
 			return a.handleModal(s, c)
