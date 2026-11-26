@@ -188,6 +188,7 @@ const (
 	SetProjectOutlineAsPage            = "project.outlineAsPage"
 	SetProjectNavSections              = "project.navSections"
 	SetContextAutoInject               = "context.autoInjectProjectContext"
+	SetContextExtractCodeBlocks        = "context.extractCodeBlocks"
 	SetProjectContextReview            = "project.contextReview"
 	SetEnterOpensShow                  = "ui.enterOpensShow"
 	SetTreeHLFolds                     = "tree.hlFolds"
@@ -426,6 +427,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetFocusEnforceLocks, true, "refuse to open a project locked by a Pomodoro, a scheduled focus window or a time-budget cooldown (off: locks are shown but not enforced)"),
 		flag(SetFocusChromeCountdown, true, "show a short Pomodoro countdown chip in the chrome while a Pomodoro runs"),
 		flag(SetDeclarativePresentations, true, "draw references from each noun's declared presentation forms (chip, inline, row, card, detail; presentations.json) instead of raw kind:id text"),
+		flag(SetContextExtractCodeBlocks, true, "extract fenced code blocks and inline code spans as code context items"),
 	}
 }
 
@@ -587,6 +589,10 @@ func (a *App) hintsNounFirstEnabled() bool {
 
 func (a *App) stickyTreeBreadcrumbsEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetStickyTreeBreadcrumbs, true)
+}
+
+func (a *App) extractCodeBlocksEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetContextExtractCodeBlocks, true)
 }
 
 func (a *App) detachFocusTarget() string {

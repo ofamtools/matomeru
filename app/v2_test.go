@@ -94,7 +94,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetAnswerShowQuestion: true, SetProjectNavPreselectTask: true, SetProjectNavShowNewItems: true,
 		SetShowTitleAttachmentChips: true, SetPanesKeepCompletedLaneBars: true,
 		SetFocusHideNonPriority: true, SetFocusEnforceLocks: true, SetFocusChromeCountdown: true,
-		SetDeclarativePresentations: true}
+		SetDeclarativePresentations: true, SetContextExtractCodeBlocks: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

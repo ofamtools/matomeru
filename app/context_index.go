@@ -14,6 +14,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/handlers"
 	"ofam.dev/matomeru/mcpui"
+	"ofam.dev/matomeru/panesearch"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
@@ -34,6 +35,7 @@ type CollectedContextItem struct {
 	Line      int
 	Col       int
 	Label     string
+	Language  string
 	Source    string
 	PaneID    string
 	PaneTitle string
@@ -98,10 +100,20 @@ func mapContextRecordKind(kind string) string {
 		return "pr"
 	case contextitems.KindFile:
 		return "file"
+	case contextitems.KindCode:
+		return "code"
 	case "doc":
 		return "doc"
 	default:
 		return "url"
+	}
+}
+
+func (a *App) contextExtractOptions(source string, wrapWidth int) contextitems.Options {
+	return contextitems.Options{
+		Source:            source,
+		WrapWidth:         wrapWidth,
+		DisableCodeBlocks: !a.extractCodeBlocksEnabled(),
 	}
 }
 
@@ -172,8 +184,18 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 	var toPersist []CollectedContextItem
 
 	changed := false
+	allowCode := a.extractCodeBlocksEnabled()
 	idx.mu.Lock()
 	for _, it := range extracted {
+		if it.Kind == contextitems.KindCode {
+			if !allowCode {
+				continue
+			}
+			it.Value = panesearch.MaskSecrets(it.Value)
+			if strings.TrimSpace(it.Label) == "" {
+				it.Label = data.CodeContextTitle(it.Value, it.Language)
+			}
+		}
 		canon := contextCanonKey(it.Kind, it.Value)
 		if canon == "" {
 			continue
@@ -182,6 +204,10 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 		if cur, exists := idx.items[key]; exists {
 			if cur.Label == "" && it.Label != "" {
 				cur.Label = it.Label
+				changed = true
+			}
+			if cur.Language == "" && it.Language != "" {
+				cur.Language = it.Language
 				changed = true
 			}
 			if cur.Line == 0 && it.Line > 0 {
@@ -217,7 +243,7 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 		}
 		collected := CollectedContextItem{
 			Key: key, CanonKey: canon, Kind: it.Kind, Value: it.Value, Path: p,
-			Line: it.Line, Col: it.Col, Label: it.Label, Source: it.Source,
+			Line: it.Line, Col: it.Col, Label: it.Label, Language: it.Language, Source: it.Source,
 			PaneID: paneID, PaneTitle: paneTitle, ProjectID: projID, Project: projTitle,
 			Starred: idx.starred[canon], SeenAt: now,
 		}
@@ -241,11 +267,18 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 	for _, item := range toPersist {
 		title := strings.TrimSpace(item.Label)
 		if title == "" {
-			title = item.Value
+			if item.Kind == contextitems.KindCode {
+				title = data.CodeContextTitle(item.Value, item.Language)
+			} else {
+				title = item.Value
+			}
 		}
 		fields := map[string]any{
 			"title": title, "value": item.Value, "contextKind": mapContextRecordKind(item.Kind),
 			"source": mapContextRecordSource(item.Source), "canonKey": item.CanonKey,
+		}
+		if item.Language != "" {
+			fields["language"] = item.Language
 		}
 		if item.Line > 0 {
 			fields["line"] = item.Line
@@ -305,7 +338,7 @@ func (a *App) harvestPrompt(pane data.Record, text string) {
 	if strings.TrimSpace(text) == "" {
 		return
 	}
-	items := contextitems.Extract(text, contextitems.Options{Source: contextitems.SourcePrompt})
+	items := contextitems.Extract(text, a.contextExtractOptions(contextitems.SourcePrompt, 0))
 	a.indexContextItems(&pane, "", "", items)
 }
 
@@ -343,14 +376,12 @@ func (a *App) harvestScreenLines(pane data.Record, lines []string, wrapWidth int
 		return
 	}
 
+	extractOpts := a.contextExtractOptions(contextitems.SourceScreen, wrapWidth)
 	if a.opts.Live {
 		paneCopy := pane
 		linesCopy := slices.Clone(lines)
 		a.background(func(_ context.Context) func(core.State) core.State {
-			items := contextitems.ExtractLines(linesCopy, contextitems.Options{
-				Source:    contextitems.SourceScreen,
-				WrapWidth: wrapWidth,
-			})
+			items := contextitems.ExtractLines(linesCopy, extractOpts)
 			if len(items) > 0 {
 				a.indexContextItems(&paneCopy, "", "", items)
 			}
@@ -359,10 +390,7 @@ func (a *App) harvestScreenLines(pane data.Record, lines []string, wrapWidth int
 		return
 	}
 
-	items := contextitems.ExtractLines(lines, contextitems.Options{
-		Source:    contextitems.SourceScreen,
-		WrapWidth: wrapWidth,
-	})
+	items := contextitems.ExtractLines(lines, extractOpts)
 	a.indexContextItems(&pane, "", "", items)
 }
 
@@ -456,7 +484,7 @@ func (a *App) syncContextItems() {
 					}
 				}
 				if text := sb.String(); text != "" {
-					a.indexContextItems(pane, projID, projTitle, contextitems.Extract(text, contextitems.Options{Source: contextitems.SourceResponse}))
+					a.indexContextItems(pane, projID, projTitle, contextitems.Extract(text, a.contextExtractOptions(contextitems.SourceResponse, 0)))
 				}
 				idx.mu.Lock()
 				idx.pageRevs[page.ID] = page.ChangeSetNumber
@@ -658,8 +686,12 @@ func (a *App) toggleContextStar(kind, value string) bool {
 }
 
 // contextTargetPath converts a harvested context item value into the path or
-// URL understood by handlers.Registry.
+// URL understood by handlers.Registry. Code snippets have no filesystem path
+// or URL and return "".
 func contextTargetPath(kind, value string, pane *data.Record) string {
+	if kind == contextitems.KindCode {
+		return ""
+	}
 	val := strings.TrimSpace(value)
 	switch kind {
 	case contextitems.KindPR:
@@ -687,6 +719,36 @@ func contextTargetPath(kind, value string, pane *data.Record) string {
 	}
 }
 
+func (a *App) openCodeContext(s core.State, title, code, language string, from *core.Ref) core.StepResult {
+	if strings.TrimSpace(code) == "" {
+		a.say("empty code snippet")
+		return core.Next(s)
+	}
+	if strings.TrimSpace(title) == "" {
+		title = data.CodeContextTitle(code, language)
+	}
+	return core.Next(a.openReader(s, openTarget{
+		title: title,
+		body:  data.FormatCodeMarkdownBlock(code, language),
+		from:  from,
+	}))
+}
+
+func (a *App) openCollectedContextItem(s core.State, it CollectedContextItem, pane *data.Record) core.StepResult {
+	if it.Kind == contextitems.KindCode {
+		var from *core.Ref
+		if it.RecordID != "" {
+			r := core.Ref{Kind: data.KindContext, ID: it.RecordID}
+			from = &r
+		} else if pane != nil {
+			r := pane.Ref()
+			from = &r
+		}
+		return a.openCodeContext(s, it.Label, it.Value, it.Language, from)
+	}
+	return a.openContextValue(s, it.Kind, it.Value, pane)
+}
+
 // systemOpenTarget opens target directly via the OS opener (`open` on macOS,
 // `xdg-open` elsewhere).
 func (a *App) systemOpenTarget(s core.State, target string) core.StepResult {
@@ -700,7 +762,16 @@ func (a *App) systemOpenTarget(s core.State, target string) core.StepResult {
 
 // revealContextValue reveals a local path in the OS file manager (`open -R` on
 // macOS, opening the parent directory elsewhere), falling back to opening URLs.
+// Code snippets open inline in the Markdown reader instead of calling the OS opener.
 func (a *App) revealContextValue(s core.State, kind, value string, pane *data.Record) core.StepResult {
+	if kind == contextitems.KindCode {
+		var from *core.Ref
+		if pane != nil {
+			r := pane.Ref()
+			from = &r
+		}
+		return a.openCodeContext(s, "", value, "", from)
+	}
 	target := contextTargetPath(kind, value, pane)
 	if target == "" {
 		a.say("empty context target")
@@ -717,8 +788,17 @@ func (a *App) revealContextValue(s core.State, kind, value string, pane *data.Re
 }
 
 // openContextValue opens a context item target through App.Handlers, falling
-// back to the OS opener when no explicit handler rule matches.
+// back to the OS opener when no explicit handler rule matches. Code snippets
+// always open inline in the built-in Markdown reader.
 func (a *App) openContextValue(s core.State, kind, value string, pane *data.Record) core.StepResult {
+	if kind == contextitems.KindCode {
+		var from *core.Ref
+		if pane != nil {
+			r := pane.Ref()
+			from = &r
+		}
+		return a.openCodeContext(s, "", value, "", from)
+	}
 	target := contextTargetPath(kind, value, pane)
 	if target == "" {
 		a.say("empty context target")
@@ -783,13 +863,25 @@ func (a *App) contextPick(s core.State, c core.Command) core.StepResult {
 	}
 	items := make([]picker.Item, len(all))
 	for i, it := range all {
+		title := it.Value
+		if it.Kind == contextitems.KindCode {
+			title = strings.TrimSpace(it.Label)
+			if title == "" {
+				title = data.CodeContextTitle(it.Value, it.Language)
+			}
+			title = singleLineContextText(title)
+		}
 		var subParts []string
 		for _, s := range []string{it.Label, it.PaneTitle, it.Project} {
-			if s != "" && s != it.Value {
+			s = singleLineContextText(s)
+			if s != "" && s != title && s != it.Value {
 				subParts = append(subParts, s)
 			}
 		}
 		badges := []ui.Badge{{Text: it.Kind, Tone: "accent"}}
+		if it.Language != "" {
+			badges = append(badges, ui.Badge{Text: it.Language, Tone: "info"})
+		}
 		if it.Source != "" {
 			badges = append(badges, ui.Badge{Text: it.Source, Tone: "muted"})
 		}
@@ -797,12 +889,12 @@ func (a *App) contextPick(s core.State, c core.Command) core.StepResult {
 			badges = append(badges, ui.Badge{Text: "★", Tone: "warning"})
 		}
 		items[i] = picker.Item{
-			ID: it.Key, Title: it.Value, Subtitle: strings.Join(subParts, " · "), Badges: badges,
-			Keywords: []string{it.Kind, it.Source, it.PaneTitle, it.Project, it.Label, it.Path}, Data: it,
+			ID: it.Key, Title: title, Subtitle: strings.Join(subParts, " · "), Badges: badges,
+			Keywords: []string{it.Kind, it.Language, it.Source, it.PaneTitle, it.Project, it.Label, it.Path, it.Value}, Data: it,
 		}
 	}
 	pm := picker.New("Context Items", items)
-	pm.Placeholder = "search URLs, files, PRs · enter open · y yank · a attach"
+	pm.Placeholder = "search URLs, files, PRs, code · enter open · y yank · a attach"
 	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "context",
 		PageSize: 10,
@@ -815,7 +907,7 @@ func (a *App) contextPick(s core.State, c core.Command) core.StepResult {
 					}
 				}
 				a.afterModal(func(st core.State) core.State {
-					return a.openContextValue(st, it.Kind, it.Value, pane).State
+					return a.openCollectedContextItem(st, it, pane).State
 				})
 			}
 			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}

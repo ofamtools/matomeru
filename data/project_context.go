@@ -1,6 +1,8 @@
 package data
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -11,11 +13,13 @@ import (
 	"ofam.dev/ochazuke/core"
 )
 
+// ValidContextKinds lists the canonical contextKind values for KindContext records.
+var ValidContextKinds = []string{"url", "pr", "file", "doc", "gdoc", "sheet", "code"}
+
 var (
-	validContextKinds = []string{"url", "pr", "file", "doc", "gdoc", "sheet"}
-	ghPRURLRe         = regexp.MustCompile(`(?i)^https?://github\.com/([A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100})/pull/([1-9][0-9]*)(?:[/?#].*)?$`)
-	genericPRURLRe    = regexp.MustCompile(`(?i)^https?://[^/\s]+/.+/(?:pull|merge_requests)/[1-9][0-9]*(?:[/?#].*)?$`)
-	ghPRRefRe         = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100}#[1-9][0-9]*$`)
+	ghPRURLRe      = regexp.MustCompile(`(?i)^https?://github\.com/([A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100})/pull/([1-9][0-9]*)(?:[/?#].*)?$`)
+	genericPRURLRe = regexp.MustCompile(`(?i)^https?://[^/\s]+/.+/(?:pull|merge_requests)/[1-9][0-9]*(?:[/?#].*)?$`)
+	ghPRRefRe      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100}#[1-9][0-9]*$`)
 )
 
 // OfficialContextInput describes an official curated project context item to
@@ -25,6 +29,7 @@ type OfficialContextInput struct {
 	Title       string
 	Value       string
 	ContextKind string
+	Language    string
 	Notes       string
 	Pinned      bool
 }
@@ -47,10 +52,25 @@ type ProjectContextOverrides struct {
 	ExcludeIDs            []string
 }
 
+// NormalizeContextKind returns the canonical lowercase contextKind for an
+// explicit kind string, normalizing "snippet" to "code". Returns "" when
+// explicit is empty or not a recognized contextKind.
+func NormalizeContextKind(explicit string) string {
+	exp := strings.ToLower(strings.TrimSpace(explicit))
+	if exp == "snippet" {
+		return "code"
+	}
+	if slices.Contains(ValidContextKinds, exp) {
+		return exp
+	}
+	return ""
+}
+
 // ClassifyContextKind returns the canonical contextKind for value. A valid
-// explicit kind (url, pr, file, doc, gdoc, sheet) is always honored.
+// explicit kind (url, pr, file, doc, gdoc, sheet, code, or alias snippet) is
+// always honored.
 func ClassifyContextKind(value, explicit string) string {
-	if exp := strings.ToLower(strings.TrimSpace(explicit)); exp != "" && slices.Contains(validContextKinds, exp) {
+	if exp := NormalizeContextKind(explicit); exp != "" {
 		return exp
 	}
 	val := strings.TrimSpace(value)
@@ -88,18 +108,111 @@ func looksLikeLocalPath(val, ext string) bool {
 	return ext != "" && !strings.ContainsAny(val, " \t\n")
 }
 
-func deriveContextTitleAndCanon(val, kind, explicitTitle string) (title, canonKey string) {
+// CodeContextCanonKey returns a deterministic short hash canonKey for a code
+// context item ("code:" + 16 hex chars of SHA-256 over normalized content).
+func CodeContextCanonKey(code string) string {
+	norm := strings.TrimSpace(strings.ReplaceAll(code, "\r\n", "\n"))
+	if norm == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(norm))
+	return "code:" + hex.EncodeToString(sum[:8])
+}
+
+// CodeContextTitle derives a clean single-line display title for a code snippet
+// or fenced code block, optionally prefixed with its language tag and clipped
+// to ~60 runes.
+func CodeContextTitle(code, language string) string {
+	norm := strings.ReplaceAll(code, "\r\n", "\n")
+	first := ""
+	for _, ln := range strings.Split(norm, "\n") {
+		if collapsed := strings.Join(strings.Fields(ln), " "); collapsed != "" {
+			first = collapsed
+			break
+		}
+	}
+	lang := sanitizeCodeLanguage(language)
+	if first == "" {
+		if lang != "" {
+			return lang + " code"
+		}
+		return "code snippet"
+	}
+	if lang != "" {
+		return clip(lang+": "+first, 60)
+	}
+	return clip(first, 60)
+}
+
+func sanitizeCodeLanguage(language string) string {
+	fields := strings.Fields(strings.ReplaceAll(language, "`", ""))
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
+// FormatCodeMarkdownBlock wraps code in a CommonMark fenced code block whose
+// backtick fence is guaranteed longer than any backtick run inside code.
+func FormatCodeMarkdownBlock(code, language string) string {
+	body := strings.TrimRight(strings.ReplaceAll(code, "\r\n", "\n"), "\n")
+	maxRun := maxBacktickRun(body)
+	fenceLen := max(3, maxRun+1)
+	fence := strings.Repeat("`", fenceLen)
+	lang := sanitizeCodeLanguage(language)
+	return fence + lang + "\n" + body + "\n" + fence
+}
+
+// FormatInlineCodeMarkdown wraps a single-line code snippet in a CommonMark
+// inline code span whose backtick delimiter cannot collide with code's contents.
+func FormatInlineCodeMarkdown(code string) string {
+	maxRun := maxBacktickRun(code)
+	delim := strings.Repeat("`", maxRun+1)
+	inner := code
+	if strings.HasPrefix(inner, "`") || strings.HasSuffix(inner, "`") ||
+		(len(inner) > 0 && inner[0] == ' ' && inner[len(inner)-1] == ' ' && strings.Trim(inner, " ") != "") {
+		inner = " " + inner + " "
+	}
+	return delim + inner + delim
+}
+
+func maxBacktickRun(s string) int {
+	maxRun, cur := 0, 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == '`' {
+			cur++
+			if cur > maxRun {
+				maxRun = cur
+			}
+		} else {
+			cur = 0
+		}
+	}
+	return maxRun
+}
+
+// DeriveContextTitleAndCanon derives a clean display title and deterministic
+// canonKey for a context item of kind. Code items never run through
+// filepath.Clean and use a short SHA-256 hash canonKey.
+func DeriveContextTitleAndCanon(val, kind, explicitTitle, language string) (title, canonKey string) {
 	title = strings.TrimSpace(explicitTitle)
 	if title == "" {
-		if m := ghPRURLRe.FindStringSubmatch(val); len(m) == 3 {
-			title = m[1] + "#" + m[2]
-		} else if kind == "file" || kind == "doc" {
+		switch {
+		case kind == "code":
+			title = CodeContextTitle(val, language)
+		case ghPRURLRe.MatchString(val):
+			if m := ghPRURLRe.FindStringSubmatch(val); len(m) == 3 {
+				title = m[1] + "#" + m[2]
+			}
+		case kind == "file" || kind == "doc":
 			title = filepath.Base(val)
-		} else {
+		default:
 			title = val
 		}
 	}
 	switch kind {
+	case "code":
+		canonKey = CodeContextCanonKey(val)
 	case "pr":
 		if m := ghPRURLRe.FindStringSubmatch(val); len(m) == 3 {
 			canonKey = "pr:" + strings.ToLower(m[1]+"#"+m[2])
@@ -112,6 +225,10 @@ func deriveContextTitleAndCanon(val, kind, explicitTitle string) (title, canonKe
 		canonKey = kind + ":" + filepath.Clean(val)
 	}
 	return title, canonKey
+}
+
+func deriveContextTitleAndCanon(val, kind, explicitTitle string) (title, canonKey string) {
+	return DeriveContextTitleAndCanon(val, kind, explicitTitle, "")
 }
 
 // RootProjectID walks task.parent references up to the root task (project) ID
@@ -279,16 +396,15 @@ func (s *Store) SetContextOfficial(ref core.Ref, official bool, pinned *bool, no
 // record on the root project of in.ProjectID, returning the record, whether an
 // existing project context item was deduplicated/promoted, and any error.
 func (s *Store) AddOfficialProjectContext(in OfficialContextInput, actor core.Actor) (Record, bool, error) {
-	val := strings.TrimSpace(in.Value)
-	if val == "" {
+	if strings.TrimSpace(in.Value) == "" {
 		return Record{}, false, errors.New("data: context value is required")
 	}
 	projID := strings.TrimSpace(in.ProjectID)
 	if projID == "" {
 		return Record{}, false, errors.New("data: project ID is required")
 	}
-	if exp := strings.ToLower(strings.TrimSpace(in.ContextKind)); exp != "" && !slices.Contains(validContextKinds, exp) {
-		return Record{}, false, fmt.Errorf("data: invalid contextKind %q (want %s)", in.ContextKind, strings.Join(validContextKinds, ", "))
+	if strings.TrimSpace(in.ContextKind) != "" && NormalizeContextKind(in.ContextKind) == "" {
+		return Record{}, false, fmt.Errorf("data: invalid contextKind %q (want %s)", in.ContextKind, strings.Join(ValidContextKinds, ", "))
 	}
 
 	rootID := s.RootProjectID(projID)
@@ -297,8 +413,13 @@ func (s *Store) AddOfficialProjectContext(in OfficialContextInput, actor core.Ac
 		return Record{}, false, err
 	}
 
-	kind := ClassifyContextKind(val, in.ContextKind)
-	title, canonKey := deriveContextTitleAndCanon(val, kind, in.Title)
+	kind := ClassifyContextKind(in.Value, in.ContextKind)
+	val := strings.TrimSpace(in.Value)
+	if kind == "code" {
+		val = strings.Trim(strings.ReplaceAll(in.Value, "\r\n", "\n"), "\n")
+	}
+	lang := sanitizeCodeLanguage(in.Language)
+	title, canonKey := DeriveContextTitleAndCanon(val, kind, in.Title, lang)
 
 	existingList, err := s.ProjectContextAll(rootID)
 	if err != nil {
@@ -307,12 +428,17 @@ func (s *Store) AddOfficialProjectContext(in OfficialContextInput, actor core.Ac
 	var existing *Record
 	for i := range existingList {
 		cand := existingList[i]
+		candKind := ClassifyContextKind(cand.Text("value"), cand.Text("contextKind"))
 		candCanon := strings.TrimSpace(cand.Text("canonKey"))
 		if candCanon == "" {
 			candVal := strings.TrimSpace(cand.Text("value"))
-			_, candCanon = deriveContextTitleAndCanon(candVal, ClassifyContextKind(candVal, cand.Text("contextKind")), "")
+			if candKind == "code" {
+				candVal = strings.Trim(strings.ReplaceAll(cand.Text("value"), "\r\n", "\n"), "\n")
+			}
+			_, candCanon = DeriveContextTitleAndCanon(candVal, candKind, "", cand.Text("language"))
 		}
-		if candCanon == canonKey || strings.EqualFold(strings.TrimRight(strings.TrimSpace(cand.Text("value")), "/"), strings.TrimRight(val, "/")) {
+		sameVal := kind != "code" && strings.EqualFold(strings.TrimRight(strings.TrimSpace(cand.Text("value")), "/"), strings.TrimRight(val, "/"))
+		if candCanon == canonKey || sameVal {
 			cp := cand
 			existing = &cp
 			break
@@ -330,6 +456,9 @@ func (s *Store) AddOfficialProjectContext(in OfficialContextInput, actor core.Ac
 		if n := strings.TrimSpace(in.Notes); n != "" {
 			patchFields["notes"] = n
 		}
+		if lang != "" && strings.TrimSpace(existing.Text("language")) == "" {
+			patchFields["language"] = lang
+		}
 		if strings.TrimSpace(existing.Text("source")) == "" {
 			patchFields["source"] = "curated"
 		}
@@ -339,7 +468,7 @@ func (s *Store) AddOfficialProjectContext(in OfficialContextInput, actor core.Ac
 		if strings.TrimSpace(in.ContextKind) != "" {
 			patchFields["contextKind"] = kind
 		}
-		if strings.HasPrefix(strings.ToLower(val), "http") && !strings.HasPrefix(strings.ToLower(existing.Text("value")), "http") {
+		if kind != "code" && strings.HasPrefix(strings.ToLower(val), "http") && !strings.HasPrefix(strings.ToLower(existing.Text("value")), "http") {
 			patchFields["value"] = val
 		}
 		updated, _, err := s.Patch(PatchInput{
@@ -365,6 +494,9 @@ func (s *Store) AddOfficialProjectContext(in OfficialContextInput, actor core.Ac
 		"official":    true,
 		"pinned":      in.Pinned,
 		"task":        rootRef,
+	}
+	if lang != "" {
+		fields["language"] = lang
 	}
 	if n := strings.TrimSpace(in.Notes); n != "" {
 		fields["notes"] = n
@@ -550,21 +682,51 @@ func FormatProjectContextMarkdown(records []Record) string {
 	var b strings.Builder
 	b.WriteString("## Official Project Context\n")
 	for _, rec := range records {
-		val := strings.TrimSpace(rec.Text("value"))
+		rawVal := rec.Text("value")
+		val := strings.TrimSpace(rawVal)
 		title := strings.TrimSpace(rec.Text("title"))
 		kind := strings.TrimSpace(rec.Text("contextKind"))
 		if kind == "" {
 			kind = ClassifyContextKind(val, "")
+		} else if norm := NormalizeContextKind(kind); norm != "" {
+			kind = norm
 		}
-		switch {
-		case title != "" && val != "" && title != val:
-			fmt.Fprintf(&b, "- [%s] **%s**: %s\n", kind, title, val)
-		case val != "":
-			fmt.Fprintf(&b, "- [%s] %s\n", kind, val)
-		case title != "":
-			fmt.Fprintf(&b, "- [%s] **%s**\n", kind, title)
-		default:
-			fmt.Fprintf(&b, "- [%s] %s\n", kind, rec.ID)
+		if kind == "code" && val != "" {
+			codeBody := strings.Trim(strings.ReplaceAll(rawVal, "\r\n", "\n"), "\n")
+			lang := sanitizeCodeLanguage(rec.Text("language"))
+			if strings.Contains(codeBody, "\n") || lang != "" {
+				label := title
+				if label == "" {
+					label = CodeContextTitle(codeBody, lang)
+				}
+				fmt.Fprintf(&b, "- [code] **%s**\n", label)
+				block := FormatCodeMarkdownBlock(codeBody, lang)
+				for _, ln := range strings.Split(block, "\n") {
+					if ln == "" {
+						b.WriteByte('\n')
+					} else {
+						fmt.Fprintf(&b, "  %s\n", ln)
+					}
+				}
+			} else {
+				inline := FormatInlineCodeMarkdown(codeBody)
+				if title != "" && title != codeBody {
+					fmt.Fprintf(&b, "- [code] **%s**: %s\n", title, inline)
+				} else {
+					fmt.Fprintf(&b, "- [code] %s\n", inline)
+				}
+			}
+		} else {
+			switch {
+			case title != "" && val != "" && title != val:
+				fmt.Fprintf(&b, "- [%s] **%s**: %s\n", kind, title, val)
+			case val != "":
+				fmt.Fprintf(&b, "- [%s] %s\n", kind, val)
+			case title != "":
+				fmt.Fprintf(&b, "- [%s] **%s**\n", kind, title)
+			default:
+				fmt.Fprintf(&b, "- [%s] %s\n", kind, rec.ID)
+			}
 		}
 		if notes := strings.TrimSpace(rec.Text("notes")); notes != "" {
 			normalized := strings.ReplaceAll(notes, "\r\n", "\n")

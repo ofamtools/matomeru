@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"ofam.dev/matomeru/contextitems"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/views"
@@ -276,15 +277,29 @@ func (a *App) buildProjectMarkdownPreviewNode(s core.State, rec data.Record, sec
 }
 
 func (a *App) buildProjectContextDetailCard(it CollectedContextItem, section string, preview bool) ui.ViewNode {
-	title := strings.TrimSpace(it.Label)
+	title := singleLineContextText(it.Label)
 	if title == "" {
-		title = it.Value
+		if it.Kind == contextitems.KindCode {
+			title = data.CodeContextTitle(it.Value, it.Language)
+		} else {
+			title = singleLineContextText(it.Value)
+		}
+	}
+	kindMeta := it.Kind
+	if it.Language != "" {
+		kindMeta += " (" + it.Language + ")"
 	}
 	var rows []ui.ViewNode
-	rows = append(rows,
-		line("project.ctx.detail.kind", fmt.Sprintf(" Kind: %s · Source: %s", it.Kind, it.Source), "muted"),
-		ui.ViewNode{ID: "project.ctx.detail.val", Kind: ui.KindText, Props: map[string]any{"text": " " + it.Value, "wrap": true}},
-	)
+	rows = append(rows, line("project.ctx.detail.kind", fmt.Sprintf(" Kind: %s · Source: %s", kindMeta, it.Source), "muted"))
+	if it.Kind == contextitems.KindCode {
+		rows = append(rows, ui.ViewNode{
+			ID:    "project.ctx.detail.code",
+			Kind:  ui.KindMarkdown,
+			Props: map[string]any{"markdown": data.FormatCodeMarkdownBlock(it.Value, it.Language), "wrap": true},
+		})
+	} else {
+		rows = append(rows, ui.ViewNode{ID: "project.ctx.detail.val", Kind: ui.KindText, Props: map[string]any{"text": " " + it.Value, "wrap": true}})
+	}
 	if it.PaneTitle != "" {
 		rows = append(rows, line("project.ctx.detail.pane", " Pane: "+it.PaneTitle, "muted"))
 	}

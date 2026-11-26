@@ -799,7 +799,7 @@ func (a *App) contextOfficialToggle(s core.State, c core.Command) core.StepResul
 	}
 	updated, _, err := a.Store.AddOfficialProjectContext(data.OfficialContextInput{
 		ProjectID: projectID, Title: ctxItem.Label, Value: ctxItem.Value,
-		ContextKind: mapContextRecordKind(ctxItem.Kind), Notes: ctxItem.Notes, Pinned: ctxItem.Pinned,
+		ContextKind: mapContextRecordKind(ctxItem.Kind), Language: ctxItem.Language, Notes: ctxItem.Notes, Pinned: ctxItem.Pinned,
 	}, User)
 	if err != nil {
 		a.fail("promote official context", err)
@@ -824,9 +824,9 @@ func (a *App) contextAddOfficial(s core.State, c core.Command) core.StepResult {
 	}
 	projectID := projRef.ID
 	specs := []core.ParamSpec{
-		{Name: "value", Type: core.ParamString, Required: true, Description: "URL, Google Doc/Sheet link, PR, or file path"},
+		{Name: "value", Type: core.ParamString, Required: true, Description: "URL, Google Doc/Sheet link, PR, file path, or code snippet"},
 		{Name: "title", Type: core.ParamString, Description: "optional display title (auto-derived if blank)"},
-		{Name: "contextKind", Type: core.ParamString, Enum: []string{"auto", "url", "gdoc", "sheet", "file", "doc", "pr"}, Default: "auto", Description: "context kind (auto classifies Google Docs/Sheets, PRs, files)"},
+		{Name: "contextKind", Type: core.ParamString, Enum: append([]string{"auto"}, data.ValidContextKinds...), Default: "auto", Description: "context kind (auto classifies Google Docs/Sheets, PRs, files)"},
 		{Name: "notes", Type: core.ParamString, Description: "why this matters to agents and humans"},
 	}
 	fm := form.New("Add Official Project Context", specs, map[string]any{"contextKind": "auto"})

@@ -499,7 +499,7 @@ func TestDaemonHookAutoIndexing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("query context: %v", err)
 	}
-	const wantContextCount = 6
+	const wantContextCount = 7
 	if len(ctxs.Items) != wantContextCount {
 		t.Fatalf("got %d context items, want %d: %+v", len(ctxs.Items), wantContextCount, ctxs.Items)
 	}
@@ -537,6 +537,9 @@ func TestDaemonHookAutoIndexing(t *testing.T) {
 	if _, ok := byTitle["https://docs.example.com/guide"]; !ok {
 		t.Fatalf("missing URL context record: %+v", byTitle)
 	}
+	if rec, ok := byTitle["v1.2.3"]; !ok || rec.Text("contextKind") != "code" || rec.Text("value") != "v1.2.3" {
+		t.Fatalf("inline code context record = %+v (ok=%v), want contextKind=code", rec.Fields, ok)
+	}
 
 	// Both pane and task relate to each final context record.
 	if rels, err := store.Related(task.Ref(), data.RelContext, data.Outgoing); err != nil || len(rels) != wantContextCount {
@@ -544,6 +547,87 @@ func TestDaemonHookAutoIndexing(t *testing.T) {
 	}
 	if rels, err := store.Related(pane.Ref(), data.RelContext, data.Outgoing); err != nil || len(rels) != wantContextCount {
 		t.Fatalf("pane RelContext count = %d, err=%v; want %d", len(rels), err, wantContextCount)
+	}
+}
+
+func TestDaemonHookCodeBlockExtractionAndDedupe(t *testing.T) {
+	store, err := data.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer store.Close()
+
+	owner := core.Actor{Kind: "user", ID: "owner"}
+	task, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{"title": "Code Extract"}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pane, _, err := store.Create(data.CreateInput{Kind: data.KindPane, Fields: map[string]any{"title": "claude", "task": task.Ref()}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, client := startTestServer(t, Config{Store: store, DisableMCP: true})
+	ctx := context.Background()
+
+	final := strings.Join([]string{
+		"Edited `app/model.go` and ran `go test ./...`.",
+		"```go",
+		"package main",
+		"const token = \"ghp_abcdefghijklmnopqrstuvwxyz1234567890\"",
+		"```",
+	}, "\n")
+
+	for range 2 {
+		if _, err := client.HookEvent(ctx, HookEvent{
+			PaneID:        pane.ID,
+			Harness:       "claude",
+			Kind:          HookKindState,
+			State:         StateDone,
+			FinalResponse: final,
+		}); err != nil {
+			t.Fatalf("HookEvent: %v", err)
+		}
+	}
+
+	ctxs, err := store.Query(data.Query{Kind: data.KindContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Expect 3 deduplicated items: file app/model.go, fenced go block, inline `go test ./...`.
+	if len(ctxs.Items) != 3 {
+		t.Fatalf("got %d context items, want 3: %+v", len(ctxs.Items), ctxs.Items)
+	}
+
+	var goRec, inlineRec, fileRec *data.Record
+	for i := range ctxs.Items {
+		rec := ctxs.Items[i]
+		switch {
+		case rec.Text("contextKind") == "file":
+			fileRec = &rec
+		case rec.Text("contextKind") == "code" && rec.Text("language") == "go":
+			goRec = &rec
+		case rec.Text("contextKind") == "code" && rec.Text("value") == "go test ./...":
+			inlineRec = &rec
+		}
+	}
+	if fileRec == nil || fileRec.Text("value") != "app/model.go" {
+		t.Fatalf("missing file context for app/model.go: %+v", ctxs.Items)
+	}
+	if goRec == nil {
+		t.Fatalf("missing fenced go code block: %+v", ctxs.Items)
+	}
+	if goRec.Text("title") != "go: package main" {
+		t.Errorf("goRec title = %q, want %q", goRec.Text("title"), "go: package main")
+	}
+	if !strings.HasPrefix(goRec.Text("canonKey"), "code:") || len(goRec.Text("canonKey")) != len("code:")+16 {
+		t.Errorf("goRec canonKey = %q, want hash key", goRec.Text("canonKey"))
+	}
+	if strings.Contains(goRec.Text("value"), "ghp_abcdefghijklmnopqrstuvwxyz1234567890") {
+		t.Errorf("secret was not masked in extracted code block: %q", goRec.Text("value"))
+	}
+	if inlineRec == nil || inlineRec.Text("title") != "go test ./..." {
+		t.Fatalf("missing inline code record: %+v", ctxs.Items)
 	}
 }
 

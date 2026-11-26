@@ -20,8 +20,6 @@ const (
 	ToolContextAddOfficial = "context.add_official"
 )
 
-var contextToolKinds = []string{"url", "pr", "file", "doc", "gdoc", "sheet"}
-
 // ContextTools serves the context.* MCP tools over a store. Getenv reads the
 // environment (nil falls back to os.Getenv).
 type ContextTools struct {
@@ -79,6 +77,7 @@ type ContextAddOfficialArgs struct {
 	Value       string `json:"value"`
 	Title       string `json:"title,omitempty"`
 	ContextKind string `json:"contextKind,omitempty"`
+	Language    string `json:"language,omitempty"`
 	Notes       string `json:"notes,omitempty"`
 	Pinned      *bool  `json:"pinned,omitempty"`
 	By          string `json:"by,omitempty"`
@@ -119,13 +118,14 @@ func (c *ContextTools) ToolSpecs() []ToolSpec {
 		},
 		{
 			Name:        ToolContextAddOfficial,
-			Description: "Add or promote an official curated context item (URL, PR, file, doc, gdoc, sheet) on a project so agents automatically receive it. Auto-resolves project from $" + EnvTaskID + " or $" + EnvPaneID + " when omitted. Returns {projectId, context, deduplicated?}.",
+			Description: "Add or promote an official curated context item (URL, PR, file, doc, gdoc, sheet, code) on a project so agents automatically receive it. Auto-resolves project from $" + EnvTaskID + " or $" + EnvPaneID + " when omitted. Returns {projectId, context, deduplicated?}.",
 			InputSchema: object([]string{"value"}, props{
 				"project":     text("project or task ID (walked to root project); defaults to $" + EnvTaskID + " or $" + EnvPaneID + "'s task"),
 				"pane":        text("optional pane ID used to resolve its task's root project; default $" + EnvPaneID),
-				"value":       text("URL, Google Doc/Sheet URL, PR reference, or file path"),
+				"value":       text("URL, Google Doc/Sheet URL, PR reference, file path, or code snippet"),
 				"title":       text("display title; derived from value when omitted"),
-				"contextKind": oneOf("kind of context item; inferred from value when omitted", contextToolKinds),
+				"contextKind": oneOf("kind of context item; inferred from value when omitted", data.ValidContextKinds),
+				"language":    text("optional language tag for code blocks/snippets"),
 				"notes":       text("why this context item matters to agents and humans"),
 				"pinned":      flag("pin for quick access on the Project Page; default true"),
 				"by":          by,
@@ -284,6 +284,7 @@ func (c *ContextTools) AddOfficial(actor core.Actor, args ContextAddOfficialArgs
 		Title:       args.Title,
 		Value:       args.Value,
 		ContextKind: args.ContextKind,
+		Language:    args.Language,
 		Notes:       args.Notes,
 		Pinned:      pinned,
 	}, actor)

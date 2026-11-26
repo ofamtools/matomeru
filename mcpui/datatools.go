@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -203,6 +202,7 @@ type AddContextArgs struct {
 	Title       string `json:"title,omitempty"`
 	Value       string `json:"value"`
 	ContextKind string `json:"contextKind,omitempty"`
+	Language    string `json:"language,omitempty"`
 	Source      string `json:"source,omitempty"`
 	Line        int    `json:"line,omitempty"`
 	Col         int    `json:"col,omitempty"`
@@ -373,12 +373,13 @@ func (d *DataTools) ToolSpecs() []ToolSpec {
 		},
 		{
 			Name:        ToolAddContext,
-			Description: "Create or deduplicate a context item (URL, PR ref, file or doc) linked to the pane and its task via context relations. Prefer archive over delete when retiring context items. Returns {context, relation, deduplicated}.",
+			Description: "Create or deduplicate a context item (URL, PR ref, file, doc, or code snippet) linked to the pane and its task via context relations. Prefer archive over delete when retiring context items. Returns {context, relation, deduplicated}.",
 			InputSchema: object([]string{"value"}, props{
 				"id":          text("context ID; generated when omitted"),
 				"title":       text("display title; derived from value when omitted"),
-				"value":       text("URL, PR reference (owner/repo#123), or file path"),
-				"contextKind": oneOf("kind of context item; inferred from value when omitted", []string{"url", "pr", "file", "doc", "gdoc", "sheet"}),
+				"value":       text("URL, PR reference (owner/repo#123), file path, or code snippet"),
+				"contextKind": oneOf("kind of context item; inferred from value when omitted", data.ValidContextKinds),
+				"language":    text("optional language tag for code blocks/snippets"),
 				"source":      oneOf("where the context item came from; default tool", []string{"prompt", "response", "screen", "tool", "curated"}),
 				"line":        count("optional 1-based line number"),
 				"col":         count("optional 1-based column number"),
@@ -822,49 +823,26 @@ func (d *DataTools) CreateDocument(actor core.Actor, args CreateDocumentArgs) (*
 	return out, nil
 }
 
-var (
-	validContextKinds   = []string{"url", "pr", "file", "doc", "gdoc", "sheet"}
-	validContextSources = []string{"prompt", "response", "screen", "tool", "curated"}
-	ghPRURLRe           = regexp.MustCompile(`^https?://github\.com/([A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100})/pull/([1-9][0-9]*)(?:[/?#].*)?$`)
-)
+var validContextSources = []string{"prompt", "response", "screen", "tool", "curated"}
 
-func classifyContext(value, explicitKind, explicitTitle string) (kind, title, canonKey string) {
+func classifyContext(value, explicitKind, explicitTitle, language string) (kind, title, canonKey string) {
+	kind = data.ClassifyContextKind(value, explicitKind)
 	val := strings.TrimSpace(value)
-	kind = data.ClassifyContextKind(val, explicitKind)
-	title = strings.TrimSpace(explicitTitle)
-	if title == "" {
-		if m := ghPRURLRe.FindStringSubmatch(val); len(m) == 3 {
-			title = m[1] + "#" + m[2]
-		} else if kind == "file" || kind == "doc" {
-			title = filepath.Base(val)
-		} else {
-			title = val
-		}
+	if kind == "code" {
+		val = strings.Trim(strings.ReplaceAll(value, "\r\n", "\n"), "\n")
 	}
-	switch kind {
-	case "pr":
-		if m := ghPRURLRe.FindStringSubmatch(val); len(m) == 3 {
-			canonKey = "pr:" + strings.ToLower(m[1]+"#"+m[2])
-		} else {
-			canonKey = "pr:" + strings.ToLower(val)
-		}
-	case "url", "gdoc", "sheet":
-		canonKey = kind + ":" + strings.ToLower(strings.TrimRight(val, "/"))
-	default:
-		canonKey = kind + ":" + filepath.Clean(val)
-	}
+	title, canonKey = data.DeriveContextTitleAndCanon(val, kind, explicitTitle, language)
 	return kind, title, canonKey
 }
 
 // AddContext is data.add_context: it creates or deduplicates a KindContext
 // record bound to the pane and its task (plus RelContext relations).
 func (d *DataTools) AddContext(actor core.Actor, args AddContextArgs) (*AddContextResult, error) {
-	val := strings.TrimSpace(args.Value)
-	if val == "" {
+	if strings.TrimSpace(args.Value) == "" {
 		return nil, errors.New("value is required")
 	}
-	if args.ContextKind != "" && !slices.Contains(validContextKinds, strings.ToLower(args.ContextKind)) {
-		return nil, fmt.Errorf("contextKind %q is not one of %s", args.ContextKind, strings.Join(validContextKinds, ", "))
+	if strings.TrimSpace(args.ContextKind) != "" && data.NormalizeContextKind(args.ContextKind) == "" {
+		return nil, fmt.Errorf("contextKind %q is not one of %s", args.ContextKind, strings.Join(data.ValidContextKinds, ", "))
 	}
 	source := strings.ToLower(strings.TrimSpace(args.Source))
 	if source == "" {
@@ -874,7 +852,12 @@ func (d *DataTools) AddContext(actor core.Actor, args AddContextArgs) (*AddConte
 		return nil, fmt.Errorf("source %q is not one of %s", args.Source, strings.Join(validContextSources, ", "))
 	}
 	taskID := d.inheritPaneTask(args.Pane, args.Task)
-	kind, title, canonKey := classifyContext(val, args.ContextKind, args.Title)
+	lang := strings.TrimSpace(args.Language)
+	kind, title, canonKey := classifyContext(args.Value, args.ContextKind, args.Title, lang)
+	val := strings.TrimSpace(args.Value)
+	if kind == "code" {
+		val = strings.Trim(strings.ReplaceAll(args.Value, "\r\n", "\n"), "\n")
+	}
 
 	// Dedupe against existing active KindContext records with the same canonKey
 	// within the same task (or same pane when no task is set).
@@ -926,8 +909,11 @@ func (d *DataTools) AddContext(actor core.Actor, args AddContextArgs) (*AddConte
 		if args.Col > 0 && rec.Text("col") == "" {
 			patchFields["col"] = args.Col
 		}
+		if lang != "" && rec.Text("language") == "" {
+			patchFields["language"] = lang
+		}
 		// Upgrade bare PR ref to full URL if provided.
-		if strings.HasPrefix(strings.ToLower(val), "http") && !strings.HasPrefix(strings.ToLower(rec.Text("value")), "http") {
+		if kind != "code" && strings.HasPrefix(strings.ToLower(val), "http") && !strings.HasPrefix(strings.ToLower(rec.Text("value")), "http") {
 			patchFields["value"] = val
 		}
 		if len(patchFields) > 0 {
@@ -944,6 +930,9 @@ func (d *DataTools) AddContext(actor core.Actor, args AddContextArgs) (*AddConte
 			"contextKind": kind,
 			"source":      source,
 			"canonKey":    canonKey,
+		}
+		if lang != "" {
+			fields["language"] = lang
 		}
 		if args.Line > 0 {
 			fields["line"] = args.Line

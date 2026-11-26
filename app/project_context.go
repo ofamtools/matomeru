@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"ofam.dev/matomeru/contextitems"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
@@ -95,7 +96,12 @@ func (a *App) buildContextSectionTable(tableID, section string, ws projectWorksp
 			status = "★"
 		}
 		display := it.Value
-		if lbl := strings.TrimSpace(it.Label); lbl != "" && lbl != it.Value {
+		if it.Kind == contextitems.KindCode {
+			display = singleLineContextText(it.Label)
+			if display == "" {
+				display = data.CodeContextTitle(it.Value, it.Language)
+			}
+		} else if lbl := strings.TrimSpace(it.Label); lbl != "" && lbl != it.Value {
 			display = fmt.Sprintf("%s — %s", lbl, it.Value)
 		}
 		if notes := strings.TrimSpace(it.Notes); notes != "" {
@@ -112,7 +118,7 @@ func (a *App) buildContextSectionTable(tableID, section string, ws projectWorksp
 			Cells: map[string]any{
 				"tier": tier, "kind": it.Kind, "value": display, "status": status, "pane": it.PaneTitle,
 				"source": it.Source, "label": it.Label, "notes": it.Notes, "project": it.Project,
-				views.AnyField: strings.Join([]string{tier, it.Kind, it.Value, it.Label, it.Notes, it.PaneTitle, it.Source, status}, " "),
+				views.AnyField: strings.Join([]string{tier, it.Kind, it.Language, it.Value, it.Label, it.Notes, it.PaneTitle, it.Source, status}, " "),
 			},
 			Facts: map[string]any{
 				"contextItem": true, "contextKey": it.Key, "contextKind": it.Kind,
@@ -178,7 +184,8 @@ func (a *App) projectUnifiedContextItems(ws projectWorkspaceData, scope data.Pro
 	}
 	chosen := map[string]bool{}
 	for _, rec := range persisted {
-		val := strings.TrimSpace(rec.Text("value"))
+		rawVal := rec.Text("value")
+		val := strings.TrimSpace(rawVal)
 		if val == "" {
 			continue
 		}
@@ -186,13 +193,16 @@ func (a *App) projectUnifiedContextItems(ws projectWorkspaceData, scope data.Pro
 		if kind == "" {
 			kind = data.ClassifyContextKind(val, "")
 		}
+		if kind == contextitems.KindCode {
+			val = strings.Trim(strings.ReplaceAll(rawVal, "\r\n", "\n"), "\n")
+		}
 		canon := strings.TrimSpace(rec.Text("canonKey"))
 		if canon == "" {
 			canon = contextCanonKey(kind, val)
 		}
 		item := CollectedContextItem{
 			RecordID: rec.ID, Key: "rec\x00" + rec.ID, CanonKey: canon, Kind: kind, Value: val,
-			Label: rec.Text("title"), Source: rec.Text("source"), ProjectID: ws.projectID, Project: ws.groupName,
+			Label: rec.Text("title"), Language: rec.Text("language"), Source: rec.Text("source"), ProjectID: ws.projectID, Project: ws.groupName,
 			Starred: rec.IsStarred() || a.isContextStarred(canon), Official: rec.Bool("official"), Pinned: rec.Bool("pinned"),
 			Notes: rec.Text("notes"), SeenAt: rec.UpdatedAt,
 		}
@@ -239,6 +249,9 @@ func mergeContextItem(harvested, persisted CollectedContextItem) CollectedContex
 	}
 	if out.Label == "" {
 		out.Label = harvested.Label
+	}
+	if out.Language == "" {
+		out.Language = harvested.Language
 	}
 	if out.PaneID == "" {
 		out.PaneID, out.PaneTitle = harvested.PaneID, harvested.PaneTitle

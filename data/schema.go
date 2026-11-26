@@ -866,12 +866,13 @@ func DefaultSchemas() *Registry {
 			Relations:      universalRelations(),
 		},
 		Schema{
-			// A URL, PR reference, file or document linked as context to a pane/task.
+			// A URL, PR reference, file, document, or code snippet linked as context to a pane/task.
 			Kind: KindContext, Title: "Context", Plural: "Context", SummaryField: "title",
 			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "display label"},
-				{Name: "value", Type: core.ParamString, Required: true, ShowFormat: ShowFormatText, Description: "URL, PR reference, or file path"},
-				{Name: "contextKind", Type: core.ParamString, Enum: []string{"url", "pr", "file", "doc", "gdoc", "sheet"}, Default: "url", Description: "kind of context item"},
+				{Name: "value", Type: core.ParamString, Required: true, ShowFormat: ShowFormatText, Description: "URL, PR reference, file path, or code snippet"},
+				{Name: "contextKind", Type: core.ParamString, Enum: ValidContextKinds, Default: "url", Description: "kind of context item"},
+				str("language", "language tag for code blocks/snippets"),
 				{Name: "source", Type: core.ParamString, Enum: []string{"prompt", "response", "screen", "tool", "curated"}, Default: "response", Description: "where the context item came from"},
 				{Name: "official", Type: core.ParamBool, Default: false, Description: "curated official project context automatically included for agents"},
 				{Name: "pinned", Type: core.ParamBool, Default: false, Description: "pinned for quick access on the Project Page"},
@@ -890,6 +891,7 @@ func DefaultSchemas() *Registry {
 				{When: `fields.pinned == true && fields.official != true`, Text: "pinned", Tone: "info"},
 				{When: `fields.contextKind == "gdoc"`, Text: "gdoc", Tone: "info"},
 				{When: `fields.contextKind == "sheet"`, Text: "sheet", Tone: "success"},
+				{When: `fields.contextKind == "code"`, Text: "code", Tone: "accent"},
 			},
 		},
 		conceptSchema(),

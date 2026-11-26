@@ -193,10 +193,14 @@ func (idx *ContextController) taskRoot(id string, roots map[string]contextRoot) 
 // mergeStoredRecord folds one stored context record into the index and reports
 // whether what the index shows changed. The caller holds idx.mu.
 func (idx *ContextController) mergeStoredRecord(rec data.Record, roots map[string]contextRoot) bool {
-	val := strings.TrimSpace(rec.Text("value"))
 	kind := rec.Text("contextKind")
 	if kind == "" {
 		kind = "url"
+	}
+	rawVal := rec.Text("value")
+	val := strings.TrimSpace(rawVal)
+	if kind == contextitems.KindCode && val != "" {
+		val = strings.Trim(strings.ReplaceAll(rawVal, "\r\n", "\n"), "\n")
 	}
 	canon := strings.TrimSpace(rec.Text("canonKey"))
 	if canon == "" {
@@ -218,7 +222,7 @@ func (idx *ContextController) mergeStoredRecord(rec data.Record, roots map[strin
 		}
 		return false
 	}
-	if val == "" {
+	if strings.TrimSpace(val) == "" {
 		return false
 	}
 	paneTitle := ""
@@ -241,7 +245,7 @@ func (idx *ContextController) mergeStoredRecord(rec data.Record, roots map[strin
 	}
 	next := &CollectedContextItem{
 		RecordID: rec.ID, Key: key, CanonKey: canon, Kind: kind, Value: val, Path: path,
-		Label: rec.Text("title"), Source: rec.Text("source"), Line: recordIntField(rec, "line"), Col: recordIntField(rec, "col"),
+		Label: rec.Text("title"), Language: rec.Text("language"), Source: rec.Text("source"), Line: recordIntField(rec, "line"), Col: recordIntField(rec, "col"),
 		PaneID: paneID, PaneTitle: paneTitle, ProjectID: projID, Project: projTitle,
 		Starred: rec.IsStarred() || idx.starred[canon], Official: rec.Bool("official"), Pinned: rec.Bool("pinned"),
 		Notes: rec.Text("notes"), SeenAt: rec.UpdatedAt,
