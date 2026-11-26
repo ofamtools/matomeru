@@ -69,7 +69,7 @@ func (a *App) records(id, kind string) *table.Model {
 	styleOpts := a.styleOptions()
 	if _, isExt := a.ext.extCatalogs[kind]; !isExt && a.Store != nil {
 		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
-			key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t|%s", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog(), a.archiveAnimCacheKey())
+			key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t|%s|%t|%s", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog(), a.archiveAnimCacheKey(), styleOpts.FlagsOnLeft, styleOpts.ColorByRecency)
 			if a.nav.recCacheKeys != nil && a.nav.recCacheKeys[id] == key && a.nav.tables[id] != nil {
 				a.pageSize(a.nav.tables[id], id)
 				return a.nav.tables[id]

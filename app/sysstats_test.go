@@ -353,16 +353,19 @@ func TestChromeSysStatsAppIntegrationAndOptOut(t *testing.T) {
 	})
 	a.rt.live.sysStats = sampler
 
-	// Default (ui.chromeSystemStats = true): status line includes chrome telemetry.
+	// Default (ui.chromeSystemStats = true, ui.topChromeRedesign = true): top chrome separator includes telemetry.
 	root := a.View(s)
-	stNode := root.Find("status")
+	stNode := root.Find("chrome.sep")
 	if stNode == nil {
-		t.Fatal("missing status ViewNode")
+		stNode = root.Find("status")
+	}
+	if stNode == nil {
+		t.Fatal("missing chrome.sep/status ViewNode")
 	}
 	got, _ := stNode.Props["text"].(string)
 	wantSub := "cpu 2%/28% · ram 64%/32G · disk 142G/1.0T"
 	if !strings.Contains(got, wantSub) {
-		t.Fatalf("status line missing %q:\n  got: %q", wantSub, got)
+		t.Fatalf("chrome line missing %q:\n  got: %q", wantSub, got)
 	}
 
 	// Opt-out (ui.chromeSystemStats = false): telemetry disappears cleanly.
@@ -370,9 +373,12 @@ func TestChromeSysStatsAppIntegrationAndOptOut(t *testing.T) {
 	a.reloadSettings()
 	a.applySettings()
 	rootOff := a.View(s)
-	stOff := rootOff.Find("status")
+	stOff := rootOff.Find("chrome.sep")
 	if stOff == nil {
-		t.Fatal("missing status ViewNode when disabled")
+		stOff = rootOff.Find("status")
+	}
+	if stOff == nil {
+		t.Fatal("missing chrome.sep/status ViewNode when disabled")
 	}
 	gotOff, _ := stOff.Props["text"].(string)
 	if strings.Contains(gotOff, "cpu ") || strings.Contains(gotOff, "ram ") || strings.Contains(gotOff, "disk ") {

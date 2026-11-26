@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"ofam.dev/ochazuke/core"
@@ -64,6 +65,9 @@ func (a *App) tickEscapeGuard() bool {
 	}
 	if !a.now().Before(a.escGuard.CooloffUntil) {
 		a.escGuard.CooloffUntil = time.Time{}
+		if strings.Contains(a.status, "esc locked") {
+			a.status = ""
+		}
 		return true
 	}
 	return false

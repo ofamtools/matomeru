@@ -487,14 +487,14 @@ func TestPanesUXKeyIJumpsToPanesAndKilledSessionVanishTriggersExit(t *testing.T)
 		t.Fatalf("expected I to jump to SpacePanes, got %q", a.Space())
 	}
 
-	// ctrl+a d detaches directly back to the left pane rail (and respects terminal.focusRailOnDetach=false).
+	// ctrl+a d detaches 1 component left (TOC by default), and respects rail / focusRailOnDetach=false.
 	d.Keys("enter")
 	if a.Mode() != ModeTerminal || a.Focus() != siteScreen {
 		t.Fatalf("expected ModeTerminal on siteScreen, got mode=%q focus=%q", a.Mode(), a.Focus())
 	}
 	d.Keys("ctrl+a", "d")
-	if a.Mode() != ModeNormal || a.Focus() != railTable {
-		t.Fatalf("ctrl+a d did not detach to left pane rail: mode=%q focus=%q", a.Mode(), a.Focus())
+	if a.Mode() != ModeNormal || a.Focus() != tocPrefix+views.ScreenPageID {
+		t.Fatalf("ctrl+a d (default left) did not detach to TOC: mode=%q focus=%q", a.Mode(), a.Focus())
 	}
 	a.cfg.userSettings[SetFocusRailOnDetach] = false
 	a.reloadSettings()
@@ -503,6 +503,7 @@ func TestPanesUXKeyIJumpsToPanesAndKilledSessionVanishTriggersExit(t *testing.T)
 		t.Fatalf("opt-out terminal.focusRailOnDetach=false mismatch: mode=%q focus=%q", a.Mode(), a.Focus())
 	}
 	a.cfg.userSettings[SetFocusRailOnDetach] = true
+	a.cfg.userSettings[SetDetachFocusTarget] = DetachFocusRail
 	a.reloadSettings()
 	d.Keys("h", "h")
 
@@ -585,7 +586,7 @@ func TestPanesUXNewAgentAndProjectNavPaneAttach(t *testing.T) {
 	if len(host.opens) != 1 || host.opens[0].id != created.ID {
 		t.Fatalf("expected live PTY open for %q, got %+v", created.ID, host.opens)
 	}
-	d.Keys("ctrl+a", "d")
+	d.Keys("ctrl+a", "d", "h")
 
 	// 2. On 1 Panes, stepping into a Project header -> Project Nav -> Panes:
 	//    pressing l on a previewed pane node commits it as the open child pane so

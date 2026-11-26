@@ -334,7 +334,7 @@ func (a *App) featuresCaptureNode(wishlistRoot *data.Record) ui.ViewNode {
 	if a.nav.showArchived {
 		extra = append(extra, ui.Badge{Text: "archived", Tone: "muted"})
 	}
-	panel := views.TreeView(schema, tm, featuresCapturePanel, featuresCaptureTree, views.ScopeIndex, extra...)
+	panel := views.TreeViewWith(schema, tm, featuresCapturePanel, featuresCaptureTree, views.ScopeIndex, a.stickyTreeBreadcrumbsEnabled(), extra...)
 	panel.Title = featuresCaptureTitle
 
 	subHoisted := len(tm.HoistStack) > 1 || (tm.Hoisted() && tm.HoistID() != wid)

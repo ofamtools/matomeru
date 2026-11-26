@@ -341,7 +341,7 @@ func (a *App) projectSectionSignals() ui.ViewNode {
 func (a *App) projectTreePanel(panelID, treeID, kind, parentField, section, panelScope string, ws projectWorkspaceData, recs []data.Record, extra ...ui.Badge) ui.ViewNode {
 	schema := a.schema(kind)
 	tm := a.syncProjectSectionTree(treeID, ws, schema, recs, parentField)
-	panel := views.TreeView(schema, tm, panelID, treeID, panelScope, extra...)
+	panel := views.TreeViewWith(schema, tm, panelID, treeID, panelScope, a.stickyTreeBreadcrumbsEnabled(), extra...)
 	panel.Facts["section"] = section
 	if len(panel.Children) > 0 {
 		if panel.Children[0].Props == nil {

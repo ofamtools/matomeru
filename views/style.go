@@ -11,18 +11,71 @@ import (
 	"ofam.dev/ochazuke/expr"
 )
 
+// Recency coloring modes for settings.json `ui.colorByRecency`.
+const (
+	RecencyOff  = "off"
+	RecencyCell = "cell"
+	RecencyRow  = "row"
+)
+
 // StyleOptions controls declarative visual styling in presenters.
-// Both flags default to true and can be opted out via app settings.
+// Every option can be opted out via app settings.
 type StyleOptions struct {
 	RowSemanticStyling bool
 	StatusIcons        bool
+	FlagsOnLeft        bool
+	ColorByRecency     string
 }
 
-// DefaultStyleOptions enables both semantic row/cell styling and status icons.
+// DefaultStyleOptions enables semantic styling, status icons, left-edge flags,
+// and cell-level recency coloring.
 func DefaultStyleOptions() StyleOptions {
 	return StyleOptions{
 		RowSemanticStyling: true,
 		StatusIcons:        true,
+		FlagsOnLeft:        true,
+		ColorByRecency:     RecencyCell,
+	}
+}
+
+// RecencyBucket classifies t relative to now into a coarse recency bucket.
+func RecencyBucket(t, now time.Time) string {
+	if t.IsZero() {
+		return "older"
+	}
+	ny, nm, nd := now.Local().Date()
+	ty, tm, td := t.Local().Date()
+	if ny == ty && nm == tm && nd == td {
+		return "today"
+	}
+	age := now.Sub(t)
+	switch {
+	case age < 0:
+		return "today"
+	case age < 7*24*time.Hour:
+		return "this_week"
+	case age < 14*24*time.Hour:
+		return "last_week"
+	case age < 30*24*time.Hour:
+		return "this_month"
+	default:
+		return "older"
+	}
+}
+
+// RecencyTone maps a recency bucket to a semantic theme tone.
+func RecencyTone(bucket string) string {
+	switch bucket {
+	case "today":
+		return "accent"
+	case "this_week":
+		return "info"
+	case "last_week":
+		return "warning"
+	case "older":
+		return "muted"
+	default:
+		return ""
 	}
 }
 
@@ -267,6 +320,24 @@ func ResolveRecordStyle(schema data.Schema, rec data.Record, opts StyleOptions) 
 					}
 					setIconTone(target, it)
 				}
+			}
+		}
+	}
+
+	if opts.RowSemanticStyling && opts.ColorByRecency != "" && opts.ColorByRecency != RecencyOff {
+		if !rec.UpdatedAt.IsZero() {
+			if tone := RecencyTone(RecencyBucket(rec.UpdatedAt, now)); tone != "" {
+				if st.CellTones["updatedAt"] == "" {
+					setCellTone("updatedAt", tone)
+				}
+				if opts.ColorByRecency == RecencyRow && st.RowTone == "" {
+					st.RowTone = tone
+				}
+			}
+		}
+		if !rec.CreatedAt.IsZero() {
+			if tone := RecencyTone(RecencyBucket(rec.CreatedAt, now)); tone != "" && st.CellTones["createdAt"] == "" {
+				setCellTone("createdAt", tone)
 			}
 		}
 	}

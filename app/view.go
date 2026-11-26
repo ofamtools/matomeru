@@ -83,6 +83,7 @@ func (a *App) viewKey(s core.State) string {
 	if a.nav != nil && a.nav.showEmptyFoldExpanded {
 		b.WriteString("|sf:1")
 	}
+	fmt.Fprintf(&b, "|tc:%t", a.topChromeRedesignEnabled())
 	if tk := a.toastViewKey(); tk != "" {
 		b.WriteString("|toast:" + tk)
 	}
@@ -202,6 +203,7 @@ func (a *App) tabsMemoKey(s core.State) string {
 	if a.proj != nil {
 		fmt.Fprintf(&b, "pt:%s:%s|", strings.Join(a.proj.openTabs, ","), a.proj.activeProjectKey)
 	}
+	fmt.Fprintf(&b, "tc:%t|", a.topChromeRedesignEnabled())
 	return b.String()
 }
 
@@ -221,9 +223,14 @@ func (a *App) build(s core.State) ui.ViewNode {
 		} else if active < 0 {
 			active = 0
 		}
+		topChrome := a.topChromeRedesignEnabled()
 		tabs = ui.ViewNode{ID: "spaces", Kind: ui.KindTabs, Props: map[string]any{"active": active}, Box: layout.Constraints{Flex: 1}}
 		for i, tb := range topTabs {
-			tab := ui.ViewNode{ID: "space." + tb.id, Kind: ui.KindVStack, Scope: tb.id, Title: fmt.Sprintf("%d %s", i+1, tb.title)}
+			tabTitle := fmt.Sprintf("%d %s", i+1, tb.title)
+			if topChrome {
+				tabTitle = tb.title
+			}
+			tab := ui.ViewNode{ID: "space." + tb.id, Kind: ui.KindVStack, Scope: tb.id, Title: tabTitle}
 			if i == active {
 				child := a.spaceForTab(s, tb)
 				if tb.dynamic {
@@ -296,24 +303,40 @@ func (a *App) build(s core.State) ui.ViewNode {
 	if a.Shell != nil {
 		w = a.Shell.W - 1
 	}
-	leftStatus := a.statusLine(s, root, chain)
-	statusText := clip(leftStatus, w)
-	if a.chromeSystemStatsEnabled() && a.rt.live.sysStats != nil {
-		if rightStats := FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), w); rightStats != "" {
-			if w > 0 {
-				statusText = MergeChromeStatusLine(leftStatus, rightStats, w)
-			} else {
-				statusText = leftStatus + "  " + rightStats
+	var footer []ui.ViewNode
+	if a.topChromeRedesignEnabled() {
+		sep := a.chromeSeparatorNode(s, chain, w)
+		// Insert the separator (CPU/RAM/disk + context chain + MODE) cleanly
+		// between the top tab bar and the active page content.
+		if activeTab := slices.IndexFunc(tabs.Children, func(ch ui.ViewNode) bool { return len(ch.Children) > 0 }); activeTab >= 0 {
+			tabs.Children[activeTab].Children = append([]ui.ViewNode{sep}, tabs.Children[activeTab].Children...)
+		}
+		hintsLine := line("hints", clip(a.hintLine(s, chain), w), "muted")
+		bottomLine, ok := a.filterBarNode(s, root, w)
+		if !ok {
+			bottomLine = line("status", a.bottomStatusLine(s, root, w), "accent")
+		}
+		footer = []ui.ViewNode{hintsLine, bottomLine}
+	} else {
+		leftStatus := a.statusLine(s, root, chain)
+		statusText := clip(leftStatus, w)
+		if a.chromeSystemStatsEnabled() && a.rt.live.sysStats != nil {
+			if rightStats := FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), w); rightStats != "" {
+				if w > 0 {
+					statusText = MergeChromeStatusLine(leftStatus, rightStats, w)
+				} else {
+					statusText = leftStatus + "  " + rightStats
+				}
 			}
 		}
-	}
-	bottomLine, ok := a.filterBarNode(s, root, w)
-	if !ok {
-		bottomLine = line("hints", clip(a.hintLine(s, chain), w), "muted")
-	}
-	footer := []ui.ViewNode{
-		line("status", statusText, "accent"),
-		bottomLine,
+		bottomLine, ok := a.filterBarNode(s, root, w)
+		if !ok {
+			bottomLine = line("hints", clip(a.hintLine(s, chain), w), "muted")
+		}
+		footer = []ui.ViewNode{
+			line("status", statusText, "accent"),
+			bottomLine,
+		}
 	}
 	root.Children = append(append([]ui.ViewNode{tabs}, footer...), overlays...)
 	applyTreeGuides(&root, a.cfg.Settings.Bool(SetTreeGuides, true))
@@ -551,20 +574,36 @@ func (a *App) hintLine(s core.State, chain []core.ContextFrame) string {
 	}
 	full := append(slices.Clone(chain[:len(chain)-1]), core.ContextFrame{Scope: "app", Facts: a.Shell.AppFacts(s)})
 	// Keys that run the same command share one hint: "backspace/H history.back".
-	var order []string
-	keysOf := map[string][]string{}
+	type hintGroup struct {
+		command string
+		rank    int
+		keys    []string
+	}
+	var groups []hintGroup
+	groupIdx := map[string]int{}
 	for _, b := range a.bindingsFor(s, full, modes, exclude, "") {
 		if b.hidden {
 			continue
 		}
-		if _, seen := keysOf[b.command]; !seen {
-			order = append(order, b.command)
+		rank := hintScopeRank(b.scope, full)
+		if idx, seen := groupIdx[b.command]; !seen {
+			groupIdx[b.command] = len(groups)
+			groups = append(groups, hintGroup{command: b.command, rank: rank, keys: []string{b.keys}})
+		} else {
+			if rank < groups[idx].rank {
+				groups[idx].rank = rank
+			}
+			groups[idx].keys = append(groups[idx].keys, b.keys)
 		}
-		keysOf[b.command] = append(keysOf[b.command], b.keys)
 	}
-	parts := make([]string, len(order))
-	for i, command := range order {
-		parts[i] = strings.Join(keysOf[command], "/") + " " + command
+	if a.hintsNounFirstEnabled() {
+		slices.SortStableFunc(groups, func(x, y hintGroup) int {
+			return x.rank - y.rank
+		})
+	}
+	parts := make([]string, len(groups))
+	for i, g := range groups {
+		parts[i] = strings.Join(g.keys, "/") + " " + g.command
 	}
 	return " " + lead + strings.Join(parts, "  ·  ")
 }

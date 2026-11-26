@@ -206,6 +206,15 @@ const (
 	SetFilterBarBottomLeft             = "ui.filterBarBottomLeft"
 	SetShowLayout                      = "show.layout"
 	SetShowHideEmptyRelations          = "show.hideEmptyRelations"
+	SetTopChromeRedesign               = "ui.topChromeRedesign"
+	SetHintsNounFirst                  = "ui.hintsNounFirst"
+	SetDetachFocusTarget               = "terminal.detachFocusTarget"
+	SetFlagsOnLeft                     = "ui.flagsOnLeft"
+	SetColorByRecency                  = "ui.colorByRecency"
+	SetStickyTreeBreadcrumbs           = "ui.stickyTreeBreadcrumbs"
+	DetachFocusLeft                    = "left"
+	DetachFocusRail                    = "rail"
+	DetachFocusStay                    = "stay"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -363,6 +372,12 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetShowHideEmptyRelations, true, "collapse empty Show page relation sections behind one focusable toggle row"),
 		{Name: SetFilesScanDepth, Type: core.ParamInt, Default: defaultFilesDepth, Description: "default directory depth for Git repository auto-scan"},
 		enum(SetFilesDefaultSort, string(data.PathSortRecent), "default sort order for Files & Frecency path picker", string(data.PathSortRecent), string(data.PathSortFrequent), string(data.PathSortFrecency), string(data.PathSortName)),
+		flag(SetTopChromeRedesign, true, "clean top chrome: unnumbered page tabs, system stats + context/mode separator bar, hints above bottom-left bar"),
+		flag(SetHintsNounFirst, true, "sort footer key hints with focused noun/component actions first and shared global actions last"),
+		enum(SetDetachFocusTarget, DetachFocusLeft, "where focus moves on terminal detach (ctrl+a d): one component left (TOC), pane rail, or stay", DetachFocusLeft, DetachFocusRail, DetachFocusStay),
+		flag(SetFlagsOnLeft, true, "place unread/star/snooze/archive flag marks on the left edge of tables beside focus"),
+		enum(SetColorByRecency, views.RecencyCell, "color records by recency bucket (today/this week/last week/older): cell, row, or off", views.RecencyCell, views.RecencyRow, views.RecencyOff),
+		flag(SetStickyTreeBreadcrumbs, true, "pin scrolled-off ancestor breadcrumb lines at the top of deep tree views"),
 	}
 }
 
@@ -414,6 +429,7 @@ func (a *App) reloadSettings() {
 	a.syncToastSetting()
 	a.syncSessionRecorder()
 	a.applyRendererSettings()
+	a.viewMemo.gen++
 }
 
 func cardBorderStyleValue(v string) string {
@@ -501,7 +517,40 @@ func (a *App) styleOptions() views.StyleOptions {
 	return views.StyleOptions{
 		RowSemanticStyling: a.cfg.Settings.Bool(SetRowSemanticStyling, true),
 		StatusIcons:        a.cfg.Settings.Bool(SetStatusIcons, true),
+		FlagsOnLeft:        a.cfg.Settings.Bool(SetFlagsOnLeft, true),
+		ColorByRecency:     a.cfg.Settings.String(SetColorByRecency, views.RecencyCell),
 	}
+}
+
+func (a *App) topChromeRedesignEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTopChromeRedesign, true)
+}
+
+func (a *App) hintsNounFirstEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetHintsNounFirst, true)
+}
+
+func (a *App) stickyTreeBreadcrumbsEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetStickyTreeBreadcrumbs, true)
+}
+
+func (a *App) detachFocusTarget() string {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return DetachFocusLeft
+	}
+	// Honor legacy terminal.focusRailOnDetach=false if user explicitly turned it
+	// off and did not override terminal.detachFocusTarget.
+	if raw, set := a.cfg.userSettings[SetDetachFocusTarget]; set {
+		if s, ok := raw.(string); ok && s != "" {
+			return s
+		}
+	}
+	if raw, set := a.cfg.userSettings[SetFocusRailOnDetach]; set {
+		if b, ok := raw.(bool); ok && !b {
+			return DetachFocusStay
+		}
+	}
+	return a.cfg.Settings.String(SetDetachFocusTarget, DetachFocusLeft)
 }
 
 func (a *App) hintsDefaultAction() string {
