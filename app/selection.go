@@ -72,8 +72,9 @@ func (a *App) reportSelectStatus(visualActive bool, visualCount, markedCount int
 
 // selectCommand dispatches all traits.SelectCmd* commands (and the kept
 // table.mark.toggle verb) to the focused tree or table widget, else to the
-// first one drawn on the page. With none it does nothing (the keys are
-// hidden by facts.selectTarget).
+// first one drawn on the page, moving focus there so the keys that follow
+// extend the selection. With none it does nothing (the keys are hidden by
+// facts.selectTarget).
 func (a *App) selectCommand(s core.State, c core.Command) core.StepResult {
 	if c.ID == CmdMarkToggle {
 		c.ID = traits.SelectCmdMarkToggle
@@ -85,11 +86,12 @@ func (a *App) selectCommand(s core.State, c core.Command) core.StepResult {
 		}
 		tm.HandleCommand(c)
 		a.reportSelectStatus(tm.VisualActive, len(tm.VisualIDs()), len(tm.Marked))
-		return core.Next(s)
+		return core.Next(ts)
 	}
 	if tbl, _, ok := a.activeSelectionTable(ts); ok {
 		tbl.HandleCommand(c)
 		a.reportSelectStatus(tbl.VisualActive, len(tbl.VisualRows()), len(tbl.Marked))
+		return core.Next(ts)
 	}
 	return core.Next(s)
 }

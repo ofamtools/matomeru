@@ -22,6 +22,17 @@ func TestPresetVerbOnNavRailActsOnPageTable(t *testing.T) {
 	}
 }
 
+// Focus on the project nav rail beside a table: visual select starts in the
+// page's table and focus moves to it, so j/k extend the selection.
+func TestSelectVerbOnNavRailFocusesPageTable(t *testing.T) {
+	a, d := openProjectTabOnNav(t, "pages")
+	d.Send(core.CommandEvent{Command: core.Command{ID: traits.SelectCmdVisualToggle, Actor: User}})
+	tbl := a.nav.tables[projectPagesTable]
+	if a.Focus() != projectPagesTable || tbl == nil || !tbl.VisualActive {
+		t.Fatalf("v on the nav rail: focus %q, want %q with visual active", a.Focus(), projectPagesTable)
+	}
+}
+
 // Focus on the project nav rail beside the task outline: the tree verbs act
 // on the page's tree (they used to say "no tree is focused"), and inline
 // edit moves focus into it.
