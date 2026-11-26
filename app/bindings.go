@@ -299,8 +299,8 @@ func DefaultBindings() []core.Binding {
 		bind(n, all, "ctrl+b", "motion.page.up", "page up"),
 		bind(n, all, "ctrl+e", "motion.scroll.down", "scroll viewport down"),
 		bind(n, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
-		bind(n, all, "}", "motion.block.next", "next group"),
-		bind(n, all, "{", "motion.block.prev", "previous group"),
+		with(bind(n, all, "}", traits.CmdMotionObjectNext, "next group"), map[string]any{"object": traits.ObjectBlock}),
+		with(bind(n, all, "{", traits.CmdMotionObjectPrev, "previous group"), map[string]any{"object": traits.ObjectBlock}),
 		bind(n, all, "tab", core.CmdFocusNext, "next"),
 		bind(n, all, "shift+tab", core.CmdFocusPrev, "previous"),
 
@@ -642,8 +642,8 @@ func DefaultBindings() []core.Binding {
 		bind(ModeReader, all, "ctrl+e", "motion.scroll.down", "scroll viewport down"),
 		bind(ModeReader, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
 		hidden(bind(ModeReader, all, "space", "motion.page.down", "page down")),
-		bind(ModeReader, all, "}", "motion.block.next", "next heading"),
-		bind(ModeReader, all, "{", "motion.block.prev", "previous heading"),
+		with(bind(ModeReader, all, "}", traits.CmdMotionObjectNext, "next heading"), map[string]any{"object": traits.ObjectBlock}),
+		with(bind(ModeReader, all, "{", traits.CmdMotionObjectPrev, "previous heading"), map[string]any{"object": traits.ObjectBlock}),
 		bind(ModeReader, all, "t", markdown.CmdTOCToggle, "contents"),
 		bind(ModeReader, all, "]", CmdReaderHeadingNext, "next in contents"),
 		bind(ModeReader, all, "[", CmdReaderHeadingPrev, "previous in contents"),
@@ -801,6 +801,7 @@ func DefaultBindings() []core.Binding {
 	}
 	out = append(out, macroBindings()...)
 	out = append(out, viewCycleBindings()...)
+	out = append(out, motionObjectBindings()...)
 	out = append(out, uxNotesBindings()...)
 	out = append(out, pageModeBindings()...)
 	out = append(out, fdSearchBindings()...)

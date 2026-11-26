@@ -386,10 +386,13 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 		s = a.stepBounded(s, c.Times())
 	case "motion.up":
 		s = a.stepBounded(s, -c.Times())
-	case "motion.half.down", "motion.block.next":
+	case "motion.half.down":
 		s = a.stepBounded(s, 5*c.Times())
-	case "motion.half.up", "motion.block.prev":
+	case "motion.half.up":
 		s = a.stepBounded(s, -5*c.Times())
+	case traits.CmdMotionBlockNext, traits.CmdMotionBlockPrev, traits.CmdMotionObjectNext, traits.CmdMotionObjectPrev,
+		traits.CmdMotionSameNext, traits.CmdMotionSamePrev:
+		s = a.pageObjectMotion(s, c)
 	case "motion.page.down":
 		s = a.stepBounded(s, 10*c.Times())
 	case "motion.page.up":

@@ -39,6 +39,7 @@ func recordSpec(id, desc string, kinds []string, whenExpr string, tags ...string
 func CommandSpecs() []core.CommandSpec {
 	text := []core.ParamSpec{{Name: "text", Type: core.ParamString}}
 	base := append(append(append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...), viewCycleSpecs()...), traits.SelectCommandSpecs()...)
+	base = append(base, traits.MotionCommandSpecs()...)
 	return append(append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),

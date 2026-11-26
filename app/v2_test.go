@@ -63,7 +63,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetToolsFDBinary: "", SetSearchFDMaxResults: 200,
 		SetSearchPanesIncludeTranscripts: true, SetSearchPanesIncludeArchived: false, SetSearchPanesMaxLogKB: 2048,
 		SetSessionUXNotes: true,
-		SetPageLockScroll: true, SetInteractiveCanvas: true, SetTOCLivePreview: true, SetEdgeFocusSpill: false, SetLongJumpPolicy: "half-page", SetScrollFollowTrait: true, SetVerboseHookBar: false,
+		SetPageLockScroll: true, SetInteractiveCanvas: true, SetTOCLivePreview: true, SetEdgeFocusSpill: false, SetLongJumpPolicy: "half-page", SetBlockMotion: "block", SetScrollFollowTrait: true, SetVerboseHookBar: false,
 		SetLaneInTOC: true, SetCompactTOC: true, SetTOCGrouped: true,
 		SetModalEscapeGuard: "double", SetWrapInputs: true, SetWrapOutline: true, SetOutlineEnterNewline: true, SetOutlineStartCollapsed: true,
 		SetCardBorderStyle: ui.CardBorderSubtle, SetRailEnterMode: RailEnterModeLive,
