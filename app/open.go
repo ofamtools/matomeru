@@ -217,6 +217,12 @@ func (a *App) runHandler(s core.State, rule handlers.Rule, t openTarget) core.St
 		return t.path != ""
 	}
 	base := filepath.Base(t.path)
+	if rule.Kind == handlers.KindShell {
+		if !needPath() {
+			return s
+		}
+		return a.startShell(s, rule.Name+" "+base, rule.CommandLine(t.path), filepath.Dir(t.path))
+	}
 	if rule.Kind == handlers.KindExec {
 		if !needPath() {
 			return s
