@@ -296,9 +296,15 @@ func (a *App) projectTreeNavNodes(ws projectWorkspaceData, secKey, kind string, 
 				}
 			}
 			var progressBar []ui.InlineRun
-			if kind == data.KindLane && a.projectNavLaneProgressBarEnabled() {
-				done, activeCnt, planned := views.LaneTreeRollupCounts(nd)
-				progressBar = views.CompactLaneBarRuns(done, activeCnt, planned, 4)
+			unreadTone := ""
+			if kind == data.KindLane {
+				if st := strings.ToLower(strings.TrimSpace(rec.Text("laneStatus"))); st == "done" || st == "merged" {
+					unreadTone = "success"
+				}
+				if a.projectNavLaneProgressBarEnabled() {
+					done, activeCnt, planned := views.LaneTreeRollupCounts(nd)
+					progressBar = views.CompactLaneBarRuns(done, activeCnt, planned, 4)
+				}
 			}
 			active := focusID == nodeFocusID || lockedFocus == nodeFocusID
 			out = append(out, views.ProjectNavNode{
@@ -310,6 +316,7 @@ func (a *App) projectTreeNavNodes(ws projectWorkspaceData, secKey, kind string, 
 				IconTone:    rs.IconTone,
 				Badge:       badge,
 				Tone:        rs.RowTone,
+				UnreadTone:  unreadTone,
 				ProgressBar: progressBar,
 				Ref:         &ref,
 				Unread:      selfUnread,

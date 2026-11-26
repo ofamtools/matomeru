@@ -31,6 +31,7 @@ type ProjectNavNode struct {
 	Badge       string
 	BadgeTone   string
 	Tone        string
+	UnreadTone  string // optional tone for the left-gutter ● indicator (default "warning"; e.g. "success" for done lanes)
 	ProgressBar []ui.InlineRun
 	Ref         *core.Ref
 	Unread      bool
@@ -126,7 +127,7 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 				Kind:  ui.KindText,
 				Tone:  "muted",
 				Box:   layout.Constraints{FixedH: 1},
-				Props: map[string]any{"text": " " + strings.ToUpper(item.Group)},
+				Props: map[string]any{"text": "  " + strings.ToUpper(item.Group)},
 			})
 		}
 		navRows = append(navRows, projectNavRow(item, spec.ActiveKey, unreadDotOnly))
@@ -281,7 +282,23 @@ func projectNavRow(item ProjectNavSection, activeKey string, unreadDotOnly bool)
 		icon = "·"
 	}
 
+	// Fixed 2-column left indicator gutter ("● " or "  ") keeps the tree
+	// anchored at column 2 with zero horizontal shift when unread state changes.
 	var b navSpanBuilder
+	var gutterPlain string
+	if isUnread {
+		gutterTone := ""
+		if unreadDotOnly {
+			gutterTone = "warning"
+		}
+		b.write("●", gutterTone)
+		b.write(" ", "")
+		gutterPlain = "● "
+	} else {
+		b.write("  ", "")
+		gutterPlain = "  "
+	}
+
 	var focusedText string
 	if item.Expandable {
 		chev := "▸"
@@ -289,22 +306,14 @@ func projectNavRow(item ProjectNavSection, activeKey string, unreadDotOnly bool)
 			chev = "▾"
 		}
 		b.write(chev+" "+icon+" "+item.Label, "")
-		focusedText = fmt.Sprintf("%s %s %s", chev, icon, item.Label)
+		focusedText = fmt.Sprintf("%s%s %s %s", gutterPlain, chev, icon, item.Label)
 	} else {
 		marker := " "
-		markerTone := ""
-		switch {
-		case isActive:
+		if isActive {
 			marker = "▸"
-		case isUnread:
-			marker = "●"
-			if unreadDotOnly {
-				markerTone = "warning"
-			}
 		}
-		b.write(marker, markerTone)
-		b.write(" "+icon+" "+item.Label, "")
-		focusedText = fmt.Sprintf("▸ %s %s", icon, item.Label)
+		b.write(marker+" "+icon+" "+item.Label, "")
+		focusedText = fmt.Sprintf("%s▸ %s %s", gutterPlain, icon, item.Label)
 	}
 
 	badgeStr := strings.TrimSpace(item.Badge)
@@ -380,9 +389,30 @@ func projectNavRow(item ProjectNavSection, activeKey string, unreadDotOnly bool)
 }
 
 func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, depth int, unreadDotOnly bool) []ui.ViewNode {
-	indent := strings.Repeat("  ", depth)
+	// Section text starts 4 cols past the fixed 2-col gutter (chev + space + icon + space).
+	// Indenting depth-1 children by 4 spaces (and +2 per deeper level) aligns the child's
+	// tree bullet/chevron right under the section label so child text is clearly indented
+	// even when items have no icon (e.g. Notes).
+	indent := strings.Repeat(" ", 2+2*depth)
 	for _, child := range children {
 		var b navSpanBuilder
+		hasDot := child.Unread || (child.Expandable && child.HasUnread)
+		gutterPlain := "  "
+		if hasDot {
+			dotTone := ""
+			if unreadDotOnly {
+				dotTone = child.UnreadTone
+				if dotTone == "" {
+					dotTone = "warning"
+				}
+			}
+			b.write("●", dotTone)
+			b.write(" ", "")
+			gutterPlain = "● "
+		} else {
+			b.write("  ", "")
+		}
+
 		b.write(indent, "")
 
 		var focusedPrefix string
@@ -392,26 +422,10 @@ func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, dept
 				chev = "▾"
 			}
 			b.write(chev, "muted")
-			focusedPrefix = indent + chev
-			if child.Unread || child.HasUnread {
-				b.write(" ", "")
-				dotTone := ""
-				if unreadDotOnly {
-					dotTone = "warning"
-				}
-				b.write("●", dotTone)
-				focusedPrefix += " ●"
-			}
-		} else if child.Unread {
-			dotTone := ""
-			if unreadDotOnly {
-				dotTone = "warning"
-			}
-			b.write("●", dotTone)
-			focusedPrefix = indent + "▸ ●"
+			focusedPrefix = gutterPlain + indent + chev
 		} else {
 			b.write("·", "muted")
-			focusedPrefix = indent + "▸"
+			focusedPrefix = gutterPlain + indent + "▸"
 		}
 
 		b.write(" ", "")

@@ -231,8 +231,8 @@ func TestProjectNavCollapsedNestedTreeSurfacesAncestorPathAndNoteTasks(t *testin
 	if parentNode == nil {
 		t.Fatal("collapsed Tasks section did not surface ancestor parentTask")
 	}
-	if txt, _ := parentNode.Props["text"].(string); !strings.Contains(txt, "▸ ●") {
-		t.Fatalf("collapsed parentTask with unread child text = %q, want '▸ ●'", txt)
+	if txt, _ := parentNode.Props["text"].(string); !strings.HasPrefix(txt, "●     ▸ ") {
+		t.Fatalf("collapsed parentTask with unread child text = %q, want fixed gutter ● + indent + ▸", txt)
 	}
 	if parentNode.Facts["peeked"] != true || parentNode.Facts["hasUnread"] != true {
 		t.Fatalf("parentTask peek facts wrong: %+v", parentNode.Facts)
