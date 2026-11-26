@@ -209,6 +209,10 @@ func (a *App) projectOutlineView(s *core.State, projectID string) ui.ViewNode {
 	panel.Facts["hoistDepth"] = subHoistDepth
 
 	if len(panel.Children) > 0 {
+		if panel.Children[0].Props == nil {
+			panel.Children[0].Props = map[string]any{}
+		}
+		panel.Children[0].Props["scrollKey"] = projectID + "|" + tm.HoistID()
 		if panel.Children[0].Facts == nil {
 			panel.Children[0].Facts = map[string]any{}
 		}

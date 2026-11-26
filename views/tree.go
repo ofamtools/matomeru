@@ -285,6 +285,10 @@ func countSchemaRecords(n int, schema data.Schema) string {
 // badges, action hints, and empty-tree context fallback.
 func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope string, extraBadges ...ui.Badge) ui.ViewNode {
 	node := tm.View(treeID)
+	if node.Props == nil {
+		node.Props = map[string]any{}
+	}
+	node.Props["scrollKey"] = schema.Kind + "|" + tm.HoistID()
 	if node.Scope == "" {
 		node.Scope = schema.Kind
 		node.Ref = &core.Ref{Kind: schema.Kind}

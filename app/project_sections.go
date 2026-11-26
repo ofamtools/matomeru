@@ -426,6 +426,12 @@ func (a *App) projectTreePanel(panelID, treeID, kind, parentField, section, pane
 	tm := a.syncProjectSectionTree(treeID, ws, schema, recs, parentField)
 	panel := views.TreeView(schema, tm, panelID, treeID, panelScope, extra...)
 	panel.Facts["section"] = section
+	if len(panel.Children) > 0 {
+		if panel.Children[0].Props == nil {
+			panel.Children[0].Props = map[string]any{}
+		}
+		panel.Children[0].Props["scrollKey"] = ws.projectKey + "|" + section + "|" + tm.HoistID()
+	}
 	return panel
 }
 
