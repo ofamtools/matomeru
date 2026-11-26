@@ -62,6 +62,7 @@ func mtmAgentCommand() oden.Command {
 					return nil
 				},
 			},
+			mtmAgentWaitCommand(),
 		},
 	}
 }
@@ -290,6 +291,7 @@ func runDaemonServe(ctx context.Context, g globalOpts, socketFlag, mcpAddr strin
 		SocketPath: sock,
 		MCPAddr:    mcpAddr,
 		Store:      store,
+		HooksPath:  daemon.HooksPath(configDir()),
 	})
 	if err != nil {
 		return err

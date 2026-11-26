@@ -162,3 +162,43 @@ func TestPaneSpawnSnapshotSendStatusCloseAndDataRelate(t *testing.T) {
 		t.Fatalf("expected 0 relations after unrelate, got %+v", relsAfter)
 	}
 }
+
+type fakeCallbackRuntime struct {
+	fakePaneRuntime
+	onDone map[string]PaneOnDone
+}
+
+func (f *fakeCallbackRuntime) RegisterOnDone(_ context.Context, paneID string, od PaneOnDone) error {
+	if f.onDone == nil {
+		f.onDone = map[string]PaneOnDone{}
+	}
+	f.onDone[paneID] = od
+	return nil
+}
+
+func TestPaneSpawnRegistersOnDoneCallback(t *testing.T) {
+	store, err := data.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	actor := core.Actor{Kind: "agent", ID: "coord"}
+
+	rt := &fakeCallbackRuntime{}
+	box := NewToolbox(store, nil)
+	box.Panes.Runtime = rt
+	raw := json.RawMessage(`{"harness":"zsh","cwd":"/tmp","onDone":{"webhook":"http://127.0.0.1:1/done","timeoutSec":3}}`)
+	out, err := box.Panes.Call(context.Background(), actor, ToolPaneSpawn, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := out.(PaneSpawnResult)
+	if got := rt.onDone[res.Pane.ID]; !res.OnDone || got.Webhook != "http://127.0.0.1:1/done" || got.TimeoutSec != 3 {
+		t.Fatalf("onDone = %+v registered=%v", rt.onDone, res.OnDone)
+	}
+
+	box.Panes.Runtime = &fakePaneRuntime{}
+	if _, err := box.Panes.Spawn(context.Background(), actor, PaneSpawnArgs{Cwd: "/tmp", OnDone: &PaneOnDone{Command: []string{"true"}}}); err == nil || !strings.Contains(err.Error(), "onDone") {
+		t.Fatalf("runtime without callbacks: err = %v", err)
+	}
+}

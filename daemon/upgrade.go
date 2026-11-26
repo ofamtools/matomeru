@@ -30,6 +30,7 @@ type daemonHandoff struct {
 	Panes     []paneMeta                `json:"panes,omitempty"`
 	Sessions  []ptyhost.HandoffSession  `json:"sessions,omitempty"`
 	Telemetry map[string]*PaneTelemetry `json:"telemetry,omitempty"`
+	Hooks     []HookRule                `json:"hooks,omitempty"`
 }
 
 // UpgradeResult describes a successful zero-downtime daemon exec upgrade.
@@ -135,6 +136,7 @@ func (s *Server) ExportHandoff() (handoffPath string, keepFiles []*os.File, pane
 		Panes:     metas,
 		Sessions:  sessions,
 		Telemetry: tel,
+		Hooks:     s.callbacks.memoryRules(),
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

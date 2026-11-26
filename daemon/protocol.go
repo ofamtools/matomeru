@@ -34,6 +34,11 @@ const (
 	OpTelemetry       = "telemetry"
 	OpSubscribe       = "subscribe"
 	OpUpgrade         = "upgrade"
+	OpWatchEvents     = "watch_events"
+	OpHookRegister    = "hook_register"
+	OpHookUnregister  = "hook_unregister"
+	OpHookList        = "hook_list"
+	OpHookLog         = "hook_log"
 )
 
 // Hook telemetry event kinds, pane states, subagent actions, and approval decisions.
@@ -110,6 +115,10 @@ type Request struct {
 
 	// Upgrade
 	Binary string `json:"binary,omitempty"`
+
+	// Callback hooks (hook_register, hook_unregister, hook_log)
+	Rule  *HookRule `json:"rule,omitempty"`
+	Limit int       `json:"limit,omitempty"`
 }
 
 // Response is one newline-delimited JSON RPC response returned over the Unix socket.
@@ -147,6 +156,11 @@ type Response struct {
 	// telemetry
 	Telemetry        map[string]*PaneTelemetry `json:"telemetry,omitempty"`
 	PendingApprovals []*PendingApproval        `json:"pendingApprovals,omitempty"`
+
+	// watch_events / hook_list / hook_log / hook_unregister
+	Event      *AgentDoneEvent `json:"event,omitempty"`
+	Rules      []HookRule      `json:"rules,omitempty"`
+	Deliveries []HookDelivery  `json:"deliveries,omitempty"`
 }
 
 // StatusResult describes a running daemon's identity, build version, and health.

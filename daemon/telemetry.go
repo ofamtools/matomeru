@@ -111,6 +111,8 @@ type telemetryStore struct {
 	panes   map[string]*PaneTelemetry
 	pending map[string]*pendingEntry
 	seq     atomic.Uint64
+	// onDone receives edge-triggered agent.done events; called without ts.mu held.
+	onDone func(AgentDoneEvent)
 }
 
 func newTelemetryStore() *telemetryStore {
@@ -138,14 +140,25 @@ func (ts *telemetryStore) ensurePaneLocked(paneID string) *PaneTelemetry {
 	return pt
 }
 
-// recordEvent updates PaneTelemetry for non-blocking hook events (state, activity, subagent).
+// recordEvent updates PaneTelemetry for non-blocking hook events (state,
+// activity, subagent) and, when the pane leaves an active state for done or
+// idle, hands an agent.done event to onDone after releasing ts.mu.
 func (ts *telemetryStore) recordEvent(ev HookEvent, now time.Time) {
 	ts.mu.Lock()
-	defer ts.mu.Unlock()
+	done := ts.applyEventLocked(ev, now)
+	onDone := ts.onDone
+	ts.mu.Unlock()
+	if done != nil && onDone != nil {
+		onDone(*done)
+	}
+}
+
+func (ts *telemetryStore) applyEventLocked(ev HookEvent, now time.Time) *AgentDoneEvent {
 	if ev.PaneID == "" {
-		return
+		return nil
 	}
 	pt := ts.ensurePaneLocked(ev.PaneID)
+	prevState := pt.State
 	if ev.Harness != "" {
 		pt.Harness = ev.Harness
 	}
@@ -185,6 +198,25 @@ func (ts *telemetryStore) recordEvent(ev HookEvent, now time.Time) {
 			}
 		}
 		pt.SubagentCount = len(pt.ActiveSubagents)
+	}
+	if !isActiveState(prevState) || !isRestState(pt.State) {
+		return nil
+	}
+	resp := sanitizeTurnText(ev.Response)
+	if resp == "" && len(pt.RecentTurns) > 0 {
+		resp = pt.RecentTurns[len(pt.RecentTurns)-1].Response
+	}
+	return &AgentDoneEvent{
+		Event:          EventAgentDone,
+		PaneID:         pt.PaneID,
+		Harness:        pt.Harness,
+		PrevState:      prevState,
+		State:          pt.State,
+		Summary:        pt.Summary,
+		Response:       resp,
+		SessionID:      pt.SessionID,
+		TranscriptPath: pt.TranscriptPath,
+		At:             now,
 	}
 }
 

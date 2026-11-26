@@ -57,6 +57,9 @@ func mtmPaneOpsCommands(g globalOpts) []oden.Command {
 		{Name: "cols", Type: "int", Default: "120", Description: "Initial terminal columns"},
 		{Name: "rows", Type: "int", Default: "36", Description: "Initial terminal rows"},
 		{Name: "no-launch", Type: "bool", Description: "Create record and relations without spawning a live PTY"},
+		{Name: "on-done-run", Type: "string", Description: "One-shot shell command run when the pane first emits agent.done (event JSON on stdin)"},
+		{Name: "on-done-argv", Type: "string", Repeatable: true, Description: "One-shot exact argv element (repeat in order) run on agent.done"},
+		{Name: "on-done-webhook", Type: "string", Description: "One-shot URL that receives the agent.done event JSON as a POST body"},
 	}
 	snapParams := []oden.Parameter{
 		{Name: "lines", Type: "int", Default: "0", Description: "Optional tail line limit (0 = all rows)"},
@@ -96,6 +99,7 @@ func mtmPaneOpsCommands(g globalOpts) []oden.Command {
 					Cols:      p.Int("cols"),
 					Rows:      p.Int("rows"),
 					NoLaunch:  p.Bool("no-launch"),
+					OnDone:    paneOnDoneFromParams(p),
 				})
 				if err != nil {
 					return err
@@ -230,6 +234,18 @@ func mtmPaneOpsCommands(g globalOpts) []oden.Command {
 			},
 		},
 	}
+}
+
+// paneOnDoneFromParams maps --on-done-* flags to a pane.spawn onDone callback (nil when unset).
+func paneOnDoneFromParams(p oden.Parsed) *mcpui.PaneOnDone {
+	od := &mcpui.PaneOnDone{Command: p.Strings("on-done-argv"), Webhook: strings.TrimSpace(p.String("on-done-webhook"))}
+	if run := strings.TrimSpace(p.String("on-done-run")); run != "" && len(od.Command) == 0 {
+		od.Command = []string{"/bin/sh", "-c", run}
+	}
+	if od.Empty() {
+		return nil
+	}
+	return od
 }
 
 func mtmRelatedVerb(noun, kind string, g globalOpts) oden.Command {
