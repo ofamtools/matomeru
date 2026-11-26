@@ -135,7 +135,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	}
 
 	k.section("1. the four spaces")
-	k.check("starts on Panes with the tab bar", a.Space() == SpacePanes && k.has("1 Panes", "2 Work", "3 Runs", "4 Extensions"))
+	k.check("starts on Panes with the tab bar", a.Space() == SpacePanes && k.has("Panes", "Work", "Runs", "Extensions"))
 	k.check("panes: rail, table of contents and the Screen page", k.has("claude: wave 5B", "nvim: core/keymap.go", "Pages", "Screen", "Questions", "Architecture"))
 	k.check("the pane's lane shows compactly inside the TOC, not the top bar by default",
 		k.has("◈ 3/6 Matomeru") && !k.has2("Matomeru v2 Step 2") && !k.has2("Lane: Matomeru v2 Step 2"))
@@ -154,7 +154,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("4 opens Extensions: health, capabilities and commands", a.Space() == SpaceExtensions && k.has("Extensions", "o-csv", "o-git", "o-lane", "Capabilities", "Commands", "doctor"))
 	k.keep("Extensions")
 	k.Keys("]")
-	k.check("] advances from Extensions to 5 Projects", a.Space() == SpaceProjects && k.has("5 Projects", "ochazuke-v2", "matomeru-v2"))
+	k.check("] advances from Extensions to Projects", a.Space() == SpaceProjects && k.has("Projects", "ochazuke-v2", "matomeru-v2"))
 	k.Keys("]")
 	k.check("] wraps round to Panes", a.Space() == SpacePanes)
 	k.Keys("[")
@@ -229,7 +229,8 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.Keys("ctrl+a", "z")
 	k.check("ctrl+a z again brings them back", !a.panes.zoom && k.has("Pages", "nvim: core/keymap.go"))
 	k.Keys("ctrl+a", "d")
-	k.check("ctrl+a d detaches to the pane rail", a.Mode() == ModeNormal && a.Focus() == railTable)
+	k.check("ctrl+a d detaches one component left to TOC", a.Mode() == ModeNormal && a.Focus() == tocPrefix+views.ScreenPageID)
+	k.Keys("h")
 
 	k.section("4. Work: Show pages and the back stack")
 	k.Keys("2")
@@ -597,7 +598,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	rows := strings.Split(frame.Content, "\n")
 	st := a.Shell.Stats
 	k.check("the frame is 120x36 with styling, on the alt screen", len(rows) == 36 && strings.Contains(frame.Content, "\x1b[") && frame.AltScreen)
-	k.check("the footer shows the mode, the scope chain and key hints", k.has(" NORMAL · app › work", "E record.open", "n record.new.here"))
+	k.check("the chrome shows the mode, the scope chain and key hints", k.has("app › work", "[NORMAL]", "n record.new.here"))
 	k.check("unchanged subtrees come from the cache", st.CacheHits > 0)
 	k.keep("Final frame")
 	fmt.Fprintf(out, "\nframe: %d rows, %d bytes · step %dµs · view %dµs · render %dµs · cache %d hit / %d miss · %d renders\n",

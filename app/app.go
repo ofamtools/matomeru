@@ -572,21 +572,41 @@ func (a *App) register() {
 		}
 		if s.ActiveFrame().Mode == ModeTerminal {
 			a.say("left the pane")
+			targetMode := a.detachFocusTarget()
+			showTOC := a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetShowTOC, true)
 			if isProjectTab(s.ActivePage) || (s.ActivePage == SpacePanes && a.activeChildPaneID(s) != "") {
 				if a.panes != nil {
 					a.panes.zoom = false
 				}
 				target := siteScreen
-				if a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetShowTOC, true) {
-					target = tocPrefix + views.ScreenPageID
+				switch targetMode {
+				case DetachFocusLeft:
+					if showTOC {
+						target = tocPrefix + views.ScreenPageID
+					} else {
+						target = projectNavPrefix + "panes"
+					}
+				case DetachFocusRail:
+					target = projectNavPrefix + "panes"
 				}
 				return core.Next(withPage(s, s.ActivePage, target, ModeNormal))
 			}
-			if s.ActivePage == SpacePanes && (a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFocusRailOnDetach, true)) {
-				if a.panes != nil {
-					a.panes.zoom = false
+			if s.ActivePage == SpacePanes {
+				switch targetMode {
+				case DetachFocusLeft:
+					if a.panes != nil {
+						a.panes.zoom = false
+					}
+					if showTOC {
+						return core.Next(withPage(s, SpacePanes, tocPrefix+views.ScreenPageID, ModeNormal))
+					}
+					return core.Next(withPage(s, SpacePanes, railTable, ModeNormal))
+				case DetachFocusRail:
+					if a.panes != nil {
+						a.panes.zoom = false
+					}
+					return core.Next(withPage(s, SpacePanes, railTable, ModeNormal))
 				}
-				return core.Next(withPage(s, SpacePanes, railTable, ModeNormal))
 			}
 			s = withMode(s, ModeNormal)
 		}

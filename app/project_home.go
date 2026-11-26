@@ -254,6 +254,7 @@ func projectHomeSpecs() []core.CommandSpec {
 		spec(CmdProjectContentOpen, "Open the focused item inside the Project Page content area"),
 		spec(CmdContextOfficialToggle, "Promote or demote the focused context item as Official Project Context", "editing"),
 		spec(CmdContextAddOfficial, "Add an Official Project Context link, Google Doc/Sheet, PR, or file", "editing"),
+		spec(CmdProjectSectionPick, "Pick a section of the active Project Page workspace to jump to"),
 	}, projectNavUnreadSpecs()...)
 }
 
@@ -281,6 +282,8 @@ func projectHomeBindings() []core.Binding {
 		when(bind(n, views.ScopeProjectContent, "N", CmdContextAddOfficial, "add official context"), "facts.section == \"context\" || facts.section == \"pinned\" || facts.contextItem"),
 		hidden(bind(n, ScopeProjectOverview, "N", CmdContextAddOfficial, "add official context")),
 		hidden(bind(n, SpacePanes, "P", CmdProjectPageOpen, "project page")),
+		bind(n, views.ScopeProjectNav, "g s", CmdProjectSectionPick, "jump to section"),
+		bind(n, views.ScopeProjectContent, "g s", CmdProjectSectionPick, "jump to section"),
 	}, projectHomeDashboardBindings()...)
 }
 
@@ -294,6 +297,7 @@ func (a *App) registerProjectHomeHandlers() {
 	a.handle(CmdProjectContentOpen, a.projectContentOpen)
 	a.handle(CmdContextOfficialToggle, a.contextOfficialToggle)
 	a.handle(CmdContextAddOfficial, a.contextAddOfficial)
+	a.handle(CmdProjectSectionPick, a.projectSectionPick)
 }
 
 // projectOverviewView renders the right side of 1 Panes when a Project header

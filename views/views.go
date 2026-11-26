@@ -284,8 +284,10 @@ func TableFromRecordsWith(schema data.Schema, recs []data.Record, opts StyleOpti
 			cols[i].Align = "right"
 		}
 	}
-	// The last column says at a glance what is starred, snoozed or archived.
-	cols = append(cols, table.Column{Key: FlagsField, Title: "Flags", Width: 5})
+	if !opts.FlagsOnLeft {
+		// Legacy opt-out: flags column at the right end.
+		cols = append(cols, table.Column{Key: FlagsField, Title: "Flags", Width: 5})
+	}
 	now := time.Now()
 	rows := make([]table.Row, len(recs))
 	for i, rec := range recs {
@@ -316,15 +318,41 @@ func TableFromRecordsWith(schema data.Schema, recs []data.Record, opts StyleOpti
 				flags = append(flags, f.mark)
 			}
 		}
-		cells[FlagsField] = strings.Join(flags, "")
+		flagText := strings.Join(flags, "")
+		cells[FlagsField] = flagText
+		cellIcons := st.CellIcons
+		iconTones := st.IconTones
+		if opts.FlagsOnLeft && flagText != "" && len(cols) > 0 {
+			firstKey := cols[0].Key
+			cellIcons = maps.Clone(cellIcons)
+			if cellIcons == nil {
+				cellIcons = map[string]string{}
+			}
+			iconTones = maps.Clone(iconTones)
+			if iconTones == nil {
+				iconTones = map[string]string{}
+			}
+			if cur := cellIcons[firstKey]; cur != "" {
+				cellIcons[firstKey] = flagText + " " + cur
+			} else {
+				cellIcons[firstKey] = flagText
+			}
+			if iconTones[firstKey] == "" {
+				if st.Unread || st.Starred {
+					iconTones[firstKey] = "warning"
+				} else {
+					iconTones[firstKey] = "muted"
+				}
+			}
+		}
 		rows[i] = table.Row{
 			ID: data.RefText(ref), Ref: &ref, Scope: rec.Kind, Cells: cells,
 			Badges: StatusBadges(schema, rec), Facts: RecordFacts(schema, rec, now),
 			Unread:    st.Unread,
 			Tone:      st.RowTone,
 			CellTones: st.CellTones,
-			CellIcons: st.CellIcons,
-			IconTones: st.IconTones,
+			CellIcons: cellIcons,
+			IconTones: iconTones,
 		}
 	}
 	return table.New(cols, rows)

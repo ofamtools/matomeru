@@ -171,7 +171,7 @@ func (a *App) projectOutlineView(s *core.State, projectID string) ui.ViewNode {
 	if a.nav.showArchived {
 		extra = append(extra, ui.Badge{Text: "archived", Tone: "muted"})
 	}
-	panel := views.TreeView(schema, tm, projectOutlinePanel, projectOutlineTree, views.ScopeIndex, extra...)
+	panel := views.TreeViewWith(schema, tm, projectOutlinePanel, projectOutlineTree, views.ScopeIndex, a.stickyTreeBreadcrumbsEnabled(), extra...)
 	panel.Title = projectOutlineTitle
 
 	subHoisted := len(tm.HoistStack) > 1 || (tm.Hoisted() && tm.HoistID() != projectID)

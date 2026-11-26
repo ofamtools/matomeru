@@ -197,17 +197,17 @@ func TestFilterBarBottomLeft(t *testing.T) {
 		}
 	}
 
-	// Keeping the filter in Normal mode shows inline status and restores normal hints.
+	// Keeping the filter in Normal mode shows inline status on the bottom line and hints above it.
 	d.Keys("enter")
 	if a.Mode() != ModeNormal {
 		t.Fatalf("expected ModeNormal after enter, got %q", a.Mode())
 	}
 	lines = strings.Split(d.Frame(), "\n")
-	if !strings.Contains(lines[len(lines)-2], "nav /lanes (") {
-		t.Fatalf("kept filter missing from status line: %q", lines[len(lines)-2])
+	if !strings.Contains(lines[len(lines)-1], "nav /lanes (") {
+		t.Fatalf("kept filter missing from status line: %q", lines[len(lines)-1])
 	}
-	if strings.HasPrefix(lines[len(lines)-1], " nav /lanes") {
-		t.Fatalf("bottom line should restore normal hints after enter: %q", lines[len(lines)-1])
+	if strings.HasPrefix(lines[len(lines)-1], " nav /lanes█") {
+		t.Fatalf("bottom line should exit typing cursor after enter: %q", lines[len(lines)-1])
 	}
 	// Re-opening filter and hitting esc restores the kept "lanes" snapshot;
 	// ctrl+x explicitly clears it.
@@ -238,6 +238,7 @@ func TestFilterBarBottomLeft(t *testing.T) {
 
 	// 3. Opt-out ui.filterBarBottomLeft=false restores the legacy inline status filter.
 	a.cfg.userSettings[SetFilterBarBottomLeft] = false
+	a.cfg.userSettings[SetTopChromeRedesign] = false
 	a.reloadSettings()
 	a.applySettings()
 	a.Shell.State = withFocus(a.State(), projectNavPrefix+"home")

@@ -587,7 +587,7 @@ func (a *App) workTreeView() ui.ViewNode {
 	if a.nav.showArchived {
 		extra = append(extra, ui.Badge{Text: "archived", Tone: "muted"})
 	}
-	panel := views.TreeView(schema, tm, SpaceWork, workTable, views.ScopeIndex, extra...)
+	panel := views.TreeViewWith(schema, tm, SpaceWork, workTable, views.ScopeIndex, a.stickyTreeBreadcrumbsEnabled(), extra...)
 	panel.Facts["cleanSlate"] = csActive
 	return panel
 }
@@ -603,7 +603,7 @@ func (a *App) outlineTreeView() ui.ViewNode {
 	if a.nav.showArchived {
 		extra = append(extra, ui.Badge{Text: "archived", Tone: "muted"})
 	}
-	panel := views.TreeView(schema, tm, "outline", outlineTree, views.ScopeOutline, extra...)
+	panel := views.TreeViewWith(schema, tm, "outline", outlineTree, views.ScopeOutline, a.stickyTreeBreadcrumbsEnabled(), extra...)
 	panel.Title = "Outline"
 	panel.Facts["cleanSlate"] = csActive
 	return panel

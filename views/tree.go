@@ -14,23 +14,25 @@ import (
 
 // TreeOptions configures TreeFromNodes.
 type TreeOptions struct {
-	Style         StyleOptions
-	GapTopLevel   bool
-	Guides        bool
-	ShowFoldCount bool
-	ShowGutter    bool
-	ResolveRef    func(core.Ref) string
-	EnrichNode    func(rec data.Record, nd *tree.Node)
+	Style             StyleOptions
+	GapTopLevel       bool
+	Guides            bool
+	ShowFoldCount     bool
+	ShowGutter        bool
+	StickyBreadcrumbs bool
+	ResolveRef        func(core.Ref) string
+	EnrichNode        func(rec data.Record, nd *tree.Node)
 }
 
 // DefaultTreeOptions returns the default options for schema-driven tree views.
 func DefaultTreeOptions() TreeOptions {
 	return TreeOptions{
-		Style:         DefaultStyleOptions(),
-		GapTopLevel:   true,
-		Guides:        true,
-		ShowFoldCount: true,
-		ShowGutter:    true,
+		Style:             DefaultStyleOptions(),
+		GapTopLevel:       true,
+		Guides:            true,
+		ShowFoldCount:     true,
+		ShowGutter:        true,
+		StickyBreadcrumbs: true,
 	}
 }
 
@@ -281,9 +283,59 @@ func countSchemaRecords(n int, schema data.Schema) string {
 	return fmt.Sprintf("%d %s", n, plural)
 }
 
+// StickyAncestorChain returns the root-to-parent labels of the currently
+// focused tree row whose visual rows have scrolled above tm.Offset.
+func StickyAncestorChain(tm *tree.Model) []string {
+	if tm == nil || tm.Offset <= 0 {
+		return nil
+	}
+	rows := tm.Flatten()
+	if len(rows) == 0 {
+		return nil
+	}
+	byID := make(map[string]tree.VisibleRow, len(rows))
+	var focused *tree.VisibleRow
+	for i := range rows {
+		byID[rows[i].ID] = rows[i]
+		if rows[i].ID == tm.SelectedID {
+			focused = &rows[i]
+		}
+	}
+	if focused == nil || focused.ParentID == "" {
+		return nil
+	}
+	var rev []string
+	for pid := focused.ParentID; pid != ""; {
+		parent, ok := byID[pid]
+		if !ok {
+			break
+		}
+		if parent.VisualRow < tm.Offset {
+			lbl := firstLine(strings.TrimSpace(parent.Node.Label), 32)
+			if lbl == "" {
+				lbl = parent.ID
+			}
+			rev = append(rev, lbl)
+		}
+		pid = parent.ParentID
+	}
+	if len(rev) == 0 {
+		return nil
+	}
+	for i, j := 0, len(rev)-1; i < j; i, j = i+1, j-1 {
+		rev[i], rev[j] = rev[j], rev[i]
+	}
+	return rev
+}
+
 // TreeView renders a tree.Model inside a KindPanel matching IndexView's chrome,
 // badges, action hints, and empty-tree context fallback.
 func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope string, extraBadges ...ui.Badge) ui.ViewNode {
+	return TreeViewWith(schema, tm, panelID, treeID, panelScope, true, extraBadges...)
+}
+
+// TreeViewWith renders a tree.Model with optional sticky ancestor breadcrumbs.
+func TreeViewWith(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope string, stickyBreadcrumbs bool, extraBadges ...ui.Badge) ui.ViewNode {
 	node := tm.View(treeID)
 	if node.Props == nil {
 		node.Props = map[string]any{}
@@ -344,6 +396,25 @@ func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope st
 	if arch, ok := node.Facts[data.ColArchiveStatus]; ok {
 		facts[data.ColArchiveStatus] = arch
 	}
+	children := []ui.ViewNode{node}
+	if stickyBreadcrumbs {
+		if sticky := StickyAncestorChain(tm); len(sticky) > 0 {
+			crumbLine := " ▸ " + strings.Join(sticky, " › ")
+			stickyNode := ui.ViewNode{
+				ID:   treeID + ".sticky",
+				Kind: ui.KindText,
+				Props: map[string]any{
+					"text":  crumbLine,
+					"spans": []ui.ToneSpan{{From: 0, To: 3, Tone: "accent"}, {From: 3, Tone: "muted"}},
+				},
+			}
+			children = []ui.ViewNode{{
+				ID:       treeID + ".stack",
+				Kind:     ui.KindVStack,
+				Children: []ui.ViewNode{stickyNode, node},
+			}}
+		}
+	}
 	return ui.ViewNode{
 		ID:     panelID,
 		Kind:   ui.KindPanel,
@@ -361,6 +432,6 @@ func TreeView(schema data.Schema, tm *tree.Model, panelID, treeID, panelScope st
 			{Key: "a", Label: "archive", Command: CmdArchive},
 			{Key: "Z", Label: "snooze", Command: CmdSnooze},
 		},
-		Children: []ui.ViewNode{node},
+		Children: children,
 	}
 }

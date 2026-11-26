@@ -83,7 +83,9 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetProjectsNavSurfaceContextUnread: false, SetProjectsNavUnreadDotOnly: true, SetProjectsNavLaneProgressBar: true,
 		SetFilterBarBottomLeft: true, SetProjectContextReview: true,
 		SetShowLayout: views.ShowLayoutLedger, SetShowHideEmptyRelations: true,
-		SetFilesScanDepth: 3, SetFilesDefaultSort: "recent"}
+		SetFilesScanDepth: 3, SetFilesDefaultSort: "recent",
+		SetTopChromeRedesign: true, SetHintsNounFirst: true, SetDetachFocusTarget: DetachFocusLeft,
+		SetFlagsOnLeft: true, SetColorByRecency: views.RecencyCell, SetStickyTreeBreadcrumbs: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
