@@ -172,20 +172,19 @@ func (a *App) buildProjectNavItemBody(s core.State, ws projectWorkspaceData, tar
 
 	// 4. Persisted record (tasks, lanes, questions, commands, persisted context, fallback doc/note)
 	if target.Ref != nil && target.Ref.ID != "" && target.Ref.Kind != "" && target.Ref.Kind != "directory" {
-		if node, err := views.ShowViewWith(a.Store, *target.Ref, s.ActiveFrame().FocusID, a.showOptionsFor(*target.Ref)); err == nil {
+		opts := a.showOptionsFor(*target.Ref)
+		if preview {
+			opts.ExtraBadges = append(opts.ExtraBadges, ui.Badge{Text: "preview · enter opens", Tone: "muted"})
+		} else {
+			opts.ExtraBadges = append(opts.ExtraBadges, ui.Badge{Text: "esc back to nav", Tone: "muted"})
+		}
+		if node, err := views.ShowViewWith(a.Store, *target.Ref, s.ActiveFrame().FocusID, opts); err == nil {
 			if node.Facts == nil {
 				node.Facts = map[string]any{}
 			}
 			node.Facts["section"] = target.Section
 			node.Facts["projectNavPreview"] = preview
 			node.Facts["projectNavLocked"] = !preview
-			if hdr := node.Find(showHeader); hdr != nil {
-				if preview {
-					hdr.Badges = append(slices.Clone(hdr.Badges), ui.Badge{Text: "preview · enter opens", Tone: "muted"})
-				} else {
-					hdr.Badges = append(slices.Clone(hdr.Badges), ui.Badge{Text: "esc back to nav", Tone: "muted"})
-				}
-			}
 			return node
 		}
 	}

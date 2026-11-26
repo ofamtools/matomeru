@@ -238,17 +238,15 @@ func RunSmoke(out io.Writer, dump bool) error {
 	shown, _ := a.Showing()
 	k.check("E opens the project's Show page", shown == project.Ref() && a.Focus() == showHeader && k.has("Tasks › ochazuke-v2", "Subtasks", "Props", "project"))
 	k.keep("Project Show page")
-	k.Keys("j")
-	if strings.HasPrefix(a.Focus(), "show.content.") {
-		k.Keys("j") // step past focusable Description/Body content panel
+	for i := 0; i < 20 && !strings.HasPrefix(a.Focus(), "show.sec.task.parent.task:"); i++ {
+		k.Keys("j")
 	}
 	card := a.Focus()
 	k.check("j moves from the header to the first related card", strings.HasPrefix(card, "show.sec.task.parent.task:"))
 	k.Keys("enter")
 	sub, _ := a.Showing()
 	k.check("enter on the card opens that record's own Show page", sub.Kind == data.KindTask && sub != project.Ref() && a.Focus() == showHeader && k.has("Tasks › ochazuke-v2 › Tier 0"))
-	k.Keys("j")
-	if strings.HasPrefix(a.Focus(), "show.content.") {
+	for i := 0; i < 15 && a.Focus() != "show.field.parent"; i++ {
 		k.Keys("j")
 	}
 	k.Keys("enter")

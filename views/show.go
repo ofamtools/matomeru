@@ -19,6 +19,7 @@ type section struct {
 	field      string // reference field linking those records to the Show page's record
 	relKind    string // relation kind for relation-backed sections
 	cards      []ui.ViewNode
+	entries    []sectionEntry
 	always     bool // shown even when empty
 }
 
@@ -37,16 +38,19 @@ func relatedSections(store *data.Store, schema data.Schema, rec data.Record) ([]
 	reg := store.Registry()
 	seen := map[core.Ref]bool{ref: true}
 	var out []section
-	card := func(key string, target core.Ref) ui.ViewNode {
+	cardAndEntry := func(key string, target core.Ref) (ui.ViewNode, sectionEntry) {
 		id := "show.sec." + key + "." + data.RefText(target)
-		rec, err := store.Get(target)
+		tSchema := schemaOf(reg, target.Kind)
+		targetRec, err := store.Get(target)
 		if err != nil {
 			// Not a stored record (a tag, a directory): still a focusable thing of its kind.
 			t := target
-			return ui.ViewNode{ID: id, Kind: ui.KindCard, Scope: target.Kind, Ref: &t, Focusable: true, Border: true,
+			node := ui.ViewNode{ID: id, Kind: ui.KindCard, Scope: target.Kind, Ref: &t, Focusable: true, Border: true,
 				Title: target.ID, Badges: []ui.Badge{{Text: target.Kind, Tone: "info"}}}
+			return node, sectionEntry{id: id, ref: target, schema: tSchema}
 		}
-		return RecordCard(schemaOf(reg, target.Kind), *rec, id)
+		cp := *targetRec
+		return RecordCard(tSchema, cp, id), sectionEntry{id: id, ref: target, schema: tSchema, rec: &cp}
 	}
 
 	for _, src := range reg.List() {
@@ -62,12 +66,15 @@ func relatedSections(store *data.Store, schema data.Schema, rec data.Record) ([]
 			if src.Kind == ref.Kind {
 				sec.title = "Sub" + strings.ToLower(src.Plural)
 			}
-			for _, rec := range res.Items {
-				if seen[rec.Ref()] {
+			for _, item := range res.Items {
+				if seen[item.Ref()] {
 					continue
 				}
-				seen[rec.Ref()] = true
-				sec.cards = append(sec.cards, RecordCard(src, rec, "show.sec."+sec.key+"."+data.RefText(rec.Ref())))
+				seen[item.Ref()] = true
+				id := "show.sec." + sec.key + "." + data.RefText(item.Ref())
+				cp := item
+				sec.cards = append(sec.cards, RecordCard(src, cp, id))
+				sec.entries = append(sec.entries, sectionEntry{id: id, ref: cp.Ref(), schema: src, rec: &cp})
 			}
 			out = append(out, sec)
 		}
@@ -92,13 +99,16 @@ func relatedSections(store *data.Store, schema data.Schema, rec data.Record) ([]
 				continue // pins and marks show as badges in the header
 			}
 			seen[other] = true
-			sec.cards = append(sec.cards, card(sec.key, other))
+			c, e := cardAndEntry(sec.key, other)
+			sec.cards = append(sec.cards, c)
+			sec.entries = append(sec.entries, e)
 		}
 		// A relation section named like an earlier one joins it: a task's
 		// notes by reference and its notes by "about" are one "Notes" list.
 		for i := range out {
 			if out[i].title == sec.title {
 				out[i].cards = append(out[i].cards, sec.cards...)
+				out[i].entries = append(out[i].entries, sec.entries...)
 				return
 			}
 		}
@@ -225,15 +235,40 @@ func ShowView(store *data.Store, ref core.Ref, focusID string) (ui.ViewNode, err
 	return ShowViewWith(store, ref, focusID, DefaultShowOptions())
 }
 
-// ShowOptions choose what a Show page includes.
+// ShowOptions choose what a Show page includes and which layout it uses.
 type ShowOptions struct {
+	// Layout selects the Show page presentation: "ledger" (default, single-column
+	// borderless ledger outline), "stacked" (narrow single-column), or "classic"
+	// (opt-out legacy 2-column split).
+	Layout string
+	// Width is the available terminal width; when Layout is "ledger" and Width
+	// is positive and below StackedBelowCols, the presenter switches to "stacked".
+	Width int
+	// StackedBelowCols is the width threshold below which "ledger" falls back to
+	// "stacked" (defaults to 100).
+	StackedBelowCols int
+	// MarginWidth sets the ledger left-margin width in cells (defaults to 16).
+	MarginWidth int
+	// HideEmptyRelations collapses all 0-item relation sections behind one
+	// focusable fold toggle row ("▸ N empty · space to show").
+	HideEmptyRelations bool
+	// EmptyFoldExpanded controls whether the collapsed empty-relations fold is
+	// currently expanded.
+	EmptyFoldExpanded bool
+	// GroupLabelsOnce prints a relation group's label only on its first row.
+	GroupLabelsOnce bool
+	// SectionTallies shows compact per-section status tallies (e.g. "1 doing · 2 todo").
+	SectionTallies bool
 	// ShowMetadata adds the Created, Updated and Revision rows to the props.
 	ShowMetadata bool
 	// ShowEmptyRelations keeps the declared relation sections that hold
 	// nothing, so every association has its place; false leaves them out.
 	ShowEmptyRelations bool
+	// ExtraBadges appends caller-supplied badges (e.g. preview hints) directly
+	// to the Show header during presentation.
+	ExtraBadges []ui.Badge
 	// ShowContent renders full Markdown body and multi-line/long-text fields
-	// in dedicated readable panels at the top of the right column.
+	// in dedicated readable panels without truncation.
 	ShowContent bool
 	// ResolvedFiles supplies disk contents loaded by the caller for fields
 	// annotated with ContentFile (or keyed by "body").
@@ -256,9 +291,18 @@ func showScrollProps(ref core.Ref, offset *int) map[string]any {
 	return props
 }
 
-// DefaultShowOptions shows everything.
+// DefaultShowOptions returns the default ledger Show page options.
 func DefaultShowOptions() ShowOptions {
-	return ShowOptions{ShowMetadata: true, ShowEmptyRelations: true, ShowContent: true}
+	return ShowOptions{
+		Layout:             ShowLayoutLedger,
+		StackedBelowCols:   defaultStackedBelowCols,
+		MarginWidth:        defaultLedgerMarginWidth,
+		GroupLabelsOnce:    true,
+		SectionTallies:     true,
+		ShowMetadata:       true,
+		ShowEmptyRelations: true,
+		ShowContent:        true,
+	}
 }
 
 func formatListItem(item any) string {
@@ -480,13 +524,16 @@ func contentPanels(schema data.Schema, rec data.Record, opts ShowOptions) ([]ui.
 			continue
 		}
 		f := byName[name]
-		if f != nil && f.ContentFile {
+		if f != nil && (f.ContentFile || f.EffectiveRole(schema.SummaryField) == data.FieldRoleHidden) {
 			continue
 		}
 		v, ok := merged[name]
 		format := ""
 		if f != nil {
 			format = f.ShowFormat
+			if format == "" && f.Role == data.FieldRoleBody {
+				format = data.ShowFormatMarkdown
+			}
 		}
 
 		// File-backed body fallback: prefer non-empty inline body, fall back to resolved file.
@@ -589,9 +636,9 @@ func headerSummary(schema data.Schema, rec data.Record, rendered map[string]bool
 	return ""
 }
 
-// ShowViewWith is ShowView with options. A lane's page leads its related
-// column with a Timeline: the notes logged about it and its change sets, in
-// the order they happened.
+// ShowViewWith is ShowView with options. It dispatches to the borderless
+// single-column Ledger Outline presenter by default (or the classic 2-column
+// split when opts.Layout == ShowLayoutClassic).
 func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOptions) (ui.ViewNode, error) {
 	rec, err := store.Get(ref)
 	if err != nil {
@@ -602,6 +649,15 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 	if err != nil {
 		return ui.ViewNode{}, err
 	}
+	if opts.effectiveLayout() != ShowLayoutClassic {
+		return showViewLedger(store, schema, *rec, sections, focusID, opts)
+	}
+	return showViewClassic(store, schema, *rec, sections, focusID, opts)
+}
+
+func showViewClassic(store *data.Store, schema data.Schema, recVal data.Record, sections []section, focusID string, opts ShowOptions) (ui.ViewNode, error) {
+	rec := &recVal
+	ref := rec.Ref()
 
 	var panels []ui.ViewNode
 	var renderedFields map[string]bool
@@ -683,6 +739,9 @@ func ShowViewWith(store *data.Store, ref core.Ref, focusID string, opts ShowOpti
 		if on {
 			badges = append(badges, ui.Badge{Text: mark.text, Tone: "warning"})
 		}
+	}
+	if len(opts.ExtraBadges) > 0 {
+		badges = append(badges, opts.ExtraBadges...)
 	}
 	star := ui.ActionHint{Key: "m", Label: "star", Command: CmdStar}
 	if rec.IsStarred() {

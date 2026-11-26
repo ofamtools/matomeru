@@ -234,6 +234,11 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdProjectContextYank, "Yank the focused project context item"),
 		spec(CmdProjectContextStar, "Star or unstar the focused project context item"),
 		spec(CmdProjectContextAttach, "Attach the focused project context item via context relation", "editing"),
+		spec(CmdShowFoldToggle, "Expand or collapse empty relation sections on a Show page"),
+		spec(CmdShowYank, "Copy the focused Show page value or token to the clipboard"),
+		spec(CmdShowYankBody, "Copy the full Markdown body of the current Show page"),
+		spec(CmdShowRegionNext, "Jump focus to the next Show page region"),
+		spec(CmdShowRegionPrev, "Jump focus to the previous Show page region"),
 		{
 			ID:          CmdPaneHints,
 			Description: "Show link/path/PR hint labels over the terminal screen",

@@ -761,6 +761,11 @@ func (a *App) register() {
 		a.handle(id, a.treeHoistCommand(id))
 	}
 	a.handle(CmdWorkLayoutToggle, a.workLayoutToggle)
+	a.handle(CmdShowFoldToggle, a.showFoldToggle)
+	a.handle(CmdShowYank, a.showYank)
+	a.handle(CmdShowYankBody, a.showYankBody)
+	a.handle(CmdShowRegionNext, a.showRegionJump(1))
+	a.handle(CmdShowRegionPrev, a.showRegionJump(-1))
 	a.handle(CmdViewCycle, a.viewCycle)
 	a.handle(CmdSessionRecordSave, a.sessionRecordSave)
 	a.handle(CmdSessionRecordToggle, a.sessionRecordToggle)

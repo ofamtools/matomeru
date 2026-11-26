@@ -235,8 +235,8 @@ func TestProjectShowPage(t *testing.T) {
 		"show.sec.rel.tag.out.tag:v2":           {Kind: data.KindTag, ID: "v2"},
 	} {
 		node := root.Find(id)
-		if node == nil || !node.Focusable || node.Kind != ui.KindCard {
-			t.Fatalf("no focusable card %q", id)
+		if node == nil || !node.Focusable || (node.Kind != ui.KindCard && node.Kind != ui.KindText) {
+			t.Fatalf("no focusable card/row %q", id)
 		}
 		chain := wantChain(t, root, id, ref, ref.Kind, "task", "show", "app")
 		if chain[0].Subject == nil || *chain[0].Subject != ref {
@@ -636,8 +636,11 @@ func TestShowViewRendersFullBodyMarkdownPanel(t *testing.T) {
 			}
 		}
 	}
+	if !foundBodyProp && noContent.Find("show.prop.body") != nil {
+		foundBodyProp = true
+	}
 	if !foundBodyProp {
-		t.Fatal("ShowOptions{ShowContent: false} should keep Body row in show.props.table")
+		t.Fatal("ShowOptions{ShowContent: false} should keep Body row in props")
 	}
 }
 
@@ -728,6 +731,7 @@ func TestShowViewDeclarativeFormatsAndResolvedFiles(t *testing.T) {
 	}
 	diskBody := "# Plan from disk\n\n- Step 1\n- Step 2"
 	docOpts := DefaultShowOptions()
+	docOpts.Layout = ShowLayoutClassic
 	docOpts.ResolvedFiles = map[string]string{"filePath": diskBody}
 	relOff, propsOff := 4, 2
 	docOpts.RelatedScrollOffset = &relOff

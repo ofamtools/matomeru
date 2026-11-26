@@ -114,13 +114,23 @@ const (
 	ShowFormatList     = "list"
 )
 
+// FieldRole values declare a field's structural role on Show pages, lists, and
+// edit forms so presenters never branch on noun kinds or hardcoded field names.
+const (
+	FieldRoleTitle  = "title"
+	FieldRoleProp   = "prop"
+	FieldRoleBody   = "body"
+	FieldRoleHidden = "hidden"
+)
+
 // FieldSpec declares one field of a Schema. Its flat fields mirror
 // core.ParamSpec and carry declarative schema metadata such as
-// ShowIncludeArchived, ShowFormat, and ContentFile so views never branch on
-// noun kinds or hardcoded field names.
+// ShowIncludeArchived, ShowFormat, Role, and ContentFile so views never branch
+// on noun kinds or hardcoded field names.
 type FieldSpec struct {
 	Name                string         `json:"name"`
 	Type                core.ParamType `json:"type"`
+	Role                string         `json:"role,omitempty"`
 	Required            bool           `json:"required,omitempty"`
 	Default             any            `json:"default,omitempty"`
 	Enum                []string       `json:"enum,omitempty"`
@@ -133,6 +143,22 @@ type FieldSpec struct {
 	VisibleWhen         string         `json:"visibleWhen,omitempty"`
 	Repeatable          bool           `json:"repeatable,omitempty"`
 	AddLabel            string         `json:"addLabel,omitempty"`
+}
+
+// EffectiveRole returns the field's declared role, falling back cleanly from
+// existing declarative schema properties (SummaryField, ShowFormat, ContentFile)
+// so current catalogs work without manual edits.
+func (f FieldSpec) EffectiveRole(summaryField string) string {
+	if f.Role != "" {
+		return f.Role
+	}
+	if summaryField != "" && f.Name == summaryField {
+		return FieldRoleTitle
+	}
+	if f.ShowFormat != "" || f.ContentFile {
+		return FieldRoleBody
+	}
+	return FieldRoleProp
 }
 
 // ParamSpec converts f into its equivalent core.ParamSpec for forms and CLI flags.
