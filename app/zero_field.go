@@ -243,9 +243,12 @@ func (a *App) applyQuerySpec(tableID string, q data.QuerySpec) {
 		tbl.SelectedIdx, tbl.Offset = 0, 0
 	}
 	applyQuerySort(tbl, q)
-	// The query's filter replaces the table's own text filter; it is not
-	// translated into one, so every shape of filter matches the same way.
-	tbl.FilterField, tbl.Query = views.AnyField, ""
+	// When a Zero-Field filter is active or changed, it replaces the table's
+	// own `/` text filter; grouping, sorting, or cycling to the classic picker
+	// without touching Zero-Field filter clauses must leave tbl.Query intact.
+	if filterChanged || len(q.Tokens) > 0 {
+		tbl.FilterField, tbl.Query = views.AnyField, ""
+	}
 	if filterChanged {
 		tbl.SelectedIdx, tbl.Offset = 0, 0
 	}
