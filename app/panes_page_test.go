@@ -12,6 +12,7 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 )
 
@@ -326,5 +327,67 @@ func TestMinimalHookBarLaneInTOCAndCompactScalableTOC(t *testing.T) {
 	collapsedFrame := d.Frame()
 	if !strings.Contains(collapsedFrame, "▸ Pages (") || strings.Contains(collapsedFrame, "Agent Report 01") {
 		t.Fatalf("collapsing Pages group did not fold older pages:\n%s", collapsedFrame)
+	}
+}
+
+// TestPageItemLongJumpPolicy covers nav.longJumpPolicy for tab between page
+// items: half-page (default) scrolls half a page toward an off-screen target
+// while focus stays put; jump reveals and focuses the target at once.
+func TestPageItemLongJumpPolicy(t *testing.T) {
+	for _, policy := range []string{traits.LongJumpHalfPage, traits.LongJumpDirect} {
+		t.Run(policy, func(t *testing.T) {
+			a, d := demo(t)
+			if policy != traits.LongJumpHalfPage {
+				a.cfg.userSettings[SetLongJumpPolicy] = policy
+				a.reloadSettings()
+			}
+			pane, ok := a.SelectedPane()
+			if !ok {
+				t.Fatal("expected selected pane")
+			}
+			card := func(id string) ui.ViewNode {
+				return ui.ViewNode{ID: id, Kind: ui.KindCard, Focusable: true, Border: true, Title: id,
+					Box: layout.Constraints{FixedH: 4}, Props: map[string]any{"summary": id}}
+			}
+			nodes := []ui.ViewNode{card("item-top")}
+			for i := range 8 {
+				nodes = append(nodes, ui.ViewNode{ID: fmt.Sprintf("filler.%d", i), Kind: ui.KindPanel, Border: true,
+					Title: fmt.Sprintf("Filler %d", i), Box: layout.Constraints{FixedH: 8}})
+			}
+			nodes = append(nodes, card("item-bottom"))
+			res, err := a.Router.CreatePage(User, mcpui.CreatePageArgs{
+				Pane: pane.ID, Slug: "long-jump", Title: "Long Jump",
+				Root: ui.ViewNode{ID: "long.root", Kind: ui.KindVStack, Gap: 1, Children: nodes},
+			})
+			if err != nil {
+				t.Fatalf("CreatePage: %v", err)
+			}
+			a.Shell.State = a.jumpToPage(a.State(), res.ID)
+			d.Keys("enter", "tab")
+			if a.Focus() != "item-top" {
+				t.Fatalf("first tab focus = %q, want item-top", a.Focus())
+			}
+			d.Keys("tab")
+			off := a.pageScrollOffset(res.ID)
+			info := a.State().Layout.Scrolls[views.PageScrollID]
+			if policy == traits.LongJumpDirect {
+				if a.Focus() != "item-bottom" || off <= 0 {
+					t.Fatalf("jump: focus=%q off=%d, want item-bottom revealed", a.Focus(), off)
+				}
+				return
+			}
+			if a.Focus() != "item-top" || off != max(1, info.ViewH/2) {
+				t.Fatalf("half-page: focus=%q off=%d viewH=%d, want focus kept and a half-page step", a.Focus(), off, info.ViewH)
+			}
+			for range 20 {
+				if a.Focus() == "item-bottom" {
+					break
+				}
+				d.Keys("tab")
+			}
+			if a.Focus() != "item-bottom" || !strings.Contains(d.Frame(), "item-bottom") {
+				t.Fatalf("half-page: repeated tab never reached a visible item-bottom: focus=%q off=%d", a.Focus(), a.pageScrollOffset(res.ID))
+			}
+		})
 	}
 }

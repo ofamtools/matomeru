@@ -147,6 +147,7 @@ const (
 	SetInteractiveCanvas             = "panes.interactiveCanvas"
 	SetTOCLivePreview                = "panes.tocLivePreview"
 	SetEdgeFocusSpill                = "nav.edgeFocusSpill"
+	SetLongJumpPolicy                = "nav.longJumpPolicy"
 	SetVerboseHookBar                = "panes.verboseHookBar"
 	SetLaneInTOC                     = "panes.laneInTOC"
 	SetCompactTOC                    = "panes.compactTOC"
@@ -292,6 +293,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetInteractiveCanvas, true, "make canvas tables, Markdown links, and checkboxes interactive in reading mode"),
 		flag(SetTOCLivePreview, true, "live-preview the focused canvas in the right panel while moving through the middle rail"),
 		flag(SetEdgeFocusSpill, false, "allow j/k at list or pane edges to silently spill focus to adjacent panes"),
+		enum(SetLongJumpPolicy, traits.LongJumpHalfPage, "moving focus to an off-screen item first scrolls half a page toward it (half-page) or reveals it at once (jump)", traits.LongJumpHalfPage, traits.LongJumpDirect),
 		flag(SetVerboseHookBar, false, "show verbose tool, subagent, and summary text in the pane hook indicator"),
 		flag(SetLaneInTOC, true, "show the pane's active lane and progress counter inside the pane TOC"),
 		flag(SetCompactTOC, true, "render pane TOC entries as compact 1-line scannable rows"),

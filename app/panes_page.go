@@ -6,6 +6,7 @@ import (
 
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 )
 
@@ -134,26 +135,33 @@ func (a *App) setPageScrollOffset(pageID string, offset int) {
 	a.panes.pageScroll[pageID] = offset
 }
 
-func (a *App) scrollPageReveal(s core.State, pageID, targetID string) {
+// scrollPageReveal scrolls the page toward targetID under the shared scroll
+// config and reports whether focus should move to the target now. Under the
+// half-page long-jump policy a target that is completely off-screen only
+// scrolls the page half a page toward it and returns false, so the caller
+// keeps focus where it is until the target is in view.
+func (a *App) scrollPageReveal(s core.State, pageID, targetID string) bool {
 	if pageID == "" || targetID == "" {
-		return
+		return true
 	}
 	info, ok := s.Layout.Scrolls[views.PageScrollID]
 	if !ok {
-		return
+		return true
 	}
-	y, ok := info.ChildY[targetID]
+	span, ok := scrollSpanOf(info, targetID)
 	if !ok {
-		return
+		return true
 	}
-	cur := a.pageScrollOffset(pageID)
-	vh := max(info.ViewH, 1)
-	if y < cur {
-		cur = y
-	} else if y >= cur+vh-2 {
-		cur = max(0, y-vh/3)
-	}
-	a.setPageScrollOffset(pageID, min(cur, info.MaxOff))
+	st := scrollStateFromInfo(a.pageScrollOffset(pageID), info, true)
+	res := traits.ScrollStepToward(st, a.scrollConfig(), span)
+	a.setPageScrollOffset(pageID, res.State.OffsetY)
+	return res.FocusTarget
+}
+
+// pageScrollAliases maps page-only motions onto the scroll trait's commands.
+var pageScrollAliases = map[string]string{
+	"motion.block.next": "motion.half.down",
+	"motion.block.prev": "motion.half.up",
 }
 
 func (a *App) pageScrollMotion(s core.State, c core.Command) core.StepResult {
@@ -165,49 +173,22 @@ func (a *App) pageScrollMotion(s core.State, c core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	info, hasInfo := s.Layout.Scrolls[views.PageScrollID]
-	cur := a.pageScrollOffset(pageID)
-	viewH := 20
-	maxOff := 10000
-	if hasInfo {
-		if info.ViewH > 0 {
-			viewH = info.ViewH
-		}
-		maxOff = info.MaxOff
-		cur = min(cur, maxOff)
+	if id, ok := pageScrollAliases[c.ID]; ok {
+		c.ID = id
 	}
-	times := max(c.Times(), 1)
-	half := max(1, viewH/2)
-	pageStep := max(1, viewH-2)
-
 	switch c.ID {
-	case "motion.down", "motion.scroll.down":
-		cur += times
-	case "motion.up", "motion.scroll.up":
-		cur -= times
-	case "motion.half.down", "motion.block.next":
-		cur += half * times
-	case "motion.half.up", "motion.block.prev":
-		cur -= half * times
-	case "motion.page.down":
-		cur += pageStep * times
-	case "motion.page.up":
-		cur -= pageStep * times
-	case "motion.top":
-		cur = 0
+	case "motion.down", "motion.scroll.down", "motion.up", "motion.scroll.up",
+		"motion.half.down", "motion.half.up", "motion.page.down", "motion.page.up",
+		"motion.top":
 	case "motion.bottom":
-		if hasInfo {
-			cur = maxOff
+		if !hasInfo {
+			return core.Next(s)
 		}
 	default:
 		return core.Next(s)
 	}
-	if cur < 0 {
-		cur = 0
-	}
-	if hasInfo && cur > maxOff {
-		cur = maxOff
-	}
-	a.setPageScrollOffset(pageID, cur)
+	next, _, _ := traits.ScrollStep(scrollStateFromInfo(a.pageScrollOffset(pageID), info, hasInfo), a.scrollConfig(), c)
+	a.setPageScrollOffset(pageID, next.OffsetY)
 	return core.Next(s)
 }
 
@@ -281,7 +262,9 @@ func (a *App) pageStepItem(delta int) func(core.State, core.Command) core.StepRe
 			idx := ((cur+delta)%len(items) + len(items)) % len(items)
 			nextID = items[idx]
 		}
-		a.scrollPageReveal(s, a.activeSitePageIDFor(s), nextID)
+		if !a.scrollPageReveal(s, a.activeSitePageIDFor(s), nextID) {
+			return core.Next(s)
+		}
 		return core.Next(withFocus(s, nextID))
 	}
 }

@@ -383,42 +383,12 @@ func (a *App) showScrollMotion(s core.State, c core.Command) (core.StepResult, b
 			return core.StepResult{}, false
 		}
 	}
-	viewH := 20
-	maxOff := 10000
 	cur := *offPtr
-	if hasInfo {
-		if info.ViewH > 0 {
-			viewH = info.ViewH
-		}
-		maxOff = info.MaxOff
-		if cur == 0 && info.Offset > 0 {
-			cur = info.Offset
-		}
-		cur = min(cur, maxOff)
+	if hasInfo && cur == 0 && info.Offset > 0 {
+		cur = info.Offset
 	}
-	times := max(c.Times(), 1)
-	half := max(1, viewH/2)
-	pageStep := max(1, viewH-2)
-	switch c.ID {
-	case "motion.scroll.down":
-		cur += times
-	case "motion.scroll.up":
-		cur -= times
-	case "motion.half.down":
-		cur += half * times
-	case "motion.half.up":
-		cur -= half * times
-	case "motion.page.down":
-		cur += pageStep * times
-	case "motion.page.up":
-		cur -= pageStep * times
-	}
-	if cur < 0 {
-		cur = 0
-	}
-	if hasInfo && cur > maxOff {
-		cur = maxOff
-	}
+	next, _, _ := traits.ScrollStep(scrollStateFromInfo(cur, info, hasInfo), a.scrollConfig(), c)
+	cur = next.OffsetY
 	if *offPtr != cur {
 		*offPtr = cur
 		a.viewMemo.gen++

@@ -505,7 +505,9 @@ func (a *App) canvasMotion(s core.State, c core.Command) (core.StepResult, bool)
 		case "motion.down":
 			if cur >= count-1 {
 				if nextID, ok := a.canvasAdjacentWidget(s, focusID, 1); ok {
-					a.scrollPageReveal(s, pageID, nextID)
+					if !a.scrollPageReveal(s, pageID, nextID) {
+						return core.Next(s), true
+					}
 					return core.Next(withFocus(s, nextID)), true
 				}
 				return core.Next(s), true
@@ -514,7 +516,9 @@ func (a *App) canvasMotion(s core.State, c core.Command) (core.StepResult, bool)
 		case "motion.up":
 			if cur <= 0 {
 				if prevID, ok := a.canvasAdjacentWidget(s, focusID, -1); ok {
-					a.scrollPageReveal(s, pageID, prevID)
+					if !a.scrollPageReveal(s, pageID, prevID) {
+						return core.Next(s), true
+					}
 					return core.Next(withFocus(s, prevID)), true
 				}
 				return core.Next(s), true
@@ -539,12 +543,16 @@ func (a *App) canvasMotion(s core.State, c core.Command) (core.StepResult, bool)
 		switch c.ID {
 		case "motion.down":
 			if nextID, ok := a.canvasAdjacentWidget(s, focusID, 1); ok {
-				a.scrollPageReveal(s, pageID, nextID)
+				if !a.scrollPageReveal(s, pageID, nextID) {
+					return core.Next(s), true
+				}
 				return core.Next(withFocus(s, nextID)), true
 			}
 		case "motion.up":
 			if prevID, ok := a.canvasAdjacentWidget(s, focusID, -1); ok {
-				a.scrollPageReveal(s, pageID, prevID)
+				if !a.scrollPageReveal(s, pageID, prevID) {
+					return core.Next(s), true
+				}
 				return core.Next(withFocus(s, prevID)), true
 			}
 		}
@@ -564,7 +572,9 @@ func (a *App) canvasMotion(s core.State, c core.Command) (core.StepResult, bool)
 		case "motion.down":
 			if cur >= len(items)-1 {
 				if nextID, ok := a.canvasAdjacentWidget(s, focusID, 1); ok {
-					a.scrollPageReveal(s, pageID, nextID)
+					if !a.scrollPageReveal(s, pageID, nextID) {
+						return core.Next(s), true
+					}
 					return core.Next(withFocus(s, nextID)), true
 				}
 				return core.Next(s), true
@@ -573,7 +583,9 @@ func (a *App) canvasMotion(s core.State, c core.Command) (core.StepResult, bool)
 		case "motion.up":
 			if cur <= 0 {
 				if prevID, ok := a.canvasAdjacentWidget(s, focusID, -1); ok {
-					a.scrollPageReveal(s, pageID, prevID)
+					if !a.scrollPageReveal(s, pageID, prevID) {
+						return core.Next(s), true
+					}
 					return core.Next(withFocus(s, prevID)), true
 				}
 				return core.Next(s), true

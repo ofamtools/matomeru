@@ -333,7 +333,9 @@ func (a *App) questionStep(delta int) func(core.State, core.Command) core.StepRe
 			nextIdx := min(max(cur+delta, 0), len(qNodes)-1)
 			target = qNodes[nextIdx]
 		}
-		a.scrollPageReveal(s, a.activeSitePageIDFor(s), target)
+		if !a.scrollPageReveal(s, a.activeSitePageIDFor(s), target) {
+			return core.Next(s)
+		}
 		return core.Next(withFocus(s, target))
 	}
 }
