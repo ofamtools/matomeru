@@ -177,7 +177,8 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 		"pinned": len(ws.pinnedItems), "panes": len(ws.panes), "lanes": len(ws.allLanes),
 		"worktrees": len(ws.worktrees), "prs": len(ws.prItems), "documents": len(ws.documents),
 		"notes": len(ws.notes), "questions": len(ws.questions), "commands": len(ws.commands),
-		projectQueueSection: a.projectOpenQueueItems(ws.projectID),
+		projectQueueSection:   a.projectOpenQueueItems(ws.projectID),
+		projectThreadsSection: a.projectThreadCount(ws.projectID),
 	}
 	pc.resetNavTargets(ws.projectKey)
 
@@ -269,6 +270,8 @@ func (a *App) buildProjectSectionBody(s core.State, ws projectWorkspaceData, sec
 			ui.Badge{Text: fmt.Sprintf("%d active", len(ws.activeLanes)), Tone: "accent"})
 	case projectQueueSection:
 		return a.projectSectionQueues(ws)
+	case projectThreadsSection:
+		return a.projectSectionThreads(ws)
 	case "worktrees":
 		return a.projectSectionWorktrees(ws)
 	case "prs":
