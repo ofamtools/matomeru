@@ -148,14 +148,16 @@ type Options struct {
 }
 
 type viewMemoState struct {
-	gen       uint64
-	builds    uint64
-	memoKey   string
-	memo      ui.ViewNode
-	tabsKey   string
-	tabs      ui.ViewNode
-	binds     *compiledBindingsIndex
-	fileCache *contentFileCache
+	gen        uint64
+	chromeGen  uint64
+	builds     uint64
+	tabsBuilds uint64
+	memoKey    string
+	memo       ui.ViewNode
+	tabsKey    string
+	tabs       ui.ViewNode
+	binds      *compiledBindingsIndex
+	fileCache  *contentFileCache
 }
 
 // App is the application state around the engine. Handlers change it and the

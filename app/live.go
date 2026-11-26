@@ -226,7 +226,7 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 			l.drawn, changed = n, true
 		}
 	}
-	if moved, exited := a.screenMoved(); moved {
+	if moved, exited := a.screenMoved(s); moved {
 		changed = true
 		for _, ex := range exited {
 			s = a.handlePaneExited(s, ex.id, ex.code)
@@ -238,14 +238,15 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 			changed = true
 		}
 	}
+	chromeOnly := false
 	if seq := l.sysStatsSeq.Load(); seq != l.sysStatsDrawn {
-		l.sysStatsDrawn, changed = seq, true
+		l.sysStatsDrawn, chromeOnly = seq, true
 	}
 	if a.tickToasts() {
-		changed = true
+		chromeOnly = true
 	}
 	if a.tickEscapeGuard() {
-		changed = true
+		chromeOnly = true
 	}
 	var extraEffects []core.Effect
 	if animChanged, eff := a.tickArchiveAnim(); animChanged {
@@ -255,6 +256,10 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 		}
 	}
 	if !changed {
+		if chromeOnly {
+			l.refreshes++
+			a.viewMemo.chromeGen++
+		}
 		return core.Next(s)
 	}
 	l.refreshes++
@@ -573,38 +578,6 @@ type paneExit struct {
 
 // screenMoved re-reads shown, side-split, scratch, and tracked live sessions
 // and reports any revision/size changes plus every session that exited or vanished.
-func (a *App) screenMoved() (bool, []paneExit) {
-	if a.panes.Host == nil {
-		return false, nil
-	}
-	ids := make([]string, 0, len(a.rt.live.frames)+3)
-	add := func(id string) {
-		if id != "" && !slices.Contains(ids, id) {
-			ids = append(ids, id)
-		}
-	}
-	add(a.rt.live.shown)
-	add(a.rt.live.shownSide)
-	if sm := a.activeScratch(); sm != nil {
-		add(sm.paneID)
-	}
-	for id := range a.rt.live.frames {
-		add(id)
-	}
-	moved := false
-	var exited []paneExit
-	for _, id := range ids {
-		m, exID, code := a.pollShownSession(id)
-		if m {
-			moved = true
-		}
-		if exID != "" {
-			exited = append(exited, paneExit{id: exID, code: code})
-		}
-	}
-	return moved, exited
-}
-
 func (a *App) pollShownSession(id string) (moved bool, exitedID string, exitCode int) {
 	if id == "" {
 		return false, "", 0

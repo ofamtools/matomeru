@@ -83,6 +83,12 @@ type cachedProjectWorkspace struct {
 	data         projectWorkspaceData
 }
 
+type cachedProjectNav struct {
+	key      string
+	sections []views.ProjectNavSection
+	targets  map[string]projectNavTarget
+}
+
 // ProjectController owns per-project workspace navigation state: active left
 // nav section, expandable nav tree state, locked/previewed right-pane target,
 // open inline ui.page, and per-section table/tree models.
@@ -104,6 +110,8 @@ type ProjectController struct {
 	tables               map[string]*table.Model
 	trees                map[string]*tree.Model
 	wsCache              map[string]cachedProjectWorkspace
+	navCache             map[string]cachedProjectNav
+	navBuilds            uint64
 	dirCache             []projectDirEntry
 	dirCacheRev          int64
 	dirCacheArch         bool
