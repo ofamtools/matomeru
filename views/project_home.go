@@ -5,6 +5,7 @@ import (
 	"maps"
 	"strings"
 
+	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
@@ -16,6 +17,7 @@ const (
 	ProjectHomeScrollID   = "project.home.scroll"
 	ProjectHomeSummaryID  = "project.home.summary"
 	ProjectHomeItemPrefix = "project.home.item."
+	ProjectHomeQueuesID   = "project.home.queues"
 )
 
 // ProjectHomeItem is a pure value object describing one scannable row inside a
@@ -51,12 +53,15 @@ type ProjectHomeGroup struct {
 // Set Interactive=true on Project Page Home and Interactive=false on read-only
 // previews (such as the 5 Projects right-hand preview pane).
 type ProjectHomeSpec struct {
-	Title         string
-	Description   string
-	Meta          string
-	CountsLine1   string
-	CountsLine2   string
-	Badges        []ui.Badge
+	Title       string
+	Description string
+	Meta        string
+	CountsLine1 string
+	CountsLine2 string
+	Badges      []ui.Badge
+	// QueueProgress, when non-empty, draws one segmented progress bar per
+	// queue under the project's description.
+	QueueProgress []data.QueueProgress
 	Groups        []ProjectHomeGroup
 	Interactive   bool
 	ProjectUnread bool
@@ -77,6 +82,16 @@ func ProjectHomeView(spec ProjectHomeSpec) ui.ViewNode {
 	}
 	if meta := strings.TrimSpace(spec.Meta); meta != "" {
 		rows = append(rows, homeLine("project.home.meta", " "+meta, "muted"))
+	}
+
+	if len(spec.QueueProgress) > 0 {
+		if len(rows) > 0 {
+			rows = append(rows, homeLine("project.home.gap.queues", "", ""))
+		}
+		rows = append(rows,
+			homeLine("project.home.hdr.queues", fmt.Sprintf(" ⇶ QUEUES (%d)", len(spec.QueueProgress)), "accent"),
+			QueueProgressStripView(ProjectHomeQueuesID, spec.QueueProgress),
+		)
 	}
 
 	focusableCount := 0

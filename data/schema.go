@@ -76,6 +76,9 @@ const (
 	KindCommand  = "command"
 	KindContext  = "context"
 	KindConcept  = "concept"
+	// KindQueue is a named line of agent work that tasks and lanes join and
+	// agent panes watch.
+	KindQueue = "queue"
 )
 
 // Pane roles. A pane with no role is a normal one.
@@ -558,6 +561,8 @@ func DefaultSchemas() *Registry {
 				{Name: "threadLocked", Type: core.ParamBool, Default: false, Description: "prevent automatic agent replies in this task's note thread"},
 				str("readAt", "when the owner read the task (RFC 3339)"),
 				{Name: FieldTaskType, Type: core.ParamString, Enum: []string{TaskTypeHuman, TaskTypeRewrite, TaskTypeJoin, TaskTypeSplit}, Default: TaskTypeHuman, Description: "how the task originated"},
+				queueNameField(),
+				queueRefField(),
 			},
 			StatusColumns:  []StatusColumn{work, agentStatus},
 			DefaultColumns: []string{"title", "workStatus", "priority", "parent"},
@@ -607,6 +612,8 @@ func DefaultSchemas() *Registry {
 				str("headCommit", "newest commit of the work"),
 				str("harness", "agent harness doing the work"),
 				str("agentModel", "model the agent runs"),
+				queueNameField(),
+				queueRefField(),
 			},
 			StatusColumns:  []StatusColumn{laneStatus},
 			DefaultColumns: []string{"title", "laneStatus", "branch", "task", "parentLane"},
@@ -636,6 +643,9 @@ func DefaultSchemas() *Registry {
 				refTo("parentPane", KindPane, "pane a side pane was opened beside"),
 				str("transcriptPath", "path to the agent session transcript log file"),
 				str("sessionId", "agent harness session or conversation identifier"),
+				{Name: FieldWatchMode, Type: core.ParamString, Enum: WatchModes, Description: "when the pane takes the next queued item: on_done, schedule, or manual"},
+				str(FieldWatchQueues, `queues the pane watches: "any" or comma-separated queue names`),
+				{Name: FieldWatchIntervalSec, Type: core.ParamInt, Description: "seconds between polls when watchMode is schedule"},
 			},
 			StatusColumns:  []StatusColumn{paneRun},
 			DefaultColumns: []string{"title", "runStatus", "harness", "cwd", "task"},
@@ -878,6 +888,7 @@ func DefaultSchemas() *Registry {
 			},
 		},
 		conceptSchema(),
+		queueSchema(),
 	)
 	return r
 }

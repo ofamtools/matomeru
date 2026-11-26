@@ -222,6 +222,7 @@ const (
 	SetLivePointerChips                = "ui.livePointerChips"
 	SetCompactTestOutput               = "runs.compactTestOutput"
 	SetZeroFieldQueryDefault           = "ui.zeroFieldQueryDefault"
+	SetProjectHomeQueueProgress        = "projects.homeQueueProgress"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -349,7 +350,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetTasksLockThreadEdits, false, "enforce append-only conversation lock on thread notes and tasks with active note threads"),
 		flag(SetProjectWorkspaceInPanes, true, "show the full Project Page workspace with left nav on project headers and P"),
 		flag(SetProjectOutlineAsPage, true, "render the Project Page Tasks section as an embedded outline todo page"),
-		{Name: SetProjectNavSections, Type: core.ParamString, Default: "", Description: "comma-separated override list of Project Page left-nav sections (blank shows all 14)"},
+		{Name: SetProjectNavSections, Type: core.ParamString, Default: "", Description: "comma-separated override list of Project Page left-nav sections (blank shows all 15)"},
 		flag(SetContextAutoInject, true, "automatically include curated official project context in prompts and agent task dispatch"),
 		flag(SetEnterOpensShow, false, "pressing enter on plain lists and tables opens the record's Show page (E always opens Show)"),
 		flag(SetTreeHLFolds, true, "use h/l to smart-fold/unfold trees, outlines, and grouped headers (spilling to regions at the edge)"),
@@ -392,6 +393,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetLivePointerChips, true, "show focusable pointer chips on file, worktree, and context selections"),
 		flag(SetCompactTestOutput, true, "summarize Go test events in Run output with one symbol per result"),
 		flag(SetZeroFieldQueryDefault, true, "open the unified Zero-Field chip view by default on f / g s / g b (cycle views with ( / ))"),
+		flag(SetProjectHomeQueueProgress, true, "show live segmented queue progress bars (queue, lanes, child lanes, AI checklist) on the Project Portal Homepage"),
 	}
 }
 
@@ -577,6 +579,10 @@ func (a *App) hintsDefaultAction() string {
 	default:
 		return HintsActionCopy
 	}
+}
+
+func (a *App) projectHomeQueueProgressEnabled() bool {
+	return a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectHomeQueueProgress, true)
 }
 
 func (a *App) projectHomeDashboardEnabled() bool {

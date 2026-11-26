@@ -102,6 +102,9 @@ type Server struct {
 	mdWeb     *mdweb.Handler
 	mcpURL    string
 	stopSched func()
+	// queueWatch hands queued work to agent panes that watch a queue; nil
+	// without a Store.
+	queueWatch *queueWatcher
 
 	subsMu sync.Mutex
 	subs   map[*frameSubscriber]struct{}
@@ -175,12 +178,18 @@ func New(cfg Config) (*Server, error) {
 		if disp == nil {
 			disp = NewServerQueueDispatcher(srv)
 		}
+		srv.queueWatch = newQueueWatcher(cfg.Store, disp, clock, srv.paneReadyForQueue)
+		srv.telemetry.onDone = func(ev AgentDoneEvent) {
+			srv.callbacks.publish(ev)
+			srv.queueWatch.publish(ev)
+		}
 		srv.scheduler = NewScheduler(SchedulerConfig{
 			Store:      cfg.Store,
 			Notifier:   cfg.Notifier,
 			Runner:     cfg.Runner,
 			Dispatcher: disp,
 			Clock:      clock,
+			AfterTick:  srv.queueWatch.pollScheduled,
 		})
 	}
 	prevOnChange := host.OnChange
@@ -270,6 +279,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	s.unixLn = unixLn
 	s.callbacks.start(s.ctx, &s.wg)
+	s.queueWatch.start(s.ctx, &s.wg)
 
 	// Restore inherited panes, PTY sessions, and telemetry before serving.
 	if handoff != nil {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ptyhost"
 )
 
@@ -259,6 +260,10 @@ type PaneTelemetry struct {
 	LastKind        string                  `json:"lastKind,omitempty"`
 	LastEventAt     time.Time               `json:"lastEventAt"`
 	Payload         map[string]any          `json:"payload,omitempty"`
+	// Checklist is the session's live plan: fed by Claude's TodoWrite /
+	// TaskCreate / TaskUpdate hooks, or read from the transcript for harnesses
+	// that only log their plan (Codex update_plan, Antigravity update_steps).
+	Checklist *data.SessionChecklist `json:"checklist,omitempty"`
 }
 
 // PendingApproval is an active PermissionRequest awaiting allow/deny resolution.

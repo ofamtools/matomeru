@@ -313,6 +313,7 @@ type Scheduler struct {
 	runner     Runner
 	dispatcher QueueDispatcher
 	clock      func() time.Time
+	afterTick  func(ctx context.Context, now time.Time)
 
 	mu      sync.Mutex
 	running bool
@@ -325,6 +326,9 @@ type SchedulerConfig struct {
 	Runner     Runner
 	Dispatcher QueueDispatcher
 	Clock      func() time.Time
+	// AfterTick runs once per Tick after the due schedules, on the same
+	// cadence: work that polls rather than follows a cron expression.
+	AfterTick func(ctx context.Context, now time.Time)
 }
 
 // NewScheduler constructs a Scheduler over cfg.Store.
@@ -347,6 +351,7 @@ func NewScheduler(cfg SchedulerConfig) *Scheduler {
 		runner:     runner,
 		dispatcher: cfg.Dispatcher,
 		clock:      clock,
+		afterTick:  cfg.AfterTick,
 	}
 }
 
@@ -438,6 +443,9 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 		if err := s.evalSchedule(ctx, rec, now); err != nil && firstErr == nil {
 			firstErr = err
 		}
+	}
+	if s.afterTick != nil && ctx.Err() == nil {
+		s.afterTick(ctx, now)
 	}
 	return firstErr
 }

@@ -177,12 +177,13 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 		"pinned": len(ws.pinnedItems), "panes": len(ws.panes), "lanes": len(ws.allLanes),
 		"worktrees": len(ws.worktrees), "prs": len(ws.prItems), "documents": len(ws.documents),
 		"notes": len(ws.notes), "questions": len(ws.questions), "commands": len(ws.commands),
+		projectQueueSection: a.projectOpenQueueItems(ws.projectID),
 	}
 	pc.resetNavTargets(ws.projectKey)
 
 	out := make([]views.ProjectNavSection, 0, len(defs))
 	for _, d := range defs {
-		expandable := treeEnabled && d.Key != "home" && d.Key != "signals" && counts[d.Key] > 0
+		expandable := treeEnabled && !d.Leaf && d.Key != "home" && d.Key != "signals" && counts[d.Key] > 0
 		expanded := expandable && pc.isNavSectionExpanded(ws.projectKey, d.Key)
 		sec := views.ProjectNavSection{
 			Key: d.Key, Label: d.Label, Icon: d.Icon, Group: d.Group,
@@ -197,7 +198,7 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 				sec.Badge = fmt.Sprintf("★%d·%d", ws.officialCount, len(ws.contextItems))
 			}
 		}
-		if d.Key != "home" && d.Key != "signals" && counts[d.Key] > 0 {
+		if !d.Leaf && d.Key != "home" && d.Key != "signals" && counts[d.Key] > 0 {
 			children, unreadCount := a.buildProjectNavChildren(ws, d.Key, focusID, expanded, allowPeek)
 			sec.UnreadCount = unreadCount
 			sec.Unread = unreadCount > 0
@@ -266,6 +267,8 @@ func (a *App) buildProjectSectionBody(s core.State, ws projectWorkspaceData, sec
 	case "lanes":
 		return a.projectTreePanel("project.lanes", projectLanesTree, data.KindLane, "parentLane", "lanes", views.ScopeProjectContent, ws, ws.allLanes,
 			ui.Badge{Text: fmt.Sprintf("%d active", len(ws.activeLanes)), Tone: "accent"})
+	case projectQueueSection:
+		return a.projectSectionQueues(ws)
 	case "worktrees":
 		return a.projectSectionWorktrees(ws)
 	case "prs":

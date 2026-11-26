@@ -144,7 +144,8 @@ func (a *App) buildProjectHomeSection(ws projectWorkspaceData, interactive bool)
 		Title: "Home", Description: desc, Meta: meta, ScrollKey: scrollKey,
 		CountsLine1: counts1, CountsLine2: counts2,
 		Badges: badges, Groups: groups,
-		Interactive: interactive, ProjectUnread: ws.unreadTotal > 0,
+		QueueProgress: a.projectQueueProgress(ws.projectID),
+		Interactive:   interactive, ProjectUnread: ws.unreadTotal > 0,
 		Facts: map[string]any{"section": "home", "homeDashboard": true, "projectUnread": ws.unreadTotal > 0},
 	})
 }
