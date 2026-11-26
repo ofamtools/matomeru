@@ -1,68 +1,40 @@
 package app
 
-import (
-	"strings"
+import "strconv"
 
-	"ofam.dev/ochazuke/core"
-)
+// The Show page's two scroll columns (show.related, show.props.scroll) are
+// followed by the renderer: it remembers each column's drawn offset and
+// reveals the focused card with ui.scrolloff padding. The app only holds an
+// explicit offset while the user scrolls a column with the scroll keys
+// (showScrollMotion); a focus move drops it, so the renderer continues from
+// where the column was drawn.
 
-// showScrollSlot returns the stored offset and its known flag for one of the
-// Show page's scroll containers, or nils for any other container.
-func (a *App) showScrollSlot(scrollID string) (*int, *bool) {
+// showScrollSlot returns the explicit offset slot of one of the Show page's
+// scroll containers, or nil for any other container.
+func (a *App) showScrollSlot(scrollID string) **int {
 	switch scrollID {
 	case "show.related":
-		return &a.nav.showRelatedOff, &a.nav.showRelatedSet
+		return &a.nav.showRelatedOff
 	case "show.props.scroll":
-		return &a.nav.showPropsOff, &a.nav.showPropsSet
+		return &a.nav.showPropsOff
 	}
-	return nil, nil
+	return nil
 }
 
-// clearShowScroll drops the stored offsets of the related and/or props
-// scroller, handing focus-following back to the renderer.
-func (a *App) clearShowScroll(related, props bool) bool {
-	changed := false
-	if related && (a.nav.showRelatedOff != 0 || a.nav.showRelatedSet) {
-		a.nav.showRelatedOff, a.nav.showRelatedSet = 0, false
-		changed = true
+// clearShowScroll drops both explicit Show offsets, handing the columns back
+// to the renderer's focus follow. It reports whether anything was dropped.
+func (a *App) clearShowScroll() bool {
+	if a.nav.showRelatedOff == nil && a.nav.showPropsOff == nil {
+		return false
 	}
-	if props && (a.nav.showPropsOff != 0 || a.nav.showPropsSet) {
-		a.nav.showPropsOff, a.nav.showPropsSet = 0, false
-		changed = true
-	}
-	return changed
+	a.nav.showRelatedOff, a.nav.showPropsOff = nil, nil
+	return true
 }
 
-// showFollowFocus keeps a newly focused item visible inside the Show scroll
-// container that encloses it: the stored offset moves only as far as
-// traits.ScrollReveal needs to keep ui.scrolloff rows between the item and
-// the edge it approaches. When the item has no laid-out rect yet, the stored
-// offset is dropped and the renderer follows focus for that step.
-func (a *App) showFollowFocus(s core.State, focusID string) {
-	if scrollID, info, ok := enclosingScroll(s, focusID); ok {
-		if off, set := a.showScrollSlot(scrollID); off != nil {
-			base := *off
-			if !*set {
-				base = info.Offset
-			}
-			next := a.scrollFollowOffset(base, info, focusID)
-			if next != *off || !*set {
-				*off, *set = next, true
-				a.viewMemo.gen++
-			}
-			return
-		}
+// showScrollOffsetText renders an explicit offset for the view memo key.
+func showScrollOffsetText(off *int) string {
+	if off == nil {
+		return "-"
 	}
-	changed := false
-	switch {
-	case focusID == showHeader:
-		changed = a.clearShowScroll(true, true)
-	case strings.HasPrefix(focusID, "show.sec.") || focusID == "show.related":
-		changed = a.clearShowScroll(true, false)
-	case strings.HasPrefix(focusID, "show.field.") || focusID == "show.props":
-		changed = a.clearShowScroll(false, true)
-	}
-	if changed {
-		a.viewMemo.gen++
-	}
+	return strconv.Itoa(*off)
 }

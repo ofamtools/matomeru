@@ -217,9 +217,10 @@ func featuresNavPanel(spec FeaturesPageSpec, activeKey string) ui.ViewNode {
 		},
 		Children: []ui.ViewNode{
 			{
-				ID:   "features.nav.scroll",
-				Kind: ui.KindScroll,
-				Box:  layout.Constraints{Flex: 1},
+				ID:    "features.nav.scroll",
+				Kind:  ui.KindScroll,
+				Props: map[string]any{"scrollKey": spec.RepoPath},
+				Box:   layout.Constraints{Flex: 1},
 				Children: []ui.ViewNode{
 					{
 						ID:       "features.nav.list",
@@ -395,9 +396,10 @@ func featuresContentPanel(detail FeaturesDetailSpec, activeKey string, compact b
 		Facts:  facts,
 		Children: []ui.ViewNode{
 			{
-				ID:   "features.content.scroll",
-				Kind: ui.KindScroll,
-				Box:  layout.Constraints{Flex: 1},
+				ID:    "features.content.scroll",
+				Kind:  ui.KindScroll,
+				Props: map[string]any{"scrollKey": activeKey},
+				Box:   layout.Constraints{Flex: 1},
 				Children: []ui.ViewNode{
 					{
 						ID:       "features.content.body",

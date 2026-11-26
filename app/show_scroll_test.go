@@ -7,6 +7,8 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/layout"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 )
 
@@ -61,17 +63,17 @@ func TestShowScrollAndFocusFollow(t *testing.T) {
 
 	// Explicit single-line scroll: ctrl+e down, ctrl+y up.
 	d.Keys("ctrl+e")
-	if a.nav.showRelatedOff != 1 || a.Focus() != showHeader {
-		t.Fatalf("ctrl+e expected showRelatedOff=1 focus=show.header, got off=%d focus=%q", a.nav.showRelatedOff, a.Focus())
+	if explicitOff(a.nav.showRelatedOff) != 1 || a.Focus() != showHeader {
+		t.Fatalf("ctrl+e expected showRelatedOff=1 focus=show.header, got off=%d focus=%q", explicitOff(a.nav.showRelatedOff), a.Focus())
 	}
 	d.Keys("ctrl+y")
-	if a.nav.showRelatedOff != 0 {
-		t.Fatalf("ctrl+y expected showRelatedOff=0, got %d", a.nav.showRelatedOff)
+	if explicitOff(a.nav.showRelatedOff) != 0 {
+		t.Fatalf("ctrl+y expected showRelatedOff=0, got %d", explicitOff(a.nav.showRelatedOff))
 	}
 
 	// Half-page and full-page scroll on show.header reveal lines deep in the body.
 	d.Keys("ctrl+d")
-	halfOff := a.nav.showRelatedOff
+	halfOff := explicitOff(a.nav.showRelatedOff)
 	if halfOff <= 0 || a.Focus() != showHeader {
 		t.Fatalf("ctrl+d should scroll show.related while staying on show.header: off=%d focus=%q", halfOff, a.Focus())
 	}
@@ -82,20 +84,20 @@ func TestShowScrollAndFocusFollow(t *testing.T) {
 	}
 	// Clamped against MaxOff.
 	info := a.State().Layout.Scrolls["show.related"]
-	if info.MaxOff <= 0 || a.nav.showRelatedOff > info.MaxOff {
-		t.Fatalf("expected 0 < off <= MaxOff (%d), got %d", info.MaxOff, a.nav.showRelatedOff)
+	if info.MaxOff <= 0 || explicitOff(a.nav.showRelatedOff) > info.MaxOff {
+		t.Fatalf("expected 0 < off <= MaxOff (%d), got %d", info.MaxOff, explicitOff(a.nav.showRelatedOff))
 	}
 
 	// ctrl+u / ctrl+b scroll back up cleanly.
 	d.Keys("ctrl+b", "ctrl+b", "ctrl+b", "ctrl+u", "ctrl+u")
-	if a.nav.showRelatedOff != 0 || !strings.Contains(d.Frame(), "BODY_LINE_01") {
-		t.Fatalf("expected scroll back to top: off=%d", a.nav.showRelatedOff)
+	if explicitOff(a.nav.showRelatedOff) != 0 || !strings.Contains(d.Frame(), "BODY_LINE_01") {
+		t.Fatalf("expected scroll back to top: off=%d", explicitOff(a.nav.showRelatedOff))
 	}
 
 	// Moving focus into show.related with j follows focus from the stored
 	// offset: the focused card ends up fully inside the viewport.
 	d.Keys("ctrl+d")
-	if a.nav.showRelatedOff == 0 {
+	if explicitOff(a.nav.showRelatedOff) <= 0 {
 		t.Fatal("expected non-zero showRelatedOff before j")
 	}
 	d.Keys("j")
@@ -110,7 +112,7 @@ func TestShowScrollAndFocusFollow(t *testing.T) {
 
 	// Navigating to a different Show record resets scroll state.
 	d.Keys("k", "ctrl+d")
-	if a.nav.showRelatedOff == 0 {
+	if explicitOff(a.nav.showRelatedOff) <= 0 {
 		t.Fatal("expected non-zero showRelatedOff before opening other record")
 	}
 	d.Send(core.CommandEvent{Command: core.Command{
@@ -119,10 +121,18 @@ func TestShowScrollAndFocusFollow(t *testing.T) {
 		Source: "test",
 		Actor:  User,
 	}})
-	if a.nav.showScrollRef != other.Ref() || a.nav.showRelatedOff != 0 || a.nav.showPropsOff != 0 {
+	if a.nav.showScrollRef != other.Ref() || a.nav.showRelatedOff != nil || a.nav.showPropsOff != nil {
 		t.Fatalf("opening another Show record should reset scroll state: ref=%v rel=%d props=%d",
-			a.nav.showScrollRef, a.nav.showRelatedOff, a.nav.showPropsOff)
+			a.nav.showScrollRef, explicitOff(a.nav.showRelatedOff), explicitOff(a.nav.showPropsOff))
 	}
+}
+
+// explicitOff reads an explicit Show scroll offset, -1 when none is set.
+func explicitOff(off *int) int {
+	if off == nil {
+		return -1
+	}
+	return *off
 }
 
 func TestShowFileBackedBodyAndContextDetailWrap(t *testing.T) {
@@ -181,12 +191,63 @@ func TestShowFileBackedBodyAndContextDetailWrap(t *testing.T) {
 // top), and the offset stays put while the card is inside the padded window.
 func TestShowRelatedFocusFollowPadding(t *testing.T) {
 	a, d := demo(t)
+	openRelatedHub(t, a, d, 30)
+	walkScrollFollow(t, a, d, "show.related")
+}
+
+// TestShowExplicitScrollThenFocusMoveKeepsView: after scrolling the related
+// column with the scroll keys, moving focus continues from the scrolled
+// offset (no snap back): the view moves only as far as the padded reveal of
+// the newly focused card needs.
+func TestShowExplicitScrollThenFocusMoveKeepsView(t *testing.T) {
+	a, d := demo(t)
+	openRelatedHub(t, a, d, 30)
+	// Walk into the column until it has scrolled once.
+	var info layout.ScrollInfo
+	for range 40 {
+		d.Keys("j")
+		d.Frame()
+		info = a.State().Layout.Scrolls["show.related"]
+		if _, in := info.ChildRects[a.Focus()]; in && info.Offset > 0 {
+			break
+		}
+	}
+	if info.Offset == 0 {
+		t.Fatal("related column never scrolled")
+	}
+	d.Keys("ctrl+e", "ctrl+e", "ctrl+e")
+	d.Frame()
+	explicit := explicitOff(a.nav.showRelatedOff)
+	if info = a.State().Layout.Scrolls["show.related"]; explicit <= 0 || info.Offset != explicit {
+		t.Fatalf("ctrl+e should scroll the column explicitly: explicit=%d drawn=%d", explicit, info.Offset)
+	}
+	d.Keys("j")
+	if a.nav.showRelatedOff != nil {
+		t.Fatalf("a focus move should drop the explicit offset, got %d", explicitOff(a.nav.showRelatedOff))
+	}
+	d.Frame()
+	info = a.State().Layout.Scrolls["show.related"]
+	span, ok := scrollSpanOf(info, a.Focus())
+	if !ok {
+		t.Fatalf("focused card %q not in show.related", a.Focus())
+	}
+	want := traits.ScrollReveal(traits.ScrollState{OffsetY: explicit, ContentH: info.MaxOff + info.ViewH, ViewH: info.ViewH},
+		traits.ScrollConfig{ScrollOff: a.scrollOff()}, span).OffsetY
+	if info.Offset != want || info.Offset < explicit {
+		t.Fatalf("j after ctrl+e: offset %d, want %d (continuing from explicit %d)", info.Offset, want, explicit)
+	}
+}
+
+// openRelatedHub creates a hub note with n related notes and opens its Show
+// page.
+func openRelatedHub(t *testing.T, a *App, d *Driver, n int) {
+	t.Helper()
 	hub, _, err := a.Store.Create(data.CreateInput{Kind: data.KindNote, ID: "hub-note",
 		Fields: map[string]any{"title": "Hub note"}}, User)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := range 30 {
+	for i := range n {
 		n, _, err := a.Store.Create(data.CreateInput{Kind: data.KindNote, ID: fmt.Sprintf("rel-%02d", i),
 			Fields: map[string]any{"title": fmt.Sprintf("Related note %02d", i)}}, User)
 		if err != nil {
@@ -199,63 +260,4 @@ func TestShowRelatedFocusFollowPadding(t *testing.T) {
 	d.Send(core.CommandEvent{Command: core.Command{ID: "record.open",
 		Args: map[string]any{"ref": map[string]any{"kind": hub.Kind, "id": hub.ID}}, Source: "test", Actor: User}})
 	d.Frame()
-
-	pad := a.scrollOff()
-	type geo struct{ off, top, bottom, viewH, maxOff int }
-	look := func() (geo, bool) {
-		d.Frame()
-		info, ok := a.State().Layout.Scrolls["show.related"]
-		r, inside := info.ChildRects[a.Focus()]
-		if !ok || !inside {
-			return geo{}, false
-		}
-		return geo{info.Offset, r.Y, r.Y + r.H, info.ViewH, info.MaxOff}, true
-	}
-	check := func(step string, g geo) {
-		t.Helper()
-		p := min(pad, max(0, (g.viewH-(g.bottom-g.top))/2))
-		if g.off < g.maxOff && g.off+g.viewH-g.bottom < p {
-			t.Fatalf("%s: focused card bottom %d is %d rows from viewport bottom %d, want >= %d", step, g.bottom, g.off+g.viewH-g.bottom, g.off+g.viewH, p)
-		}
-		if g.off > 0 && g.top-g.off < p {
-			t.Fatalf("%s: focused card top %d is %d rows from viewport top %d, want >= %d", step, g.top, g.top-g.off, g.off, p)
-		}
-	}
-
-	var last geo
-	scrolledDown := false
-	for i := range 40 {
-		d.Keys("j")
-		g, ok := look()
-		if !ok {
-			continue
-		}
-		check(fmt.Sprintf("j #%d", i+1), g)
-		last = g
-		if g.off > 0 {
-			scrolledDown = true
-		}
-		if scrolledDown && g.off < g.maxOff && g.bottom > 2*g.viewH {
-			break
-		}
-	}
-	if !scrolledDown {
-		t.Fatalf("related column never scrolled; content too short for the test (last %+v)", last)
-	}
-	// Moving back up: the offset must not change while the focused card is
-	// still inside the padded window, and near the top the top edge is padded.
-	for i := range 40 {
-		prev := last
-		d.Keys("k")
-		g, ok := look()
-		if !ok {
-			break
-		}
-		check(fmt.Sprintf("k #%d", i+1), g)
-		p := min(pad, max(0, (g.viewH-(g.bottom-g.top))/2))
-		if g.top-prev.off >= p && g.off != prev.off {
-			t.Fatalf("k #%d: offset moved %d -> %d although card top %d was inside the padded window", i+1, prev.off, g.off, g.top)
-		}
-		last = g
-	}
 }

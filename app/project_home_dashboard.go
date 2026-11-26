@@ -135,8 +135,12 @@ func (a *App) buildProjectHomeSection(ws projectWorkspaceData, interactive bool)
 	counts2 := fmt.Sprintf("Docs: %d · Notes: %d · Questions: %d (%d open) · Commands: %d · Worktrees: %d",
 		len(ws.documents), len(ws.notes), len(ws.questions), ws.openQuestions, len(ws.commands), len(ws.worktrees))
 
+	scrollKey := ""
+	if ws.projRec != nil {
+		scrollKey = data.RefText(ws.projRec.Ref())
+	}
 	return views.ProjectHomeView(views.ProjectHomeSpec{
-		Title: "Home", Description: desc, Meta: meta,
+		Title: "Home", Description: desc, Meta: meta, ScrollKey: scrollKey,
 		CountsLine1: counts1, CountsLine2: counts2,
 		Badges: badges, Groups: groups,
 		Interactive: interactive, ProjectUnread: ws.unreadTotal > 0,

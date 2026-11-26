@@ -243,6 +243,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		initial.ActivePage = start
 	}
 	a.Shell = otea.New(a.Engine, initial, a.View, theme)
+	a.applyRendererSettings()
 	a.initSessionRecorder()
 	a.Shell.MaxFPS = a.cfg.Settings.Int("maxFPS", otea.DefaultMaxFPS)
 	a.Shell.DisableMouse = !a.cfg.Settings.Bool("mouse", true)

@@ -329,6 +329,7 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 		tocBody = ui.ViewNode{
 			ID:       "site.toc.scroll",
 			Kind:     ui.KindScroll,
+			Props:    map[string]any{"scrollKey": data.RefText(paneRef)},
 			Children: []ui.ViewNode{tocBody},
 		}
 	}

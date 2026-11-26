@@ -43,10 +43,8 @@ type NavController struct {
 	history             []historyEntry
 	histPos             int
 	showScrollRef       core.Ref
-	showRelatedOff      int
-	showPropsOff        int
-	showRelatedSet      bool // showRelatedOff is known and passed to the view, even at 0
-	showPropsSet        bool // showPropsOff is known and passed to the view, even at 0
+	showRelatedOff      *int // explicit offset while the user scrolls show.related; nil: the renderer follows focus
+	showPropsOff        *int // explicit offset while the user scrolls show.props.scroll; nil: the renderer follows focus
 	jumps               []jumpEntry
 	jumpPos             int
 	jumping             bool
@@ -348,9 +346,8 @@ func (a *App) resetShowScroll(ref core.Ref) {
 	if a.nav == nil {
 		return
 	}
-	if a.nav.showScrollRef != ref || a.nav.showRelatedOff != 0 || a.nav.showPropsOff != 0 || a.nav.showRelatedSet || a.nav.showPropsSet {
+	if cleared := a.clearShowScroll(); cleared || a.nav.showScrollRef != ref {
 		a.nav.showScrollRef = ref
-		a.clearShowScroll(true, true)
 		a.viewMemo.gen++
 	}
 }
@@ -366,10 +363,10 @@ func (a *App) showScrollMotion(s core.State, c core.Command) (core.StepResult, b
 	if inProps {
 		scrollID = "show.props.scroll"
 	}
-	offPtr, setPtr := a.showScrollSlot(scrollID)
+	slot := a.showScrollSlot(scrollID)
 	if a.nav.showScrollRef != ref {
 		a.nav.showScrollRef = ref
-		a.clearShowScroll(true, true)
+		a.clearShowScroll()
 	}
 	info, hasInfo := s.Layout.Scrolls[scrollID]
 	explicitScroll := c.ID == "motion.scroll.down" || c.ID == "motion.scroll.up"
@@ -382,14 +379,18 @@ func (a *App) showScrollMotion(s core.State, c core.Command) (core.StepResult, b
 			return core.StepResult{}, false
 		}
 	}
-	cur := *offPtr
-	if hasInfo && cur == 0 && info.Offset > 0 {
+	// Step from the explicit offset while scrolling, else from where the
+	// renderer last drew the column.
+	cur := 0
+	if *slot != nil {
+		cur = **slot
+	} else if hasInfo {
 		cur = info.Offset
 	}
 	next, _, _ := traits.ScrollStep(scrollStateFromInfo(cur, info, hasInfo), a.scrollConfig(), c)
-	cur = next.OffsetY
-	if *offPtr != cur || !*setPtr {
-		*offPtr, *setPtr = cur, true
+	if *slot == nil || **slot != next.OffsetY {
+		off := next.OffsetY
+		*slot = &off
 		a.viewMemo.gen++
 	}
 	return core.Next(s), true
@@ -463,8 +464,10 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 	case "motion.bottom":
 		s = a.edge(s, true)
 	}
-	if nextFocus := s.ActiveFrame().FocusID; nextFocus != focus && a.nav != nil {
-		a.showFollowFocus(s, nextFocus)
+	// A focus move ends explicit Show scrolling: the renderer continues from
+	// the drawn offset and reveals the new focus with ui.scrolloff padding.
+	if s.ActiveFrame().FocusID != focus && a.nav != nil && a.clearShowScroll() {
+		a.viewMemo.gen++
 	}
 	return core.Next(s)
 }

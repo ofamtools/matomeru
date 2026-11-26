@@ -1,9 +1,9 @@
 package app
 
 import (
-	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/traits"
+	"ofam.dev/ochazuke/ui"
 )
 
 // scrollPageOverlap is the number of rows a page step (ctrl+f / ctrl+b)
@@ -59,29 +59,17 @@ func scrollSpanOf(info layout.ScrollInfo, id string) (traits.ItemSpan, bool) {
 	return traits.ItemSpan{}, false
 }
 
-// enclosingScroll returns the innermost laid-out scroll container whose
-// content holds id (from the previous frame's layout).
-func enclosingScroll(s core.State, id string) (string, layout.ScrollInfo, bool) {
-	best := ""
-	var bestInfo layout.ScrollInfo
-	for sid, info := range s.Layout.Scrolls {
-		if _, ok := info.ChildRects[id]; !ok {
-			continue
-		}
-		if _, inner := bestInfo.ChildRects[sid]; best == "" || inner {
-			best, bestInfo = sid, info
-		}
+// applyRendererSettings configures the shell renderer's scroll follow from
+// the settings: ui.scrolloff padding for every KindScroll container that
+// follows focus, and nav.scrollFollowTrait=false restoring the stateless
+// flush-to-bottom follow. Called at startup and whenever settings change.
+func (a *App) applyRendererSettings() {
+	if a.Shell == nil {
+		return
 	}
-	return best, bestInfo, best != ""
-}
-
-// scrollFollowOffset returns the offset that keeps child id of info visible
-// starting from off, under the shared scroll config (ui.scrolloff padding,
-// measured from the item's near edge; tall items align to their top).
-func (a *App) scrollFollowOffset(off int, info layout.ScrollInfo, id string) int {
-	span, ok := scrollSpanOf(info, id)
-	if !ok {
-		return off
+	if a.Shell.Renderer == nil {
+		a.Shell.Renderer = ui.NewRenderer(ui.DefaultCacheEntries)
 	}
-	return traits.ScrollReveal(scrollStateFromInfo(off, info, true), a.scrollConfig(), span).OffsetY
+	a.Shell.Renderer.ScrollOff = a.scrollOff()
+	a.Shell.Renderer.StatelessScrollFollow = a.cfg.Settings != nil && !a.cfg.Settings.Bool(SetScrollFollowTrait, true)
 }

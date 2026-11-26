@@ -729,8 +729,9 @@ func TestShowViewDeclarativeFormatsAndResolvedFiles(t *testing.T) {
 	diskBody := "# Plan from disk\n\n- Step 1\n- Step 2"
 	docOpts := DefaultShowOptions()
 	docOpts.ResolvedFiles = map[string]string{"filePath": diskBody}
-	docOpts.RelatedScrollOffset = 4
-	docOpts.PropsScrollOffset = 2
+	relOff, propsOff := 4, 2
+	docOpts.RelatedScrollOffset = &relOff
+	docOpts.PropsScrollOffset = &propsOff
 	docRoot, err := ShowViewWith(w.store, docRec.Ref(), "show.header", docOpts)
 	if err != nil {
 		t.Fatal(err)

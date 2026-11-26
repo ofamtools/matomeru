@@ -62,6 +62,9 @@ type ProjectHomeSpec struct {
 	ProjectUnread bool
 	EmptyFallback string
 	Facts         map[string]any
+	// ScrollKey is the content identity of the home scroll (the project), so
+	// the renderer drops a remembered offset when the project changes.
+	ScrollKey string
 }
 
 // ProjectHomeView renders the Project Page Home dashboard as a pure ViewNode
@@ -174,8 +177,9 @@ func ProjectHomeView(spec ProjectHomeSpec) ui.ViewNode {
 		Facts:  panelFacts,
 		Children: []ui.ViewNode{
 			{
-				ID:   ProjectHomeScrollID,
-				Kind: ui.KindScroll,
+				ID:    ProjectHomeScrollID,
+				Kind:  ui.KindScroll,
+				Props: map[string]any{"scrollKey": spec.ScrollKey},
 				Children: []ui.ViewNode{
 					{
 						ID:       "project.home.list",

@@ -159,8 +159,8 @@ func (a *App) viewKey(s core.State) string {
 	if ss := a.chromeSysStatsKey(); ss != "" {
 		b.WriteString("|sys:" + ss)
 	}
-	if a.nav != nil && (a.nav.showRelatedOff > 0 || a.nav.showPropsOff > 0 || a.nav.showRelatedSet || a.nav.showPropsSet) {
-		fmt.Fprintf(&b, "|ss:%s:%d:%d:%t:%t", data.RefText(a.nav.showScrollRef), a.nav.showRelatedOff, a.nav.showPropsOff, a.nav.showRelatedSet, a.nav.showPropsSet)
+	if a.nav != nil && (a.nav.showRelatedOff != nil || a.nav.showPropsOff != nil) {
+		fmt.Fprintf(&b, "|ss:%s:%s:%s", data.RefText(a.nav.showScrollRef), showScrollOffsetText(a.nav.showRelatedOff), showScrollOffsetText(a.nav.showPropsOff))
 	}
 	if f, fid := a.activeFilterable(s); f != nil && (f.IsFiltered() || a.Engine.Mode(s) == ModeFilter) {
 		fmt.Fprintf(&b, "|flt:%s:%q:%s", fid, f.FilterQuery(), f.FilterMode())
@@ -747,8 +747,6 @@ func (a *App) showOptionsFor(ref core.Ref) views.ShowOptions {
 	if a.nav != nil && a.nav.showScrollRef == ref {
 		opts.RelatedScrollOffset = a.nav.showRelatedOff
 		opts.PropsScrollOffset = a.nav.showPropsOff
-		opts.RelatedScrollSet = a.nav.showRelatedSet
-		opts.PropsScrollSet = a.nav.showPropsSet
 	}
 	if opts.ShowContent && a.Store != nil {
 		if rec, err := a.Store.Get(ref); err == nil && rec != nil {
@@ -865,7 +863,7 @@ func (a *App) detail(sp spaceDef, schema data.Schema, rec data.Record) ui.ViewNo
 	body := append([]ui.ViewNode{props}, long...)
 	return ui.ViewNode{ID: sp.id + ".detail", Kind: ui.KindPanel, Border: true, Title: views.Title(schema, rec),
 		Badges:   views.StatusBadges(schema, rec),
-		Children: []ui.ViewNode{{ID: sp.id + ".detail.scroll", Kind: ui.KindScroll, Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: body}}}}}
+		Children: []ui.ViewNode{{ID: sp.id + ".detail.scroll", Kind: ui.KindScroll, Props: map[string]any{"scrollKey": data.RefText(rec.Ref())}, Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: body}}}}}
 }
 
 // --- overlays -------------------------------------------------------------------

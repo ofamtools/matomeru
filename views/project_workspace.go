@@ -163,8 +163,9 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 		Facts:  navFacts,
 		Children: []ui.ViewNode{
 			{
-				ID:   "project.nav.scroll",
-				Kind: ui.KindScroll,
+				ID:    "project.nav.scroll",
+				Kind:  ui.KindScroll,
+				Props: map[string]any{"scrollKey": spec.ProjectID},
 				Children: []ui.ViewNode{
 					{
 						ID:       "project.nav.list",
