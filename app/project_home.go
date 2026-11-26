@@ -289,7 +289,6 @@ func projectHomeBindings() []core.Binding {
 		hidden(when(bind(n, views.ScopeProjectNav, "*", CmdProjectContextStar, "star context item"), "facts.contextItem")),
 		when(bind(n, views.ScopeProjectContent, "N", CmdContextAddOfficial, "add official context"), "facts.section == \"context\" || facts.section == \"pinned\" || facts.contextItem"),
 		hidden(bind(n, ScopeProjectOverview, "N", CmdContextAddOfficial, "add official context")),
-		hidden(bind(n, SpacePanes, "P", CmdProjectPageOpen, "project page")),
 		bind(n, views.ScopeProjectNav, "g s", CmdProjectSectionPick, "jump to section"),
 		bind(n, views.ScopeProjectContent, "g s", CmdProjectSectionPick, "jump to section"),
 	}, projectHomeDashboardBindings()...)

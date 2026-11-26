@@ -172,6 +172,7 @@ type App struct {
 	Shell           *otea.Shell
 	Warnings        []string
 	opts            Options
+	noteDeck        *data.NoteDeckStore
 	status          string
 	effects         []core.Effect
 	modals          *modal.Stack
@@ -797,6 +798,9 @@ func (a *App) register() {
 	a.handle(CmdTaskSplit, a.taskSplit)
 	a.handle(CmdTaskJoin, a.taskJoin)
 	a.registerProjectHomeHandlers()
+	a.registerProjectPortalHandlers()
+	a.registerNoteDeckHandlers()
+	a.initNoteDeck()
 	a.registerProjectTabsHandlers()
 	a.registerFeaturesPageHandlers()
 	a.registerComposerContextHandlers()

@@ -546,6 +546,8 @@ func DefaultSchemas() *Registry {
 				{Name: "defaultDir", Type: core.ParamPath, Description: "default directory; empty uses the parent's"},
 				str("repo", "repository; empty uses the parent's"),
 				str("defaultHarness", "default agent harness; empty uses the parent's"),
+				str("projectTheme", "optional theme override for this project portal"),
+				{Name: "defaultContextMd", Type: core.ParamString, Role: FieldRoleBody, ShowFormat: ShowFormatMarkdown, Description: "editable default context Markdown prose auto-injected into agent panes for this project"},
 				{Name: "order", Type: core.ParamInt, Description: "sibling sort order in the task outline"},
 				{Name: "forAgent", Type: core.ParamBool, Default: false, Description: "flagged for agent queue pickup"},
 				statusField(agentStatus, "agent workflow state for this task"),

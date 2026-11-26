@@ -13,7 +13,7 @@ import (
 
 func TestUXNoteCaptureFreezesContextAndPiles22Notes(t *testing.T) {
 	dataDir := filepath.Join(t.TempDir(), "mtm-data")
-	a, d := newRecorderTestApp(t, nil, dataDir)
+	a, d := newRecorderTestApp(t, map[string]any{SetPagedNoteComposer: false}, dataDir)
 
 	if !a.cfg.Settings.Bool(SetSessionUXNotes, false) {
 		t.Fatalf("expected %s default true", SetSessionUXNotes)
@@ -105,7 +105,8 @@ func TestUXNoteCaptureFreezesContextAndPiles22Notes(t *testing.T) {
 func TestUXNoteCaptureAcrossModesAndNestedModals(t *testing.T) {
 	dataDir := filepath.Join(t.TempDir(), "mtm-data")
 	a, d := newRecorderTestApp(t, map[string]any{
-		SetSessionRecord: false, // passive recording paused: notes must still capture!
+		SetPagedNoteComposer: false,
+		SetSessionRecord:     false, // passive recording paused: notes must still capture!
 	}, dataDir)
 
 	// 1. Inside filter mode
@@ -173,7 +174,7 @@ func TestUXNoteCaptureAcrossModesAndNestedModals(t *testing.T) {
 
 func TestUXNotesOptOutListAndSandboxOpen(t *testing.T) {
 	// Opt-out setting disables alt+n cleanly.
-	aOff, dOff := newRecorderTestApp(t, map[string]any{SetSessionUXNotes: false}, "")
+	aOff, dOff := newRecorderTestApp(t, map[string]any{SetPagedNoteComposer: false, SetSessionUXNotes: false}, "")
 	dOff.Keys("alt+n")
 	if aOff.Modal() != "" {
 		t.Fatalf("expected alt+n disabled when session.uxNotes=false, got modal %q", aOff.Modal())
@@ -184,7 +185,7 @@ func TestUXNotesOptOutListAndSandboxOpen(t *testing.T) {
 
 	// Enabled: capture a note, open session.note.list, and open session.sandbox.open.
 	dataDir := filepath.Join(t.TempDir(), "mtm-data")
-	a, d := newRecorderTestApp(t, nil, dataDir)
+	a, d := newRecorderTestApp(t, map[string]any{SetPagedNoteComposer: false}, dataDir)
 	d.Keys("alt+n")
 	d.Type("Inspect list and sandbox open")
 	d.Keys("enter")

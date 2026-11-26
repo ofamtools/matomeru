@@ -5,6 +5,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -137,27 +138,42 @@ func (a *App) attachTaskThreadNodes(nodes []tree.Node, threads map[string][]data
 				if authorKind == "" {
 					authorKind = "owner"
 				}
-				iconTone := "muted"
-				if authorKind == "agent" {
+				icon := "●"
+				iconTone := "info"
+				gutterTone := "muted"
+				switch authorKind {
+				case "agent":
+					icon = "◆"
 					iconTone = "accent"
+					gutterTone = "accent"
+				case "system":
+					icon = "·"
+					iconTone = "muted"
 				}
 				var badges []ui.Badge
 				if authorKind == "agent" && strings.TrimSpace(note.Text("readAt")) == "" {
-					badges = append(badges, ui.Badge{Text: "new", Tone: "warning"})
+					badges = append(badges, ui.Badge{Text: "● new", Tone: "warning"})
 				}
 				if v, ok := note.Value("attachments"); ok {
 					if atts := data.DecodeAttachments(v); len(atts) > 0 {
 						badges = append(badges, ui.Badge{Text: fmt.Sprintf("📎 %d", len(atts)), Tone: "info"})
 					}
 				}
+				var meta []ui.TreeMeta
+				if !note.CreatedAt.IsZero() {
+					meta = append(meta, ui.TreeMeta{Text: formatRelativeTimeShort(note.CreatedAt, a.now()), Tone: "muted"})
+				}
 				noteNodes = append(noteNodes, tree.Node{
-					ID:       threadNoteIDPrefix + note.ID,
-					Scope:    data.KindNote,
-					Ref:      &noteRef,
-					Icon:     "↳",
-					IconTone: iconTone,
-					Label:    formatThreadNoteLabel(note),
-					Badges:   badges,
+					ID:         threadNoteIDPrefix + note.ID,
+					Scope:      data.KindNote,
+					Ref:        &noteRef,
+					Gutter:     "│",
+					GutterTone: gutterTone,
+					Icon:       icon,
+					IconTone:   iconTone,
+					Label:      formatThreadNoteLabel(note),
+					Badges:     badges,
+					Meta:       meta,
 					Facts: map[string]any{
 						"isThreadNote": true,
 						"parentTaskID": ns[i].ID,
@@ -169,6 +185,26 @@ func (a *App) attachTaskThreadNodes(nodes []tree.Node, threads map[string][]data
 		}
 	}
 	walk(nodes)
+}
+
+func formatRelativeTimeShort(t, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	d := now.Sub(t)
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	}
 }
 
 func formatThreadNoteLabel(note data.Record) string {
