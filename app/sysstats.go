@@ -47,6 +47,8 @@ type sysStatsSampler struct {
 
 	snap         atomic.Pointer[SysStats]
 	started      atomic.Bool
+	paused       atomic.Bool
+	resume       chan struct{}
 	done         chan struct{}
 	lastRendered string
 }
@@ -69,12 +71,27 @@ func newSysStatsSampler(diskPath string, interval time.Duration, onUpdate func()
 		interval: interval,
 		onUpdate: onUpdate,
 		reader:   newPlatformSysStatsReader(),
+		resume:   make(chan struct{}, 1),
 		done:     make(chan struct{}),
 	}
 }
 
+// SetPaused stops (true) or resumes (false) sampling. A paused sampler reads
+// nothing, starts no subprocess and never calls onUpdate; resuming samples at
+// once so the chrome does not wait a full interval. Safe from any goroutine.
+func (s *sysStatsSampler) SetPaused(paused bool) {
+	if s == nil || s.paused.Swap(paused) == paused || paused {
+		return
+	}
+	select {
+	case s.resume <- struct{}{}:
+	default:
+	}
+}
+
 // Start launches the background sampling loop once. It takes an initial sample
-// asynchronously and then ticks every interval until ctx is cancelled.
+// asynchronously and then ticks every interval until ctx is cancelled. While
+// the sampler is paused the loop only waits.
 func (s *sysStatsSampler) Start(ctx context.Context) {
 	if s == nil || !s.started.CompareAndSwap(false, true) {
 		return
@@ -92,14 +109,15 @@ func (s *sysStatsSampler) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				s.sampleOnce(ctx)
+			case <-s.resume:
 			}
+			s.sampleOnce(ctx)
 		}
 	}()
 }
 
 func (s *sysStatsSampler) sampleOnce(ctx context.Context) {
-	if ctx.Err() != nil || s.reader == nil {
+	if ctx.Err() != nil || s.reader == nil || s.paused.Load() {
 		return
 	}
 	st := s.reader.Read(ctx, s.diskPath)
@@ -335,6 +353,30 @@ func cpuBusyPercent(prev, cur cpuTicks) float64 {
 		return 0
 	}
 	return clampPct(100 * float64(total-idle) / float64(total))
+}
+
+// Subprocess readings on macOS (`ps -A`, `vm_stat`) are kept for a while
+// instead of being taken on every sample: memory use moves slowly, and the
+// machine's CPU reading is only taken again early when the load average, which
+// costs no subprocess to read, says the load moved.
+const (
+	sysRAMSampleTTL    = 10 * time.Second
+	sysCPUSampleMinTTL = 6 * time.Second
+	sysCPUSampleMaxTTL = 30 * time.Second
+	sysCPULoadDelta    = 0.25 // 1-minute load average change that counts as "moved"
+)
+
+// sysCPUSampleDue reports whether a machine CPU reading taken age ago, when
+// the 1-minute load average was loadThen, should be taken again now that it is
+// loadNow. Without a load average (haveLoad false) it is due at the minimum age.
+func sysCPUSampleDue(age time.Duration, loadThen, loadNow float64, haveLoad bool) bool {
+	switch {
+	case age < sysCPUSampleMinTTL:
+		return false
+	case !haveLoad || age >= sysCPUSampleMaxTTL:
+		return true
+	}
+	return math.Abs(loadNow-loadThen) >= sysCPULoadDelta
 }
 
 // parseDarwinPSCPU parses `ps -A -o %cpu=` output into whole-machine busy CPU %

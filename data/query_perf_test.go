@@ -343,3 +343,70 @@ func TestQueryPerfMaxChangeSetAndEdgeCases(t *testing.T) {
 		t.Fatalf("Query with local override on task = %+v err=%v, want [roCtx]", gotLocal.Items, err)
 	}
 }
+
+func TestQueryChangedSinceDeltaAndPlans(t *testing.T) {
+	s, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	owner := core.Actor{Kind: "user", ID: "owner"}
+	mk := func(kind, title string) *Record {
+		t.Helper()
+		rec, _, err := s.Create(CreateInput{Kind: kind, Fields: map[string]any{"title": title, "value": title}}, owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rec
+	}
+	a, b := mk(KindContext, "a"), mk(KindContext, "b")
+	mk(KindTask, "noise")
+	base, _ := s.LatestChangeSetNumber()
+
+	if got, err := s.QueryChangedSince(KindContext, base, true); err != nil || len(got) != 0 {
+		t.Fatalf("no writes since %d: got %d records, err %v", base, len(got), err)
+	}
+
+	// One new record, one patched, one archived: the delta is exactly those.
+	c := mk(KindContext, "c")
+	if _, _, err := s.Patch(PatchInput{Ref: a.Ref(), Fields: map[string]any{"title": "a2"}}, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Archive(b.Ref(), owner); err != nil {
+		t.Fatal(err)
+	}
+	mk(KindTask, "more noise")
+	ids := func(recs []Record) string {
+		var out []string
+		for _, r := range recs {
+			out = append(out, r.ID)
+		}
+		return strings.Join(out, ",")
+	}
+	all, err := s.QueryChangedSince(KindContext, base, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ids(all), strings.Join([]string{c.ID, a.ID, b.ID}, ","); got != want {
+		t.Fatalf("delta with archived = %s, want %s (oldest change first)", got, want)
+	}
+	if all[1].Text("title") != "a2" || !all[2].IsArchived() {
+		t.Fatalf("delta records are stale: %+v", all)
+	}
+	active, err := s.QueryChangedSince(KindContext, base, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := ids(active), c.ID+","+a.ID; got != want {
+		t.Fatalf("active delta = %s, want %s", got, want)
+	}
+
+	plan := explainPlan(t, s, "SELECT "+recordCols+" FROM records WHERE kind = ? AND change_set > ? ORDER BY change_set, seq", KindContext, base)
+	if !strings.Contains(plan, "idx_records_kind_changeset") || strings.Contains(plan, "TEMP B-TREE") {
+		t.Fatalf("QueryChangedSince must walk idx_records_kind_changeset with no sort, got:\n%s", plan)
+	}
+	plan = explainPlan(t, s, "SELECT "+recordCols+" FROM records WHERE kind = ? AND archive_status = ? ORDER BY updated_at DESC", KindContext, ArchiveActive)
+	if !strings.Contains(plan, "records_kind_archive_updated") || strings.Contains(plan, "TEMP B-TREE") {
+		t.Fatalf("newest-first listing must use records_kind_archive_updated with no USE TEMP B-TREE FOR ORDER BY, got:\n%s", plan)
+	}
+}

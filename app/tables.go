@@ -177,7 +177,7 @@ func (a *App) rail() *table.Model {
 		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
 			key := fmt.Sprintf("%d|%d|%t|%s|%t|%s|%t|%t|%s",
 				rev,
-				a.rt.live.telemetrySeq.Load(),
+				a.telemetryViewSeq(),
 				a.nav.showArchived,
 				a.panesGroupMode(),
 				a.panes.railGroupSet,

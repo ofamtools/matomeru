@@ -260,6 +260,20 @@ func (h *LocalHost) Resize(id string, cols, rows int) error {
 	return nil
 }
 
+// ExitStatus reports whether the session's process has exited, and its exit
+// code, without rendering or copying the screen. Unlike Snapshot it does not
+// count as reading the session, so it leaves the Changes feed as it is. It
+// reports ok false for an unknown id.
+func (h *LocalHost) ExitStatus(id string) (exited bool, code int, ok bool) {
+	s, err := h.get(id)
+	if err != nil {
+		return false, 0, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.exited, s.code, true
+}
+
 // Snapshot implements Host. Rendered frames are cached per session revision so
 // repeated Snapshot calls between PTY writes do zero ANSI rendering or cell scans.
 func (h *LocalHost) Snapshot(id string) (Frame, bool) {

@@ -298,6 +298,51 @@ func TestSysStatsSamplerLifecycleAndDedup(t *testing.T) {
 	}
 }
 
+// A paused sampler (ui.chromeSystemStats off) reads nothing and wakes nobody;
+// resuming samples at once.
+func TestSysStatsSamplerPausedReadsNothing(t *testing.T) {
+	reader := &stubSysStatsReader{samples: []SysStats{{Ready: true, SysCPUPct: 20, HasSysCPU: true}}}
+	calls := func() int {
+		reader.mu.Lock()
+		defer reader.mu.Unlock()
+		return reader.calls
+	}
+	var updates atomic.Int32
+	sampler := newSysStatsSampler("/", 2*time.Millisecond, func() { updates.Add(1) })
+	sampler.reader = reader
+	sampler.SetPaused(true)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sampler.Start(ctx)
+	time.Sleep(40 * time.Millisecond)
+	if calls() != 0 || updates.Load() != 0 {
+		t.Fatalf("paused sampler read %d times and notified %d times, want 0 and 0", calls(), updates.Load())
+	}
+	sampler.SetPaused(false)
+	eventually(t, "a resumed sampler samples", func() bool { return calls() > 0 && updates.Load() == 1 })
+}
+
+func TestSysCPUSampleCadence(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		age      time.Duration
+		then, at float64
+		haveLoad bool
+		want     bool
+	}{
+		{"fresh reading is kept even when load jumps", sysCPUSampleMinTTL - time.Second, 1, 5, true, false},
+		{"steady load keeps the reading", sysCPUSampleMinTTL + time.Second, 2.0, 2.1, true, false},
+		{"moved load takes a new reading", sysCPUSampleMinTTL + time.Second, 2.0, 2.0 + sysCPULoadDelta, true, true},
+		{"falling load counts as moved", sysCPUSampleMinTTL + time.Second, 2.0, 1.5, true, true},
+		{"old reading is retaken on steady load", sysCPUSampleMaxTTL, 2.0, 2.0, true, true},
+		{"without a load average the minimum age decides", sysCPUSampleMinTTL, 0, 0, false, true},
+	} {
+		if got := sysCPUSampleDue(tc.age, tc.then, tc.at, tc.haveLoad); got != tc.want {
+			t.Errorf("%s: due = %t, want %t", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestSysStatsLivePlatformSample(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		t.Skip("live reader test runs on darwin/linux")

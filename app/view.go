@@ -38,6 +38,8 @@ func clip(s string, w int) string {
 // View builds the whole screen for a state. It is rebuilt only when the
 // state or the app's data changed since the last call.
 func (a *App) View(s core.State) ui.ViewNode {
+	a.syncLiveView(s)
+	defer a.syncShownPanes(s)
 	if a.focusHintsActive() {
 		return a.build(s)
 	}
@@ -106,10 +108,7 @@ func (a *App) tabsMemoKey(s core.State) string {
 	if a.Store != nil {
 		rev, _ = a.Store.LatestChangeSetNumber()
 	}
-	var telSeq uint64
-	if a.rt != nil {
-		telSeq = a.rt.live.telemetrySeq.Load()
-	}
+	telSeq := a.telemetryViewSeq()
 	f := s.Pages[s.ActivePage]
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d|%d|%d|%s|%s|%s|%t|", a.viewMemo.gen, rev, telSeq, s.ActivePage, f.FocusID, f.Mode, a.nav.showArchived)
