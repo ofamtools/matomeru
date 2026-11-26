@@ -477,7 +477,6 @@ var specialCaseCeilings = map[string]int{
 	"app/ux_notes.go":               1,
 	"app/v2.go":                     9,
 	"app/view_cycle.go":             2,
-	"app/zero_field.go":             2,
 }
 
 // TestNoSpecialCaseConditionals is the shrink-only ratchet on per-noun

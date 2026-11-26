@@ -1,10 +1,10 @@
 package app
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"ofam.dev/matomeru/data"
@@ -28,11 +28,6 @@ const (
 	CmdPresetSave  = "preset.save"
 	CmdPresetApply = "preset.apply"
 	CmdPresetList  = "preset.list"
-)
-
-var (
-	zfValueHints = []string{"q", "w", "r", "y", "u", "i", "o", "p", "h", "j", "k", "l"}
-	zfFieldChars = []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p"}
 )
 
 func (a *App) zeroFieldQueryDefaultEnabled() bool {
@@ -115,97 +110,97 @@ func (a *App) openZeroFieldModal(s core.State, startMode string) core.StepResult
 	kind := a.kindOfTable(tableID)
 	schema := a.schema(kind)
 	records := a.tableCandidates(kind)
-	spec := a.zeroFieldSpecs[tableID]
-	spec.GroupBy = tbl.GroupField
-	spec.SortBy = tbl.SortField
-	switch tbl.SortDir {
-	case table.SortDesc:
-		spec.SortDir = "desc"
-	case table.SortAsc:
-		spec.SortDir = "asc"
-	default:
-		spec.SortDir = ""
+	refs := a.Store.ResolveRefsFor(data.QueryRefs(schema, records))
+	refs.Presentations = a.presentations()
+	m := &zeroFieldModal{
+		a:       a,
+		tableID: tableID,
+		kind:    kind,
+		schema:  schema,
+		records: records,
+		fields:  data.SchemaFieldDefs(schema),
+		labels:  data.NewClauseLabels(schema, records, refs),
 	}
-	m := newZeroFieldModal(a, tableID, kind, schema, records, startMode, spec)
-	a.say("zero-field %s · hint chords edit chips · S saves preset · esc applies", startMode)
+	m.draft = data.NewQueryDraft(startMode, tableQuerySpec(tbl, a.zeroFieldSpecs[tableID]), m.fields)
+	a.say("zero-field %s · hint keys edit chips · S saves preset · esc applies", m.draft.Mode)
 	return core.Next(a.pushModal(s, m))
 }
 
+// tableQuerySpec is the query a table shows: the filter last applied to
+// it, with the group and sort the table holds now.
+func tableQuerySpec(tbl *table.Model, applied data.QuerySpec) data.QuerySpec {
+	q := applied
+	q.GroupBy, q.GroupSortDir = tbl.GroupField, ""
+	q.SortBy, q.SortDir = tbl.SortField, sortDirText(tbl.SortDir)
+	if keys := tbl.SortKeys; len(keys) == 2 && tbl.GroupField != "" && keys[0].Field == tbl.GroupField {
+		q.GroupSortDir = sortDirText(keys[0].Dir)
+		q.SortBy, q.SortDir = keys[1].Field, sortDirText(keys[1].Dir)
+	}
+	if q.SortBy == "" {
+		q.SortDir = ""
+	}
+	return q
+}
+
+func sortDirText(dir table.SortDir) string {
+	switch dir {
+	case table.SortDesc:
+		return "desc"
+	case table.SortAsc:
+		return "asc"
+	}
+	return ""
+}
+
+func tableSortDir(desc bool) table.SortDir {
+	if desc {
+		return table.SortDesc
+	}
+	return table.SortAsc
+}
+
+// cycleQueryModalView swaps the Zero-Field overlay for the classic field
+// picker and back. From the overlay it applies the draft first, so the
+// swap never discards an edit; the reverse direction is bound only in the
+// classic picker's scope.
 func (a *App) cycleQueryModalView(s core.State, _ core.Command) core.StepResult {
-	if a.Modal() == zeroFieldModalID {
-		if m, ok := a.activeZeroFieldModal(); ok {
-			mode := m.mode
-			s = a.popModal(s, modal.CloseCancel)
-			return a.openClassicFieldPick(s, mode)
-		}
-	}
-	if a.Modal() == "field" {
-		what := a.lastFieldPickWhat
-		if what == "" {
-			what = data.QueryModeFilter
-		}
+	if m, ok := a.activeZeroFieldModal(); ok {
+		m.applyToTable()
 		s = a.popModal(s, modal.CloseCancel)
-		return a.openZeroFieldModal(s, what)
+		return a.openClassicFieldPick(s, m.draft.Mode)
 	}
-	return core.Next(s)
+	if a.modals == nil || a.modals.Top() == nil {
+		return core.Next(s)
+	}
+	what := a.lastFieldPickWhat
+	if what == "" {
+		what = data.QueryModeFilter
+	}
+	s = a.popModal(s, modal.CloseCancel)
+	return a.openZeroFieldModal(s, what)
 }
 
 func (a *App) activeZeroFieldModal() (*zeroFieldModal, bool) {
 	if a.modals == nil {
 		return nil, false
 	}
-	if top := a.modals.Top(); top != nil {
-		if m, ok := top.(*zeroFieldModal); ok {
-			return m, true
-		}
-	}
-	return nil, false
+	m, ok := a.modals.Top().(*zeroFieldModal)
+	return m, ok
 }
 
+// zeroFieldModal adapts a data.QueryDraft to the modal stack: keys run the
+// draft's action table, the view presents it, closing applies it.
 type zeroFieldModal struct {
-	a             *App
-	tableID       string
-	kind          string
-	schema        data.Schema
-	records       []data.Record
-	fields        []data.QueryFieldDef
-	mode          string
-	selectedField string
-	quantAll      bool // false = any, true = all
-	invertNext    bool
-	pendingOp     string // "AND" or "OR"
-	pendingHint   string
-	query         data.QuerySpec
-	flash         string
-}
-
-func newZeroFieldModal(a *App, tableID, kind string, schema data.Schema, records []data.Record, startMode string, initial data.QuerySpec) *zeroFieldModal {
-	fields := data.SchemaFieldDefs(schema)
-	selected := ""
-	for _, fd := range fields {
-		if len(fd.Options) > 0 {
-			selected = fd.Name
-			break
-		}
-	}
-	if selected == "" && len(fields) > 0 {
-		selected = fields[0].Name
-	}
-	if startMode != data.QueryModeGroup && startMode != data.QueryModeSort {
-		startMode = data.QueryModeFilter
-	}
-	return &zeroFieldModal{
-		a:             a,
-		tableID:       tableID,
-		kind:          kind,
-		schema:        schema,
-		records:       records,
-		fields:        fields,
-		mode:          startMode,
-		selectedField: selected,
-		pendingOp:     "AND",
-		query:         initial,
-	}
+	a       *App
+	tableID string
+	kind    string
+	schema  data.Schema
+	records []data.Record
+	fields  []data.QueryFieldDef
+	labels  data.ClauseLabels
+	draft   data.QueryDraft
+	pending string
+	flash   string
 }
 
 func (m *zeroFieldModal) ID() string        { return zeroFieldModalID }
@@ -223,7 +218,7 @@ func (m *zeroFieldModal) OnClose(reason modal.CloseReason) {
 
 func (m *zeroFieldModal) applyToTable() {
 	if m.a != nil {
-		m.a.applyQuerySpec(m.tableID, m.query)
+		m.a.applyQuerySpec(m.tableID, m.draft.Query)
 	}
 }
 
@@ -236,7 +231,7 @@ func (a *App) applyQuerySpec(tableID string, q data.QuerySpec) {
 		a.zeroFieldSpecs = map[string]data.QuerySpec{}
 	}
 	filterChanged := a.zeroFieldSpecs[tableID].FilterSummary() != q.FilterSummary()
-	a.zeroFieldSpecs[tableID] = q
+	a.zeroFieldSpecs[tableID] = q.Clone()
 	delete(a.nav.recCacheKeys, tableID) // the rows depend on the filter: rebuild them
 	a.viewMemo.gen++
 	tbl := a.nav.tables[tableID]
@@ -247,15 +242,7 @@ func (a *App) applyQuerySpec(tableID string, q data.QuerySpec) {
 		tbl.GroupField, tbl.Collapsed = q.GroupBy, nil
 		tbl.SelectedIdx, tbl.Offset = 0, 0
 	}
-	tbl.SortField = q.SortBy
-	switch {
-	case q.SortBy == "":
-		tbl.SortDir = table.SortNone
-	case q.SortDir == "desc":
-		tbl.SortDir = table.SortDesc
-	default:
-		tbl.SortDir = table.SortAsc
-	}
+	applyQuerySort(tbl, q)
 	// The query's filter replaces the table's own text filter; it is not
 	// translated into one, so every shape of filter matches the same way.
 	tbl.FilterField, tbl.Query = views.AnyField, ""
@@ -264,238 +251,64 @@ func (a *App) applyQuerySpec(tableID string, q data.QuerySpec) {
 	}
 }
 
+// applyQuerySort orders tbl by q's sort keys: the groups' order (as the
+// primary key) and then the records'.
+func applyQuerySort(tbl *table.Model, q data.QuerySpec) {
+	keys := q.SortKeys()
+	tbl.SortKeys = nil
+	tbl.SortField, tbl.SortDir = "", table.SortNone
+	if len(keys) == 0 {
+		return
+	}
+	tbl.SortField, tbl.SortDir = keys[0].Field, tableSortDir(keys[0].Desc)
+	if len(keys) > 1 {
+		for _, k := range keys {
+			tbl.SortKeys = append(tbl.SortKeys, table.SortKey{Field: k.Field, Dir: tableSortDir(k.Desc)})
+		}
+	}
+}
+
 func (m *zeroFieldModal) Handle(c core.Command) modal.Result {
 	switch c.ID {
 	case CmdZeroFieldApply:
-		// Never discard on esc or enter: always apply!
+		// Never discard on esc or enter: always apply.
 		m.applyToTable()
-		summary := m.query.FilterSummary()
+		summary := m.labels.Summary(m.draft.Query)
 		if summary == "" {
 			summary = "query applied"
 		}
 		return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit, Status: summary, SetStatus: true}
 	case CmdZeroFieldKey:
-		return m.handleHintKey(c.Arg("text"))
+		return m.press(c.Arg("text"))
 	case CmdPresetSave:
-		m.applyToTable()
-		return modal.Result{Handled: true, Emit: []core.Command{{ID: CmdPresetSave, Args: map[string]any{"kind": data.PresetKindQuery, "scope": m.kind}}}}
+		return m.savePreset()
 	}
 	return modal.Result{}
 }
 
-func (m *zeroFieldModal) handleHintKey(ch string) modal.Result {
-	if ch == "" {
-		return modal.Result{Handled: true}
-	}
-	if m.pendingHint != "" {
-		chord := m.pendingHint + ch
-		m.pendingHint = ""
-		return m.execChord(chord)
-	}
-	// Two-char chord prefixes: e* (fields), x* (remove), p* (presets).
-	if ch == "e" || ch == "x" || ch == "p" {
-		m.pendingHint = ch
-		m.flash = "chord " + ch + "_ ..."
-		return modal.Result{Handled: true}
-	}
-	return m.execSingle(ch)
+func (m *zeroFieldModal) savePreset() modal.Result {
+	m.applyToTable()
+	return modal.Result{Handled: true, Emit: []core.Command{{ID: CmdPresetSave, Args: map[string]any{"kind": data.PresetKindQuery, "scope": m.kind}}}}
 }
 
-func (m *zeroFieldModal) execSingle(ch string) modal.Result {
-	switch ch {
-	case "f":
-		m.mode = data.QueryModeFilter
-		m.flash = "mode: Filter"
-	case "g":
-		m.mode = data.QueryModeGroup
-		m.flash = "mode: Group"
-	case "s":
-		m.mode = data.QueryModeSort
-		m.flash = "mode: Sort"
-	case "a":
-		m.quantAll = false
-		m.flash = "combinator: ANY (match any selected value)"
-	case "A":
-		m.quantAll = true
-		m.flash = "combinator: ALL (must match all selected values)"
-	case "&":
-		m.pendingOp = "AND"
-		m.appendOp("AND")
-		m.flash = "operator: AND"
-	case "|":
-		m.pendingOp = "OR"
-		m.appendOp("OR")
-		m.flash = "operator: OR"
-	case "!":
-		m.invertNext = !m.invertNext
-		m.flash = fmt.Sprintf("invert next clause: %v", m.invertNext)
-	case "[":
-		m.query.Tokens = append(m.query.Tokens, data.ExprToken{Kind: data.ExprTokenLParen})
-		m.flash = "added ("
-	case "]":
-		m.query.Tokens = append(m.query.Tokens, data.ExprToken{Kind: data.ExprTokenRParen})
-		m.flash = "added )"
-	case "R":
-		m.query = data.QuerySpec{}
-		m.invertNext = false
-		m.quantAll = false
-		m.flash = "reset filter, group & sort"
-	case "S":
-		m.applyToTable()
-		return modal.Result{Handled: true, Emit: []core.Command{{ID: CmdPresetSave, Args: map[string]any{"kind": data.PresetKindQuery, "scope": m.kind}}}}
-	default:
-		// Value chip toggle in Filter mode!
-		if m.mode == data.QueryModeFilter {
-			opts := data.FieldOptions(m.schema, m.selectedField, m.records, len(zfValueHints))
-			if idx := slices.Index(zfValueHints, ch); idx >= 0 && idx < len(opts) {
-				m.toggleValue(m.selectedField, opts[idx])
-			}
-		}
+func (m *zeroFieldModal) presets() []data.Preset {
+	if m.a == nil || m.a.genericPresets == nil {
+		return nil
 	}
-	return modal.Result{Handled: true}
+	return m.a.genericPresets.List(data.PresetKindQuery, m.kind)
 }
 
-func (m *zeroFieldModal) execChord(chord string) modal.Result {
-	switch chord[0] {
-	case 'e':
-		if idx := slices.Index(zfFieldChars, chord[1:]); idx >= 0 && idx < len(m.fields) {
-			fd := m.fields[idx]
-			m.selectedField = fd.Name
-			switch m.mode {
-			case data.QueryModeGroup:
-				if m.query.GroupBy == fd.Name {
-					m.query.GroupBy = ""
-					m.flash = "cleared group"
-				} else {
-					m.query.GroupBy = fd.Name
-					m.flash = "group by " + fd.Name
-				}
-			case data.QueryModeSort:
-				if m.query.SortBy == fd.Name {
-					if m.query.SortDir == "desc" {
-						m.query.SortBy, m.query.SortDir = "", ""
-						m.flash = "cleared sort"
-					} else {
-						m.query.SortDir = "desc"
-						m.flash = "sort by " + fd.Name + " desc"
-					}
-				} else {
-					m.query.SortBy, m.query.SortDir = fd.Name, "asc"
-					m.flash = "sort by " + fd.Name + " asc"
-				}
-			default:
-				m.flash = "selected field: " + fd.Name
-			}
-		}
-	case 'x':
-		switch chord {
-		case "xf":
-			m.query.Tokens = nil
-			m.flash = "cleared filter"
-		case "xg":
-			m.query.GroupBy = ""
-			m.flash = "cleared group"
-		case "xs":
-			m.query.SortBy, m.query.SortDir = "", ""
-			m.flash = "cleared sort"
-		default:
-			if len(chord) == 2 && chord[1] >= '1' && chord[1] <= '9' {
-				m.removeClauseIndex(int(chord[1] - '1'))
-			}
-		}
-	case 'p':
-		if len(chord) == 2 && chord[1] >= '1' && chord[1] <= '9' {
-			idx := int(chord[1] - '1')
-			presets := m.a.genericPresets.List(data.PresetKindQuery, m.kind)
-			if idx < len(presets) {
-				m.applyPreset(presets[idx])
-			}
-		}
+func (m *zeroFieldModal) applyPresetAt(c zeroFieldCommand) modal.Result {
+	presets := m.presets()
+	if c.Index < 0 || c.Index >= len(presets) {
+		return handled()
 	}
-	return modal.Result{Handled: true}
-}
-
-func (m *zeroFieldModal) appendOp(op string) {
-	if len(m.query.Tokens) == 0 {
-		return
+	if q, ok := presetQuery(presets[c.Index]); ok {
+		m.draft.Query = q.Clone()
+		m.draft.SetMode(m.draft.Mode)
+		m.flash = "applied preset: " + presets[c.Index].Name
 	}
-	last := &m.query.Tokens[len(m.query.Tokens)-1]
-	if last.Kind == data.ExprTokenOp {
-		last.Op = op
-		return
-	}
-	if last.Kind == data.ExprTokenLParen {
-		return
-	}
-	m.query.Tokens = append(m.query.Tokens, data.ExprToken{Kind: data.ExprTokenOp, Op: op})
-}
-
-func (m *zeroFieldModal) toggleValue(field, val string) {
-	// If the trailing token is a clause for the same field with matching invert/quantifier, toggle within it.
-	if n := len(m.query.Tokens); n > 0 && m.query.Tokens[n-1].Kind == data.ExprTokenClause &&
-		m.query.Tokens[n-1].Field == field && m.query.Tokens[n-1].Invert == m.invertNext && m.query.Tokens[n-1].All == m.quantAll {
-		tok := &m.query.Tokens[n-1]
-		if idx := slices.Index(tok.Values, val); idx >= 0 {
-			tok.Values = slices.Delete(tok.Values, idx, idx+1)
-			if len(tok.Values) == 0 {
-				m.query.Tokens = m.query.Tokens[:n-1]
-				m.trimTrailingOps()
-			}
-			m.flash = "removed " + field + "=" + val
-			return
-		}
-		tok.Values = append(tok.Values, val)
-		m.flash = "added " + field + "=" + val
-		return
-	}
-	// Otherwise append operator if needed, then new clause.
-	if n := len(m.query.Tokens); n > 0 && (m.query.Tokens[n-1].Kind == data.ExprTokenClause || m.query.Tokens[n-1].Kind == data.ExprTokenRParen) {
-		op := m.pendingOp
-		if op == "" {
-			op = "AND"
-		}
-		m.query.Tokens = append(m.query.Tokens, data.ExprToken{Kind: data.ExprTokenOp, Op: op})
-	}
-	m.query.Tokens = append(m.query.Tokens, data.ExprToken{
-		Kind:   data.ExprTokenClause,
-		Field:  field,
-		Values: []string{val},
-		All:    m.quantAll,
-		Invert: m.invertNext,
-	})
-	m.invertNext = false
-	m.flash = "added " + field + "=" + val
-}
-
-func (m *zeroFieldModal) removeClauseIndex(target int) {
-	seen := 0
-	for i, tok := range m.query.Tokens {
-		if tok.Kind == data.ExprTokenClause {
-			if seen == target {
-				m.query.Tokens = slices.Delete(m.query.Tokens, i, i+1)
-				m.trimTrailingOps()
-				m.flash = fmt.Sprintf("removed clause #%d", target+1)
-				return
-			}
-			seen++
-		}
-	}
-}
-
-func (m *zeroFieldModal) trimTrailingOps() {
-	for len(m.query.Tokens) > 0 && m.query.Tokens[0].Kind == data.ExprTokenOp {
-		m.query.Tokens = m.query.Tokens[1:]
-	}
-	for len(m.query.Tokens) > 0 && m.query.Tokens[len(m.query.Tokens)-1].Kind == data.ExprTokenOp {
-		m.query.Tokens = m.query.Tokens[:len(m.query.Tokens)-1]
-	}
-}
-
-func (m *zeroFieldModal) applyPreset(p data.Preset) {
-	if q, ok := presetQuery(p); ok {
-		m.query = q
-		m.flash = "applied preset: " + p.Name
-	}
+	return handled()
 }
 
 // presetQuery reads the query a preset saved, when it saved one.
@@ -518,176 +331,84 @@ func presetQuery(p data.Preset) (data.QuerySpec, bool) {
 // matched returns the records the edited query keeps: what the table shows
 // once the query is applied.
 func (m *zeroFieldModal) matched() []data.Record {
-	return m.query.Compile(m.schema).Filter(m.records)
+	return m.draft.Compile(m.schema).Filter(m.records)
 }
 
 func (m *zeroFieldModal) View(w, _ int) ui.ViewNode {
-	modeTone := "accent"
-	switch m.mode {
-	case data.QueryModeGroup:
-		modeTone = "success"
-	case data.QueryModeSort:
-		modeTone = "warning"
-	}
-
-	// Active & implicit setting pills at top.
-	filterLabel, filterImplicit := m.query.FilterSummary(), false
-	if filterLabel == "" {
-		filterLabel, filterImplicit = "all records (implicit)", true
-	}
-	groupLabel, groupImplicit := m.query.GroupBy, false
-	if groupLabel == "" {
-		groupLabel, groupImplicit = "flat list (implicit)", true
-	}
-	sortLabel, sortImplicit := m.query.SortBy, false
-	if sortLabel == "" {
-		sortLabel, sortImplicit = "default order (implicit)", true
-	} else {
-		dir := m.query.SortDir
-		if dir == "" {
-			dir = "asc"
-		}
-		sortLabel += " " + dir
-	}
-	activeSettings := []views.ZeroFieldSettingPill{
-		{ModeLabel: "FILTER", ValueLabel: filterLabel, RemoveHint: "xf", Implicit: filterImplicit, ActiveTone: "badge.accent", InactiveTone: "info"},
-		{ModeLabel: "GROUP", ValueLabel: groupLabel, RemoveHint: "xg", Implicit: groupImplicit, ActiveTone: "badge.success", InactiveTone: "success"},
-		{ModeLabel: "SORT", ValueLabel: sortLabel, RemoveHint: "xs", Implicit: sortImplicit, ActiveTone: "badge.warning", InactiveTone: "warning"},
-	}
-
-	// Live expression pills.
-	var exprPills []views.ZeroFieldExprPill
-	clauseIdx := 0
-	for _, tok := range m.query.Tokens {
-		switch tok.Kind {
-		case data.ExprTokenLParen:
-			exprPills = append(exprPills, views.ZeroFieldExprPill{Kind: "lparen", Label: "("})
-		case data.ExprTokenRParen:
-			exprPills = append(exprPills, views.ZeroFieldExprPill{Kind: "rparen", Label: ")"})
-		case data.ExprTokenOp:
-			exprPills = append(exprPills, views.ZeroFieldExprPill{Kind: "op", Label: tok.Op})
-		case data.ExprTokenClause:
-			clauseIdx++
-			hint := ""
-			if clauseIdx <= 9 {
-				hint = fmt.Sprintf("x%d", clauseIdx)
-			}
-			exprPills = append(exprPills, views.ZeroFieldExprPill{Kind: "clause", Label: data.FormatClause(tok), RemoveHint: hint, Invert: tok.Invert})
-		}
-	}
-
-	// Color-coded Mode chips.
-	modeChips := []views.ZeroFieldChip{
-		{Hint: "f", Label: "Filter", Active: m.mode == data.QueryModeFilter, ActiveTone: "badge.accent", InactiveTone: "info"},
-		{Hint: "g", Label: "Group", Active: m.mode == data.QueryModeGroup, ActiveTone: "badge.success", InactiveTone: "success"},
-		{Hint: "s", Label: "Sort", Active: m.mode == data.QueryModeSort, ActiveTone: "badge.warning", InactiveTone: "warning"},
-	}
-
-	// Combinators before fields.
-	var combChips []views.ZeroFieldChip
-	if m.mode == data.QueryModeFilter {
-		combChips = []views.ZeroFieldChip{
-			{Hint: "a", Label: "any", Active: !m.quantAll, ActiveTone: "badge.info"},
-			{Hint: "A", Label: "all", Active: m.quantAll, ActiveTone: "badge.info"},
-			{Hint: "&", Label: "AND", Active: m.pendingOp == "AND", ActiveTone: "badge.accent"},
-			{Hint: "|", Label: "OR", Active: m.pendingOp == "OR", ActiveTone: "badge.accent"},
-			{Hint: "!", Label: "NOT", Active: m.invertNext, ActiveTone: "badge.error"},
-			{Hint: "[", Label: "("},
-			{Hint: "]", Label: ")"},
-		}
-	}
-
-	// Schema fields split into tidy rows of 5 chips.
-	hasClause := map[string]bool{}
-	for _, tok := range m.query.Tokens {
-		if tok.Kind == data.ExprTokenClause {
-			hasClause[tok.Field] = true
-		}
-	}
-	var fieldRows [][]views.ZeroFieldChip
-	const perRow = 5
-	for i, fd := range m.fields {
-		if i >= len(zfFieldChars) {
-			break
-		}
-		if i%perRow == 0 {
-			fieldRows = append(fieldRows, nil)
-		}
-		active := fd.Name == m.selectedField
-		if m.mode == data.QueryModeGroup {
-			active = fd.Name == m.query.GroupBy
-		} else if m.mode == data.QueryModeSort {
-			active = fd.Name == m.query.SortBy
-		}
-		rowIdx := len(fieldRows) - 1
-		fieldRows[rowIdx] = append(fieldRows[rowIdx], views.ZeroFieldChip{
-			Hint:       "e" + zfFieldChars[i],
-			Label:      fd.Label,
-			Active:     active,
-			HasClause:  hasClause[fd.Name],
-			ActiveTone: "badge." + modeTone,
-		})
-	}
-
-	// Value chips for selected field in filter mode.
-	var valChips []views.ZeroFieldChip
-	if m.mode == data.QueryModeFilter && m.selectedField != "" {
-		activeVals := map[string]bool{}
-		for _, tok := range m.query.Tokens {
-			if tok.Kind == data.ExprTokenClause && tok.Field == m.selectedField {
-				for _, v := range tok.Values {
-					activeVals[v] = true
-				}
-			}
-		}
-		opts := data.FieldOptions(m.schema, m.selectedField, m.records, len(zfValueHints))
-		for i, opt := range opts {
-			valChips = append(valChips, views.ZeroFieldChip{
-				Hint:       zfValueHints[i],
-				Label:      opt,
-				Active:     activeVals[opt],
-				ActiveTone: "badge.accent",
-			})
-		}
-	}
-
-	// Generic preset chips.
-	var presetChips []views.ZeroFieldChip
-	if m.a != nil && m.a.genericPresets != nil {
-		for i, p := range m.a.genericPresets.List(data.PresetKindQuery, m.kind) {
-			if i >= 9 {
-				break
-			}
-			presetChips = append(presetChips, views.ZeroFieldChip{
-				Hint:         fmt.Sprintf("p%d", i+1),
-				Label:        p.Name,
-				InactiveTone: "accent",
-			})
-		}
-	}
-
+	rows := m.actions()
 	title := "Zero-Field Query"
 	if m.schema.Title != "" {
 		title += " · " + m.schema.Title
 	}
 	return views.ZeroFieldModalView(views.ZeroFieldViewSpec{
 		Title:           title,
-		Mode:            m.mode,
-		ModeTone:        modeTone,
-		PendingHint:     m.pendingHint,
-		SelectedField:   m.selectedField,
-		ActiveSettings:  activeSettings,
-		ExprPills:       exprPills,
-		ModeChips:       modeChips,
-		CombinatorChips: combChips,
-		FieldRows:       fieldRows,
-		ValueChips:      valChips,
-		PresetChips:     presetChips,
+		Mode:            m.draft.Mode,
+		ModeTone:        strings.TrimPrefix(zfModeTones[m.draft.Mode][0], "badge."),
+		PendingHint:     m.pending,
+		SelectedField:   m.draft.SelectedField,
+		ActiveSettings:  m.settingPills(),
+		ExprPills:       m.exprPills(),
+		ModeChips:       chips(rows, zfRowMode),
+		CombinatorChips: chips(rows, zfRowCombine),
+		TargetChips:     chips(rows, zfRowTarget),
+		FieldChips:      chips(rows, zfRowField),
+		ValueChips:      chips(rows, zfRowValue),
+		PresetChips:     chips(rows, zfRowPreset),
+		ActionChips:     append(chips(rows, zfRowAction), boundChips()...),
 		MatchedCount:    len(m.matched()),
 		TotalCount:      len(m.records),
 		StatusHint:      m.flash,
-		Width:           min(w-6, 92),
+		ScreenWidth:     w,
 	})
+}
+
+// settingPills is the CURRENT strip: filter, group and sort, each named
+// in human labels (a reference by its target, never kind:id).
+func (m *zeroFieldModal) settingPills() []views.ZeroFieldSettingPill {
+	q := m.draft.Query
+	filter := m.labels.Summary(q)
+	group := q.GroupBy
+	var order []string
+	if q.GroupSortDir != "" {
+		order = append(order, "groups "+q.GroupSortDir)
+	}
+	if q.SortBy != "" {
+		order = append(order, q.SortBy+" "+cmp.Or(q.SortDir, "asc"))
+	}
+	sort := strings.Join(order, " · ")
+	pill := func(mode, value, implicit, remove string) views.ZeroFieldSettingPill {
+		tones := zfModeTones[mode]
+		p := views.ZeroFieldSettingPill{ModeLabel: strings.ToUpper(mode), ValueLabel: value, ActiveTone: tones[0], InactiveTone: tones[1]}
+		if value == "" {
+			p.ValueLabel, p.Implicit = implicit, true
+			return p
+		}
+		p.RemoveHint = remove
+		return p
+	}
+	return []views.ZeroFieldSettingPill{
+		pill(data.QueryModeFilter, filter, "all records (implicit)", zfChordRemove+"f"),
+		pill(data.QueryModeGroup, group, "flat list (implicit)", zfChordRemove+"g"),
+		pill(data.QueryModeSort, sort, "default order (implicit)", zfChordRemove+"s"),
+	}
+}
+
+// exprPills is the live expression strip, clauses in human labels.
+func (m *zeroFieldModal) exprPills() []views.ZeroFieldExprPill {
+	var out []views.ZeroFieldExprPill
+	clause := 0
+	for _, tok := range m.draft.Query.Tokens {
+		pill := views.ZeroFieldExprPill{Kind: string(tok.Kind), Label: m.labels.Token(tok)}
+		if tok.Kind == data.ExprTokenClause {
+			clause++
+			pill.Invert = tok.Invert
+			if clause <= zfMaxIndexed {
+				pill.RemoveHint = fmt.Sprintf("%s%d", zfChordRemove, clause)
+			}
+		}
+		out = append(out, pill)
+	}
+	return out
 }
 
 func (a *App) presetSaveCmd(s core.State, c core.Command) core.StepResult {
@@ -779,8 +500,6 @@ func (a *App) presetListCmd(s core.State, _ core.Command) core.StepResult {
 		a.say("no generic presets saved yet · press S inside Zero-Field (g z) to save one")
 		return core.Next(s)
 	}
-	items := make([]ui.Badge, 0)
-	_ = items
 	return a.openGenericPresetPicker(s, presets)
 }
 
