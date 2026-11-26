@@ -221,6 +221,7 @@ const (
 	SetPagedNoteComposer               = "ui.pagedNoteComposer"
 	SetLivePointerChips                = "ui.livePointerChips"
 	SetCompactTestOutput               = "runs.compactTestOutput"
+	SetZeroFieldQueryDefault           = "ui.zeroFieldQueryDefault"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -390,6 +391,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetPagedNoteComposer, true, "alt+n opens the floating paged Markdown Note Deck composer instead of the single-shot UX note form"),
 		flag(SetLivePointerChips, true, "show focusable pointer chips on file, worktree, and context selections"),
 		flag(SetCompactTestOutput, true, "summarize Go test events in Run output with one symbol per result"),
+		flag(SetZeroFieldQueryDefault, true, "open the unified Zero-Field chip view by default on f / g s / g b (cycle views with ( / ))"),
 	}
 }
 

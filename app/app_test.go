@@ -196,6 +196,9 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 // A table filters, sorts and groups on any field, shown or not.
 func TestListsWorkOnAnyField(t *testing.T) {
 	a, d := demo(t)
+	a.cfg.userSettings[SetZeroFieldQueryDefault] = false
+	a.reloadSettings()
+	a.applySettings()
 	d.Keys("2")
 	// A record may hold a field no schema declares: it is offered too.
 	task := titled(t, a, data.KindTask, "ochazuke-v2")

@@ -64,6 +64,8 @@ func CommandSpecs() []core.CommandSpec {
 	)
 	base = append(base, chipSpecs()...)
 	base = append(base, gitHubSpecs()...)
+	base = append(base, zeroFieldSpecs()...)
+	base = append(base, pickerPickerSpecs()...)
 	return append(append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),

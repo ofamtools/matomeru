@@ -88,7 +88,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetFlagsOnLeft: true, SetColorByRecency: views.RecencyCell, SetStickyTreeBreadcrumbs: true,
 		SetActionLogEnabled: true, SetFeaturesItemization: true,
 		SetProjectPortalOnP: true, SetPagedNoteComposer: true,
-		SetLivePointerChips: true, SetCompactTestOutput: true}
+		SetLivePointerChips: true, SetCompactTestOutput: true,
+		SetZeroFieldQueryDefault: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
