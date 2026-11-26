@@ -69,6 +69,12 @@ func TestOutputExitAndChanges(t *testing.T) {
 	if _, ok := h.Snapshot("nope"); ok {
 		t.Fatal("Snapshot unknown reported ok")
 	}
+	if exited, code, ok := h.ExitStatus("p"); !ok || !exited || code != 0 {
+		t.Fatalf("ExitStatus(p) = %t, %d, %t; want exited with code 0", exited, code, ok)
+	}
+	if _, _, ok := h.ExitStatus("nope"); ok {
+		t.Fatal("ExitStatus unknown reported ok")
+	}
 }
 
 func TestWriteEchoAndResize(t *testing.T) {

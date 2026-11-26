@@ -360,6 +360,21 @@ func (h *HostAdapter) Snapshot(id string) (ptyhost.Frame, bool) {
 	return f, true
 }
 
+// ExitStatus reports whether the pane's process has exited, and its exit code,
+// from the frame the daemon last pushed, without copying the screen. Only a
+// pane with no cached frame costs a Snapshot. It reports ok false for a pane
+// the daemon does not hold.
+func (h *HostAdapter) ExitStatus(id string) (exited bool, code int, ok bool) {
+	h.mu.Lock()
+	c, cached := h.cache[id]
+	h.mu.Unlock()
+	if cached && (h.subConnected.Load() || (h.MinInterval > 0 && time.Since(c.at) < h.MinInterval)) {
+		return c.frame.Exited, c.frame.ExitCode, true
+	}
+	f, ok := h.Snapshot(id)
+	return f.Exited, f.ExitCode, ok
+}
+
 // Close implements ptyhost.Host by closing one pane in the daemon.
 func (h *HostAdapter) Close(id string) error {
 	h.expire(id)

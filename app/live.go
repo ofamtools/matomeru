@@ -74,6 +74,8 @@ type liveState struct {
 	telemetryFP    string
 	telemetrySeq   atomic.Uint64
 	telemetryDrawn uint64
+	telView        telemetryView
+	panes          paneWatch
 	mcpURL         string
 
 	sysStats      *sysStatsSampler
@@ -125,6 +127,7 @@ func (a *App) setupLive(opts Options) {
 			l.sysStatsSeq.Add(1)
 			a.Notify()
 		})
+		l.sysStats.SetPaused(!a.chromeSystemStatsEnabled())
 		l.sysStats.Start(l.bgCtx)
 	}
 	if a.tracking() {
@@ -186,6 +189,9 @@ func (a *App) WatchCheck() bool {
 	if a.rt.Daemon != nil && a.pollTelemetry() {
 		changed = true
 	}
+	if a.hiddenPanesNeedWake() {
+		changed = true
+	}
 	if changed {
 		a.Notify()
 	}
@@ -233,9 +239,11 @@ func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
 		}
 	}
 	if seq := l.telemetrySeq.Load(); seq != l.telemetryDrawn {
-		l.telemetryDrawn, changed = seq, true
-		if a.flushAllQueuedPrompts() > 0 {
-			changed = true
+		// Every tick may let a queued prompt go; only one the page shows redraws.
+		l.telemetryDrawn = seq
+		a.syncTelemetryScope(s)
+		if a.flushAllQueuedPrompts() > 0 || l.telView.seq != l.telView.drawn {
+			l.telView.drawn, changed = l.telView.seq, true
 		}
 	}
 	chromeOnly := false
@@ -308,13 +316,23 @@ func (a *App) Start(send func(tea.Msg)) (stop func()) {
 	}
 	if feed, ok := a.panes.Host.(interface{ Changes() <-chan string }); ok {
 		changes := feed.Changes()
+		// Output on a session off screen wakes nobody: the watcher looks at
+		// hidden sessions (exits, harvests) at its own pace, so it must run.
+		w := &a.rt.live.panes
+		if a.rt.live.watch > 0 {
+			w.prober, _ = a.panes.Host.(paneExitProber)
+			w.fed.Store(true)
+		}
 		wg.Go(func() {
+			defer w.fed.Store(false)
 			for {
 				select {
 				case <-ctx.Done():
 					return
-				case <-changes:
-					a.Notify()
+				case id := <-changes:
+					if !w.fed.Load() || a.paneChanged(id) {
+						a.Notify()
+					}
 				}
 			}
 		})
@@ -576,8 +594,8 @@ type paneExit struct {
 	code int
 }
 
-// screenMoved re-reads shown, side-split, scratch, and tracked live sessions
-// and reports any revision/size changes plus every session that exited or vanished.
+// pollShownSession re-reads one session's screen and reports whether its
+// revision or size changed, and the session when it exited or vanished.
 func (a *App) pollShownSession(id string) (moved bool, exitedID string, exitCode int) {
 	if id == "" {
 		return false, "", 0

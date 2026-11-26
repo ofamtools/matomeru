@@ -18,6 +18,14 @@ type darwinSysStatsReader struct {
 	hasPrevProc      bool
 	prevProcCPUNanos int64
 	prevProcWall     time.Time
+
+	// The last subprocess readings and when they were taken (see sysCPUSampleDue).
+	sysCPUPct  float64
+	sysCPUAt   time.Time
+	sysCPULoad float64
+	ramUsedPct float64
+	ramTotal   uint64
+	ramAt      time.Time
 }
 
 func newPlatformSysStatsReader() sysStatsReader {
@@ -35,14 +43,30 @@ func (r *darwinSysStatsReader) Read(ctx context.Context, diskPath string) SysSta
 		}
 	}
 
-	if pct, ok := readDarwinSysCPU(ctx); ok {
-		out.SysCPUPct = pct
+	now := time.Now()
+	load, haveLoad := readDarwinLoadAvg()
+	if r.sysCPUAt.IsZero() || sysCPUSampleDue(now.Sub(r.sysCPUAt), r.sysCPULoad, load, haveLoad) {
+		if pct, ok := readDarwinSysCPU(ctx); ok {
+			r.sysCPUPct, r.sysCPUAt, r.sysCPULoad = pct, now, load
+		} else {
+			r.sysCPUAt = time.Time{}
+		}
+	}
+	if !r.sysCPUAt.IsZero() {
+		out.SysCPUPct = r.sysCPUPct
 		out.HasSysCPU = true
 	}
 
-	if usedPct, totalBytes, ok := readDarwinRAM(ctx); ok {
-		out.RAMUsedPct = usedPct
-		out.RAMTotalBytes = totalBytes
+	if r.ramAt.IsZero() || now.Sub(r.ramAt) >= sysRAMSampleTTL {
+		if usedPct, totalBytes, ok := readDarwinRAM(ctx); ok {
+			r.ramUsedPct, r.ramTotal, r.ramAt = usedPct, totalBytes, now
+		} else {
+			r.ramAt = time.Time{}
+		}
+	}
+	if !r.ramAt.IsZero() {
+		out.RAMUsedPct = r.ramUsedPct
+		out.RAMTotalBytes = r.ramTotal
 		out.HasRAM = true
 	}
 
@@ -88,6 +112,23 @@ func readDarwinSysCPU(ctx context.Context) (float64, bool) {
 		return 0, false
 	}
 	return parseDarwinPSCPU(string(out), runtime.NumCPU())
+}
+
+// readDarwinLoadAvg reads the 1-minute load average from the vm.loadavg
+// sysctl (struct loadavg: three fixed-point averages, then their scale), which
+// needs no subprocess.
+func readDarwinLoadAvg() (float64, bool) {
+	raw, err := syscall.Sysctl("vm.loadavg")
+	if err != nil || len(raw) < 17 || len(raw) > 24 {
+		return 0, false
+	}
+	var buf [24]byte // Sysctl drops a trailing NUL byte; the copy puts it back
+	copy(buf[:], raw)
+	scale := binary.LittleEndian.Uint64(buf[16:])
+	if scale == 0 {
+		return 0, false
+	}
+	return float64(binary.LittleEndian.Uint32(buf[:4])) / float64(scale), true
 }
 
 func readDarwinMemTotal() (uint64, bool) {

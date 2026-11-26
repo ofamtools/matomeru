@@ -16,6 +16,7 @@ var queryIndexes = []string{
 	`CREATE INDEX IF NOT EXISTS idx_records_kind_parent_id ON records (kind, json_extract(fields, '$.parent.id'))`,
 	`CREATE INDEX IF NOT EXISTS idx_records_kind_parent_lane_id ON records (kind, json_extract(fields, '$.parentLane.id'))`,
 	`CREATE INDEX IF NOT EXISTS idx_records_kind_changeset ON records (kind, change_set)`,
+	`CREATE INDEX IF NOT EXISTS records_kind_archive_updated ON records (kind, archive_status, updated_at DESC)`,
 }
 
 var indexedParentFields = map[string]bool{
@@ -26,7 +27,8 @@ var indexedParentFields = map[string]bool{
 }
 
 // ensureQueryIndexes creates expression and revision indexes used by indexed
-// Query pushdown, ProjectContextAll, and MaxChangeSet.
+// Query pushdown, ProjectContextAll, MaxChangeSet, QueryChangedSince, and
+// newest-first listings of one kind.
 func ensureQueryIndexes(db *sql.DB) error {
 	for _, stmt := range queryIndexes {
 		if _, err := db.Exec(stmt); err != nil {
@@ -53,6 +55,43 @@ func (s *Store) MaxChangeSet(kind string) int64 {
 		return 0
 	}
 	return maxCS
+}
+
+// QueryChangedSince returns the records of kind last written by a change set
+// newer than sinceChangeSet, oldest change first. It reads only those rows
+// (through idx_records_kind_changeset), so a caller holding the state as of
+// sinceChangeSet can merge the delta instead of reading the whole kind again.
+// A deleted record has no row and so is not reported.
+func (s *Store) QueryChangedSince(kind string, sinceChangeSet int64, includeArchived bool) ([]Record, error) {
+	sqlText, args := "SELECT "+recordCols+" FROM records WHERE kind = ? AND change_set > ?", []any{kind, sinceChangeSet}
+	if !includeArchived {
+		sqlText, args = sqlText+" AND archive_status = ?", append(args, ArchiveActive)
+	}
+	rows, err := s.db.Query(sqlText+" ORDER BY change_set, seq", args...)
+	if err != nil {
+		return nil, err
+	}
+	var recs []Record
+	for rows.Next() {
+		rec, err := scanRecord(rows)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		recs = append(recs, rec)
+	}
+	if err := rows.Close(); err != nil || len(recs) == 0 {
+		return nil, err
+	}
+	local, err := loadLocal(s.db, kind, "")
+	if err != nil {
+		return nil, err
+	}
+	for i := range recs {
+		recs[i].Local = local[recs[i].Ref()]
+		s.coerce(&recs[i])
+	}
+	return recs, nil
 }
 
 // safeJSONField reports whether name is a safe JSON path identifier

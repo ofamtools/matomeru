@@ -48,7 +48,7 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 	if a.Store != nil {
 		rev, _ = a.Store.LatestChangeSetNumber()
 	}
-	telSeq := a.rt.live.telemetrySeq.Load()
+	telSeq := a.telemetryViewSeq()
 	pc := a.projectCtrl()
 	ctxGen := a.contextIndexGen()
 	railKey := a.railGroupPanesKey(groupName)
@@ -153,7 +153,7 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 		lockedFocus = locked.FocusID
 	}
 	navKey := fmt.Sprintf("%d|%d|%d|%t|%t|%t|%t|%t|%t|%s|%s|%s|%d|%s",
-		ws.cacheRev, ws.cacheCtxGen, a.rt.live.telemetrySeq.Load(),
+		ws.cacheRev, ws.cacheCtxGen, a.telemetryViewSeq(),
 		a.nav.showArchived, treeEnabled, allowPeek,
 		a.projectNavSurfaceContextUnreadEnabled(), a.projectNavUnreadDotOnlyEnabled(), a.projectNavLaneProgressBarEnabled(),
 		activeKey,
@@ -567,7 +567,7 @@ func (a *App) syncProjectSectionTree(treeID string, ws projectWorkspaceData, sch
 	guides := a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTreeGuides, true)
 	var telSeq uint64
 	if schema.Kind == data.KindPane {
-		telSeq = a.rt.live.telemetrySeq.Load()
+		telSeq = a.telemetryViewSeq()
 	}
 	cacheKey := fmt.Sprintf("tree|%s|%s|%s|%d|%d|%v|%s|%v:%v:%v|%d", treeID, ws.projectKey, schema.Kind, ws.cacheRev, telSeq, a.nav.showArchived, ws.cacheRailKey, st.RowSemanticStyling, st.StatusIcons, guides, len(recs))
 	if tm, ok := a.cachedProjectTree(treeID, cacheKey); ok {

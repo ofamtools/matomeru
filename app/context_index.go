@@ -72,6 +72,10 @@ type ContextController struct {
 	screenRevs      map[string]uint64
 	screenHarvestAt map[string]time.Time
 	perf            *projectPerfCache
+	// paneTitles and tasks are what the stored-record merge needs of the other
+	// kinds, kept from the last full load so a delta merge reads only what changed.
+	paneTitles map[string]string
+	tasks      map[string]contextTaskShape
 }
 
 func newContextController() *ContextController {
@@ -132,155 +136,6 @@ func (a *App) invalidateContextIndex() {
 	a.ctx.loadedStored, a.ctx.syncedStored, a.ctx.compLoaded = false, false, false
 	a.ctx.gen++
 	a.ctx.mu.Unlock()
-}
-
-func (a *App) loadPersistedContextIndex(idx *ContextController) {
-	if a.Store == nil {
-		return
-	}
-	rev, _ := a.Store.LatestChangeSetNumber()
-	idx.mu.RLock()
-	already := idx.loadedStored && idx.storedRev == rev
-	prevLoaded, prevRev := idx.loadedStored, idx.storedRev
-	idx.mu.RUnlock()
-	if already {
-		return
-	}
-	if prevLoaded && rev > prevRev && !contextKindsTouchedSince(a.Store, prevRev, rev) {
-		idx.mu.Lock()
-		if idx.loadedStored && idx.storedRev == prevRev {
-			idx.storedRev = rev
-		}
-		idx.mu.Unlock()
-		return
-	}
-	res, err := a.Store.Query(data.Query{Kind: data.KindContext, IncludeArchived: true})
-	if err != nil {
-		return
-	}
-	// Preload panes and tasks in 2 bulk queries to avoid O(N) SQLite Store.Get calls.
-	paneSchema, taskSchema := a.schema(data.KindPane), a.schema(data.KindTask)
-	paneTitles := map[string]string{}
-	if panesRes, perr := a.Store.Query(data.Query{Kind: data.KindPane, IncludeArchived: true}); perr == nil {
-		paneTitles = make(map[string]string, len(panesRes.Items))
-		for _, p := range panesRes.Items {
-			paneTitles[p.ID] = views.Title(paneSchema, p)
-		}
-	}
-	taskByID := map[string]data.Record{}
-	if tasksRes, terr := a.Store.Query(data.Query{Kind: data.KindTask, IncludeArchived: true}); terr == nil {
-		taskByID = make(map[string]data.Record, len(tasksRes.Items))
-		for _, t := range tasksRes.Items {
-			taskByID[t.ID] = t
-		}
-	}
-	type rootInfo struct{ id, title string }
-	rootOf := make(map[string]rootInfo, len(taskByID))
-	resolveRoot := func(id string) (string, string, bool) {
-		if r, ok := rootOf[id]; ok {
-			return r.id, r.title, true
-		}
-		cur, ok := taskByID[id]
-		if !ok {
-			return "", "", false
-		}
-		chain, seen := []string{cur.ID}, map[string]bool{cur.ID: true}
-		for range 32 {
-			pRef, has := cur.RefField("parent")
-			if !has || pRef.Kind != data.KindTask || pRef.ID == "" || seen[pRef.ID] {
-				break
-			}
-			if r, cached := rootOf[pRef.ID]; cached {
-				for _, cid := range chain {
-					rootOf[cid] = r
-				}
-				return r.id, r.title, true
-			}
-			parent, exists := taskByID[pRef.ID]
-			if !exists {
-				break
-			}
-			seen[parent.ID] = true
-			chain = append(chain, parent.ID)
-			cur = parent
-		}
-		r := rootInfo{id: cur.ID, title: views.Title(taskSchema, cur)}
-		for _, cid := range chain {
-			rootOf[cid] = r
-		}
-		return r.id, r.title, true
-	}
-
-	idx.mu.Lock()
-	defer idx.mu.Unlock()
-	if idx.loadedStored && idx.storedRev == rev {
-		return
-	}
-	changed := false
-	for _, rec := range res.Items {
-		val := strings.TrimSpace(rec.Text("value"))
-		kind := rec.Text("contextKind")
-		if kind == "" {
-			kind = "url"
-		}
-		canon := strings.TrimSpace(rec.Text("canonKey"))
-		if canon == "" {
-			canon = contextCanonKey(kind, val)
-		}
-		if canon == "" {
-			continue
-		}
-		paneID := ""
-		if pRef, ok := rec.RefField("pane"); ok {
-			paneID = pRef.ID
-		}
-		key := paneID + "\x00" + canon
-		idx.persisted[key] = true
-		if rec.IsArchived() {
-			if cur, exists := idx.items[key]; exists && cur.RecordID == rec.ID {
-				delete(idx.items, key)
-				changed = true
-			}
-			continue
-		}
-		if val == "" {
-			continue
-		}
-		paneTitle := ""
-		if paneID != "" {
-			if t, ok := paneTitles[paneID]; ok {
-				paneTitle = t
-			} else {
-				paneTitle = data.RefText(core.Ref{Kind: data.KindPane, ID: paneID})
-			}
-		}
-		projID, projTitle := "", unassignedProjectLabel
-		if tRef, ok := rec.RefField("task"); ok && tRef.Kind == data.KindTask {
-			if rid, rtitle, found := resolveRoot(tRef.ID); found {
-				projID, projTitle = rid, rtitle
-			}
-		}
-		path := ""
-		if kind == contextitems.KindFile || kind == "doc" {
-			path, _, _ = splitContextFileLoc(val)
-		}
-		next := &CollectedContextItem{
-			RecordID: rec.ID, Key: key, CanonKey: canon, Kind: kind, Value: val, Path: path,
-			Label: rec.Text("title"), Source: rec.Text("source"), Line: recordIntField(rec, "line"), Col: recordIntField(rec, "col"),
-			PaneID: paneID, PaneTitle: paneTitle, ProjectID: projID, Project: projTitle,
-			Starred: rec.IsStarred() || idx.starred[canon], Official: rec.Bool("official"), Pinned: rec.Bool("pinned"),
-			Notes: rec.Text("notes"), SeenAt: rec.UpdatedAt,
-		}
-		if cur, exists := idx.items[key]; !exists || !contextItemVisibleEqual(cur, next) {
-			changed = true
-		}
-		idx.items[key] = next
-	}
-	idx.storedRev = rev
-	idx.loadedStored = true
-	if changed {
-		idx.gen++
-	}
 }
 
 func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, extracted []contextitems.Item) {
