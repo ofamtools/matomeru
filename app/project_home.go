@@ -844,20 +844,6 @@ func (a *App) projectSectionTree(focusID string) (*tree.Model, bool) {
 	return tm, tm != nil
 }
 
-// handleProjectTreeMotion routes vertical navigation inside Project Page
-// section trees (Panes and Lanes) while leaving h/l for region navigation.
-func (a *App) handleProjectTreeMotion(s core.State, c core.Command) bool {
-	if c.ID == "motion.left" || c.ID == "motion.right" {
-		return false
-	}
-	tm, ok := a.projectSectionTree(s.ActiveFrame().FocusID)
-	if !ok {
-		return false
-	}
-	tm.HandleCommand(c)
-	return true
-}
-
 func (a *App) railGroupPanesKey(groupName string) string {
 	if a.panes == nil {
 		return ""

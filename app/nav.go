@@ -274,57 +274,6 @@ func (a *App) edgeFocusSpillEnabled() bool {
 	return a.cfg.Settings.Bool(SetEdgeFocusSpill, false)
 }
 
-func samePaneRegion(a, b string) bool {
-	if a == b {
-		return true
-	}
-	// On Work Show pages, showHeader / show.props / show.related form one vertical document.
-	isShow := func(r string) bool {
-		return r == showHeader || r == "show.props" || r == "show.related"
-	}
-	return isShow(a) && isShow(b)
-}
-
-func (a *App) stepBounded(s core.State, delta int, allowSpill bool) core.State {
-	if allowSpill {
-		return a.step(s, delta)
-	}
-	nodes := a.focusables(s)
-	if len(nodes) == 0 {
-		return s
-	}
-	cur := slices.IndexFunc(nodes, func(n fnode) bool { return n.id == s.ActiveFrame().FocusID })
-	if cur < 0 {
-		return a.step(s, delta)
-	}
-	curRegion := nodes[cur].region
-	var scoped []fnode
-	curScoped := -1
-	for _, n := range nodes {
-		if samePaneRegion(n.region, curRegion) {
-			if n.id == nodes[cur].id {
-				curScoped = len(scoped)
-			}
-			scoped = append(scoped, n)
-		}
-	}
-	if len(scoped) == 0 || curScoped < 0 {
-		return s
-	}
-	to := min(max(curScoped+delta, 0), len(scoped)-1)
-	if to == curScoped {
-		return s
-	}
-	if tbl := a.nav.tables[scoped[to].id]; tbl != nil {
-		tbl.SelectedIdx, tbl.Offset = 0, 0
-		if delta < 0 {
-			tbl.SelectedIdx = len(tbl.Items()) - 1
-		}
-		tbl.Focused()
-	}
-	return withFocus(s, scoped[to].id)
-}
-
 func (a *App) activeShowRef(s core.State) (core.Ref, bool) {
 	if s.ActivePage == SpaceWork {
 		return a.Showing()
@@ -403,52 +352,48 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 	if a.Engine.Mode(s) == ModePage {
 		return a.pageScrollMotion(s, c)
 	}
-	spill := a.edgeFocusSpillEnabled()
 	focus := s.ActiveFrame().FocusID
-	if focus == workTable && a.inWorkTree(s) && c.ID != "motion.left" && c.ID != "motion.right" {
-		a.workTreeMove(c)
-		a.syncVisualStatus(s)
-		return core.Next(s)
+	vertical := c.ID != "motion.left" && c.ID != "motion.right"
+	// Trees and tables move their own selection; at their first or last row
+	// the spill trait decides whether j/k continues into the next thing drawn.
+	spilled := false
+	if vertical {
+		if tm, move, ok := a.motionTree(s, focus); ok {
+			before := ""
+			if tm != nil {
+				before = tm.SelectedID
+			}
+			move(c)
+			if spilled = a.treeEdgeSpill(tm, before, c); !spilled {
+				a.syncVisualStatus(s)
+				return core.Next(s)
+			}
+		}
 	}
-	if a.inProjectOutlineTree(&s) && c.ID != "motion.left" && c.ID != "motion.right" {
-		a.projectOutlineTreeMove(s, c)
-		a.syncVisualStatus(s)
-		return core.Next(s)
-	}
-	if a.inFeaturesCaptureTree(&s) && c.ID != "motion.left" && c.ID != "motion.right" {
-		a.featuresCaptureTreeMove(s, c)
-		a.syncVisualStatus(s)
-		return core.Next(s)
-	}
-	if c.ID != "motion.left" && c.ID != "motion.right" && a.handleProjectTreeMotion(s, c) {
-		a.syncVisualStatus(s)
-		return core.Next(s)
-	}
-	if tbl := a.nav.tables[focus]; tbl != nil && c.ID != "motion.left" && c.ID != "motion.right" {
+	if tbl := a.nav.tables[focus]; tbl != nil && vertical && !spilled {
 		before := tbl.SelectedIdx
 		tbl.HandleCommand(c)
-		if tbl.SelectedIdx != before || (c.ID != "motion.down" && c.ID != "motion.up") || !spill {
+		if tbl.SelectedIdx != before || a.resolveEdgeSpill(listEdgeFacts(tbl.SelectedIdx, len(tbl.Items())), c) == 0 {
 			a.syncVisualStatus(s)
 			return core.Next(s)
 		}
-		// At the list's edge with nav.edgeFocusSpill=true, spill into the next thing drawn.
 	}
 	if res, handled := a.showScrollMotion(s, c); handled {
 		return res
 	}
 	switch c.ID {
 	case "motion.down":
-		s = a.stepBounded(s, c.Times(), spill)
+		s = a.stepBounded(s, c.Times())
 	case "motion.up":
-		s = a.stepBounded(s, -c.Times(), spill)
+		s = a.stepBounded(s, -c.Times())
 	case "motion.half.down", "motion.block.next":
-		s = a.stepBounded(s, 5*c.Times(), spill)
+		s = a.stepBounded(s, 5*c.Times())
 	case "motion.half.up", "motion.block.prev":
-		s = a.stepBounded(s, -5*c.Times(), spill)
+		s = a.stepBounded(s, -5*c.Times())
 	case "motion.page.down":
-		s = a.stepBounded(s, 10*c.Times(), spill)
+		s = a.stepBounded(s, 10*c.Times())
 	case "motion.page.up":
-		s = a.stepBounded(s, -10*c.Times(), spill)
+		s = a.stepBounded(s, -10*c.Times())
 	case "motion.right":
 		if next, handled := a.smartGroupHL(s, 1); handled {
 			return core.Next(next)
