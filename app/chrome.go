@@ -20,10 +20,7 @@ const CmdProjectSectionPick = "project.section.pick"
 // right, connected by a subtle horizontal hairline.
 func (a *App) chromeSeparatorNode(s core.State, chain []core.ContextFrame, w int) ui.ViewNode {
 	right := strings.TrimSpace(a.chromeContextAndMode(s, chain))
-	left := ""
-	if a.chromeSystemStatsEnabled() && a.rt != nil && a.rt.live.sysStats != nil {
-		left = FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), max(w/2, 24))
-	}
+	left := a.chromeStats(max(w/2, 24))
 	var text string
 	switch {
 	case left != "" && right != "" && w > 0:
@@ -71,6 +68,22 @@ func (a *App) chromeSeparatorNode(s core.State, chain []core.ContextFrame, w int
 		Kind:  ui.KindText,
 		Props: map[string]any{"text": text, "spans": spans},
 	}
+}
+
+// chromeStats is the chrome's live strip: the Pomodoro countdown chip and
+// the system stats, as far as they fit in maxWidth.
+func (a *App) chromeStats(maxWidth int) string {
+	chip := a.focusChromeChip()
+	if !a.chromeSystemStatsEnabled() || a.rt == nil || a.rt.live.sysStats == nil {
+		return chip
+	}
+	if chip == "" {
+		return FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), maxWidth)
+	}
+	if stats := FormatChromeSysStats(a.rt.live.sysStats.Snapshot(), maxWidth-visibleWidth(chip)-3); stats != "" {
+		return chip + " · " + stats
+	}
+	return chip
 }
 
 func (a *App) chromeContextAndMode(s core.State, chain []core.ContextFrame) string {

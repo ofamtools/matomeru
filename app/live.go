@@ -189,7 +189,7 @@ func (a *App) WatchCheck() bool {
 	if a.rt.Daemon != nil && a.pollTelemetry() {
 		changed = true
 	}
-	if a.hiddenPanesNeedWake() {
+	if a.hiddenPanesNeedWake() || a.focusBeatDue() {
 		changed = true
 	}
 	if changed {
@@ -216,13 +216,13 @@ func wakeMsg() tea.Msg {
 
 // wakeUp applies posted results and redraws when they, the store or the shown
 // session changed. A wake-up that finds nothing new changes nothing.
-func (a *App) wakeUp(s core.State, _ core.Command) core.StepResult {
+func (a *App) wakeUp(s core.State, c core.Command) core.StepResult {
 	l := &a.rt.live
 	l.inboxMu.Lock()
 	todo := l.inbox
 	l.inbox = nil
 	l.inboxMu.Unlock()
-	changed := len(todo) > 0
+	changed := a.focusTick(s, c) || len(todo) > 0
 	for _, fn := range todo {
 		s = fn(s)
 	}

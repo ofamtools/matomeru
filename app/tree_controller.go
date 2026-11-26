@@ -474,6 +474,7 @@ func (a *App) treeSyncKey(rev int64, kind, treeID string, cs *cleanSlateState) s
 	if cs != nil {
 		csFP = "1:" + sortedTrueKeys(cs.roots)
 	}
+	csFP += a.focusOutlineKey(kind)
 	return fmt.Sprintf("%d|%s|%s|%v|%s|%s|%s|%v:%v:%v:%v:%v:%v", rev, kind, treeID, a.nav.showArchived, a.archiveAnimCacheKey(), expFP, csFP, st.RowSemanticStyling, st.StatusIcons, gap, guides, wrap, a.outlineStartCollapsed())
 }
 
@@ -514,16 +515,7 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 	}
 	a.initTreeFoldState(kind, allNodes)
 
-	nodes := allNodes
-	if cs != nil {
-		filtered := make([]data.TreeNode, 0, len(cs.roots))
-		for _, nd := range allNodes {
-			if cs.roots[nd.Record.ID] {
-				filtered = append(filtered, nd)
-			}
-		}
-		nodes = filtered
-	}
+	nodes := a.visibleTreeRoots(allNodes, cs, kind)
 
 	builtNodes, opts := a.buildTreeNodes(schema, kind, nodes)
 	tm.DefaultFolded = false
@@ -580,7 +572,7 @@ func (a *App) workTreeView() ui.ViewNode {
 		}
 	}
 
-	extra := []ui.Badge{{Text: "tree", Tone: "accent"}}
+	extra := append([]ui.Badge{{Text: "tree", Tone: "accent"}}, a.focusOutlineBadges(kind)...)
 	if csActive {
 		extra = append(extra, ui.Badge{Text: "clean slate", Tone: "accent"})
 	}
@@ -596,7 +588,7 @@ func (a *App) outlineTreeView() ui.ViewNode {
 	tm := a.trees.outlineModel()
 	schema, _ := a.syncTreeModel(tm, data.KindTask, outlineTree)
 	csActive := a.isCleanSlateActive(data.KindTask, outlineTree)
-	var extra []ui.Badge
+	extra := a.focusOutlineBadges(data.KindTask)
 	if csActive {
 		extra = append(extra, ui.Badge{Text: "clean slate", Tone: "accent"})
 	}

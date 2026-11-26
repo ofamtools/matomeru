@@ -78,6 +78,7 @@ var standalonePages = map[string]standalonePageDef{
 	SpaceQueue:    {title: "Queues & Dispatch", focus: views.QueueListID, render: (*App).queueSpace},
 	SpaceThreads:  {title: "Threads", focus: views.ThreadsListID, render: (*App).threadsSpace},
 	SpaceSessions: {title: "AI Sessions", focus: views.SessionsDeskTableID, render: (*App).sessionsSpace},
+	SpaceFocus:    {title: "Focus & Pomodoro", focus: views.FocusProjectsID, render: (*App).focusSpace},
 }
 
 // Node IDs the app gives focus to.
@@ -196,6 +197,7 @@ type App struct {
 	queue             *queueController
 	threads           *threadsController
 	sessions          *sessionsController
+	focus             *focusController
 	rt                *RuntimeController
 	ext               *ExtensionController
 	ctx               *ContextController
@@ -245,6 +247,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.initQueue()
 	a.initThreads()
 	a.initSessions()
+	a.initFocus()
 	a.loadPresets()
 	a.initToasts()
 	a.loadHandlers(opts.ConfigDir)
@@ -479,6 +482,7 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 		a.syncEscapeGuardModal(prevModal)
 		unreadNavTarget, hasUnreadNav := a.unreadNavTargetAt(s)
 		out := a.executeAction(s, c, fn)
+		a.focusTick(out.State, c)
 		if hasUnreadNav && isProjectNavAckCommand(c.ID) {
 			if a.markProjectNavTargetRead(unreadNavTarget) {
 				out.State = a.settleNavFocusAfterRead(out.State, unreadNavTarget)
@@ -852,6 +856,7 @@ func (a *App) register() {
 	a.registerQueue()
 	a.registerThreads()
 	a.registerSessions()
+	a.registerFocus()
 	a.handle(CmdFDSearch, a.fdSearch)
 	a.handle(CmdFDSearchAgain, a.fdSearchAgain)
 	for _, id := range []string{CmdFDResultYank, CmdFDResultOpenWith, CmdFDResultAttach, CmdFDResultRefine} {

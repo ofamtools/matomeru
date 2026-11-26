@@ -92,7 +92,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetZeroFieldQueryDefault: true, SetProjectHomeQueueProgress: true,
 		SetThreadsIMessageStyle: true, SetSessionsDeskChecklist: true,
 		SetAnswerShowQuestion: true, SetProjectNavPreselectTask: true, SetProjectNavShowNewItems: true,
-		SetShowTitleAttachmentChips: true, SetPanesKeepCompletedLaneBars: true}
+		SetShowTitleAttachmentChips: true, SetPanesKeepCompletedLaneBars: true,
+		SetFocusHideNonPriority: true, SetFocusEnforceLocks: true, SetFocusChromeCountdown: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
