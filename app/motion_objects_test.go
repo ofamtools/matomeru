@@ -112,3 +112,49 @@ func TestObjectSelectBlock(t *testing.T) {
 		t.Fatalf("i in the Work tree with visual on did not fire at once (mode %q)", a.Mode())
 	}
 }
+
+// On a Work Show page the header, props and related are separate blocks.
+func TestBlockMotionShowPage(t *testing.T) {
+	a, d := configured(t, t.TempDir())
+	a.Shell.State = a.show(a.State(), titled(t, a, data.KindTask, "matomeru-v2").Ref())
+	d.Frame()
+	if a.Focus() != showHeader {
+		t.Fatalf("start focus %q", a.Focus())
+	}
+	want := ""
+	for _, n := range a.focusables(a.State()) {
+		if n.region != showHeader {
+			want = n.id
+			break
+		}
+	}
+	d.Keys("}")
+	if want == "" || a.Focus() != want {
+		t.Fatalf("} on the Show header focused %q, want %q", a.Focus(), want)
+	}
+	d.Keys("{")
+	if a.Focus() != showHeader {
+		t.Fatalf("{ focused %q, want the header", a.Focus())
+	}
+}
+
+// } in a grouped table goes to the next group's header; at the last group
+// it leaves the table for the next region drawn.
+func TestBlockMotionLeavesTableAtLastGroup(t *testing.T) {
+	a, d := configured(t, t.TempDir())
+	d.Frame()
+	tbl := a.nav.tables["panes.rail.table"]
+	nodes := tbl.MotionNodes()
+	next, ok := traits.NextObject(nodes, tbl.SelectedIdx, traits.ObjectBlock, 1, false)
+	if !ok {
+		t.Fatalf("rail has one group: %+v", nodes)
+	}
+	d.Keys("}")
+	if tbl = a.nav.tables["panes.rail.table"]; a.Focus() != "panes.rail.table" || tbl.SelectedIdx != next {
+		t.Fatalf("} focused %q row %d, want the next group header at %d", a.Focus(), tbl.SelectedIdx, next)
+	}
+	d.Keys("G", "}")
+	if a.Focus() != "site.toc.screen" {
+		t.Fatalf("} at the last group focused %q, want site.toc.screen", a.Focus())
+	}
+}

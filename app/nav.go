@@ -364,7 +364,10 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 				before = tm.SelectedID
 			}
 			move(c)
-			if spilled = a.treeEdgeSpill(tm, before, c); !spilled {
+			stayed := tm == nil || tm.SelectedID == before
+			if stayed && a.blockWalksOn(c) {
+				spilled = true // the page walk below takes the block motion on
+			} else if spilled = a.treeEdgeSpill(tm, before, c); !spilled {
 				a.syncVisualStatus(s)
 				return core.Next(s)
 			}
@@ -373,7 +376,8 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 	if tbl := a.nav.tables[focus]; tbl != nil && vertical && !spilled {
 		before := tbl.SelectedIdx
 		tbl.HandleCommand(c)
-		if tbl.SelectedIdx != before || a.resolveEdgeSpill(listEdgeFacts(tbl.SelectedIdx, len(tbl.Items())), c) == 0 {
+		walk := tbl.SelectedIdx == before && a.blockWalksOn(c) // no block to move to: the page walk takes over
+		if !walk && (tbl.SelectedIdx != before || a.resolveEdgeSpill(listEdgeFacts(tbl.SelectedIdx, len(tbl.Items())), c) == 0) {
 			a.syncVisualStatus(s)
 			return core.Next(s)
 		}

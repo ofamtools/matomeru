@@ -61,18 +61,32 @@ func (a *App) blockMotionPolicy() string {
 }
 
 // pageMotionNodes describes the page's focus stops, in drawing order, as
-// motion nodes: each stop's block is its region group, so the Show page's
-// header, props and related sections read as one block, as they do for j/k.
+// motion nodes: each stop's block is its focus region, so the Show page's
+// header, props and related sections are three blocks (j/k spill still
+// treats them as one list through regionSpillGroup).
 func pageMotionNodes(nodes []fnode) []traits.MotionNode {
 	out := make([]traits.MotionNode, len(nodes))
 	for i, n := range nodes {
 		out[i] = traits.MotionNode{
 			ID:      n.id,
 			Span:    traits.ItemSpan{ID: n.id, Y: i, H: 1},
-			Objects: map[string]string{traits.ObjectBlock: regionSpillGroup(n.region)},
+			Objects: map[string]string{traits.ObjectBlock: n.region},
 		}
 	}
 	return out
+}
+
+// blockWalksOn reports whether a block motion a table or tree did not move
+// continues as the page walk: } and { under nav.blockMotion=block. Other
+// object kinds, sibling motions and five-stops stay with the component.
+func (a *App) blockWalksOn(c core.Command) bool {
+	switch c.ID {
+	case traits.CmdMotionBlockNext, traits.CmdMotionBlockPrev, traits.CmdMotionObjectNext, traits.CmdMotionObjectPrev:
+	default:
+		return false
+	}
+	kind, _ := traits.MotionObjectKind(c, traits.MotionConfig{DefaultObject: traits.ObjectBlock})
+	return kind == traits.ObjectBlock && a.blockMotionPolicy() == BlockMotionBlock
 }
 
 // pageObjectMotion runs an object motion over the page's focus stops when no
