@@ -86,20 +86,15 @@ func (a *App) records(id, kind string) *table.Model {
 	items := a.tableQuery(id, schema).Filter(a.tableCandidates(kind))
 	fresh := views.TableFromRecordsWith(schema, items, styleOpts)
 	// A reference shows the record it points at, not its ID.
-	names := map[core.Ref]string{}
+	names := a.refCellLabels(schema, items)
 	for _, f := range schema.Fields {
 		if f.Type != core.ParamRef {
 			continue
 		}
 		for i, rec := range items {
-			ref, ok := rec.RefField(f.Name)
-			if !ok {
-				continue
+			if ref, ok := rec.RefField(f.Name); ok {
+				fresh.Rows[i].Cells[f.Name] = names[ref]
 			}
-			if _, seen := names[ref]; !seen {
-				names[ref] = a.title(ref)
-			}
-			fresh.Rows[i].Cells[f.Name] = names[ref]
 		}
 	}
 	titleCol := schema.SummaryField

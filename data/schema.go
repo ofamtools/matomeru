@@ -295,6 +295,11 @@ type Schema struct {
 	GutterRules  []GutterRule   `json:"gutterRules,omitempty"`
 	StyleRules   []StyleRule    `json:"styleRules,omitempty"`
 	Hierarchy    *HierarchySpec `json:"hierarchy,omitempty"`
+
+	// Presentations declares the noun's own presentation forms (chip,
+	// inline, row, card, detail), as an extension catalog does; the
+	// PresentationRegistry lays the embedded and user files over them.
+	Presentations map[string]PresentationSpec `json:"presentations,omitempty"`
 }
 
 // Field returns the declared field named name.

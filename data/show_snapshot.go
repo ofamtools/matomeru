@@ -14,6 +14,10 @@ type ShowLink struct {
 	// Record is nil when the target is not stored here (a tag, a directory,
 	// a dead reference).
 	Record *Record
+	// Presentation is the link's declared form, resolved: a chip for a
+	// reference field, a row for a section. A dead reference presents as
+	// missing, never as kind:id.
+	Presentation ResolvedPresentation
 }
 
 // ShowSection is one group of records connected to a Show page's record.
@@ -38,6 +42,8 @@ type ShowSection struct {
 type ShowSnapshot struct {
 	Record Record
 	Schema Schema
+	// Presentation is the record's own detail form.
+	Presentation ResolvedPresentation
 	// FieldLinks holds the target of each reference field that points
 	// somewhere, by field name.
 	FieldLinks map[string]ShowLink
@@ -57,11 +63,11 @@ func (r *Registry) schemaOrBare(kind string) Schema {
 	return Schema{Kind: kind, Title: kind, Plural: kind}
 }
 
-// showLink resolves a reference to a link.
-func (s *Store) showLink(target core.Ref) ShowLink {
-	link := ShowLink{Ref: target, Schema: s.reg.schemaOrBare(target.Kind)}
-	if rec, err := s.Get(target); err == nil {
-		link.Record = rec
+// link presents target in form from a batch of resolved references.
+func (r ResolvedRefs) link(target core.Ref, form string) ShowLink {
+	link := ShowLink{Ref: target, Schema: r.Schemas.schemaOrBare(target.Kind), Presentation: r.Presentation(target, form)}
+	if rec, ok := r.Records[target]; ok {
+		link.Record = &rec
 	}
 	return link
 }
@@ -70,6 +76,7 @@ func (s *Store) showLink(target core.Ref) ShowLink {
 // earlier section already holds.
 type showSections struct {
 	store    *Store
+	related  ResolvedRefs // the records of the relations, read in one batch
 	seen     map[core.Ref]bool
 	sections []ShowSection
 }
@@ -96,7 +103,8 @@ func (b *showSections) addReferenceSections(ref core.Ref) error {
 					continue
 				}
 				b.seen[item.Ref()] = true
-				sec.Links = append(sec.Links, ShowLink{Ref: item.Ref(), Schema: src, Record: &item})
+				sec.Links = append(sec.Links, ShowLink{Ref: item.Ref(), Schema: src, Record: &item,
+					Presentation: b.store.Presentations().Resolve(item, src, FormRow)})
 			}
 			b.sections = append(b.sections, sec)
 		}
@@ -115,7 +123,7 @@ func (b *showSections) addRelationSection(sec ShowSection, rels []RelationMatch)
 			continue // pins and marks are the snapshot's Pinned and Marked
 		}
 		b.seen[rel.Ref] = true
-		sec.Links = append(sec.Links, b.store.showLink(rel.Ref))
+		sec.Links = append(sec.Links, b.related.link(rel.Ref, FormRow))
 	}
 	if sec.Always || len(sec.Links) > 0 {
 		_, sec.Creatable = b.store.reg.Get(sec.TargetKind)
@@ -179,13 +187,21 @@ func (b *showSections) addRelationSections(schema Schema, rels []RelationMatch) 
 	}
 }
 
-// showFieldLinks resolves every reference field of rec that points somewhere.
+// showFieldLinks resolves every reference field of rec that points
+// somewhere, reading their records in one batch.
 func (s *Store) showFieldLinks(rec Record) map[string]ShowLink {
-	links := map[string]ShowLink{}
+	targets := map[string]core.Ref{}
+	refs := make([]core.Ref, 0, len(rec.Fields))
 	for name, v := range rec.MergedFields() {
 		if target, ok := AsRef(v); ok {
-			links[name] = s.showLink(target)
+			targets[name] = target
+			refs = append(refs, target)
 		}
+	}
+	resolved := s.ResolveRefsFor(refs)
+	links := make(map[string]ShowLink, len(targets))
+	for name, target := range targets {
+		links[name] = resolved.link(target, FormChip)
 	}
 	return links
 }
@@ -206,6 +222,7 @@ func (s *Store) LoadShowSnapshot(ref core.Ref) (ShowSnapshot, error) {
 		return ShowSnapshot{}, err
 	}
 	snap := ShowSnapshot{Record: *rec, Schema: s.reg.schemaOrBare(ref.Kind), FieldLinks: s.showFieldLinks(*rec)}
+	snap.Presentation = s.Presentations().Resolve(*rec, snap.Schema, FormDetail)
 
 	sections := showSections{store: s, seen: map[core.Ref]bool{ref: true}}
 	if err := sections.addReferenceSections(ref); err != nil {
@@ -215,6 +232,11 @@ func (s *Store) LoadShowSnapshot(ref core.Ref) (ShowSnapshot, error) {
 	if err != nil {
 		return ShowSnapshot{}, err
 	}
+	relRefs := make([]core.Ref, len(rels))
+	for i, rel := range rels {
+		relRefs[i] = rel.Ref
+	}
+	sections.related = s.ResolveRefsFor(relRefs)
 	sections.addRelationSections(snap.Schema, rels)
 	snap.Sections = sections.sections
 

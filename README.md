@@ -134,7 +134,7 @@ On a signal, `R` opens a three-line form with a rule drafted from it. `enter` ma
 `:` then `inspect actions` lists every action with the keys it is on; an action with none shows `(unbound)`, and `a` binds it to the first free key and saves the row to `bindings.json`. `inspect modes` lists the modes with their base, whether they pass keys through, and how many bindings name them. Both are in `g n` too.
 
 ```sh
-mtm inspect actions|bindings|modes|schemas [--json]
+mtm inspect actions|bindings|modes|schemas|presentations [--json]
 ```
 
 ## Settings and bindings
