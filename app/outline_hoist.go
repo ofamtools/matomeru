@@ -123,6 +123,18 @@ func (a *App) outlineCleanSlate(s core.State, _ core.Command) core.StepResult {
 		if wid == "" {
 			return core.Next(s)
 		}
+		if !a.featuresCaptureDockedEnabled() {
+			tm = a.trees.outlineModel()
+			treeID = outlineTree
+			cs := a.cleanSlateStateFor(kind, treeID, true)
+			cs.active = true
+			cs.roots = map[string]bool{wid: true}
+			tm.HoistStack = []string{wid}
+			tm.SelectedID = wid
+			a.runTreeStartAdd(tm, kind, treeID, false, ModeOutline, false)
+			a.say("clean slate · type thought · enter adds next · tab indents · esc exits edit")
+			return core.Next(a.pushModal(s, a.newOutlineModal()))
+		}
 		tm = a.trees.projectModel(wid)
 		treeID = featuresCaptureTree
 		returnMode = ModeNormal

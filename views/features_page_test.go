@@ -269,3 +269,89 @@ func TestFeaturesPageViewCaptureDockedAndExpanded(t *testing.T) {
 	renderedExpanded := frame(t, expanded, "features.capture.tree", 120, 32)
 	wantText(t, renderedExpanded, "Quick Capture · Features Wishlist", "expanded", "Capture idea here")
 }
+
+func TestFeaturesPageViewInlineNoteBoxRestingAndEditing(t *testing.T) {
+	thoughtRef := core.Ref{Kind: "task", ID: "raw-9"}
+
+	// Resting inline note box: no docked capture panel, focusable KindInput inside Raw Captured Thoughts.
+	resting := FeaturesPageView(FeaturesPageSpec{
+		ActiveKey: "page:panes",
+		Detail: FeaturesDetailSpec{
+			Kind:  "page",
+			Key:   "page:panes",
+			Title: "Panes",
+			NoteBox: FeaturesNoteBoxSpec{
+				Enabled:     true,
+				Editing:     false,
+				Wrap:        true,
+				TargetLabel: "Panes",
+			},
+		},
+		ShowCapture: false,
+	})
+	if resting.Facts["hasCapture"] != false {
+		t.Fatalf("hasCapture = %v, want false", resting.Facts["hasCapture"])
+	}
+	if resting.Find("features.capture") != nil {
+		t.Fatal("docked features.capture panel must not render when ShowCapture=false")
+	}
+	if resting.Find("features.section.thoughts.empty") != nil {
+		t.Fatal("empty placeholder text must not render when inline note box is enabled")
+	}
+	box := resting.Find(FeaturesThoughtInputID)
+	if box == nil || box.Kind != ui.KindInput || !box.Focusable || !box.Border || box.Scope != ScopeFeaturesContent || box.Box.FixedH != 7 {
+		t.Fatalf("unexpected inline note box node: %+v", box)
+	}
+	if box.Title != "Raw Capture Note · Panes" {
+		t.Fatalf("box.Title = %q, want %q", box.Title, "Raw Capture Note · Panes")
+	}
+	if box.Facts["featuresThoughtBox"] != true || box.Facts["featuresThoughtEditing"] != false {
+		t.Fatalf("unexpected resting note box facts: %+v", box.Facts)
+	}
+	if box.Props["multiline"] != true || box.Props["wrap"] != true {
+		t.Fatalf("unexpected resting note box props: %+v", box.Props)
+	}
+	renderedRest := frame(t, resting, FeaturesThoughtInputID, 120, 32)
+	wantText(t, renderedRest, "Raw Captured Thoughts", "Raw Capture Note · Panes", "enter / o type here · n bigger modal")
+
+	// Typing inline note box with multiline draft and existing thoughts rendered below it.
+	editing := FeaturesPageView(FeaturesPageSpec{
+		ActiveKey: "noun:schedule",
+		Detail: FeaturesDetailSpec{
+			Kind:  "noun",
+			Key:   "noun:schedule",
+			Title: "Schedule",
+			NoteBox: FeaturesNoteBoxSpec{
+				Enabled:     true,
+				Editing:     true,
+				Value:       "Line 1\nLine 2",
+				Cursor:      13,
+				Wrap:        true,
+				TargetLabel: "Schedule",
+			},
+			RawThoughts: []FeaturesLinkedItem{
+				{ID: "raw-9", Title: "Existing thought below box", Ref: &thoughtRef},
+			},
+		},
+	})
+	editBox := editing.Find(FeaturesThoughtInputID)
+	if editBox == nil || editBox.Facts["featuresThoughtBox"] != true || editBox.Facts["featuresThoughtEditing"] != true {
+		t.Fatalf("unexpected editing note box facts: %+v", editBox)
+	}
+	if editBox.Props["value"] != "Line 1\nLine 2" || editBox.Props["cursor"] != 13 {
+		t.Fatalf("unexpected editing note box props: %+v", editBox.Props)
+	}
+	if len(editBox.Badges) != 2 || editBox.Badges[0].Text != "TYPING" {
+		t.Fatalf("unexpected editing note box badges: %+v", editBox.Badges)
+	}
+	renderedEdit := frame(t, editing, FeaturesThoughtInputID, 150, 36)
+	wantText(t, renderedEdit,
+		"Raw Captured Thoughts",
+		"Raw Capture Note · Schedule",
+		"TYPING",
+		"ctrl+s save · esc save & exit · ctrl+c cancel · ctrl+g bigger modal",
+		"Line 1",
+		"Line 2",
+		"Existing thought below box",
+	)
+}

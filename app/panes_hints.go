@@ -721,6 +721,14 @@ func (a *App) insertHintTarget(s core.State, hs *hintsState, pane *data.Record, 
 			s = a.outlineEditInsert(s, core.Command{ID: CmdOutlineEditInsert, Args: map[string]any{"text": value}}).State
 			notifyInsert("outline")
 			return s
+		case ModeFeaturesNote:
+			a.featuresNoteInsertText(value)
+			notifyInsert("features note")
+			return s
+		case ModeThreadsCompose:
+			a.threadsComposeInsertText(value)
+			notifyInsert("thread reply")
+			return s
 		}
 	}
 

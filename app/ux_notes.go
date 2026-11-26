@@ -66,6 +66,8 @@ func uxNotesBindings() []core.Binding {
 		ModeForm,
 		ModeFormEdit,
 		ModeOutlineEdit,
+		ModeFeaturesNote,
+		ModeThreadsCompose,
 		ModeBindings,
 		ModeBindingsFilter,
 		ModeReader,

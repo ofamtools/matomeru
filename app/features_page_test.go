@@ -333,15 +333,224 @@ func TestFeaturesPageByNounDomainVerbFiltering(t *testing.T) {
 	}
 }
 
+func TestFeaturesPageInlineNoteBoxAndCenteredCaptureModal(t *testing.T) {
+	fs := matomeruCheckoutFS("/home/dev", "/home/dev/proj/matomeru")
+	a, d := newFeaturesTestApp(t, Options{FS: fs})
+
+	// Default: features.captureDocked is false; View() stays pure and shows inline note box with no docked bar.
+	if a.featuresCaptureDockedEnabled() {
+		t.Fatal("featuresCaptureDockedEnabled() = true by default, want false")
+	}
+	d.Keys("6")
+	_ = d.Frame()
+	if a.featuresWishlistTaskID() != "" {
+		t.Fatal("View() mutated store by creating Features Wishlist before capture")
+	}
+	view := a.View(a.State())
+	if view.Find("features.capture") != nil {
+		t.Fatal("docked features.capture panel should not render by default")
+	}
+	if view.Find(views.FeaturesThoughtInputID) == nil {
+		t.Fatalf("expected inline note box %q in Features view", views.FeaturesThoughtInputID)
+	}
+
+	// c focuses the inline note box; enter starts ModeFeaturesNote.
+	d.Keys("c")
+	if a.Focus() != views.FeaturesThoughtInputID {
+		t.Fatalf("c focus = %q, want %q", a.Focus(), views.FeaturesThoughtInputID)
+	}
+	d.Keys("enter")
+	if a.Mode() != ModeFeaturesNote || !a.featuresCtrl().noteEditing {
+		t.Fatalf("enter on inline note box did not enter ModeFeaturesNote: mode=%q editing=%v", a.Mode(), a.featuresCtrl().noteEditing)
+	}
+
+	// Multiline typing + ctrl+s saves under Features Wishlist tagged to page:panes and immediately shows in RawThoughts.
+	d.Type("Inline panes capture")
+	d.Keys("enter")
+	d.Type("Second detail line")
+	d.Keys("ctrl+s")
+	if a.Mode() != ModeNormal || a.featuresCtrl().noteEditing {
+		t.Fatalf("ctrl+s did not return to ModeNormal: mode=%q editing=%v", a.Mode(), a.featuresCtrl().noteEditing)
+	}
+	wid := a.featuresWishlistTaskID()
+	if wid == "" {
+		t.Fatal("Features Wishlist root task was not created on inline ctrl+s save")
+	}
+	savedInline, err := a.Store.GetByField(data.KindTask, "title", "Inline panes capture")
+	if err != nil || savedInline == nil {
+		t.Fatalf("inline note not saved: err=%v", err)
+	}
+	if pRef, ok := savedInline.RefField("parent"); !ok || pRef.ID != wid {
+		t.Fatalf("inline note parent = %+v (ok=%v), want task:%s", pRef, ok, wid)
+	}
+	if savedInline.Text("description") != "Second detail line" {
+		t.Fatalf("inline note description = %q, want %q", savedInline.Text("description"), "Second detail line")
+	}
+	if !containsFold(stringListField(*savedInline, "targetPages"), SpacePanes) {
+		t.Fatalf("inline note targetPages = %v, want %q", stringListField(*savedInline, "targetPages"), SpacePanes)
+	}
+	panesDetail := a.buildFeaturesDetail(a.collectFeaturesSnapshot(), "page:"+SpacePanes)
+	if !slices.ContainsFunc(panesDetail.RawThoughts, func(it views.FeaturesLinkedItem) bool { return it.ID == savedInline.ID }) {
+		t.Fatalf("saved inline thought missing from page:panes RawThoughts: %+v", panesDetail.RawThoughts)
+	}
+
+	// o starts typing; esc saves non-empty text & returns to ModeNormal.
+	d.Keys("o")
+	if a.Mode() != ModeFeaturesNote {
+		t.Fatalf("o did not enter ModeFeaturesNote: mode=%q", a.Mode())
+	}
+	d.Type("Saved on escape")
+	d.Keys("esc")
+	if a.Mode() != ModeNormal {
+		t.Fatalf("esc did not return to ModeNormal: mode=%q", a.Mode())
+	}
+	if rec, err := a.Store.GetByField(data.KindTask, "title", "Saved on escape"); err != nil || rec == nil {
+		t.Fatalf("esc commit did not save thought: err=%v", err)
+	}
+
+	// O starts typing; empty esc exits cleanly without creating an empty record.
+	beforeCount := len(a.collectFeaturesSnapshot().rawThoughts)
+	d.Keys("O")
+	if a.Mode() != ModeFeaturesNote {
+		t.Fatalf("O did not enter ModeFeaturesNote: mode=%q", a.Mode())
+	}
+	d.Keys("esc")
+	if a.Mode() != ModeNormal {
+		t.Fatalf("empty esc did not exit ModeFeaturesNote: mode=%q", a.Mode())
+	}
+	if afterCount := len(a.collectFeaturesSnapshot().rawThoughts); afterCount != beforeCount {
+		t.Fatalf("empty esc created a thought: before=%d after=%d", beforeCount, afterCount)
+	}
+
+	// ctrl+c cancels draft without saving.
+	d.Keys("o")
+	d.Type("Discard this draft")
+	d.Keys("ctrl+c")
+	if a.Mode() != ModeNormal || a.featuresCtrl().noteEditing {
+		t.Fatalf("ctrl+c did not cancel inline editing: mode=%q editing=%v", a.Mode(), a.featuresCtrl().noteEditing)
+	}
+	if rec, _ := a.Store.GetByField(data.KindTask, "title", "Discard this draft"); rec != nil {
+		t.Fatal("ctrl+c saved a discarded draft")
+	}
+
+	// Select noun:schedule, start typing, press ctrl+g to expand draft into the big centered modal.
+	d.Send(core.CommandEvent{Command: core.Command{
+		ID: CmdFeaturesNavSelect, Args: map[string]any{"key": "noun:" + data.KindSchedule}, Actor: User,
+	}})
+	d.Keys("o")
+	d.Type("Schedule draft expanded")
+	d.Keys("ctrl+g")
+	if a.Modal() != featuresCaptureModalID || a.Mode() != ModeComposer {
+		t.Fatalf("ctrl+g did not open centered capture modal: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	cm := a.activeRichComposer()
+	if cm == nil || cm.in.Value() != "Schedule draft expanded" {
+		t.Fatalf("expanded modal did not carry draft: cm=%v val=%q", cm != nil, func() string {
+			if cm != nil {
+				return cm.in.Value()
+			}
+			return ""
+		}())
+	}
+	ov := cm.View(150, 42)
+	wPct, _ := ov.Props["widthPct"].(int)
+	hPct, _ := ov.Props["heightPct"].(int)
+	if wPct < 75 || hPct < 55 {
+		t.Fatalf("centered capture modal size = %dx%d%%, want >= 75x55%%", wPct, hPct)
+	}
+	d.Keys("ctrl+s")
+	if a.Modal() != "" || a.Mode() != ModeNormal {
+		t.Fatalf("ctrl+s in centered modal did not close modal: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	schedRec, err := a.Store.GetByField(data.KindTask, "title", "Schedule draft expanded")
+	if err != nil || schedRec == nil {
+		t.Fatalf("expanded modal thought not saved: err=%v", err)
+	}
+	schedDetail := a.buildFeaturesDetail(a.collectFeaturesSnapshot(), "noun:"+data.KindSchedule)
+	if !slices.ContainsFunc(schedDetail.RawThoughts, func(it views.FeaturesLinkedItem) bool { return it.ID == schedRec.ID }) {
+		t.Fatalf("expanded modal thought missing from noun:schedule RawThoughts: %+v", schedDetail.RawThoughts)
+	}
+
+	// n on component:panes.rail opens centered modal and saves tagged to targetComponents.
+	d.Send(core.CommandEvent{Command: core.Command{
+		ID: CmdFeaturesNavSelect, Args: map[string]any{"key": "component:panes.rail"}, Actor: User,
+	}})
+	d.Keys("n")
+	if a.Modal() != featuresCaptureModalID || a.Mode() != ModeComposer {
+		t.Fatalf("n did not open centered capture modal: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	d.Type("Component rail note")
+	d.Keys("ctrl+s")
+	compDetail := a.buildFeaturesDetail(a.collectFeaturesSnapshot(), "component:panes.rail")
+	if !slices.ContainsFunc(compDetail.RawThoughts, func(it views.FeaturesLinkedItem) bool { return it.Title == "Component rail note" }) {
+		t.Fatalf("n modal thought missing from component:panes.rail RawThoughts: %+v", compDetail.RawThoughts)
+	}
+
+	// N on an Organized Feature Group opens centered modal and links via RelAbout into group provenance.
+	groupsRoot, _, err := a.Store.Create(data.CreateInput{
+		Kind: data.KindTask, Fields: map[string]any{"title": FeaturesGroupsTitle, "workStatus": "active"},
+	}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groupTask, _, err := a.Store.Create(data.CreateInput{
+		Kind: data.KindTask, Fields: map[string]any{"title": "Capture UX Polish", "parent": groupsRoot.Ref(), "workStatus": "active"},
+	}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Send(core.CommandEvent{Command: core.Command{
+		ID: CmdFeaturesNavSelect, Args: map[string]any{"key": "group:" + groupTask.ID}, Actor: User,
+	}})
+	d.Keys("N")
+	if a.Modal() != featuresCaptureModalID || a.Mode() != ModeComposer {
+		t.Fatalf("N did not open centered capture modal: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	d.Type("Group linked raw note")
+	d.Keys("ctrl+s")
+	groupDetail := a.buildFeaturesDetail(a.collectFeaturesSnapshot(), "group:"+groupTask.ID)
+	if !slices.ContainsFunc(groupDetail.RawThoughts, func(it views.FeaturesLinkedItem) bool { return it.Title == "Group linked raw note" }) {
+		t.Fatalf("N modal thought missing from group RawThoughts: %+v", groupDetail.RawThoughts)
+	}
+
+	// b clean-slate opens centered outline modal hoisted to Features Wishlist.
+	d.Keys("b")
+	if a.Modal() != "outline" || a.Mode() != ModeOutlineEdit {
+		t.Fatalf("b did not open centered outline modal in edit mode: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	if tm := a.trees.outlineModel(); tm.HoistID() != wid {
+		t.Fatalf("clean-slate outline modal HoistID = %q, want %q", tm.HoistID(), wid)
+	}
+	d.Type("Modal clean slate thought")
+	d.Keys("esc")
+	if rec, err := a.Store.GetByField(data.KindTask, "title", "Modal clean slate thought"); err != nil || rec == nil {
+		t.Fatalf("clean-slate modal thought not saved: err=%v", err)
+	} else if pRef, ok := rec.RefField("parent"); !ok || pRef.ID != wid {
+		t.Fatalf("clean-slate modal thought parent = %+v (ok=%v), want task:%s", pRef, ok, wid)
+	}
+}
+
 func TestFeaturesPageQuickCaptureAndOrganizedGroupProvenance(t *testing.T) {
 	fs := matomeruCheckoutFS("/home/dev", "/home/dev/proj/matomeru")
 	a, d := newFeaturesTestApp(t, Options{FS: fs})
+
+	// Opt-out setting restores legacy docked Quick Capture outline.
+	a.cfg.userSettings[SetFeaturesCaptureDocked] = true
+	a.reloadSettings()
+	a.applySettings()
 
 	// Open Features page: View() must remain pure (must NOT create Features Wishlist yet).
 	d.Keys("6")
 	_ = d.Frame()
 	if a.featuresWishlistTaskID() != "" {
 		t.Fatal("View() mutated store by creating Features Wishlist before capture")
+	}
+	dockedView := a.View(a.State())
+	if dockedView.Find("features.capture") == nil {
+		t.Fatal("expected legacy docked features.capture panel when features.captureDocked=true")
+	}
+	if dockedView.Find(views.FeaturesThoughtInputID) != nil {
+		t.Fatal("inline note box should be hidden when features.captureDocked=true")
 	}
 
 	// Press n -> lazily creates Features Wishlist, focuses features.capture.tree in ModeOutlineEdit.

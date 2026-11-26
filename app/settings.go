@@ -195,6 +195,7 @@ const (
 	SetSelfHostedFeaturesEnabled       = "selfHosted.featuresPage.enabled"
 	SetSelfHostedFeaturesRepoPath      = "selfHosted.featuresPage.repoPath"
 	SetFeaturesItemization             = "features.itemization"
+	SetFeaturesCaptureDocked           = "features.captureDocked"
 	SetHintsDefaultAction              = "hints.defaultAction"
 	SetProjectHomeDashboard            = "project.homeDashboard"
 	SetPanesCompactTopArea             = "panes.compactTopArea"
@@ -224,6 +225,7 @@ const (
 	SetZeroFieldQueryDefault           = "ui.zeroFieldQueryDefault"
 	SetProjectHomeQueueProgress        = "projects.homeQueueProgress"
 	SetThreadsIMessageStyle            = "threads.imessageStyle"
+	SetThreadsIndexShow                = "threads.indexShow"
 	SetSessionsDeskChecklist           = "sessions.showChecklist"
 	SetAnswerShowQuestion              = "questions.answerShowQuestion"
 	SetProjectNavPreselectTask         = "projects.navPreselectTask"
@@ -398,6 +400,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetStickyTreeBreadcrumbs, true, "pin scrolled-off ancestor breadcrumb lines at the top of deep tree views"),
 		flag(SetActionLogEnabled, true, "record executed actions, target, and context in the generic action log"),
 		flag(SetFeaturesItemization, true, "show itemized schema props and page views and enable suggestions for them in Features"),
+		flag(SetFeaturesCaptureDocked, false, "restore the legacy docked bottom Quick Capture outline on the Features page instead of the inline Raw Captured Thoughts note box"),
 		flag(SetProjectPortalOnP, true, "pressing P or ctrl+a P opens the item's Project Portal tab (staying live from terminals)"),
 		flag(SetPagedNoteComposer, true, "alt+n opens the floating paged Markdown Note Deck composer instead of the single-shot UX note form"),
 		flag(SetLivePointerChips, true, "show focusable pointer chips on file, worktree, and context selections"),
@@ -405,6 +408,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetZeroFieldQueryDefault, true, "open the unified Zero-Field chip view by default on f / g s / g b (cycle views with ( / ))"),
 		flag(SetProjectHomeQueueProgress, true, "show live segmented queue progress bars (queue, lanes, child lanes, AI checklist) on the Project Portal Homepage"),
 		flag(SetThreadsIMessageStyle, true, "show the Threads Page as a split rail and iMessage-style chat transcript (off: one compact linear thread list)"),
+		flag(SetThreadsIndexShow, true, "show Threads as a Google-style snippet index that opens into a full-width chat Show view with an inline bottom composer (off: legacy split rail + transcript)"),
 		flag(SetSessionsDeskChecklist, true, "show each session's live AI checklist (Progress bar and Active step columns) on the AI Sessions Control Desk"),
 		flag(SetAnswerShowQuestion, true, "the answer modal shows the full question and its details above the answer fields"),
 		flag(SetProjectNavPreselectTask, true, "moving over a task in the Project left nav keeps the full Tasks outline open with that task selected (off previews its Show page)"),
@@ -716,6 +720,17 @@ func (a *App) enterOpensShow() bool {
 		return false
 	}
 	return a.cfg.Settings.Bool(SetEnterOpensShow, false)
+}
+
+func (a *App) featuresCaptureDockedEnabled() bool {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return false
+	}
+	return a.cfg.Settings.Bool(SetFeaturesCaptureDocked, false)
+}
+
+func (a *App) threadsIndexShowEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetThreadsIndexShow, true)
 }
 
 func (a *App) treeHLFolds() bool {

@@ -18,8 +18,9 @@ const (
 	ScopeFeaturesContent = "features.content"
 	ScopeFeaturesCapture = "features.capture"
 
-	FeaturesNavPrefix   = "features.nav."
-	FeaturesGroupPrefix = "features.nav.group."
+	FeaturesNavPrefix      = "features.nav."
+	FeaturesGroupPrefix    = "features.nav.group."
+	FeaturesThoughtInputID = "features.thoughts.input"
 )
 
 // FeaturesNavItem describes one selectable entry in the Features left rail.
@@ -65,6 +66,18 @@ type FeaturesLinkedItem struct {
 	Badges   []ui.Badge
 }
 
+// FeaturesNoteBoxSpec configures the inline multiline note box rendered inside
+// the Raw Captured Thoughts section on the Features page.
+type FeaturesNoteBoxSpec struct {
+	Enabled     bool
+	Editing     bool
+	Value       string
+	Cursor      int
+	Placeholder string
+	Wrap        bool
+	TargetLabel string
+}
+
 // FeaturesDetailSpec is the pure data contract for the right-hand detail panel.
 type FeaturesDetailSpec struct {
 	Kind               string
@@ -81,6 +94,7 @@ type FeaturesDetailSpec struct {
 	LinkedGroups       []FeaturesLinkedItem // organized groups for Page/Noun
 	LinkedLanes        []FeaturesLinkedItem // planned/running/done lanes
 	RawThoughts        []FeaturesLinkedItem // raw captured thoughts (provenance or mentions)
+	NoteBox            FeaturesNoteBoxSpec  // inline raw-note capture input
 	Props              []FeaturesPropRow
 	ItemizedNouns      []FeaturesItemizedNoun
 	Views              []FeaturesViewRow
@@ -395,7 +409,7 @@ func featuresContentPanel(detail FeaturesDetailSpec, activeKey string, compact b
 	if len(detail.Concepts) > 0 {
 		sections = append(sections, featuresLinkedSection("features.section.concepts", "Concepts", "features.concept.", detail.Concepts))
 	}
-	sections = append(sections, featuresThoughtsSection(detail.RawThoughts))
+	sections = append(sections, featuresThoughtsSection(detail.RawThoughts, detail.NoteBox))
 
 	return ui.ViewNode{
 		ID:     "features.content",
@@ -660,10 +674,55 @@ func featuresLinkedSection(id, title, itemPrefix string, items []FeaturesLinkedI
 	}
 }
 
-func featuresThoughtsSection(thoughts []FeaturesLinkedItem) ui.ViewNode {
-	children := make([]ui.ViewNode, 0, len(thoughts)+2)
+func featuresThoughtsSection(thoughts []FeaturesLinkedItem, noteBox FeaturesNoteBoxSpec) ui.ViewNode {
+	children := make([]ui.ViewNode, 0, len(thoughts)+3)
 	children = append(children, featuresSectionHeading("features.section.thoughts.title", "Raw Captured Thoughts", len(thoughts), "info"))
-	if len(thoughts) == 0 {
+	if noteBox.Enabled {
+		title := "Raw Capture Note"
+		if lbl := strings.TrimSpace(noteBox.TargetLabel); lbl != "" {
+			title += " · " + lbl
+		}
+		placeholder := strings.TrimSpace(noteBox.Placeholder)
+		var badges []ui.Badge
+		if noteBox.Editing {
+			badges = []ui.Badge{
+				{Text: "TYPING", Tone: "accent"},
+				{Text: "ctrl+s save · esc save & exit · ctrl+c cancel · ctrl+g bigger modal", Tone: "muted"},
+			}
+			if placeholder == "" {
+				placeholder = "Type raw feature thought… (enter newline · ctrl+s save · esc save & exit · ctrl+g bigger modal)"
+			}
+		} else {
+			badges = []ui.Badge{
+				{Text: "enter / o type here · n bigger modal", Tone: "muted"},
+			}
+			if placeholder == "" {
+				placeholder = "Press enter or o to type a raw feature thought here, or n for the bigger modal…"
+			}
+		}
+		children = append(children, ui.ViewNode{
+			ID:        FeaturesThoughtInputID,
+			Kind:      ui.KindInput,
+			Scope:     ScopeFeaturesContent,
+			Title:     title,
+			Badges:    badges,
+			Focusable: true,
+			Border:    true,
+			Box:       layout.Constraints{FixedH: 7},
+			Props: map[string]any{
+				"value":       noteBox.Value,
+				"cursor":      noteBox.Cursor,
+				"multiline":   true,
+				"wrap":        noteBox.Wrap,
+				"placeholder": placeholder,
+			},
+			Facts: map[string]any{
+				"featuresThoughtBox":     true,
+				"featuresThoughtEditing": noteBox.Editing,
+			},
+		})
+	}
+	if !noteBox.Enabled && len(thoughts) == 0 {
 		children = append(children, ui.ViewNode{
 			ID:    "features.section.thoughts.empty",
 			Kind:  ui.KindText,

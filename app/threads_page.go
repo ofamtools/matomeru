@@ -12,6 +12,7 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/table"
 	"ofam.dev/ochazuke/widgets/toast"
 )
@@ -39,20 +40,29 @@ type threadsSnapshot struct {
 	threads []data.AgentThread
 }
 
-// threadsController owns the Threads Page's view state: the filterable rail
-// and the scope it was last shown for.
+// threadsController owns the Threads Page's view state: the filterable rail,
+// the scope it was last shown for, and the open chat Show + inline composer state.
 type threadsController struct {
-	list      *table.Model
-	projectID string // scope of the page last shown ("" is every project)
-	visible   []data.AgentThread
-	snapshots map[string]threadsSnapshot
+	list         *table.Model
+	projectID    string // scope of the page last shown ("" is every project)
+	visible      []data.AgentThread
+	snapshots    map[string]threadsSnapshot
+	openTaskID   string
+	composer     *input.Model
+	composing    bool
+	composeGen   int
+	draftsByTask map[string]string
 }
 
 func (a *App) initThreads() {
 	list := table.New(nil, nil)
 	list.MatchMode = a.matchMode()
 	list.FilterField = threadsFilterField
-	a.threads = &threadsController{list: list, snapshots: map[string]threadsSnapshot{}}
+	a.threads = &threadsController{
+		list:         list,
+		snapshots:    map[string]threadsSnapshot{},
+		draftsByTask: map[string]string{},
+	}
 	a.registerFilterable(views.ThreadsListID, list)
 }
 
@@ -120,18 +130,38 @@ func (a *App) threadsScope(s core.State) string {
 	return a.activePortalProjectID(s)
 }
 
-// selectedThread is the thread the rail's selection is on.
+// selectedThread is the currently open thread (in Show mode), the focused
+// Index card, or the rail's selected row.
 func (a *App) selectedThread(s core.State) (data.AgentThread, bool) {
-	a.syncThreads(a.threadsScope(s))
-	row, ok := a.threads.list.FocusedRow()
+	projectID := a.threadsScope(s)
+	a.syncThreads(projectID)
+	tc := a.threads
+	if tc.openTaskID != "" {
+		if i := slices.IndexFunc(tc.visible, func(th data.AgentThread) bool { return th.TaskID == tc.openTaskID }); i >= 0 {
+			tc.list.SelectedIdx = i
+			return tc.visible[i], true
+		}
+		if a.Store != nil {
+			if th, ok, err := a.Store.AgentThreadByID(tc.openTaskID); err == nil && ok {
+				return th, true
+			}
+		}
+	}
+	if taskID, ok := strings.CutPrefix(s.ActiveFrame().FocusID, views.ThreadsItemPrefix); ok && taskID != "" {
+		if i := slices.IndexFunc(tc.visible, func(th data.AgentThread) bool { return th.TaskID == taskID }); i >= 0 {
+			tc.list.SelectedIdx = i
+			return tc.visible[i], true
+		}
+	}
+	row, ok := tc.list.FocusedRow()
 	if !ok || row.ID == "" {
 		return data.AgentThread{}, false
 	}
-	i := slices.IndexFunc(a.threads.visible, func(th data.AgentThread) bool { return th.TaskID == row.ID })
+	i := slices.IndexFunc(tc.visible, func(th data.AgentThread) bool { return th.TaskID == row.ID })
 	if i < 0 {
 		return data.AgentThread{}, false
 	}
-	return a.threads.visible[i], true
+	return tc.visible[i], true
 }
 
 // selectThread moves the rail's selection to taskID when it is shown.
@@ -155,11 +185,50 @@ func (a *App) projectSectionThreads(ws projectWorkspaceData) ui.ViewNode {
 func (a *App) threadsView(projectID, section string) ui.ViewNode {
 	a.syncThreads(projectID)
 	tc := a.threads
-	spec := views.ThreadsPageSpec{
-		Threads: tc.visible, SelectedIdx: tc.list.SelectedIdx, FilterQuery: tc.list.FilterQuery(),
-		Now: a.now(), IMessageStyle: a.threadsIMessageStyleEnabled(), Section: section,
+	indexShow := a.threadsIndexShowEnabled()
+
+	// Keep SelectedIdx synced with the focused Index card when browsing.
+	if indexShow && tc.openTaskID == "" {
+		if focusID := a.Focus(); strings.HasPrefix(focusID, views.ThreadsItemPrefix) {
+			taskID := strings.TrimPrefix(focusID, views.ThreadsItemPrefix)
+			if i := slices.IndexFunc(tc.visible, func(th data.AgentThread) bool { return th.TaskID == taskID }); i >= 0 {
+				tc.list.SelectedIdx = i
+			}
+		}
 	}
-	if len(tc.visible) == 0 {
+
+	threads := tc.visible
+	var openThread *data.AgentThread
+	openID := ""
+	if indexShow && tc.openTaskID != "" {
+		snap := a.threadsSnapshot(projectID)
+		if i := slices.IndexFunc(snap, func(th data.AgentThread) bool { return th.TaskID == tc.openTaskID }); i >= 0 {
+			th := snap[i]
+			openThread = &th
+			openID = th.TaskID
+			if !slices.ContainsFunc(threads, func(v data.AgentThread) bool { return v.TaskID == openID }) {
+				threads = append(slices.Clone(threads), th)
+			}
+		} else {
+			// Switched into a project scope that does not contain the open thread.
+			tc.saveCurrentDraft()
+			tc.openTaskID = ""
+			tc.composing = false
+		}
+	}
+
+	spec := views.ThreadsPageSpec{
+		Threads:       threads,
+		SelectedIdx:   tc.list.SelectedIdx,
+		FilterQuery:   tc.list.FilterQuery(),
+		Now:           a.now(),
+		IMessageStyle: a.threadsIMessageStyleEnabled(),
+		IndexShow:     indexShow,
+		OpenTaskID:    openID,
+		Composer:      a.threadsComposerSpec(openThread),
+		Section:       section,
+	}
+	if len(threads) == 0 {
 		spec.SelectedIdx = -1
 	}
 	if projectID != "" {
@@ -180,7 +249,7 @@ func (a *App) projectThreadCount(projectID string) int {
 // --- specs, bindings, handlers ----------------------------------------------------
 
 func threadsCommandSpecs() []core.CommandSpec {
-	return []core.CommandSpec{
+	base := []core.CommandSpec{
 		spec(CmdThreadsOpen, "Open Threads (conversations with agents)"),
 		{ID: cmdThreadsRowsMove, Description: "Move the Threads selection", Params: []core.ParamSpec{
 			{Name: "direction", Type: core.ParamString, Enum: []string{"up", "down"}},
@@ -190,22 +259,24 @@ func threadsCommandSpecs() []core.CommandSpec {
 		spec(cmdThreadsDispatch, "Dispatch the selected thread to a new or existing agent"),
 		spec(cmdThreadsMarkRead, "Mark the selected thread read", "editing"),
 	}
+	return append(base, threadsChatSpecs()...)
 }
 
 func threadsBindings() []core.Binding {
 	n, scope := ModeNormal, views.ScopeThreads
-	return []core.Binding{
+	base := []core.Binding{
 		bind(n, "", "g T", CmdThreadsOpen, "threads"),
-		when(bind(n, scope, "r", cmdThreadsReply, "reply"), "facts.hasSelection"),
+		when(bind(n, scope, "r", cmdThreadsReply, "reply"), "!facts.threadsIndexShow && facts.hasSelection"),
 		bind(n, scope, "n", cmdThreadsNew, "new thread"),
 		when(bind(n, scope, "d", cmdThreadsDispatch, "dispatch to agent"), "facts.hasSelection"),
 		when(bind(n, scope, "m", cmdThreadsMarkRead, "mark read"), "facts.hasSelection"),
-		when(hidden(bind(n, scope, "enter", cmdThreadsMarkRead, "open thread")), "facts.hasSelection"),
-		with(bind(n, scope, "j", cmdThreadsRowsMove, "next thread"), map[string]any{"direction": "down"}),
-		with(bind(n, scope, "k", cmdThreadsRowsMove, "previous thread"), map[string]any{"direction": "up"}),
-		hidden(with(bind(n, scope, "down", cmdThreadsRowsMove, "next thread"), map[string]any{"direction": "down"})),
-		hidden(with(bind(n, scope, "up", cmdThreadsRowsMove, "previous thread"), map[string]any{"direction": "up"})),
+		when(hidden(bind(n, scope, "enter", cmdThreadsMarkRead, "open thread")), "!facts.threadsIndexShow && facts.hasSelection"),
+		when(with(bind(n, scope, "j", cmdThreadsRowsMove, "next thread"), map[string]any{"direction": "down"}), "!facts.threadsIndexShow"),
+		when(with(bind(n, scope, "k", cmdThreadsRowsMove, "previous thread"), map[string]any{"direction": "up"}), "!facts.threadsIndexShow"),
+		hidden(when(with(bind(n, scope, "down", cmdThreadsRowsMove, "next thread"), map[string]any{"direction": "down"}), "!facts.threadsIndexShow")),
+		hidden(when(with(bind(n, scope, "up", cmdThreadsRowsMove, "previous thread"), map[string]any{"direction": "up"}), "!facts.threadsIndexShow")),
 	}
+	return append(base, threadsChatBindings()...)
 }
 
 func (a *App) registerThreads() {
@@ -222,6 +293,7 @@ func (a *App) registerThreads() {
 	a.handle(cmdThreadsNew, a.threadsNew)
 	a.handle(cmdThreadsDispatch, a.threadsDispatch)
 	a.handle(cmdThreadsMarkRead, a.threadsMarkRead)
+	a.registerThreadsChat()
 }
 
 func (a *App) threadsMarkRead(s core.State, _ core.Command) core.StepResult {
@@ -245,6 +317,10 @@ func (a *App) threadsMarkRead(s core.State, _ core.Command) core.StepResult {
 
 // threadComposer opens the rich composer for a thread message.
 func (a *App) threadComposer(s core.State, title, subtitle, draftKey, taskID, cwdTaskID string, onText func(text string, attachments []data.Attachment) error) core.State {
+	return a.threadComposerWithInitial(s, title, subtitle, draftKey, taskID, cwdTaskID, "", onText)
+}
+
+func (a *App) threadComposerWithInitial(s core.State, title, subtitle, draftKey, taskID, cwdTaskID, initialText string, onText func(text string, attachments []data.Attachment) error) core.State {
 	cwd := ""
 	if cwdTaskID != "" {
 		cwd = a.defaultDirForTask(core.Ref{Kind: data.KindTask, ID: cwdTaskID})
@@ -263,6 +339,7 @@ func (a *App) threadComposer(s core.State, title, subtitle, draftKey, taskID, cw
 		Placeholder:       "Write a message… (@file, @ctx, @agent, $skill, /cmd · ctrl+v/f attach · ctrl+s send)",
 		Cwd:               cwd,
 		DraftKey:          draftKey,
+		InitialText:       initialText,
 		ShowDeliveryModes: false,
 		ContextTaskID:     taskID,
 		OnSubmit: func(text string, attachments []data.Attachment, _ ComposerMode) (tea.Cmd, error) {
@@ -329,6 +406,9 @@ func (a *App) threadsNew(s core.State, _ core.Command) core.StepResult {
 			}
 			a.afterModal(func(st core.State) core.State {
 				a.selectThread(projectID, task.ID)
+				if a.threadsIndexShowEnabled() {
+					st = a.openThreadView(st, task.ID, false)
+				}
 				return a.sendThreadMessage(st, task.ID, note.ID, text)
 			})
 			return nil

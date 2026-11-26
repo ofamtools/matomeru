@@ -86,11 +86,11 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetFilesScanDepth: 3, SetFilesDefaultSort: "recent",
 		SetTopChromeRedesign: true, SetHintsNounFirst: true, SetDetachFocusTarget: DetachFocusLeft,
 		SetFlagsOnLeft: true, SetColorByRecency: views.RecencyCell, SetStickyTreeBreadcrumbs: true,
-		SetActionLogEnabled: true, SetFeaturesItemization: true,
+		SetActionLogEnabled: true, SetFeaturesItemization: true, SetFeaturesCaptureDocked: false,
 		SetProjectPortalOnP: true, SetPagedNoteComposer: true,
 		SetLivePointerChips: true, SetCompactTestOutput: true,
 		SetZeroFieldQueryDefault: true, SetProjectHomeQueueProgress: true,
-		SetThreadsIMessageStyle: true, SetSessionsDeskChecklist: true,
+		SetThreadsIMessageStyle: true, SetThreadsIndexShow: true, SetSessionsDeskChecklist: true,
 		SetAnswerShowQuestion: true, SetProjectNavPreselectTask: true, SetProjectNavShowNewItems: true,
 		SetShowTitleAttachmentChips: true, SetPanesKeepCompletedLaneBars: true,
 		SetFocusHideNonPriority: true, SetFocusEnforceLocks: true, SetFocusChromeCountdown: true}

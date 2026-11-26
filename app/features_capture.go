@@ -158,7 +158,7 @@ func featuresPageSpecs() []core.CommandSpec {
 	sh := func(id, desc string, tags ...string) core.CommandSpec {
 		return core.CommandSpec{ID: id, Description: desc, Tags: tags, Meta: map[string]any{"selfHosted": true}}
 	}
-	return []core.CommandSpec{
+	return append([]core.CommandSpec{
 		{
 			ID:          CmdFeaturesNavSelect,
 			Description: "Activate the focused Features navigation item or toggle a group header",
@@ -175,21 +175,32 @@ func featuresPageSpecs() []core.CommandSpec {
 		sh(CmdFeaturesCaptureFocus, "Focus the Quick Capture (Features Wishlist) outline pane"),
 		sh(CmdFeaturesCaptureToggle, "Toggle the Quick Capture pane between docked and expanded layout"),
 		sh(CmdFeaturesItemOpen, "Open the focused linked record in 2 Work"),
-	}
+	}, featuresNoteSpecs()...)
 }
 
 func featuresPageBindings() []core.Binding {
 	n, active := ModeNormal, "facts.featuresPageActive"
-	return []core.Binding{
+	return append([]core.Binding{
 		when(bind(n, views.ScopeFeaturesNav, "enter", CmdFeaturesNavSelect, "open / toggle"), active),
 		when(bind(n, views.ScopeFeaturesNav, "space", CmdFeaturesNavGroupToggle, "toggle group"), active),
-		when(bind(n, views.ScopeFeaturesPage, "n", CmdFeaturesQuickCapture, "quick capture"), active),
-		when(bind(n, views.ScopeFeaturesNav, "o", CmdFeaturesQuickCapture, "quick capture"), active),
-		when(bind(n, views.ScopeFeaturesNav, "a", CmdFeaturesQuickCapture, "quick capture"), active),
-		when(bind(n, views.ScopeFeaturesNav, "i", CmdFeaturesQuickCapture, "quick capture"), active),
-		when(bind(n, views.ScopeFeaturesContent, "o", CmdFeaturesQuickCapture, "quick capture"), active),
-		when(bind(n, views.ScopeFeaturesContent, "a", CmdFeaturesQuickCapture, "quick capture"), active),
-		when(bind(n, views.ScopeFeaturesContent, "i", CmdFeaturesQuickCapture, "quick capture"), active),
+		when(bind(n, views.ScopeFeaturesPage, "n", CmdFeaturesQuickCapture, "quick capture"), active+" && !facts.hasFilter"),
+		when(bind(n, views.ScopeFeaturesPage, "N", CmdFeaturesCaptureModal, "capture modal"), active+" && !facts.hasFilter"),
+		when(bind(n, views.ScopeFeaturesContent, "enter", CmdFeaturesNoteEdit, "type raw note"), active+" && facts.featuresThoughtBox"),
+		when(bind(n, views.ScopeFeaturesContent, "enter", CmdFeaturesItemOpen, "open item"), active+" && !facts.featuresThoughtBox"),
+		when(bind(n, views.ScopeFeaturesContent, "o", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesContent, "O", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesContent, "a", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesContent, "i", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesNav, "o", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesNav, "O", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesNav, "a", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesNav, "i", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesNav, "o", CmdFeaturesQuickCapture, "quick capture"), active+" && facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesNav, "a", CmdFeaturesQuickCapture, "quick capture"), active+" && facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesNav, "i", CmdFeaturesQuickCapture, "quick capture"), active+" && facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesContent, "o", CmdFeaturesQuickCapture, "quick capture"), active+" && facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesContent, "a", CmdFeaturesQuickCapture, "quick capture"), active+" && facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesContent, "i", CmdFeaturesQuickCapture, "quick capture"), active+" && facts.featuresCaptureDocked"),
 		when(bind(n, views.ScopeFeaturesCapture, "o", CmdFeaturesQuickCapture, "quick capture"), active+" && !facts.isTree"),
 		when(bind(n, views.ScopeFeaturesCapture, "a", CmdFeaturesQuickCapture, "quick capture"), active+" && !facts.isTree"),
 		when(bind(n, views.ScopeFeaturesCapture, "i", CmdFeaturesQuickCapture, "quick capture"), active+" && !facts.isTree"),
@@ -197,8 +208,7 @@ func featuresPageBindings() []core.Binding {
 		when(bind(n, views.ScopeFeaturesContent, "c", CmdFeaturesCaptureFocus, "focus capture"), active),
 		when(bind(n, views.ScopeFeaturesCapture, "c", CmdStatusCycle, "cycle status"), active+" && facts.hasStatus"),
 		when(bind(n, views.ScopeFeaturesPage, "z", CmdFeaturesCaptureToggle, "expand capture"), active),
-		when(bind(n, views.ScopeFeaturesContent, "enter", CmdFeaturesItemOpen, "open item"), active),
-	}
+	}, featuresNoteBindings()...)
 }
 
 func (a *App) registerFeaturesPageHandlers() {
@@ -211,6 +221,7 @@ func (a *App) registerFeaturesPageHandlers() {
 	a.handle(CmdFeaturesSuggestProp, a.featuresSuggestProp)
 	a.handle(CmdFeaturesSuggestView, a.featuresSuggestView)
 	a.handle(CmdFeaturesSuggestConcept, a.featuresSuggestConcept)
+	a.registerFeaturesNoteHandlers()
 }
 
 // --- Quick Capture Outline & Handlers -------------------------------------------
@@ -423,6 +434,9 @@ func (a *App) featuresNavGroupToggle(s core.State, c core.Command) core.StepResu
 }
 
 func (a *App) featuresQuickCapture(s core.State, _ core.Command) core.StepResult {
+	if !a.featuresCaptureDockedEnabled() {
+		return a.openFeaturesCaptureModal(s, "")
+	}
 	wid := a.ensureFeaturesWishlistTask()
 	if wid == "" {
 		a.say("could not initialize %s", FeaturesWishlistTitle)
@@ -436,11 +450,18 @@ func (a *App) featuresQuickCapture(s core.State, _ core.Command) core.StepResult
 }
 
 func (a *App) featuresCaptureFocus(s core.State, _ core.Command) core.StepResult {
+	if !a.featuresCaptureDockedEnabled() {
+		a.say("focused raw note box · enter/o to type · n for bigger modal")
+		return core.Next(withFocus(s, views.FeaturesThoughtInputID))
+	}
 	a.say("focused quick capture · n/o add · b clean slate")
 	return core.Next(withFocus(s, featuresCaptureTree))
 }
 
 func (a *App) featuresCaptureToggle(s core.State, _ core.Command) core.StepResult {
+	if !a.featuresCaptureDockedEnabled() {
+		return a.openFeaturesCaptureModal(s, "")
+	}
 	fc := a.featuresCtrl()
 	fc.captureExpanded = !fc.captureExpanded
 	if fc.captureExpanded {

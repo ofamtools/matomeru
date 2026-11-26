@@ -289,6 +289,14 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 		}
 		return core.Next(s)
 	}
+	if a.Engine.Mode(s) == ModeFeaturesNote {
+		a.featuresNoteReadline(c)
+		return core.Next(s)
+	}
+	if a.Engine.Mode(s) == ModeThreadsCompose {
+		a.threadsComposeReadline(c)
+		return core.Next(s)
+	}
 	return core.Next(s)
 }
 

@@ -55,7 +55,7 @@ func (f *threadsFixture) fact(key string) any {
 	return node.Facts[key]
 }
 
-// write types text into the open thread composer and submits it.
+// write types text into the open thread composer modal and submits it.
 func (f *threadsFixture) write(text string) {
 	f.t.Helper()
 	if f.app.Modal() != threadsComposerModalID {
@@ -101,7 +101,7 @@ func setupThreadsFixture(t *testing.T) *threadsFixture {
 	return f
 }
 
-// selectThread puts the rail's selection on taskID with j/k.
+// selectThread puts selection/focus on taskID with j/k.
 func (f *threadsFixture) selectThread(taskID string) {
 	f.t.Helper()
 	for range 6 {
@@ -116,36 +116,42 @@ func (f *threadsFixture) selectThread(taskID string) {
 		}
 		f.driver.Keys("k")
 	}
-	f.t.Fatalf("could not select thread %s (on %v)", taskID, f.fact("threadTaskId"))
+	f.t.Fatalf("could not select thread %s (on %v, focus %q)", taskID, f.fact("threadTaskId"), f.app.Focus())
 }
 
-func TestThreadsPageOpensOnGTAndShowsTranscript(t *testing.T) {
+func TestThreadsPageOpensOnGTAndShowsGoogleIndex(t *testing.T) {
 	f := setupThreadsFixture(t)
 	a, d := f.app, f.driver
 	topTabs := a.topTabs()
 
 	d.Keys("g", "T")
-	if a.Space() != SpaceThreads || a.Focus() != views.ThreadsListID {
+	if a.Space() != SpaceThreads || !strings.HasPrefix(a.Focus(), views.ThreadsItemPrefix) {
 		t.Fatalf("g T opened %q, focus %q", a.Space(), a.Focus())
 	}
 	if !slices.Equal(a.topTabs(), topTabs) {
 		t.Fatal("opening the Threads Page changed the numbered top tabs")
 	}
-	if f.fact("count") != 2 || f.fact("totalUnread") != 1 || f.fact("imessageStyle") != true {
-		t.Fatalf("facts: count %v totalUnread %v imessageStyle %v", f.fact("count"), f.fact("totalUnread"), f.fact("imessageStyle"))
+	if root := a.View(a.State()); root.Find("threads.split") != nil {
+		t.Fatal("default threads.indexShow=true must not render legacy threads.split")
+	}
+	if f.fact("count") != 2 || f.fact("totalUnread") != 1 || f.fact("threadsIndexShow") != true || f.fact("threadOpen") != false {
+		t.Fatalf("facts: count=%v totalUnread=%v indexShow=%v open=%v", f.fact("count"), f.fact("totalUnread"), f.fact("threadsIndexShow"), f.fact("threadOpen"))
 	}
 	f.selectThread(f.parser.ID)
+	if a.Focus() != views.ThreadsItemPrefix+f.parser.ID {
+		t.Fatalf("focus = %q, want %q", a.Focus(), views.ThreadsItemPrefix+f.parser.ID)
+	}
 	if f.fact("threadPaneId") != f.pane.ID || f.fact("unreadCount") != 1 || f.fact("messageCount") != 2 {
 		t.Fatalf("parser thread facts: pane %v unread %v messages %v", f.fact("threadPaneId"), f.fact("unreadCount"), f.fact("messageCount"))
 	}
 	frame := d.Frame()
-	for _, want := range []string{"Threads", "Parser thread", "Docs thread", "claude: parser", " You ", "Please fix the lexer", "── new", "r reply · n new thread · d dispatch"} {
+	for _, want := range []string{"Threads", "Parser thread", "Docs thread", "claude: parser", "Please fix the lexer", "Write the guide", "enter open chat"} {
 		if !strings.Contains(frame, want) {
-			t.Fatalf("Threads Page is missing %q:\n%s", want, frame)
+			t.Fatalf("Threads Index missing %q:\n%s", want, frame)
 		}
 	}
 
-	// The rail declares ViewNode.Filter, so / filters it through trait.filter.
+	// The Index scroll container declares ViewNode.Filter, so / filters via trait.filter.
 	d.Keys("/")
 	d.Type("guide")
 	d.Keys("enter")
@@ -157,11 +163,162 @@ func TestThreadsPageOpensOnGTAndShowsTranscript(t *testing.T) {
 		t.Fatalf("/ ctrl+x did not clear the filter: count %v", f.fact("count"))
 	}
 
-	// m marks the thread read and the unread divider goes.
+	// m marks the focused thread read on the Index.
 	f.selectThread(f.parser.ID)
 	d.Keys("m")
-	if f.fact("unreadCount") != 0 || f.fact("totalUnread") != 0 || strings.Contains(d.Frame(), "── new") {
+	if f.fact("unreadCount") != 0 || f.fact("totalUnread") != 0 {
 		t.Fatalf("m left unread %v / %v", f.fact("unreadCount"), f.fact("totalUnread"))
+	}
+}
+
+func TestThreadsShowChatTraversalAndInlineComposer(t *testing.T) {
+	f := setupThreadsFixture(t)
+	a, d := f.app, f.driver
+	d.Keys("g", "T")
+	f.selectThread(f.parser.ID)
+
+	// enter drills into full-width Chat Show, marks unread read, focuses latest message.
+	d.Keys("enter")
+	if f.fact("threadOpen") != true || f.fact("threadTaskId") != f.parser.ID || f.fact("unreadCount") != 0 {
+		t.Fatalf("Show facts = open:%v task:%v unread:%v", f.fact("threadOpen"), f.fact("threadTaskId"), f.fact("unreadCount"))
+	}
+	if a.Focus() != views.ThreadsMsgPrefix+"1" {
+		t.Fatalf("initial Show focus = %q, want %q", a.Focus(), views.ThreadsMsgPrefix+"1")
+	}
+	if root := a.View(a.State()); root.Find("threads.split") != nil {
+		t.Fatal("Show view must not render legacy threads.split")
+	}
+
+	// k/j traverses messages AND reaches the pinned bottom inline composer.
+	d.Keys("k")
+	if a.Focus() != views.ThreadsMsgPrefix+"0" {
+		t.Fatalf("k focus = %q, want msg 0", a.Focus())
+	}
+	d.Keys("j", "j")
+	if a.Focus() != views.ThreadsComposerInputID {
+		t.Fatalf("j j focus = %q, want %q", a.Focus(), views.ThreadsComposerInputID)
+	}
+
+	// enter on focused composer enters ModeThreadsCompose; enter adds newline, esc keeps draft.
+	d.Keys("enter")
+	if a.Mode() != ModeThreadsCompose || f.fact("threadComposing") != true {
+		t.Fatalf("enter on composer did not enter ModeThreadsCompose: mode=%q fact=%v", a.Mode(), f.fact("threadComposing"))
+	}
+	d.Type("Now add tests")
+	d.Keys("enter")
+	d.Type("Cover edge cases")
+	d.Keys("esc")
+	if a.Mode() != ModeNormal || f.fact("threadOpen") != true || f.fact("threadComposing") != false {
+		t.Fatalf("esc from typing should browse chat: mode=%q open=%v composing=%v", a.Mode(), f.fact("threadOpen"), f.fact("threadComposing"))
+	}
+	if got := a.threads.composer.Value(); got != "Now add tests\nCover edge cases" {
+		t.Fatalf("esc dropped draft: got %q", got)
+	}
+	// Browse up through messages while draft stays pinned below, then press i to resume typing.
+	d.Keys("k")
+	if a.Focus() != views.ThreadsMsgPrefix+"1" {
+		t.Fatalf("k from resting composer = %q, want msg 1", a.Focus())
+	}
+	d.Keys("i")
+	if a.Mode() != ModeThreadsCompose || a.Focus() != views.ThreadsComposerInputID {
+		t.Fatalf("i did not resume typing: mode=%q focus=%q", a.Mode(), a.Focus())
+	}
+
+	// ctrl+s sends the reply to the thread and bound live pane.
+	d.Keys("ctrl+s")
+	if a.Mode() != ModeNormal || a.Modal() != "" {
+		t.Fatalf("ctrl+s left mode=%q modal=%q", a.Mode(), a.Modal())
+	}
+	if got := a.threads.composer.Value(); got != "" {
+		t.Fatalf("composer not cleared after send: %q", got)
+	}
+	th := f.thread(f.parser.ID)
+	if len(th.Messages) != 3 || th.Messages[2].AuthorKind != "owner" || th.Messages[2].Body != "Now add tests\nCover edge cases" {
+		t.Fatalf("reply not appended: %+v", th.Messages)
+	}
+	got := f.delivered(f.pane.ID)
+	for _, want := range []string{
+		"# Thread Handoff", "task:" + f.parser.ID, "**Project ID:** `" + f.proj.ID + "`", "**Pane ID:** `" + f.pane.ID + "`",
+		"Please fix the lexer", "Fixed in **lexer.go**", "## New Message From The Owner", "Now add tests", "mtm mcp call task.note",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("delivered prompt missing %q:\n%s", want, got)
+		}
+	}
+	if n := strings.Count(got, "Now add tests"); n != 1 {
+		t.Fatalf("reply appears %d times in prompt, want 1:\n%s", n, got)
+	}
+
+	// ctrl+c clears draft without sending.
+	d.Keys("i")
+	d.Type("scratch text")
+	d.Keys("ctrl+c")
+	if a.Mode() != ModeNormal || a.threads.composer.Value() != "" {
+		t.Fatalf("ctrl+c did not clear draft: mode=%q val=%q", a.Mode(), a.threads.composer.Value())
+	}
+
+	// ctrl+g expands inline draft into rich composer modal and clears draft on submit.
+	d.Keys("i")
+	d.Type("Expanded reply")
+	d.Keys("ctrl+g")
+	if a.Modal() != threadsComposerModalID {
+		t.Fatalf("ctrl+g did not open rich modal: modal=%q", a.Modal())
+	}
+	f.run(CmdComposerSubmit, nil)
+	if a.Modal() != "" || a.threads.composer.Value() != "" {
+		t.Fatalf("expanded submit left modal=%q draft=%q", a.Modal(), a.threads.composer.Value())
+	}
+	if th := f.thread(f.parser.ID); len(th.Messages) != 4 || th.Messages[3].Body != "Expanded reply" {
+		t.Fatalf("expanded reply not saved: %+v", th.Messages)
+	}
+
+	// esc returns to Index with focus restored to parser card.
+	d.Keys("esc")
+	if f.fact("threadOpen") != false || a.Focus() != views.ThreadsItemPrefix+f.parser.ID {
+		t.Fatalf("esc did not return to index card: open=%v focus=%q", f.fact("threadOpen"), a.Focus())
+	}
+	// l opens Show again and h returns to Index.
+	d.Keys("l")
+	if f.fact("threadOpen") != true {
+		t.Fatal("l did not open Show view")
+	}
+	d.Keys("h")
+	if f.fact("threadOpen") != false {
+		t.Fatal("h did not return to Index")
+	}
+}
+
+func TestThreadsFuzzySwitcherAndPerThreadDrafts(t *testing.T) {
+	f := setupThreadsFixture(t)
+	a, d := f.app, f.driver
+	d.Keys("g", "T")
+
+	// Open parser, leave a draft, then press p to fuzzy-switch to Docs thread.
+	f.selectThread(f.parser.ID)
+	d.Keys("r")
+	d.Type("WIP parser note")
+	d.Keys("esc")
+	d.Keys("p")
+	pm := a.activePicker(threadsPickerModalID)
+	if pm == nil {
+		t.Fatalf("p did not open threads switcher picker (modal=%q)", a.Modal())
+	}
+	d.Keys("/")
+	d.Type("Docs")
+	d.Keys("enter")
+	if a.Modal() != "" || f.fact("threadOpen") != true || f.fact("threadTaskId") != f.docs.ID {
+		t.Fatalf("picker did not switch to docs: modal=%q open=%v task=%v", a.Modal(), f.fact("threadOpen"), f.fact("threadTaskId"))
+	}
+	if a.threads.composer.Value() != "" {
+		t.Fatalf("docs thread inherited parser draft: %q", a.threads.composer.Value())
+	}
+
+	// Switch back to parser via p and verify draft was preserved.
+	d.Keys("p", "/")
+	d.Type("Parser")
+	d.Keys("enter")
+	if f.fact("threadTaskId") != f.parser.ID || a.threads.composer.Value() != "WIP parser note" {
+		t.Fatalf("switching back lost draft: task=%v draft=%q", f.fact("threadTaskId"), a.threads.composer.Value())
 	}
 }
 
@@ -179,57 +336,30 @@ func TestThreadsBindingsAndCommandSpecs(t *testing.T) {
 	for _, sp := range CommandSpecs() {
 		ids[sp.ID] = true
 	}
-	bound := map[string]string{}
+	bound := map[string][]string{}
 	for _, b := range threadsBindings() {
 		if !ids[b.Command] {
 			t.Errorf("binding %v runs %q, which has no command spec", b.Keys, b.Command)
 		}
 		if b.Scope == views.ScopeThreads {
-			bound[strings.Join(b.Keys, " ")] = b.Command
+			k := strings.Join(b.Keys, " ")
+			bound[k] = append(bound[k], b.Command)
 		}
 	}
-	for key, cmd := range map[string]string{"r": cmdThreadsReply, "n": cmdThreadsNew, "d": cmdThreadsDispatch, "m": cmdThreadsMarkRead} {
-		if bound[key] != cmd {
-			t.Errorf("%s runs %q on the Threads Page, want %q", key, bound[key], cmd)
-		}
-	}
-}
-
-func TestThreadReplyGoesToTheBoundPaneWithTheHandoff(t *testing.T) {
-	f := setupThreadsFixture(t)
-	a, d := f.app, f.driver
-	d.Keys("g", "T")
-	f.selectThread(f.parser.ID)
-
-	d.Keys("r")
-	f.write("Now add tests")
-	if a.Modal() != "" {
-		t.Fatalf("a reply to a thread with a live pane left modal %q open", a.Modal())
-	}
-	th := f.thread(f.parser.ID)
-	if len(th.Messages) != 3 || th.Messages[2].AuthorKind != "owner" || th.Messages[2].Body != "Now add tests" {
-		t.Fatalf("the reply was not appended to the thread: %+v", th.Messages)
-	}
-	if th.UnreadCount != 0 {
-		t.Fatalf("replying left %d unread", th.UnreadCount)
-	}
-	if th.PaneID != f.pane.ID {
-		t.Fatalf("thread pane = %q, want the bound pane", th.PaneID)
-	}
-	got := f.delivered(f.pane.ID)
-	for _, want := range []string{
-		"# Thread Handoff", "task:" + f.parser.ID, "**Project ID:** `" + f.proj.ID + "`", "**Pane ID:** `" + f.pane.ID + "`",
-		"Please fix the lexer", "Fixed in **lexer.go**", "## New Message From The Owner", "Now add tests", "mtm mcp call task.note",
+	for key, wantCmd := range map[string]string{
+		"r":     cmdThreadsComposeStart,
+		"R":     cmdThreadsReply,
+		"n":     cmdThreadsNew,
+		"d":     cmdThreadsDispatch,
+		"m":     cmdThreadsMarkRead,
+		"p":     cmdThreadsPick,
+		"enter": cmdThreadsOpenThread,
+		"esc":   cmdThreadsBack,
+		"i":     cmdThreadsComposeStart,
 	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("the delivered prompt is missing %q:\n%s", want, got)
+		if !slices.Contains(bound[key], wantCmd) {
+			t.Errorf("%s bindings on ScopeThreads = %v, want %q", key, bound[key], wantCmd)
 		}
-	}
-	if n := strings.Count(got, "Now add tests"); n != 1 {
-		t.Fatalf("the reply appears %d times in the prompt, want once:\n%s", n, got)
-	}
-	if a.Space() != SpaceThreads || f.fact("threadTaskId") != f.parser.ID {
-		t.Fatalf("replying left the thread: space %q selected %v", a.Space(), f.fact("threadTaskId"))
 	}
 }
 
@@ -242,8 +372,13 @@ func TestThreadReplyWithoutAPaneUsesTheNewAgentFirstPicker(t *testing.T) {
 		t.Fatalf("the docs thread already has pane %v", f.fact("threadPaneId"))
 	}
 
+	// r from Index opens Show + inline composer; ctrl+s records reply and opens New-Agent-first picker.
 	d.Keys("r")
-	f.write("Cover the CLI too")
+	if a.Mode() != ModeThreadsCompose || f.fact("threadOpen") != true {
+		t.Fatalf("r on Index did not start inline reply: mode=%q open=%v", a.Mode(), f.fact("threadOpen"))
+	}
+	d.Type("Cover the CLI too")
+	d.Keys("ctrl+s")
 	pm := a.activePicker(dispatchTargetPickerID)
 	if pm == nil {
 		t.Fatalf("a reply with no bound pane did not open the target picker (modal %q)", a.Modal())
@@ -252,7 +387,6 @@ func TestThreadReplyWithoutAPaneUsesTheNewAgentFirstPicker(t *testing.T) {
 	if len(items) != 2 || items[0].ID != dispatchNewAgentItemID || items[1].ID != f.pane.ID || pm.Model().SelectedIdx != 0 {
 		t.Fatalf("target picker = %+v, want New Agent first and selected, then the live pane", items)
 	}
-	// The reply is recorded before any target is chosen.
 	if th := f.thread(f.docs.ID); len(th.Messages) != 2 {
 		t.Fatalf("the reply was not recorded first: %+v", th.Messages)
 	}
@@ -307,18 +441,17 @@ func TestThreadNewAndDispatchToAnExistingAgent(t *testing.T) {
 	if a.Modal() != "" {
 		t.Fatalf("picking a live pane left modal %q open", a.Modal())
 	}
-	if f.fact("count") != 3 {
-		t.Fatalf("%v threads after n, want 3", f.fact("count"))
+	if f.fact("count") != 3 || f.fact("threadOpen") != true {
+		t.Fatalf("after n: count=%v open=%v, want 3 / true", f.fact("count"), f.fact("threadOpen"))
 	}
 	newID, _ := f.fact("threadTaskId").(string)
 	if newID == "" || newID == f.parser.ID || newID == f.docs.ID {
-		t.Fatalf("the new thread is not selected: %q", newID)
+		t.Fatalf("the new thread is not open: %q", newID)
 	}
 	created := f.thread(newID)
 	if created.Title != "Benchmark the lexer" || created.ProjectID != f.proj.ID || created.PaneID != f.pane.ID || len(created.Messages) != 1 {
 		t.Fatalf("new thread = %+v", created)
 	}
-	// Two threads, one pane: the first keeps its own conversation.
 	if parser := f.thread(f.parser.ID); parser.PaneID != f.pane.ID || len(parser.Messages) != 2 {
 		t.Fatalf("the first thread changed: %+v", parser)
 	}
@@ -326,7 +459,8 @@ func TestThreadNewAndDispatchToAnExistingAgent(t *testing.T) {
 		t.Fatalf("the pane did not get the new thread:\n%s", got)
 	}
 
-	// d hands a thread, as it stands, to a target from the same picker.
+	// Return to Index, select docs, and d dispatches it to the live pane.
+	d.Keys("esc")
 	f.selectThread(f.docs.ID)
 	d.Keys("d")
 	pm = a.activePicker(dispatchTargetPickerID)
@@ -343,17 +477,34 @@ func TestThreadNewAndDispatchToAnExistingAgent(t *testing.T) {
 	}
 }
 
-func TestThreadsCompactStyleSetting(t *testing.T) {
+func TestThreadsLegacySplitAndCompactOptOut(t *testing.T) {
 	f := setupThreadsFixture(t)
 	a, d := f.app, f.driver
+	a.cfg.userSettings[SetThreadsIndexShow] = false
+	a.reloadSettings()
+	a.applySettings()
+
 	d.Keys("g", "T")
-	if root := a.View(a.State()); root.Find("threads.split") == nil {
-		t.Fatal("the default is not the split iMessage style")
+	if a.Focus() != views.ThreadsListID {
+		t.Fatalf("legacy focus = %q, want %q", a.Focus(), views.ThreadsListID)
 	}
+	if root := a.View(a.State()); root.Find("threads.split") == nil || f.fact("threadsIndexShow") != false {
+		t.Fatal("threads.indexShow=false did not restore legacy split rail + transcript")
+	}
+
+	// Legacy r opens rich modal composer and delivers reply.
+	f.selectThread(f.parser.ID)
+	d.Keys("r")
+	f.write("Legacy reply")
+	if th := f.thread(f.parser.ID); len(th.Messages) != 3 || th.Messages[2].Body != "Legacy reply" {
+		t.Fatalf("legacy reply failed: %+v", th.Messages)
+	}
+
+	// Opting out of iMessage style as well renders the compact linear view.
 	a.cfg.userSettings[SetThreadsIMessageStyle] = false
 	a.reloadSettings()
 	a.applySettings()
-	d.Keys("k") // redraw
+	d.Keys("k")
 	root := a.View(a.State())
 	if root.Find("threads.split") != nil || f.fact("imessageStyle") != false {
 		t.Fatal("threads.imessageStyle=false still renders the split chat view")
@@ -383,7 +534,7 @@ func TestThreadsProjectPortalSection(t *testing.T) {
 	if page == nil {
 		t.Fatalf("the threads section does not render the Threads Page:\n%s", d.Frame())
 	}
-	if page.Facts["section"] != projectThreadsSection || page.Facts["threadTaskId"] != f.subTask.ID {
+	if page.Facts["section"] != projectThreadsSection || page.Facts["threadTaskId"] != f.subTask.ID || page.Facts["threadsIndexShow"] != true {
 		t.Fatalf("threads section facts = %v", page.Facts)
 	}
 	for _, th := range a.threads.visible {
@@ -399,5 +550,28 @@ func TestThreadsProjectPortalSection(t *testing.T) {
 	}
 	if got := a.threadsScope(a.State()); got != f.proj.ID {
 		t.Fatalf("threads scope in the portal = %q, want the project", got)
+	}
+
+	// selectProjectSection already entered Threads content focusing the thread card;
+	// enter opens Show; 1st esc returns to Threads Index; 2nd esc returns to project.nav.threads!
+	if a.Focus() != views.ThreadsItemPrefix+f.subTask.ID {
+		t.Fatalf("project threads section focus = %q, want %q", a.Focus(), views.ThreadsItemPrefix+f.subTask.ID)
+	}
+	d.Keys("enter")
+	r := a.View(a.State())
+	if page := r.Find(views.ThreadsPageID); page == nil || page.Facts["threadOpen"] != true {
+		t.Fatalf("enter on portal thread card did not open Show view: %v", page)
+	}
+	d.Keys("esc")
+	r = a.View(a.State())
+	if page := r.Find(views.ThreadsPageID); page == nil || page.Facts["threadOpen"] != false {
+		t.Fatalf("1st esc in portal Show view did not return to Index: %v", page)
+	}
+	if a.Focus() != views.ThreadsItemPrefix+f.subTask.ID {
+		t.Fatalf("1st esc focus = %q, want %q", a.Focus(), views.ThreadsItemPrefix+f.subTask.ID)
+	}
+	d.Keys("esc")
+	if a.Focus() != projectNavPrefix+projectThreadsSection {
+		t.Fatalf("2nd esc from portal Threads Index focus = %q, want %q", a.Focus(), projectNavPrefix+projectThreadsSection)
 	}
 }

@@ -72,6 +72,9 @@ type richComposerSpec struct {
 	Cwd                  string
 	DraftKey             string
 	PaneID               string
+	InitialText          string
+	WidthPct             int
+	HeightPct            int
 	ShowDeliveryModes    bool
 	EnableProjectContext bool
 	IsFirstPrompt        bool
@@ -126,6 +129,9 @@ func newRichComposerModal(a *App, spec richComposerSpec) *richComposerModal {
 
 	in := input.New("", true)
 	in.HandleKey("i") // start in insert mode ready to draft immediately
+	if spec.InitialText != "" {
+		in = setInputText(in, spec.InitialText)
+	}
 
 	m := &richComposerModal{
 		a:        a,
@@ -485,6 +491,16 @@ func (m *richComposerModal) View(_, _ int) ui.ViewNode {
 		widthPct, heightPct, gap, compMaxH = 62, 34, 0, 4
 	} else {
 		inNode.Box = layout.Constraints{Flex: 1, MinH: 6}
+	}
+	if m.spec.WidthPct > 0 {
+		widthPct = m.spec.WidthPct
+	}
+	if m.spec.HeightPct > 0 {
+		heightPct = m.spec.HeightPct
+		if heightPct >= 50 {
+			inNode.Box = layout.Constraints{Flex: 1, MinH: 8}
+			gap = 1
+		}
 	}
 	children = append(children, inNode)
 

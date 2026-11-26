@@ -9,6 +9,7 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/input"
 )
 
 // Space, widget, task-root, and command constants for the self-hosted Features page.
@@ -34,11 +35,14 @@ const (
 )
 
 // FeaturesController owns cached local-checkout detection, left-nav selection
-// and collapse state, and Quick Capture expansion for the Features page.
+// and collapse state, inline raw note editing, and Quick Capture expansion for the Features page.
 type FeaturesController struct {
 	activeKey        string
 	collapsedGroups  map[string]bool
 	captureExpanded  bool
+	noteInput        *input.Model
+	noteEditing      bool
+	noteGen          int
 	detectCached     bool
 	detectEnabledKey string
 	detectRepoPath   string
@@ -91,9 +95,11 @@ func (a *App) featuresViewKey(s core.State) string {
 		}
 	}
 	slices.Sort(collapsed)
-	return fmt.Sprintf("1:%s:%s:%t:%t:%s",
+	return fmt.Sprintf("1:%s:%s:%t:%t:%t:%t:%d:%s",
 		repoPath, fc.activeItemKey(), fc.captureExpanded,
+		a.featuresCaptureDockedEnabled(), fc.noteEditing,
 		a.isCleanSlateActive(data.KindTask, featuresCaptureTree),
+		fc.noteGen,
 		strings.Join(collapsed, ","),
 	)
 }
@@ -243,6 +249,12 @@ func (a *App) buildFeaturesNav(snap featuresSnapshot, activeKey string) ([]views
 }
 
 func (a *App) buildFeaturesDetail(snap featuresSnapshot, activeKey string) views.FeaturesDetailSpec {
+	detail := a.buildFeaturesDetailBody(snap, activeKey)
+	detail.NoteBox = a.featuresNoteBoxSpec(activeKey, detail.Title)
+	return detail
+}
+
+func (a *App) buildFeaturesDetailBody(snap featuresSnapshot, activeKey string) views.FeaturesDetailSpec {
 	itemized := a.featuresItemizationEnabled()
 	switch {
 	case strings.HasPrefix(activeKey, "page:"):
@@ -288,8 +300,15 @@ func (a *App) buildFeaturesDetail(snap featuresSnapshot, activeKey string) views
 		key := strings.TrimPrefix(activeKey, "component:")
 		if component, ok := lookupFeaturesComponent(key); itemized && ok {
 			page, _ := lookupFeaturesPageCatalog(component.Page)
+			var thoughts []views.FeaturesLinkedItem
+			for _, rt := range snap.rawThoughts {
+				if a.recordMatchesTarget(rt, "targetComponents", key, nil, false) {
+					thoughts = append(thoughts, a.linkedItemFromRecord(rt))
+				}
+			}
 			return views.FeaturesDetailSpec{
 				Kind: "component", Key: activeKey, Title: component.View.Name, Subtitle: "Component · " + page.Title,
+				RawThoughts:   thoughts,
 				ItemizedNouns: a.featuresItemizedNouns(component.Nouns, snap.concepts),
 				Views:         featuresViewsWithSuggestions([]views.FeaturesViewRow{component.View}, snap.concepts, key, activeKey),
 				Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
@@ -403,8 +422,15 @@ func (a *App) buildFeaturesDetail(snap featuresSnapshot, activeKey string) views
 
 	case strings.HasPrefix(activeKey, "concept:"):
 		kind := strings.TrimPrefix(activeKey, "concept:")
+		var thoughts []views.FeaturesLinkedItem
+		for _, rt := range snap.rawThoughts {
+			if a.recordMatchesTarget(rt, "targetConcepts", kind, nil, false) {
+				thoughts = append(thoughts, a.linkedItemFromRecord(rt))
+			}
+		}
 		return views.FeaturesDetailSpec{
 			Kind: "concept", Key: activeKey, Title: views.Label(kind) + " concepts",
+			RawThoughts: thoughts,
 			Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
 				return rec.Text(data.FieldConceptKind) == kind
 			}),
@@ -505,19 +531,26 @@ func (a *App) featuresSpace(s core.State) ui.ViewNode {
 	}
 	fc.activeKey = activeKey
 
+	docked := a.featuresCaptureDockedEnabled()
+	var captureNode ui.ViewNode
+	if docked {
+		captureNode = a.featuresCaptureNode(snap.wishlistRoot)
+	}
+
 	return views.FeaturesPageView(views.FeaturesPageSpec{
 		RepoPath:        repoPath,
 		ActiveKey:       activeKey,
 		NavRatio:        0.24,
 		NavGroups:       navGroups,
 		Detail:          a.buildFeaturesDetail(snap, activeKey),
-		CaptureNode:     a.featuresCaptureNode(snap.wishlistRoot),
-		ShowCapture:     true,
-		CaptureExpanded: fc.captureExpanded,
+		CaptureNode:     captureNode,
+		ShowCapture:     docked,
+		CaptureExpanded: docked && fc.captureExpanded,
 		Facts: map[string]any{
-			"featuresPageActive": true,
-			"featuresActiveKey":  activeKey,
-			"captureExpanded":    fc.captureExpanded,
+			"featuresPageActive":    true,
+			"featuresActiveKey":     activeKey,
+			"captureExpanded":       docked && fc.captureExpanded,
+			"featuresCaptureDocked": docked,
 		},
 	})
 }

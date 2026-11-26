@@ -177,6 +177,9 @@ func (a *App) tabsMemoKey(s core.State) string {
 	if fk := a.featuresViewKey(s); fk != "" {
 		b.WriteString("|feat:" + fk)
 	}
+	if tk := a.threadsViewKey(); tk != "" {
+		b.WriteString("|th:" + tk)
+	}
 	if a.nav != nil && (a.nav.showRelatedOff != nil || a.nav.showPropsOff != nil) {
 		fmt.Fprintf(&b, "|ss:%s:%s:%s", data.RefText(a.nav.showScrollRef), showScrollOffsetText(a.nav.showRelatedOff), showScrollOffsetText(a.nav.showPropsOff))
 	}

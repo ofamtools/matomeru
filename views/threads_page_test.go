@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 )
 
 func threadsFixture(now time.Time) []data.AgentThread {
 	return []data.AgentThread{
 		{
-			TaskID: "t1", Title: "Parser", ProjectID: "p1", ProjectTitle: "Apollo",
+			TaskID: "t1", TaskRef: core.Ref{Kind: "task", ID: "t1"}, Title: "Parser", ProjectID: "p1", ProjectTitle: "Apollo",
 			PaneID: "pane1", PaneTitle: "parser pane", Harness: "claude", UnreadCount: 1, LastAt: now.Add(-5 * time.Minute),
 			Messages: []data.ThreadMessage{
 				{ID: "n1", AuthorKind: "owner", AuthorLabel: "owner", Body: "Please fix the lexer", CreatedAt: now.Add(-3 * time.Hour)},
@@ -144,5 +145,127 @@ func TestThreadRecencyTones(t *testing.T) {
 	}
 	if label, _ := ThreadRecency(time.Time{}, now); label != "" {
 		t.Errorf("zero time = %q", label)
+	}
+}
+
+func TestThreadsPageViewIndexShowFeedAndSnippets(t *testing.T) {
+	now := time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC)
+	threads := threadsFixture(now)
+	threads = append(threads, data.AgentThread{
+		TaskID: "t3", Title: "Long Thread", LastAt: now.Add(-1 * time.Minute),
+		Messages: []data.ThreadMessage{
+			{ID: "m1", AuthorKind: "owner", Body: "# Heading\n> First topic line\n- bullet item", CreatedAt: now.Add(-10 * time.Minute)},
+			{ID: "m2", AuthorKind: "agent", AuthorLabel: "claude", Body: "Middle ignored detail", CreatedAt: now.Add(-8 * time.Minute)},
+			{ID: "m3", AuthorKind: "owner", Body: "Second to last check", CreatedAt: now.Add(-4 * time.Minute)},
+			{ID: "m4", AuthorKind: "agent", AuthorLabel: "claude", Body: "Latest reply here", CreatedAt: now.Add(-1 * time.Minute)},
+		},
+	})
+	page := ThreadsPageView(ThreadsPageSpec{
+		Threads: threads, SelectedIdx: 0, Now: now, IMessageStyle: true, IndexShow: true, ProjectTitle: "Apollo", Section: "threads",
+	})
+	if page.Find("threads.split") != nil {
+		t.Fatal("IndexShow index view must not render legacy threads.split")
+	}
+	if page.Facts["threadsIndexShow"] != true || page.Facts["threadOpen"] != false || page.Facts["threadComposing"] != false {
+		t.Fatalf("IndexShow facts = %v", page.Facts)
+	}
+	scroll := page.Find(ThreadsIndexScrollID)
+	if scroll == nil || scroll.Kind != ui.KindScroll || scroll.Filter == nil || scroll.Filter.ID != ThreadsListID {
+		t.Fatalf("index scroll = %+v", scroll)
+	}
+	card := page.Find(ThreadsItemPrefix + "t1")
+	if card == nil || card.Kind != ui.KindCard || !card.Focusable || !card.Unread || card.Ref == nil || card.Ref.ID != "t1" {
+		t.Fatalf("first index card = %+v", card)
+	}
+	summary, _ := card.Props["summary"].(string)
+	if !strings.Contains(summary, "You: Please fix the lexer") || !strings.Contains(summary, "claude · parser pane: Fixed in **lexer.go**") {
+		t.Errorf("card summary = %q", summary)
+	}
+	if card.Facts["threadItem"] != true || card.Facts["threadTaskId"] != "t1" || card.Facts["hasSelection"] != true {
+		t.Errorf("card facts = %v", card.Facts)
+	}
+	longCard := page.Find(ThreadsItemPrefix + "t3")
+	longSummary, _ := longCard.Props["summary"].(string)
+	for _, want := range []string{"You: Heading First topic line bullet item", "· … ·", "You: Second to last check", "claude: Latest reply here"} {
+		if !strings.Contains(longSummary, want) {
+			t.Errorf("4+ msg snippet missing %q: %q", want, longSummary)
+		}
+	}
+	if strings.Contains(longSummary, "Middle ignored detail") {
+		t.Errorf("4+ msg snippet should omit middle messages: %q", longSummary)
+	}
+	if hint := nodeText(page.Find(ThreadsHintID)); !strings.Contains(hint, "enter open chat") || !strings.Contains(hint, "p switch") {
+		t.Errorf("index hint = %q", hint)
+	}
+
+	empty := ThreadsPageView(ThreadsPageSpec{SelectedIdx: -1, Now: now, IndexShow: true})
+	if n := empty.Find(ThreadsListID); n == nil || n.Kind != ui.KindText || !n.Focusable || n.Filter == nil {
+		t.Fatalf("empty IndexShow node = %+v", n)
+	}
+}
+
+func TestThreadsPageViewFullWidthShowAndComposer(t *testing.T) {
+	now := time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC)
+	spec := ThreadsPageSpec{
+		Threads:       threadsFixture(now),
+		SelectedIdx:   1,
+		Now:           now,
+		IMessageStyle: true,
+		IndexShow:     true,
+		OpenTaskID:    "t1",
+		Composer: ThreadComposerSpec{
+			Enabled:     true,
+			Editing:     true,
+			Value:       "Draft reply",
+			Cursor:      11,
+			Wrap:        true,
+			TargetLabel: "parser pane (claude)",
+		},
+	}
+	page := ThreadsPageView(spec)
+	if page.Find("threads.split") != nil {
+		t.Fatal("Show view must not render threads.split")
+	}
+	if page.Facts["threadsIndexShow"] != true || page.Facts["threadOpen"] != true || page.Facts["threadComposing"] != true ||
+		page.Facts["threadTaskId"] != "t1" || page.Facts["threadPaneId"] != "pane1" || page.Facts["hasSelection"] != true {
+		t.Fatalf("Show facts = %v", page.Facts)
+	}
+	if hdr := nodeText(page.Find("threads.show.header")); !strings.Contains(hdr, "esc/h Threads") || !strings.Contains(hdr, "Parser") {
+		t.Errorf("show header = %q", hdr)
+	}
+	scroll := page.Find(ThreadsTranscriptID + ".scroll")
+	if scroll == nil || scroll.Props["followTail"] != nil {
+		t.Fatalf("show scroll should not force followTail: %+v", scroll)
+	}
+	m0, m1 := page.Find(ThreadsMsgPrefix+"0"), page.Find(ThreadsMsgPrefix+"1")
+	if m0 == nil || m0.Kind != ui.KindCard || !m0.Focusable || m0.Facts["threadMessage"] != true || m0.Facts["messageIndex"] != 0 {
+		t.Fatalf("msg 0 card = %+v", m0)
+	}
+	if m1 == nil || !m1.Unread || m1.Children[0].Kind != ui.KindMarkdown {
+		t.Fatalf("msg 1 card = %+v", m1)
+	}
+	if page.Find(ThreadsUnreadMarkID) == nil {
+		t.Fatal("missing unread divider in Show view")
+	}
+	comp := page.Find(ThreadsComposerInputID)
+	if comp == nil || comp.Kind != ui.KindInput || !comp.Focusable || comp.Box.FixedH != 6 {
+		t.Fatalf("composer node = %+v", comp)
+	}
+	if comp.Title != "Reply → parser pane (claude)" || comp.Props["value"] != "Draft reply" || comp.Props["multiline"] != true || comp.Facts["threadComposing"] != true {
+		t.Fatalf("composer props/facts = %+v", comp)
+	}
+	if len(comp.Badges) == 0 || comp.Badges[0].Text != "TYPING" {
+		t.Errorf("editing composer badges = %+v", comp.Badges)
+	}
+
+	// Resting state and plain-text body when IMessageStyle is false.
+	spec.IMessageStyle = false
+	spec.Composer.Editing = false
+	plain := ThreadsPageView(spec)
+	if m := plain.Find(ThreadsMsgPrefix + "0"); m == nil || m.Children[0].Kind != ui.KindText {
+		t.Fatalf("non-imessage show body should be KindText: %+v", m)
+	}
+	if c := plain.Find(ThreadsComposerInputID); c == nil || c.Facts["threadComposing"] != false || !strings.Contains(c.Badges[0].Text, "enter / i") {
+		t.Fatalf("resting composer = %+v", c)
 	}
 }

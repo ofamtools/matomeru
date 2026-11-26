@@ -62,6 +62,8 @@ func clipboardAttachBindings() []core.Binding {
 	modes := []string{
 		ModeFormEdit,
 		ModeOutlineEdit,
+		ModeFeaturesNote,
+		ModeThreadsCompose,
 		ModeFilter,
 		ModePickerFilter,
 		ModeBindingsFilter,
@@ -502,7 +504,7 @@ func (a *App) inputPasteClipboard(s core.State, _ core.Command) core.StepResult 
 		}
 		insertText := ref
 		switch a.Engine.Mode(s) {
-		case ModeFormEdit, ModeOutlineEdit, ModeCommandLine, ModeComposer:
+		case ModeFormEdit, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModeCommandLine, ModeComposer:
 			insertText = ref + " "
 		}
 		nextState, _, ok := a.insertTextIntoActiveInput(s, insertText)
@@ -541,6 +543,14 @@ func (a *App) insertTextIntoActiveInput(s core.State, text string) (core.State, 
 			res := a.outlineEditInsert(s, core.Command{ID: CmdOutlineEditInsert, Args: map[string]any{"text": text}})
 			return res.State, "outline", true
 		}
+	}
+	if mode == ModeFeaturesNote {
+		a.featuresNoteInsertText(text)
+		return s, "features note", true
+	}
+	if mode == ModeThreadsCompose {
+		a.threadsComposeInsertText(text)
+		return s, "thread reply", true
 	}
 	if mode == ModeFilter {
 		if f, _ := a.activeFilterable(s); f != nil {

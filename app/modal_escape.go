@@ -75,7 +75,7 @@ func (a *App) tickEscapeGuard() bool {
 
 func isModalInsertMode(mode string) bool {
 	switch mode {
-	case ModeFormEdit, ModePickerFilter, ModeOutlineEdit, ModeBindingsFilter, ModeBindingsCapture:
+	case ModeFormEdit, ModePickerFilter, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModeBindingsFilter, ModeBindingsCapture:
 		return true
 	default:
 		return false
