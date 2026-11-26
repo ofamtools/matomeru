@@ -680,3 +680,38 @@ func TestProjectNavContextItemsHiddenFromNavAndLaneProgressBar(t *testing.T) {
 		t.Fatal("projects.navSurfaceContextUnread=true should surface unread context item in nav")
 	}
 }
+
+// projects.navShowNewItems, toggled from the Project Home row with "z u":
+// on, collapsed sections open onto their new items; off, they stay closed and
+// only the unread count badges remain. The choice is saved.
+func TestProjectNavShowNewItemsToggleFromHome(t *testing.T) {
+	f := setupNavUnreadFixture(t)
+	a, d := f.app, f.driver
+	newPage := projectNavNodePrefix + "pages." + f.unreadPage.ID
+
+	d.Keys("P")
+	if a.Focus() != projectNavPrefix+"home" || findNode(a, newPage) == nil {
+		t.Fatalf("on by default: the collapsed Pages section should list the new page (focus %q)", a.Focus())
+	}
+
+	d.Keys("z", "u")
+	if a.projectNavShowNewItemsEnabled() || a.cfg.userSettings[SetProjectNavShowNewItems] != false {
+		t.Fatalf("z u on Home did not turn projects.navShowNewItems off (status %q)", a.Status())
+	}
+	root := a.View(a.State())
+	if root.Find(newPage) != nil || root.Find(projectNavNodePrefix+"tasks."+f.parentTask.ID) != nil {
+		t.Fatal("projects.navShowNewItems off still opens collapsed sections onto new items")
+	}
+	pages := root.Find(projectNavPrefix + "pages")
+	if pages == nil || !pages.Unread || pages.Facts["unreadCount"] != 1 {
+		t.Fatalf("projects.navShowNewItems off lost the section's unread count badge: %+v", pages)
+	}
+	if txt, _ := pages.Props["text"].(string); !strings.Contains(txt, "●1") {
+		t.Fatalf("Pages row = %q, want the ●1 unread badge", txt)
+	}
+
+	d.Keys("z", "u")
+	if !a.projectNavShowNewItemsEnabled() || findNode(a, newPage) == nil {
+		t.Fatal("z u again did not bring the new items back")
+	}
+}

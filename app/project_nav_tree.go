@@ -205,7 +205,7 @@ func (a *App) buildProjectNavChildren(ws projectWorkspaceData, secKey, focusID s
 	case "panes":
 		return a.projectTreeNavNodes(ws, "panes", data.KindPane, data.BuildTree(ws.panes, "parentPane", "", a.nav.showArchived), focusID, lockedFocus, expanded, allowPeek)
 	case "lanes":
-		return a.projectTreeNavNodes(ws, "lanes", data.KindLane, data.BuildTree(ws.allLanes, "parentLane", "", a.nav.showArchived), focusID, lockedFocus, expanded, allowPeek)
+		return a.projectTreeNavNodes(ws, "lanes", data.KindLane, data.BuildTree(ws.allLanes, "parentLane", "", a.treeIncludesArchived(data.KindLane)), focusID, lockedFocus, expanded, allowPeek)
 	case "documents":
 		return a.projectRecordNavNodes(ws, "documents", data.KindDocument, ws.documents, focusID, lockedFocus, expanded, allowPeek)
 	case "notes":
@@ -296,6 +296,9 @@ func (a *App) projectTreeNavNodes(ws projectWorkspaceData, secKey, kind string, 
 				}
 			}
 			active := focusID == nodeFocusID || lockedFocus == nodeFocusID
+			if a.archiveAnimActive(ref) {
+				children, expandable, nodeExpanded = nil, false, false
+			}
 			out = append(out, views.ProjectNavNode{
 				ID:          rec.ID,
 				Section:     secKey,
@@ -317,6 +320,7 @@ func (a *App) projectTreeNavNodes(ws projectWorkspaceData, secKey, kind string, 
 				Children:    children,
 				Facts:       a.projectNavRecordFacts(schema, rec),
 			})
+			a.applyArchiveAnimToNavNode(ref, &out[len(out)-1])
 		}
 		return out, totalUnread
 	}
@@ -886,7 +890,7 @@ func (a *App) projectNavViewKey(s core.State) string {
 	}
 	pc := a.proj
 	var b strings.Builder
-	fmt.Fprintf(&b, "|pnt:%t:%t", a.projectNavTreeEnabled(), a.projectNavSurfaceUnreadEnabled())
+	fmt.Fprintf(&b, "|pnt:%t:%t:%t", a.projectNavTreeEnabled(), a.projectNavSurfaceUnreadEnabled(), a.projectNavShowNewItemsEnabled())
 	if secs := pc.expandedSections[projKey]; len(secs) > 0 {
 		keys := make([]string, 0, len(secs))
 		for k, v := range secs {

@@ -53,7 +53,7 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 	ctxGen := a.contextIndexGen()
 	railKey := a.railGroupPanesKey(groupName)
 	if a.Store != nil && pc.wsCache != nil {
-		if c, ok := pc.wsCache[projKey]; ok && c.rev == rev && c.showArchived == a.nav.showArchived && c.ctxGen == ctxGen && c.groupName == groupName && c.projID == projID && c.railPanesKey == railKey {
+		if c, ok := pc.wsCache[projKey]; ok && c.rev == rev && c.showArchived == a.nav.showArchived && c.ctxGen == ctxGen && c.groupName == groupName && c.projID == projID && c.railPanesKey == railKey && c.animKey == a.archiveAnimCacheKey() {
 			if c.telemetrySeq == telSeq {
 				return c.data
 			}
@@ -101,9 +101,9 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 		paneTitles[p.ID] = views.Title(paneSchema, p)
 	}
 	ws.pages, ws.unreadPages = projectPagesList(a.projectRecords(scope, data.KindPage))
-	ws.allLanes = a.projectRecords(scope, data.KindLane)
+	ws.allLanes = a.projectActiveRecords(scope, data.KindLane)
 	for _, lane := range ws.allLanes {
-		if data.LaneProgressOf(lane).IsOpen() {
+		if !lane.IsArchived() && data.LaneProgressOf(lane).IsOpen() {
 			ws.activeLanes = append(ws.activeLanes, lane)
 		}
 	}
@@ -138,7 +138,7 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 		ws.cacheRev = postRev
 		pc.wsCache[projKey] = cachedProjectWorkspace{
 			rev: postRev, telemetrySeq: telSeq, showArchived: a.nav.showArchived, ctxGen: ws.cacheCtxGen,
-			groupName: groupName, projID: projID, railPanesKey: railKey, data: ws,
+			groupName: groupName, projID: projID, railPanesKey: railKey, animKey: a.archiveAnimCacheKey(), data: ws,
 		}
 	}
 	return ws
@@ -147,12 +147,12 @@ func (a *App) collectProjectWorkspaceData(groupName string, projRef *core.Ref) p
 func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData, activeKey, focusID string) []views.ProjectNavSection {
 	pc := a.projectCtrl()
 	treeEnabled := a.projectNavTreeEnabled()
-	allowPeek := treeEnabled && a.projectNavSurfaceUnreadEnabled()
+	allowPeek := a.projectNavPeeksUnread()
 	lockedFocus := ""
 	if locked := pc.activeNavItem(ws.projectKey); locked != nil {
 		lockedFocus = locked.FocusID
 	}
-	navKey := fmt.Sprintf("%d|%d|%d|%t|%t|%t|%t|%t|%t|%s|%s|%s|%d|%s",
+	navKey := fmt.Sprintf("%d|%d|%d|%t|%t|%t|%t|%t|%t|%s|%s|%s|%d|%s|%s",
 		ws.cacheRev, ws.cacheCtxGen, a.telemetryViewSeq(),
 		a.nav.showArchived, treeEnabled, allowPeek,
 		a.projectNavSurfaceContextUnreadEnabled(), a.projectNavUnreadDotOnlyEnabled(), a.projectNavLaneProgressBarEnabled(),
@@ -161,6 +161,7 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 		sortedTrueKeys(pc.expandedNodes[ws.projectKey]),
 		a.navUnreadCutoff.UnixNano(),
 		lockedFocus,
+		a.archiveAnimCacheKey(),
 	)
 	if pc.navCache != nil {
 		if cached, ok := pc.navCache[ws.projectKey]; ok && cached.key == navKey {
@@ -572,7 +573,7 @@ func (a *App) syncProjectSectionTree(treeID string, ws projectWorkspaceData, sch
 	if schema.Kind == data.KindPane {
 		telSeq = a.telemetryViewSeq()
 	}
-	cacheKey := fmt.Sprintf("tree|%s|%s|%s|%d|%d|%v|%s|%v:%v:%v|%d", treeID, ws.projectKey, schema.Kind, ws.cacheRev, telSeq, a.nav.showArchived, ws.cacheRailKey, st.RowSemanticStyling, st.StatusIcons, guides, len(recs))
+	cacheKey := fmt.Sprintf("tree|%s|%s|%s|%d|%d|%v|%s|%v:%v:%v|%d|%s", treeID, ws.projectKey, schema.Kind, ws.cacheRev, telSeq, a.nav.showArchived, ws.cacheRailKey, st.RowSemanticStyling, st.StatusIcons, guides, len(recs), a.archiveAnimCacheKey())
 	if tm, ok := a.cachedProjectTree(treeID, cacheKey); ok {
 		return tm
 	}
@@ -582,7 +583,7 @@ func (a *App) syncProjectSectionTree(treeID string, ws projectWorkspaceData, sch
 		tm = tree.New(nil)
 		pc.trees[treeID] = tm
 	}
-	nodes := data.BuildTree(recs, parentField, "", a.nav.showArchived)
+	nodes := data.BuildTree(recs, parentField, "", a.treeIncludesArchived(schema.Kind))
 	refTitles := map[core.Ref]string{}
 	resolveRef := func(ref core.Ref) string {
 		if t, ok := refTitles[ref]; ok {
@@ -608,6 +609,7 @@ func (a *App) syncProjectSectionTree(treeID string, ws projectWorkspaceData, sch
 				}
 				nd.Facts["hasPendingApproval"] = len(a.pendingApprovalsFor(rec.ID)) > 0
 			}
+			a.applyArchiveAnimToTreeNode(rec, nd)
 		},
 	}
 	built := views.TreeFromNodes(schema, nodes, opts)
@@ -624,6 +626,16 @@ func (a *App) projectRecords(scope data.ProjectScope, kind string) []data.Record
 	}
 	recs, _ := a.Store.ProjectRecords(scope, kind, a.nav.showArchived)
 	return recs
+}
+
+// projectActiveRecords are a project's records of a kind as its lists show
+// them: see activeRecords.
+func (a *App) projectActiveRecords(scope data.ProjectScope, kind string) []data.Record {
+	if a.Store == nil {
+		return nil
+	}
+	all, _ := a.Store.ProjectRecords(scope, kind, true)
+	return a.activeRecords(kind, all)
 }
 
 func projectPagesList(raw []data.Record) ([]data.Record, int) {

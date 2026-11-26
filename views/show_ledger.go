@@ -896,24 +896,14 @@ func showViewLedger(store *data.Store, schema data.Schema, rec data.Record, sect
 			badgeParts = append(badgeParts, b.Text)
 		}
 	}
-	headerLines := []ui.ViewNode{
-		ui.ViewNode{
-			ID:   "show.header.title",
-			Kind: ui.KindText,
-			Props: map[string]any{
-				"text":  " " + title,
-				"spans": []ui.ToneSpan{{From: 0, Tone: "accent"}},
-			},
+	headerLines := append(showTitleLines(title, opts), ui.ViewNode{
+		ID:   "show.header.meta",
+		Kind: ui.KindText,
+		Props: map[string]any{
+			"text":  " " + strings.Join(badgeParts, "  ·  ") + "    " + strings.Join(regionIndex, " · "),
+			"spans": []ui.ToneSpan{{From: 0, Tone: "muted"}},
 		},
-		ui.ViewNode{
-			ID:   "show.header.meta",
-			Kind: ui.KindText,
-			Props: map[string]any{
-				"text":  " " + strings.Join(badgeParts, "  ·  ") + "    " + strings.Join(regionIndex, " · "),
-				"spans": []ui.ToneSpan{{From: 0, Tone: "muted"}},
-			},
-		},
-	}
+	})
 	summary := headerSummary(schema, rec, renderedFields)
 	if summary != "" {
 		headerLines = append(headerLines, text("show.header.summary", " "+summary, "muted"))

@@ -225,6 +225,11 @@ const (
 	SetProjectHomeQueueProgress        = "projects.homeQueueProgress"
 	SetThreadsIMessageStyle            = "threads.imessageStyle"
 	SetSessionsDeskChecklist           = "sessions.showChecklist"
+	SetAnswerShowQuestion              = "questions.answerShowQuestion"
+	SetProjectNavPreselectTask         = "projects.navPreselectTask"
+	SetProjectNavShowNewItems          = "projects.navShowNewItems"
+	SetShowTitleAttachmentChips        = "show.titleAttachmentChips"
+	SetPanesKeepCompletedLaneBars      = "panes.keepCompletedLaneBars"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -398,6 +403,11 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectHomeQueueProgress, true, "show live segmented queue progress bars (queue, lanes, child lanes, AI checklist) on the Project Portal Homepage"),
 		flag(SetThreadsIMessageStyle, true, "show the Threads Page as a split rail and iMessage-style chat transcript (off: one compact linear thread list)"),
 		flag(SetSessionsDeskChecklist, true, "show each session's live AI checklist (Progress bar and Active step columns) on the AI Sessions Control Desk"),
+		flag(SetAnswerShowQuestion, true, "the answer modal shows the full question and its details above the answer fields"),
+		flag(SetProjectNavPreselectTask, true, "moving over a task in the Project left nav keeps the full Tasks outline open with that task selected (off previews its Show page)"),
+		flag(SetProjectNavShowNewItems, true, "the Project left nav auto-expands and lists new (unread) items; off keeps only the unread count badges"),
+		flag(SetShowTitleAttachmentChips, true, "Show page headers lift @/path attachments out of a long title onto their own chip line"),
+		flag(SetPanesKeepCompletedLaneBars, true, "keep the bars of a pane's finished lanes stacked above its site until dismissed (needs panes.laneProgressBar)"),
 	}
 }
 
@@ -504,8 +514,11 @@ func (a *App) showOptions() views.ShowOptions {
 		layout = a.cfg.Settings.String(SetShowLayout, views.ShowLayoutLedger)
 		hideEmpty = a.cfg.Settings.Bool(SetShowHideEmptyRelations, true)
 	}
+	chips := a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetShowTitleAttachmentChips, true)
 	if a.nav != nil && a.nav.showCompact {
 		return views.ShowOptions{
+			TitleAttachmentChips: chips,
+
 			Layout:             layout,
 			HideEmptyRelations: hideEmpty,
 			GroupLabelsOnce:    true,
@@ -516,6 +529,8 @@ func (a *App) showOptions() views.ShowOptions {
 		}
 	}
 	return views.ShowOptions{
+		TitleAttachmentChips: chips,
+
 		Layout:             layout,
 		HideEmptyRelations: hideEmpty,
 		GroupLabelsOnce:    true,
@@ -823,6 +838,19 @@ func (a *App) commitSetting(fm *form.Model, name string) {
 	default:
 		a.say("%s = %s · for this session", name, data.Text(value))
 	}
+}
+
+// toggleSetting flips a boolean setting (def is its default), applies it and
+// saves it like the settings form does. It returns the new value.
+func (a *App) toggleSetting(name string, def bool) bool {
+	next := !a.cfg.Settings.Bool(name, def)
+	a.cfg.userSettings[name] = next
+	a.reloadSettings()
+	a.applySettings()
+	if _, err := a.writeConfig(settingsFileName, a.cfg.userSettings); err != nil {
+		a.fail("save "+name, err)
+	}
+	return next
 }
 
 // ConfigExport is the configuration in effect: the defaults with the user's

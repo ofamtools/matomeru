@@ -106,20 +106,23 @@ func (a *App) buildPaneSiteNode(s core.State, pane data.Record, embedded bool) u
 		}
 	}
 	opts := views.SiteOptions{
-		Store:            a.Store,
-		ShowLaneBar:      showLaneBar,
-		CompactTopArea:   compactTop,
-		LaneSuffix:       laneSuffix,
-		LaneSuffixTone:   laneSuffixTone,
-		LaneInTOC:        a.cfg.Settings.Bool(SetLaneInTOC, true),
-		CompactTOC:       a.cfg.Settings.Bool(SetCompactTOC, true),
-		TOCGrouped:       a.cfg.Settings.Bool(SetTOCGrouped, true),
-		TOCCollapsed:     a.panes.tocCollapsed,
-		PageScrollOffset: a.pageScrollOffset(shownPageID),
-		PageScrollLocked: frame.Mode == ModePage,
-		WrapPageScroll:   true,
-		HideTOC:          !a.cfg.Settings.Bool(SetShowTOC, true),
-		LaneHint:         laneBarHint,
+		Store:       a.Store,
+		ShowLaneBar: showLaneBar,
+		// Finished lane trees stay stacked above the active bar until dismissed.
+		KeepCompletedLaneBars: showLaneBar && a.keepCompletedLaneBarsEnabled(),
+		DismissedLaneBars:     a.laneBarCtrl().dismissedFor(pane.ID),
+		CompactTopArea:        compactTop,
+		LaneSuffix:            laneSuffix,
+		LaneSuffixTone:        laneSuffixTone,
+		LaneInTOC:             a.cfg.Settings.Bool(SetLaneInTOC, true),
+		CompactTOC:            a.cfg.Settings.Bool(SetCompactTOC, true),
+		TOCGrouped:            a.cfg.Settings.Bool(SetTOCGrouped, true),
+		TOCCollapsed:          a.panes.tocCollapsed,
+		PageScrollOffset:      a.pageScrollOffset(shownPageID),
+		PageScrollLocked:      frame.Mode == ModePage,
+		WrapPageScroll:        true,
+		HideTOC:               !a.cfg.Settings.Bool(SetShowTOC, true),
+		LaneHint:              laneBarHint,
 	}
 	if a.Shell != nil {
 		opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once

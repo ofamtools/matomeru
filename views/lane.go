@@ -213,6 +213,45 @@ func activeTrees(store *data.Store, lanes []data.Record) ([]LaneRollup, error) {
 	return out, nil
 }
 
+// claimedLanes are the lanes that claim a pane (a "claim" relation from lane
+// to pane).
+func claimedLanes(store *data.Store, pane data.Record) ([]data.Record, error) {
+	claims, err := store.RelatedRecords(pane.Ref(), data.RelClaim, data.Incoming)
+	if err != nil {
+		return nil, err
+	}
+	var out []data.Record
+	for _, rec := range claims {
+		if rec.Kind == data.KindLane {
+			out = append(out, rec)
+		}
+	}
+	return out, nil
+}
+
+// lanesOfTask are the lanes filed directly under a task.
+func lanesOfTask(store *data.Store, task core.Ref) ([]data.Record, error) {
+	res, err := store.Query(data.Query{Kind: data.KindLane, Parent: &task, ParentField: "task"})
+	return res.Items, err
+}
+
+// lanesOfPane are the lanes tied to a pane: those that claim it, then those
+// of its own task.
+func lanesOfPane(store *data.Store, pane data.Record) ([]data.Record, error) {
+	out, err := claimedLanes(store, pane)
+	if err != nil {
+		return nil, err
+	}
+	if task, ok := pane.RefField("task"); ok {
+		lanes, err := lanesOfTask(store, task)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, lanes...)
+	}
+	return out, nil
+}
+
 // ActiveLane finds the lane tree a pane is working in. Lanes and panes are
 // many to many, so nothing here assumes one lane per pane:
 //
@@ -235,15 +274,9 @@ func ActiveLane(store *data.Store, pane data.Record) (LaneRollup, bool, error) {
 		return trees[0], true, nil
 	}
 
-	claims, err := store.RelatedRecords(pane.Ref(), data.RelClaim, data.Incoming)
+	claimed, err := claimedLanes(store, pane)
 	if err != nil {
 		return LaneRollup{}, false, err
-	}
-	var claimed []data.Record
-	for _, rec := range claims {
-		if rec.Kind == data.KindLane {
-			claimed = append(claimed, rec)
-		}
 	}
 	if roll, ok, err := pick(claimed); ok || err != nil {
 		return roll, ok, err
@@ -252,11 +285,11 @@ func ActiveLane(store *data.Store, pane data.Record) (LaneRollup, bool, error) {
 	task, ok := pane.RefField("task")
 	for seen := map[string]bool{}; ok && !seen[task.ID]; {
 		seen[task.ID] = true
-		res, err := store.Query(data.Query{Kind: data.KindLane, Parent: &task, ParentField: "task"})
+		lanes, err := lanesOfTask(store, task)
 		if err != nil {
 			return LaneRollup{}, false, err
 		}
-		if roll, found, err := pick(res.Items); found || err != nil {
+		if roll, found, err := pick(lanes); found || err != nil {
 			return roll, found, err
 		}
 		rec, err := store.Get(task)
@@ -281,17 +314,7 @@ func LaneBar(store *data.Store, pane data.Record, hint string, width int) (ui.Vi
 	if err != nil || !ok {
 		return ui.ViewNode{}, false
 	}
-	line := " " + roll.Text()
-	if with := line + "  (" + hint + ")"; hint != "" && (width <= 0 || len([]rune(with)) <= width) {
-		line = with
-	}
-	if r := []rune(line); width > 1 && len(r) > width {
-		line = string(r[:width-1]) + "…"
-	}
-	ref := roll.Root.Ref()
-	return ui.ViewNode{ID: LaneBarID, Kind: ui.KindText, Tone: "accent", Ref: &ref, Box: layout.Constraints{FixedH: 1},
-		Props: map[string]any{"text": line},
-		Facts: map[string]any{"lane": ref.ID, "done": roll.Done, "running": roll.Active, "planned": roll.Planned, "trees": roll.OtherTrees + 1, "percent": roll.Percent()}}, true
+	return laneBarLine(roll, hint, width), true
 }
 
 // LaneBarCompact renders the pane's active lane tree as a prominent, concise
@@ -306,45 +329,7 @@ func LaneBarCompact(store *data.Store, pane data.Record, extraSuffix, suffixTone
 	if err != nil || !ok {
 		return ui.ViewNode{}, false
 	}
-	title := Title(data.Schema{SummaryField: "title"}, roll.Root)
-	suffix := roll.CompactSuffix()
-	if extra := strings.TrimSpace(extraSuffix); extra != "" {
-		if suffix != "" {
-			suffix += " · " + extra
-		} else {
-			suffix = extra
-		}
-	}
-	props := map[string]any{
-		"label":        title,
-		"done":         roll.Done,
-		"active":       roll.Active,
-		"total":        roll.Total(),
-		"showFraction": true,
-		"showPercent":  true,
-	}
-	if suffix != "" {
-		props["suffix"] = suffix
-	}
-	if tone := strings.TrimSpace(suffixTone); tone != "" {
-		props["suffixTone"] = tone
-	}
-	ref := roll.Root.Ref()
-	return ui.ViewNode{
-		ID:    LaneBarID,
-		Kind:  ui.KindProgress,
-		Ref:   &ref,
-		Box:   layout.Constraints{FixedH: 1},
-		Props: props,
-		Facts: map[string]any{
-			"lane":    ref.ID,
-			"done":    roll.Done,
-			"running": roll.Active,
-			"planned": roll.Planned,
-			"trees":   roll.OtherTrees + 1,
-			"percent": roll.Percent(),
-		},
-	}, true
+	return laneBarProgress(roll, extraSuffix, suffixTone), true
 }
 
 // LaneTOCEntry renders the pane's active lane as a compact 1-line row inside

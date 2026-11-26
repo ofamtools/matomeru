@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
@@ -294,4 +295,39 @@ func (a *App) recordTreeNodesWithAnimating(kind string) ([]data.TreeNode, error)
 		return out
 	}
 	return filter(full), nil
+}
+
+// activeRecords is what a list shows of all, a kind's records with the
+// archived ones included: everything when archived work is shown; otherwise
+// the records that are not archived and not under an archived one, plus the
+// rows still dissolving. Trees, tables and the project sections share it, so
+// an archived lane and its sublanes leave every list (and its filter) alike.
+func (a *App) activeRecords(kind string, all []data.Record) []data.Record {
+	if a.nav.showArchived {
+		return all
+	}
+	parentField := ""
+	if h := a.schema(kind).EffectiveHierarchy(); h != nil {
+		parentField = h.ParentField
+	}
+	return data.WithoutArchivedSubtrees(all, parentField, func(rec data.Record) bool {
+		return a.archiveAnimActive(rec.Ref())
+	})
+}
+
+// treeIncludesArchived says whether a tree built from activeRecords must keep
+// archived nodes: when they are shown, or while one of the kind dissolves.
+func (a *App) treeIncludesArchived(kind string) bool {
+	return a.nav.showArchived || a.hasAnimatingKind(kind)
+}
+
+// applyArchiveAnimToNavNode dims and erodes a Project left-nav node whose
+// record is dissolving.
+func (a *App) applyArchiveAnimToNavNode(ref core.Ref, nd *views.ProjectNavNode) {
+	prog, ok := a.archiveAnimProgress(ref)
+	if !ok || nd == nil {
+		return
+	}
+	nd.Label, _ = traits.DissolveText(nd.Label, prog, a.archiveAnimConfig())
+	nd.Tone = "row.dim"
 }

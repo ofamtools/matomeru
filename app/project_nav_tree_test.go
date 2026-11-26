@@ -159,6 +159,9 @@ func setupNavTreeFixture(t *testing.T) *navTreeFixture {
 func TestProjectNavTreeTaskExpansionCollapseAndToggle(t *testing.T) {
 	f := setupNavTreeFixture(t)
 	a, d := f.app, f.driver
+	// This walk checks the Show-page preview; the default (the full Tasks
+	// view with the task selected) has its own test.
+	setSettingForTest(t, a, SetProjectNavPreselectTask, false)
 
 	// Open Project Portal via P.
 	d.Keys("P")

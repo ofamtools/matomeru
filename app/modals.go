@@ -186,6 +186,7 @@ type answerFormModal struct {
 	batch      *batchQuestionInfo
 	batchPos   int
 	draftKey   string
+	question   views.AnswerQuestion // what is being answered, shown above the fields
 }
 
 func (a *App) activeForm(id string) *modal.FormModal {

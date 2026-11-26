@@ -182,6 +182,7 @@ type App struct {
 	escGuard          traits.EscapeGuardState
 	escGuardModal     string
 	archiveAnim       *archiveAnimController
+	laneBars          *laneBarController
 	pendingState      []func(core.State) core.State
 	trees             *treeController
 	viewMemo          viewMemoState
@@ -813,6 +814,7 @@ func (a *App) register() {
 	a.handle(CmdTaskSplit, a.taskSplit)
 	a.handle(CmdTaskJoin, a.taskJoin)
 	a.registerProjectHomeHandlers()
+	a.registerLaneBarHandlers()
 	a.registerProjectPortalHandlers()
 	a.registerNoteDeckHandlers()
 	a.initNoteDeck()
