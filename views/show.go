@@ -264,6 +264,9 @@ type ShowOptions struct {
 	// ShowEmptyRelations keeps the declared relation sections that hold
 	// nothing, so every association has its place; false leaves them out.
 	ShowEmptyRelations bool
+	// ExtraBadges appends caller-supplied badges (e.g. preview hints) directly
+	// to the Show header during presentation.
+	ExtraBadges []ui.Badge
 	// ShowContent renders full Markdown body and multi-line/long-text fields
 	// in dedicated readable panels without truncation.
 	ShowContent bool
@@ -736,6 +739,9 @@ func showViewClassic(store *data.Store, schema data.Schema, recVal data.Record, 
 		if on {
 			badges = append(badges, ui.Badge{Text: mark.text, Tone: "warning"})
 		}
+	}
+	if len(opts.ExtraBadges) > 0 {
+		badges = append(badges, opts.ExtraBadges...)
 	}
 	star := ui.ActionHint{Key: "m", Label: "star", Command: CmdStar}
 	if rec.IsStarred() {

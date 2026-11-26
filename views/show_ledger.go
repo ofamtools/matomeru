@@ -649,11 +649,11 @@ func ledgerConnectionsRegion(store *data.Store, sections []section, regionNum in
 		}
 	}
 
-	if len(empty) > 0 {
+	if len(empty) > 0 && opts.ShowEmptyRelations {
 		if opts.HideEmptyRelations {
 			names := make([]string, 0, len(empty))
 			for _, sec := range empty {
-				names = append(names, strings.ToLower(sec.title))
+				names = append(names, sec.title)
 			}
 			caret := "▸"
 			hint := "space to show"
@@ -688,7 +688,7 @@ func ledgerConnectionsRegion(store *data.Store, sections []section, regionNum in
 					children = append(children, buildEmptyRow(sec))
 				}
 			}
-		} else if opts.ShowEmptyRelations {
+		} else {
 			for _, sec := range empty {
 				children = append(children, buildEmptyRow(sec))
 			}
@@ -847,6 +847,9 @@ func showViewLedger(store *data.Store, schema data.Schema, rec data.Record, sect
 		if on {
 			badges = append(badges, ui.Badge{Text: mark.text, Tone: "warning"})
 		}
+	}
+	if len(opts.ExtraBadges) > 0 {
+		badges = append(badges, opts.ExtraBadges...)
 	}
 	star := ui.ActionHint{Key: "m", Label: "star", Command: CmdStar}
 	if rec.IsStarred() {
