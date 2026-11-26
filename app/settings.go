@@ -217,6 +217,8 @@ const (
 	DetachFocusRail                    = "rail"
 	DetachFocusStay                    = "stay"
 	SetActionLogEnabled                = "ui.actionLogEnabled"
+	SetProjectPortalOnP                = "project.portalOnP"
+	SetPagedNoteComposer               = "ui.pagedNoteComposer"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -382,6 +384,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetStickyTreeBreadcrumbs, true, "pin scrolled-off ancestor breadcrumb lines at the top of deep tree views"),
 		flag(SetActionLogEnabled, true, "record executed actions, target, and context in the generic action log"),
 		flag(SetFeaturesItemization, true, "show itemized schema props and page views and enable suggestions for them in Features"),
+		flag(SetProjectPortalOnP, true, "pressing P or ctrl+a P opens the item's Project Portal tab (staying live from terminals)"),
+		flag(SetPagedNoteComposer, true, "alt+n opens the floating paged Markdown Note Deck composer instead of the single-shot UX note form"),
 	}
 }
 

@@ -105,10 +105,10 @@ func (a *App) railActiveProjectTask(_ core.State) (core.Ref, bool) {
 	return core.Ref{}, false
 }
 
-// projectPageOpen opens the Project Page workspace in 1 Panes (or the Show page
-// when project.workspaceInPanes is opted out).
+// projectPageOpen opens the focused item's Project Portal tab (or legacy
+// Project Page workspace when project.portalOnP is opted out).
 func (a *App) projectPageOpen(s core.State, c core.Command) core.StepResult {
-	return a.projectHomeOpen(s, c)
+	return a.projectPortalOpen(s, c)
 }
 
 // resolvePaneProject walks a pane's task -> parent chain up to its root project

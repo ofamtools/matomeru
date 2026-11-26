@@ -179,6 +179,9 @@ func selectProjectSection(t *testing.T, f *projectWorkspaceFixture, key string) 
 func TestProjectWorkspaceSectionsAndOfficialContext(t *testing.T) {
 	f := setupProjectWorkspaceFixture(t)
 	a, d := f.app, f.driver
+	a.cfg.userSettings[SetProjectPortalOnP] = false
+	a.reloadSettings()
+	a.applySettings()
 
 	// Open Project Page via P from the main pane row.
 	d.Keys("P")
@@ -374,7 +377,8 @@ func TestProjectWorkspaceSettingsOverridesAndOptOut(t *testing.T) {
 	f := setupProjectWorkspaceFixture(t)
 	a, d := f.app, f.driver
 
-	// 1. project.navSections override restricts and orders left nav sections.
+	// 1. project.navSections override restricts and orders left nav sections in 1 Panes.
+	a.cfg.userSettings[SetProjectPortalOnP] = false
 	a.cfg.userSettings[SetProjectNavSections] = "context,home,worktrees"
 	a.reloadSettings()
 	a.applySettings()

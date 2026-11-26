@@ -160,9 +160,9 @@ func TestProjectNavTreeTaskExpansionCollapseAndToggle(t *testing.T) {
 	f := setupNavTreeFixture(t)
 	a, d := f.app, f.driver
 
-	// Open Project Page via P in 1 Panes.
+	// Open Project Portal via P.
 	d.Keys("P")
-	if a.Space() != SpacePanes || a.Focus() != projectNavPrefix+"home" {
+	if !isProjectTab(a.Space()) || a.Focus() != projectNavPrefix+"home" {
 		t.Fatalf("P did not open project nav: space=%q focus=%q", a.Space(), a.Focus())
 	}
 
@@ -420,7 +420,10 @@ func TestProjectNavTreePanesDocsAndBothSpacesAndOptOut(t *testing.T) {
 		}
 	}
 
-	// 1. Test inside 1 Panes Project Page.
+	// 1. Test inside 1 Panes Project Page (with project.portalOnP=false).
+	a.cfg.userSettings[SetProjectPortalOnP] = false
+	a.reloadSettings()
+	a.applySettings()
 	d.Keys("P")
 	if a.Space() != SpacePanes {
 		t.Fatalf("P space = %q, want %q", a.Space(), SpacePanes)

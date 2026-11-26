@@ -172,7 +172,10 @@ func (a *App) ensureUXNoteSessionPath() (string, error) {
 	}
 }
 
-func (a *App) sessionNoteCapture(s core.State, _ core.Command) core.StepResult {
+func (a *App) sessionNoteCapture(s core.State, c core.Command) core.StepResult {
+	if a.pagedNoteComposerEnabled() {
+		return a.openNoteDeckForFocus(s, c)
+	}
 	if !a.uxNotesEnabled() {
 		a.say("UX note capture is disabled (%s)", SetSessionUXNotes)
 		return core.Next(s)

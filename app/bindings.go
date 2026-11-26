@@ -261,6 +261,7 @@ func Modes() []core.Mode {
 		{Name: ModeConfirm, Base: ModeGlobal},
 		{Name: ModeAbout, Base: ModeGlobal},
 		{Name: ModePage, Base: ModeGlobal},
+		{Name: ModeNoteDeck},
 	}
 }
 
@@ -850,6 +851,8 @@ func DefaultBindings() []core.Binding {
 	out = append(out, filesBindings()...)
 	out = append(out, paneSearchBindings()...)
 	out = append(out, projectHomeBindings()...)
+	out = append(out, projectPortalBindings()...)
+	out = append(out, noteDeckBindings()...)
 	out = append(out, projectTabsBindings()...)
 	out = append(out, projectPanesSectionBindings()...)
 	out = append(out, featuresPageBindings()...)
@@ -860,7 +863,7 @@ func DefaultBindings() []core.Binding {
 	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeCommandLine, ModeOutlineEdit, ModePickerFilter} {
 		out = append(out, with(bind(mode, all, "alt+h", CmdPaneHints, "paste terminal hint"), map[string]any{"action": HintsActionInsert}))
 	}
-	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit} {
+	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit, ModeNoteDeck} {
 		out = appendReadlineBindings(out, mode, all)
 	}
 	// Motions and space switches work everywhere; the footer leaves them out

@@ -108,6 +108,7 @@ func (a *App) buildProjectHomeSection(ws projectWorkspaceData, interactive bool)
 		a.homeRecentQuestionsGroup(ws, now, interactive),
 		a.homeOfficialContextGroup(ws, interactive),
 		a.homeActiveLanesGroup(ws, interactive),
+		a.homePortalSettingsGroup(ws, interactive),
 	}
 
 	badges := make([]ui.Badge, 0, 7)

@@ -154,9 +154,9 @@ func TestProjectNavCollapsedSectionsSurfaceUnreadChildrenAndStyling(t *testing.T
 	f := setupNavUnreadFixture(t)
 	a, d := f.app, f.driver
 
-	// Open Project Page via P in 1 Panes (all sections start collapsed!).
+	// Open Project Portal via P (all sections start collapsed!).
 	d.Keys("P")
-	if a.Space() != SpacePanes || a.Focus() != projectNavPrefix+"home" {
+	if !isProjectTab(a.Space()) || a.Focus() != projectNavPrefix+"home" {
 		t.Fatalf("P did not open project nav: space=%q focus=%q", a.Space(), a.Focus())
 	}
 
@@ -429,7 +429,10 @@ func TestProjectHeaderActivityBadgesAndDynamicProjectTabUnread(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Open Project Page in 1 Panes and check Project Header badges.
+	// Open Project Page in 1 Panes (project.portalOnP=false) and check Project Header badges.
+	a.cfg.userSettings[SetProjectPortalOnP] = false
+	a.reloadSettings()
+	a.applySettings()
 	d.Keys("P")
 	hdr := findNode(a, "project.header")
 	if hdr == nil {
@@ -571,7 +574,7 @@ func TestProjectNavOwnerCreatedAndEditedTasksNeverSurfaceAsNew(t *testing.T) {
 	// while the agent-created unreadSubTask still does!
 	a.invalidateProjectUnreadCaches("")
 	d.Keys("P")
-	if a.Space() != SpacePanes || a.Focus() != projectNavPrefix+"home" {
+	if !isProjectTab(a.Space()) || a.Focus() != projectNavPrefix+"home" {
 		t.Fatalf("P did not open project nav: modal=%q mode=%q space=%q focus=%q", a.Modal(), a.Mode(), a.Space(), a.Focus())
 	}
 	root := a.View(a.State())
