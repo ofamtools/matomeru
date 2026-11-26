@@ -384,3 +384,120 @@ func TestProjectPerfPreviewFileCache(t *testing.T) {
 		t.Fatalf("ReadFile calls after file edit = %d, want 2", got)
 	}
 }
+
+func TestProjectContextStarAppearsInPinnedAndPersists(t *testing.T) {
+	f := setupProjectWorkspaceFixture(t)
+	a, d := f.app, f.driver
+
+	// Create a persisted context record with colon-delimited canonKey (as written by tool hooks)
+	// and linked via RelContext (reproducing the viewnode.go colon-canonKey bug).
+	ctxRec, _, err := a.Store.Create(data.CreateInput{
+		Kind: data.KindContext,
+		Fields: map[string]any{
+			"title":       "viewnode.go",
+			"contextKind": "file",
+			"canonKey":    "file:/Users/test/proj/ochazuke/ui/viewnode.go",
+			"value":       "/Users/test/proj/ochazuke/ui/viewnode.go",
+			"source":      "tool",
+		},
+	}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := a.Store.Relate(data.RelateInput{
+		From: f.proj.Ref(),
+		Kind: data.RelContext,
+		To:   ctxRec.Ref(),
+	}, User); err != nil {
+		t.Fatal(err)
+	}
+
+	// Open the Project Page, go to the Context section table, and focus our viewnode.go row.
+	d.Keys("P")
+	selectProjectSection(t, f, "context")
+	_ = d.Frame()
+	tbl := a.projectCtrl().tables[projectContextTable]
+	if tbl == nil {
+		t.Fatalf("expected %s table", projectContextTable)
+	}
+	found := false
+	for i, r := range tbl.Rows {
+		if r.Ref != nil && r.Ref.ID == ctxRec.ID {
+			tbl.SelectedIdx = i
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("context record %s not found in %s", ctxRec.ID, projectContextTable)
+	}
+	d.Keys("m")
+
+	// 1. Star must persist in SQLite.
+	afterStar, err := a.Store.Get(ctxRec.Ref())
+	if err != nil || !afterStar.IsStarred() {
+		t.Fatalf("context record not persisted as starred in SQLite: err=%v star=%v", err, afterStar != nil && afterStar.IsStarred())
+	}
+	// 2. Parent project task must NOT have been starred accidentally.
+	projAfter, _ := a.Store.Get(f.proj.Ref())
+	if projAfter.IsStarred() {
+		t.Fatalf("starring context item accidentally starred parent project task")
+	}
+	// 3. Item must immediately appear in ws.pinnedItems and Pinned Links & Files table.
+	projRef := f.proj.Ref()
+	ws := a.collectProjectWorkspaceData(f.proj.Text("title"), &projRef)
+	inPinned := false
+	for _, it := range ws.pinnedItems {
+		if it.RecordID == ctxRec.ID && it.Starred {
+			inPinned = true
+			break
+		}
+	}
+	if !inPinned {
+		t.Fatalf("starred context item %s missing from Pinned Links & Files (pinnedItems=%d)", ctxRec.ID, len(ws.pinnedItems))
+	}
+	selectProjectSection(t, f, "pinned")
+	if frame := d.Frame(); !strings.Contains(frame, "viewnode.go") {
+		t.Fatalf("Pinned Links & Files frame missing starred item:\n%s", frame)
+	}
+
+	// 4. Pressing `m` on the starred row in Pinned Links & Files unstars it in SQLite and removes it.
+	pinTbl := a.projectCtrl().tables[projectPinnedTable]
+	for i, r := range pinTbl.Rows {
+		if r.Ref != nil && r.Ref.ID == ctxRec.ID {
+			pinTbl.SelectedIdx = i
+			break
+		}
+	}
+	d.Keys("m")
+	afterUnstar, _ := a.Store.Get(ctxRec.Ref())
+	if afterUnstar.IsStarred() {
+		t.Fatalf("second m did not unstar context record in SQLite")
+	}
+	wsAfter := a.collectProjectWorkspaceData(f.proj.Text("title"), &projRef)
+	for _, it := range wsAfter.pinnedItems {
+		if it.RecordID == ctxRec.ID {
+			t.Fatalf("unstarred context item %s still present in pinnedItems", ctxRec.ID)
+		}
+	}
+
+	// 5. Starring from project.nav context node stars the context item (not the project task).
+	d.Keys("esc")
+	a.Shell.State = withFocus(a.State(), projectNavPrefix+"context")
+	a.viewMemo.gen++
+	_ = d.Frame()
+	d.Keys("space")
+	navFocus := projectNavNodePrefix + "context." + ctxRec.ID
+	a.Shell.State = withFocus(a.State(), navFocus)
+	a.viewMemo.gen++
+	_ = d.Frame()
+	d.Keys("m")
+	navStarred, _ := a.Store.Get(ctxRec.Ref())
+	if !navStarred.IsStarred() {
+		t.Fatalf("m on project.nav context node did not star context record")
+	}
+	projAfterNav, _ := a.Store.Get(f.proj.Ref())
+	if projAfterNav.IsStarred() {
+		t.Fatalf("m on project.nav context node accidentally starred parent project task")
+	}
+}

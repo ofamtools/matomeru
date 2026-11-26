@@ -140,7 +140,7 @@ func (a *App) viewKey(s core.State) string {
 		if a.proj != nil && a.proj.activeProjectKey != "" {
 			sec := a.proj.activeSection(a.proj.activeProjectKey)
 			openPg := a.proj.openPageID(a.proj.activeProjectKey)
-			fmt.Fprintf(&b, "|proj:%s:%s:%s", a.proj.activeProjectKey, sec, openPg)
+			fmt.Fprintf(&b, "|proj:%s:%s:%s:%d", a.proj.activeProjectKey, sec, openPg, a.contextIndexGen())
 		}
 		if nk := a.projectNavViewKey(s); nk != "" {
 			b.WriteString(nk)

@@ -731,27 +731,63 @@ func (a *App) allContextItems() []CollectedContextItem {
 	return out
 }
 
+func (a *App) isContextStarred(canon string) bool {
+	if canon == "" || a == nil || a.ctx == nil {
+		return false
+	}
+	a.ctx.mu.RLock()
+	defer a.ctx.mu.RUnlock()
+	return a.ctx.starred[canon]
+}
+
+func (a *App) setContextStar(itemCanon, kind, value string, next bool) bool {
+	idx := a.ensureContextIndex()
+	computed := contextCanonKey(kind, value)
+	if itemCanon == "" {
+		itemCanon = computed
+	}
+	if itemCanon == "" && computed == "" {
+		return false
+	}
+	idx.mu.Lock()
+	defer idx.mu.Unlock()
+	keys := []string{}
+	if itemCanon != "" {
+		keys = append(keys, itemCanon)
+	}
+	if computed != "" && computed != itemCanon {
+		keys = append(keys, computed)
+	}
+	for _, k := range keys {
+		if next {
+			idx.starred[k] = true
+		} else {
+			delete(idx.starred, k)
+		}
+	}
+	for _, it := range idx.items {
+		itComputed := contextCanonKey(it.Kind, it.Value)
+		for _, k := range keys {
+			if it.CanonKey == k || (itComputed != "" && itComputed == k) {
+				it.Starred = next
+				break
+			}
+		}
+	}
+	idx.gen++
+	return next
+}
+
 func (a *App) toggleContextStar(kind, value string) bool {
 	idx := a.ensureContextIndex()
 	canon := contextCanonKey(kind, value)
 	if canon == "" {
 		return false
 	}
-	idx.mu.Lock()
-	defer idx.mu.Unlock()
-	next := !idx.starred[canon]
-	if next {
-		idx.starred[canon] = true
-	} else {
-		delete(idx.starred, canon)
-	}
-	for _, it := range idx.items {
-		if it.CanonKey == canon {
-			it.Starred = next
-		}
-	}
-	idx.gen++
-	return next
+	idx.mu.RLock()
+	cur := idx.starred[canon]
+	idx.mu.RUnlock()
+	return a.setContextStar(canon, kind, value, !cur)
 }
 
 // contextTargetPath converts a harvested context item value into the path or

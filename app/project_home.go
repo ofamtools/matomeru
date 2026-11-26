@@ -276,6 +276,8 @@ func projectHomeBindings() []core.Binding {
 		bind(n, scopeProjectWorktrees, "enter", CmdProjectContentOpen, "open worktree"),
 		when(bind(n, ScopeProjectContext, "p", CmdContextOfficialToggle, "toggle official"), "facts.contextItem"),
 		hidden(when(bind(n, ScopeProjectOverview, "p", CmdContextOfficialToggle, "toggle official"), "facts.contextItem")),
+		when(bind(n, views.ScopeProjectNav, "m", CmdProjectContextStar, "star context item"), "facts.contextItem"),
+		hidden(when(bind(n, views.ScopeProjectNav, "*", CmdProjectContextStar, "star context item"), "facts.contextItem")),
 		when(bind(n, views.ScopeProjectContent, "N", CmdContextAddOfficial, "add official context"), "facts.section == \"context\" || facts.section == \"pinned\" || facts.contextItem"),
 		hidden(bind(n, ScopeProjectOverview, "N", CmdContextAddOfficial, "add official context")),
 		hidden(bind(n, SpacePanes, "P", CmdProjectPageOpen, "project page")),

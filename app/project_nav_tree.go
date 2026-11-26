@@ -544,9 +544,9 @@ func (a *App) projectContextNavNodes(ws projectWorkspaceData, secKey string, ite
 		}
 		icon := ""
 		tone := ""
-		if it.Official {
+		if it.Official || it.Starred {
 			icon = "★"
-			if !unread {
+			if !unread && it.Official {
 				tone = "accent"
 			}
 		}

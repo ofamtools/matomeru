@@ -456,8 +456,19 @@ func (a *App) selectedRailProject() (groupName string, projRef *core.Ref, ok boo
 }
 
 // focusedProjectContextItemFor returns the CollectedContextItem currently
-// focused in focusID (or in the project context / pinned / PRs tables).
+// focused in focusID (checking active nav targets, locked context detail, and
+// the project context / pinned / PRs tables).
 func (a *App) focusedProjectContextItemFor(focusID string) (CollectedContextItem, bool) {
+	if a.proj != nil && a.proj.activeProjectKey != "" {
+		if t, ok := a.proj.navTarget(a.proj.activeProjectKey, focusID); ok && t.ContextItem != nil {
+			return *t.ContextItem, true
+		}
+		if focusID == "project.ctx.detail" || focusID == "project.ctx.detail.body" {
+			if locked := a.proj.activeNavItem(a.proj.activeProjectKey); locked != nil && locked.ContextItem != nil {
+				return *locked.ContextItem, true
+			}
+		}
+	}
 	if a.panes == nil || a.nav == nil {
 		return CollectedContextItem{}, false
 	}
@@ -531,7 +542,32 @@ func (a *App) projectContextStar(s core.State, _ core.Command) core.StepResult {
 		a.say("no context item selected")
 		return core.Next(s)
 	}
-	starred := a.toggleContextStar(it.Kind, it.Value)
+	canon := it.CanonKey
+	if canon == "" {
+		canon = contextCanonKey(it.Kind, it.Value)
+	}
+	wasStarred := it.Starred || a.isContextStarred(canon)
+	if it.RecordID != "" && a.Store != nil {
+		if rec, err := a.Store.Get(core.Ref{Kind: data.KindContext, ID: it.RecordID}); err == nil && rec != nil {
+			wasStarred = rec.IsStarred() || wasStarred
+		}
+	}
+	next := !wasStarred
+	if it.RecordID != "" && a.Store != nil {
+		ref := core.Ref{Kind: data.KindContext, ID: it.RecordID}
+		var err error
+		if next {
+			_, _, err = a.Store.Star(ref, User)
+		} else {
+			_, _, err = a.Store.Unstar(ref, User)
+		}
+		if err != nil {
+			a.fail("star context item", err)
+			return core.Next(s)
+		}
+	}
+	starred := a.setContextStar(it.CanonKey, it.Kind, it.Value, next)
+	a.clearProjectSectionCache()
 	if starred {
 		a.say("starred %s", clip(it.Value, 48))
 	} else {

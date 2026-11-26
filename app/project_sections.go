@@ -809,7 +809,7 @@ func (a *App) projectUnifiedContextItems(groupName string, projRef *core.Ref, pa
 		item := CollectedContextItem{
 			RecordID: rec.ID, Key: "rec\x00" + rec.ID, CanonKey: canon, Kind: kind, Value: val,
 			Label: rec.Text("title"), Source: rec.Text("source"), ProjectID: projRef.ID, Project: groupName,
-			Starred: rec.IsStarred(), Official: rec.Bool("official"), Pinned: rec.Bool("pinned"),
+			Starred: rec.IsStarred() || a.isContextStarred(canon), Official: rec.Bool("official"), Pinned: rec.Bool("pinned"),
 			Notes: rec.Text("notes"), SeenAt: rec.UpdatedAt,
 		}
 		if pRef, ok := rec.RefField("pane"); ok {
