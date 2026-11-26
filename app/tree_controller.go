@@ -765,13 +765,14 @@ func (a *App) treeFoldCommand(cmdID string) func(core.State, core.Command) core.
 			c.ID = cmdID
 			return a.handleModal(s, c)
 		}
-		tm, kind, treeID, isWork, ok := a.activeTree(s)
+		// The focused tree, else the page's; with none, nothing (the keys
+		// are hidden by facts.isTree / facts.treeTarget).
+		ts, _ := a.foldTargetState(s)
+		tm, kind, treeID, isWork, ok := a.activeTree(ts)
 		if !ok {
-			if ptm, pok := a.projectSectionTree(s.ActiveFrame().FocusID); pok {
+			if ptm, pok := a.projectSectionTree(ts.ActiveFrame().FocusID); pok {
 				ptm.HandleCommand(core.Command{ID: cmdID})
-				return core.Next(s)
 			}
-			a.say("no tree is focused")
 			return core.Next(s)
 		}
 		a.runTreeFold(tm, kind, treeID, isWork, cmdID)
@@ -851,9 +852,9 @@ func (a *App) treeHoistCommand(cmdID string) func(core.State, core.Command) core
 		if a.Modal() == "outline" {
 			return a.handleModal(s, c)
 		}
-		tm, kind, treeID, isWork, ok := a.activeTree(s)
+		ts, _ := a.treeTargetState(s) // the focused tree, else the page's
+		tm, kind, treeID, isWork, ok := a.activeTree(ts)
 		if !ok {
-			a.say("no tree is focused")
 			return core.Next(s)
 		}
 		a.runTreeHoist(tm, kind, treeID, isWork, c)

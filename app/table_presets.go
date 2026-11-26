@@ -69,8 +69,11 @@ func (a *App) applyDefaultPreset(tbl *table.Model, tableID string) bool {
 }
 
 // focusedTableForPreset resolves the target table and its table ID for a preset
-// verb: explicit "table" arg, then the focused table, then the active space's
-// table (when not on a Work Show page).
+// verb: explicit "table" arg, the open preset picker's table, then the table
+// the list verbs act on (filterTable: the filtered or focused one, else the
+// first one drawn on the page), then the active space's table (when not on a
+// Work Show page). It returns nil when there is none; the verbs then do
+// nothing and g v is hidden by facts.listTarget.
 func (a *App) focusedTableForPreset(s core.State, c core.Command) (*table.Model, string) {
 	if id := strings.TrimSpace(c.Arg("table")); id != "" {
 		if tbl := a.ensureTable(id); tbl != nil {
@@ -86,9 +89,8 @@ func (a *App) focusedTableForPreset(s core.State, c core.Command) (*table.Model,
 			}
 		}
 	}
-	focus := s.ActiveFrame().FocusID
-	if tbl := a.nav.tables[focus]; tbl != nil {
-		return tbl, focus
+	if tbl, id := a.filterTable(s); tbl != nil {
+		return tbl, id
 	}
 	if s.ActivePage == SpaceWork && a.nav.histPos >= 0 {
 		return nil, ""
@@ -185,7 +187,6 @@ func (a *App) refreshPresetPicker(tableID string) {
 func (a *App) tablePresetPick(s core.State, c core.Command) core.StepResult {
 	tbl, id := a.focusedTableForPreset(s, c)
 	if tbl == nil || id == "" {
-		a.say("no table is focused")
 		return core.Next(s)
 	}
 	tableID := id
@@ -368,7 +369,6 @@ func (a *App) deleteTablePreset(tableID, name string) bool {
 func (a *App) tablePresetSave(s core.State, c core.Command) core.StepResult {
 	tbl, id := a.focusedTableForPreset(s, c)
 	if tbl == nil || id == "" {
-		a.say("no table is focused")
 		return core.Next(s)
 	}
 	name := strings.TrimSpace(c.Arg("name"))
@@ -384,7 +384,6 @@ func (a *App) tablePresetSave(s core.State, c core.Command) core.StepResult {
 func (a *App) tablePresetApply(s core.State, c core.Command) core.StepResult {
 	tbl, id := a.focusedTableForPreset(s, c)
 	if tbl == nil || id == "" {
-		a.say("no table is focused")
 		return core.Next(s)
 	}
 	name := strings.TrimSpace(c.Arg("name"))
@@ -398,7 +397,6 @@ func (a *App) tablePresetApply(s core.State, c core.Command) core.StepResult {
 func (a *App) tablePresetDefault(s core.State, c core.Command) core.StepResult {
 	tbl, id := a.focusedTableForPreset(s, c)
 	if tbl == nil || id == "" {
-		a.say("no table is focused")
 		return core.Next(s)
 	}
 	a.setDefaultTablePreset(id, strings.TrimSpace(c.Arg("name")))
@@ -408,7 +406,6 @@ func (a *App) tablePresetDefault(s core.State, c core.Command) core.StepResult {
 func (a *App) tablePresetDelete(s core.State, c core.Command) core.StepResult {
 	tbl, id := a.focusedTableForPreset(s, c)
 	if tbl == nil || id == "" {
-		a.say("no table is focused")
 		return core.Next(s)
 	}
 	name := strings.TrimSpace(c.Arg("name"))

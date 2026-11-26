@@ -14,6 +14,7 @@ func TestBindingsFeaturesSuggestionsPreserveExistingKeys(t *testing.T) {
 		"featuresPageActive":     true,
 		"featuresCanSuggestProp": true,
 		"featuresCanSuggestView": true,
+		factSelectTarget:         true, // the index draws a list
 	}
 	for _, tc := range []struct {
 		scope string

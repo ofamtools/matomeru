@@ -103,8 +103,7 @@ func (a *App) cycleTablePreset(tableID string, dir int) {
 	}
 	tbl := a.ensureTable(tableID)
 	if tbl == nil {
-		a.say("no table is focused")
-		return
+		return // the table is not built: nothing to cycle
 	}
 	curIdx := 0
 	if cur := a.nav.activePreset[tableID]; cur != "" {
@@ -181,8 +180,7 @@ func (a *App) cycleProjectContextView(dir int) {
 	}
 	tbl := a.nav.tables[projectContextTable]
 	if tbl == nil {
-		a.say("no context table is focused")
-		return
+		return // the context table is not built: nothing to cycle
 	}
 	groups := []string{"", "kind", "pane", "source"}
 	idx := slices.Index(groups, tbl.GroupField)

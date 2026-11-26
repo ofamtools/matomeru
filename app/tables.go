@@ -243,11 +243,15 @@ func (a *App) filterTable(s core.State) (*table.Model, string) {
 func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {
 	f, spec, id := a.resolveFilterTarget(s, nil, "", true)
 	if f == nil {
-		// Unreachable under default bindings because filter.start is scoped to
-		// trait.filter; only reached if a user manually bound it outside a
-		// filterable view or invoked it directly from the palette/CLI.
-		a.say("filter.start is only available on filterable views (scope %s)", traits.TraitScope(traits.TraitFilter))
-		return core.Next(s)
+		// Focus is not inside a filterable view (a palette or CLI call, or a
+		// user row outside trait.filter): filter the first one drawn on the
+		// page; with none, do nothing.
+		if pid := a.pageFilterID(s); pid != "" {
+			f, spec, id = a.resolveFilterTarget(s, nil, pid, true)
+		}
+		if f == nil {
+			return core.Next(s)
+		}
 	}
 	curMode := a.Engine.Mode(s)
 	if curMode == "" || curMode == ModeFilter {

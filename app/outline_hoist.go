@@ -183,9 +183,9 @@ func (a *App) outlineCleanSlateExit(s core.State, c core.Command) core.StepResul
 	if a.Modal() == "outline" {
 		return a.handleModal(s, c)
 	}
-	tm, kind, treeID, isWork, ok := a.activeTree(s)
+	ts, _ := a.treeTargetState(s) // the focused tree, else the page's
+	tm, kind, treeID, isWork, ok := a.activeTree(ts)
 	if !ok {
-		a.say("no tree is focused")
 		return core.Next(s)
 	}
 	if a.exitCleanSlate(tm, kind, treeID, isWork) {
