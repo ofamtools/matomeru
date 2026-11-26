@@ -215,7 +215,10 @@ func (a *App) build(s core.State) ui.ViewNode {
 	} else {
 		topTabs := a.topTabs()
 		active := slices.IndexFunc(topTabs, func(tb topTabDef) bool { return tb.id == s.ActivePage })
-		if active < 0 {
+		standalone, isStandalone := standalonePages[s.ActivePage]
+		if isStandalone {
+			active = len(topTabs)
+		} else if active < 0 {
 			active = 0
 		}
 		tabs = ui.ViewNode{ID: "spaces", Kind: ui.KindTabs, Props: map[string]any{"active": active}, Box: layout.Constraints{Flex: 1}}
@@ -245,6 +248,14 @@ func (a *App) build(s core.State) ui.ViewNode {
 				tab.Unread = a.projectTabHasUnread(tb.projectID, tb.title)
 			}
 			tabs.Children = append(tabs.Children, tab)
+		}
+		if isStandalone {
+			tabs.Children = append(tabs.Children, ui.ViewNode{
+				ID:       "space." + s.ActivePage,
+				Kind:     ui.KindVStack,
+				Title:    standalone.title,
+				Children: []ui.ViewNode{standalone.render(a)},
+			})
 		}
 		a.viewMemo.tabsKey, a.viewMemo.tabs = tKey, tabs
 	}

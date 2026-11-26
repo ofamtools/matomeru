@@ -135,9 +135,17 @@ func WriteManagedBytes(root, category, id, title, ext string, content []byte) (s
 		return "", fmt.Errorf("data: create managed dir %s: %w", dir, err)
 	}
 	target := filepath.Join(dir, name)
+	if err := writeAtomicFile(target, content); err != nil {
+		return "", err
+	}
+	return target, nil
+}
+
+func writeAtomicFile(target string, content []byte) error {
+	dir := filepath.Dir(target)
 	tmp, err := os.CreateTemp(dir, ".mtm-tmp-*")
 	if err != nil {
-		return "", fmt.Errorf("data: create temp file in %s: %w", dir, err)
+		return fmt.Errorf("data: create temp file in %s: %w", dir, err)
 	}
 	tmpPath := tmp.Name()
 	cleanup := true
@@ -148,14 +156,14 @@ func WriteManagedBytes(root, category, id, title, ext string, content []byte) (s
 	}()
 	if _, err := tmp.Write(content); err != nil {
 		_ = tmp.Close()
-		return "", fmt.Errorf("data: write temp file %s: %w", tmpPath, err)
+		return fmt.Errorf("data: write temp file %s: %w", tmpPath, err)
 	}
 	if err := tmp.Close(); err != nil {
-		return "", fmt.Errorf("data: close temp file %s: %w", tmpPath, err)
+		return fmt.Errorf("data: close temp file %s: %w", tmpPath, err)
 	}
 	if err := os.Rename(tmpPath, target); err != nil {
-		return "", fmt.Errorf("data: rename %s to %s: %w", tmpPath, target, err)
+		return fmt.Errorf("data: rename %s to %s: %w", tmpPath, target, err)
 	}
 	cleanup = false
-	return target, nil
+	return nil
 }
