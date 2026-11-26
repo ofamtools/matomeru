@@ -325,9 +325,18 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("u brings it back", !archived() && !a.archiveAnimActive(project.Ref()) && listed())
 	k.Keys("/")
 	k.Type("rail")
-	k.check("/ filters on any field as you type", a.Mode() == ModeFilter && len(a.nav.tables[workTable].Filtered()) == 1 && k.has("Pane rail sorted"))
+	workFiltered := len(a.nav.tables[workTable].Filtered()) == 1
+	if a.inWorkTree(a.State()) {
+		tm := a.trees.workModel(data.KindTask)
+		workFiltered = tm.FilterQuery() == "rail" && len(tm.Flatten()) >= 1
+	}
+	k.check("/ filters on any field as you type", a.Mode() == ModeFilter && workFiltered && k.has("Pane rail sorted"))
 	k.Keys("esc")
-	k.check("esc clears the filter", a.Mode() == ModeNormal && a.nav.tables[workTable].Query == "")
+	workCleared := a.nav.tables[workTable].Query == ""
+	if a.inWorkTree(a.State()) {
+		workCleared = !a.trees.workModel(data.KindTask).IsFiltered()
+	}
+	k.check("esc clears the filter", a.Mode() == ModeNormal && workCleared)
 	k.Keys("g", "b")
 	k.check("g b offers every field to group by", a.Modal() == "field" && k.has("Group by", "(not grouped)", "workStatus"))
 	k.Keys("/")
