@@ -3,18 +3,24 @@ package views
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
 )
 
-// ZeroFieldModalID and scope constants for the unified Zero-Field Filter/Group/Sort view.
+// Scope and node IDs of the unified Zero-Field Filter/Group/Sort overlay.
 const (
-	ScopeZeroField = "zero.field"
-	ZeroFieldID    = "zero.field.stage"
+	ScopeZeroField   = "zero.field"
+	ZeroFieldID      = "zero.field.stage"
+	ZeroFieldModalID = "modal.zero.field"
+
+	zeroFieldMaxWidth = 112
+	zeroFieldChrome   = 4 // border and padding, left and right
+	zeroFieldLabelW   = 8 // the row label column ("FIELDS  ")
 )
 
-// ZeroFieldChip represents one hint-labeled, color-coded toggleable UI chip.
+// ZeroFieldChip is one hint-labeled, color-coded chip.
 type ZeroFieldChip struct {
 	Hint         string
 	Label        string
@@ -25,8 +31,8 @@ type ZeroFieldChip struct {
 	InactiveTone string
 }
 
-// ZeroFieldSettingPill represents one active or implicit setting pill at the top
-// of the Zero-Field modal (Filter, Group, or Sort).
+// ZeroFieldSettingPill is one active or implicit setting of the CURRENT
+// strip (Filter, Group or Sort).
 type ZeroFieldSettingPill struct {
 	ModeLabel    string
 	ValueLabel   string
@@ -36,7 +42,7 @@ type ZeroFieldSettingPill struct {
 	InactiveTone string
 }
 
-// ZeroFieldExprPill represents one token in the live boolean filter expression strip.
+// ZeroFieldExprPill is one token of the live filter expression strip.
 type ZeroFieldExprPill struct {
 	Kind       string // "clause" | "op" | "lparen" | "rparen"
 	Label      string
@@ -44,226 +50,237 @@ type ZeroFieldExprPill struct {
 	Invert     bool
 }
 
-// ZeroFieldViewSpec is the pure value-object input for ZeroFieldModalView.
+// ZeroFieldViewSpec is the pure input of ZeroFieldModalView. Every label
+// is already human (references resolved by the caller); every hint is a
+// row of the caller's action table.
 type ZeroFieldViewSpec struct {
 	Title           string
 	Mode            string // "filter" | "group" | "sort"
-	ModeTone        string // distinct semantic color per mode
+	ModeTone        string
 	PendingHint     string
 	SelectedField   string
 	ActiveSettings  []ZeroFieldSettingPill
 	ExprPills       []ZeroFieldExprPill
 	ModeChips       []ZeroFieldChip
 	CombinatorChips []ZeroFieldChip
-	FieldRows       [][]ZeroFieldChip
+	TargetChips     []ZeroFieldChip // Sort mode: records or groups
+	FieldChips      []ZeroFieldChip
 	ValueChips      []ZeroFieldChip
 	PresetChips     []ZeroFieldChip
+	ActionChips     []ZeroFieldChip
 	MatchedCount    int
 	TotalCount      int
 	StatusHint      string
-	Width           int
+	ScreenWidth     int
 }
 
-// ZeroFieldModalView renders the unified 2-section Zero-Field modal with ZERO
-// text input boxes: top current/implicit settings strip -> horizontal rule ->
-// color-coded Mode, Combinator, Schema Field, Value, and Generic Preset chips.
+// ZeroFieldOverlayWidth is the overlay's fixed width on a screen w wide.
+func ZeroFieldOverlayWidth(w int) int {
+	return max(min(w-4, zeroFieldMaxWidth), 24)
+}
+
+// ZeroFieldModalView renders the Zero-Field query as a centered overlay of
+// fixed width whose height fits its content: the CURRENT strip, a rule,
+// then Mode, Combine, Target, Field, Value, Preset and action chips, each
+// row wrapped to the overlay's inner width.
 func ZeroFieldModalView(spec ZeroFieldViewSpec) ui.ViewNode {
-	width := spec.Width
-	if width < 56 {
-		width = 76
-	}
-	w := &zfChipWriter{}
+	overlayW := ZeroFieldOverlayWidth(spec.ScreenWidth)
+	w := &zfChipWriter{width: overlayW - zeroFieldChrome, pending: spec.PendingHint}
 
-	// Section 1: Active & Implicit Current Settings (Filter, Group, Sort).
-	w.text("CURRENT ", "muted")
-	for i, pill := range spec.ActiveSettings {
-		if i > 0 {
-			w.text("  ", "")
-		}
-		w.addSettingPill(pill, spec.PendingHint)
-	}
-	if len(spec.ExprPills) > 0 {
-		w.nl()
-		w.text("EXPR    ", "muted")
-		for i, ep := range spec.ExprPills {
-			if i > 0 {
-				w.text(" ", "")
-			}
-			w.addExprPill(ep, spec.PendingHint)
-		}
-	}
-	w.nl()
-	w.rule(width - 4)
-	w.nl()
-
-	// Section 2A: Color-coded Mode chips (Filter / Group / Sort).
-	w.addRow("MODE    ", spec.ModeChips, spec.PendingHint)
-	w.nl()
-
-	// Section 2B: Combinators / Modifiers BEFORE fields (Any / All / AND / OR / NOT / ( / )).
-	if len(spec.CombinatorChips) > 0 {
-		w.addRow("COMBINE ", spec.CombinatorChips, spec.PendingHint)
-		w.nl()
-	}
-
-	// Section 2C: Schema Fields (id, kind, all props, timestamps).
-	for i, row := range spec.FieldRows {
-		prefix := "        "
-		if i == 0 {
-			prefix = "FIELDS  "
-		}
-		w.addRow(prefix, row, spec.PendingHint)
-		w.nl()
-	}
-
-	// Section 2D: Candidate Values for the active field (when in filter mode).
-	if len(spec.ValueChips) > 0 {
-		label := "VALUES  "
-		if spec.SelectedField != "" {
-			label = fmt.Sprintf("%-7s ", clipText(spec.SelectedField, 7))
-		}
-		w.addRow(label, spec.ValueChips, spec.PendingHint)
-		w.nl()
-	}
-
-	// Section 2E: Generic Presets & Quick Actions.
-	if len(spec.PresetChips) > 0 {
-		w.addRow("PRESETS ", spec.PresetChips, spec.PendingHint)
-		w.nl()
-	}
-	w.rule(width - 4)
-	w.nl()
-	w.addAction("S", "save preset", "accent", spec.PendingHint)
-	w.text("  ", "")
-	w.addAction("R", "reset", "warning", spec.PendingHint)
-	w.text("  ", "")
-	w.addAction(")", "classic view", "info", spec.PendingHint)
-	w.text("  ", "")
-	w.addAction("esc", "apply & close", "success", spec.PendingHint)
+	w.settings(spec.ActiveSettings)
+	w.expr(spec.ExprPills)
+	w.rule()
+	w.row("MODE", spec.ModeChips)
+	w.row("COMBINE", spec.CombinatorChips)
+	w.row("TARGET", spec.TargetChips)
+	w.row("FIELDS", spec.FieldChips)
+	w.row(clipText(nonEmptyStr(spec.SelectedField, "VALUES"), zeroFieldLabelW-1), spec.ValueChips)
+	w.row("PRESETS", spec.PresetChips)
+	w.rule()
+	w.row("", spec.ActionChips)
 	if spec.StatusHint != "" {
-		w.nl()
 		w.text(spec.StatusHint, "muted")
+		w.nl()
 	}
 
+	stage := ui.ViewNode{
+		ID:        ZeroFieldID,
+		Kind:      ui.KindText,
+		Scope:     ScopeZeroField,
+		Focusable: true,
+		Facts:     zeroFieldFacts(spec),
+		Props:     map[string]any{"runs": w.trimmed()},
+	}
+	return ui.ViewNode{
+		ID:       ZeroFieldModalID,
+		Kind:     ui.KindOverlay,
+		Scope:    ScopeZeroField,
+		Title:    nonEmptyStr(spec.Title, "Query · Filter / Group / Sort"),
+		Tone:     spec.ModeTone,
+		Badges:   zeroFieldBadges(spec),
+		Facts:    zeroFieldFacts(spec),
+		Box:      layout.Constraints{FixedW: overlayW},
+		Children: []ui.ViewNode{stage},
+	}
+}
+
+func zeroFieldFacts(spec ZeroFieldViewSpec) map[string]any {
+	return map[string]any{
+		"zeroField":     true,
+		"queryMode":     spec.Mode,
+		"pendingHint":   spec.PendingHint != "",
+		"selectedField": spec.SelectedField,
+		"matchedCount":  spec.MatchedCount,
+	}
+}
+
+func zeroFieldBadges(spec ZeroFieldViewSpec) []ui.Badge {
 	badges := []ui.Badge{
-		{Text: strings.ToUpper(nonEmptyStr(spec.Mode, "filter")), Tone: nonEmptyStr(spec.ModeTone, "badge.accent")},
+		{Text: strings.ToUpper(nonEmptyStr(spec.Mode, "filter")), Tone: "badge." + nonEmptyStr(spec.ModeTone, "accent")},
 		{Text: fmt.Sprintf("%d/%d rows", spec.MatchedCount, spec.TotalCount), Tone: "info"},
 	}
 	if spec.PendingHint != "" {
-		badges = append(badges, ui.Badge{Text: "CHORD " + spec.PendingHint + "_", Tone: "badge.warning"})
-	} else {
-		badges = append(badges, ui.Badge{Text: "ZERO-FIELD", Tone: "muted"})
+		return append(badges, ui.Badge{Text: "CHORD " + spec.PendingHint + "_", Tone: "badge.warning"})
 	}
-
-	return ui.ViewNode{
-		ID:        ZeroFieldID,
-		Kind:      ui.KindPanel,
-		Scope:     ScopeZeroField,
-		Title:     nonEmptyStr(spec.Title, "Query · Filter / Group / Sort"),
-		Tone:      spec.ModeTone,
-		Border:    true,
-		Badges:    badges,
-		Focusable: true,
-		Facts: map[string]any{
-			"zeroField":     true,
-			"queryMode":     spec.Mode,
-			"pendingHint":   spec.PendingHint != "",
-			"selectedField": spec.SelectedField,
-			"matchedCount":  spec.MatchedCount,
-		},
-		Box: layout.Constraints{Flex: 1},
-		Children: []ui.ViewNode{
-			{
-				ID:    ZeroFieldID + ".body",
-				Kind:  ui.KindText,
-				Box:   layout.Constraints{Flex: 1},
-				Props: map[string]any{"runs": w.runs},
-			},
-		},
-	}
+	return badges
 }
 
+// zfChipWriter lays chips out as inline runs, wrapping each row at width.
 type zfChipWriter struct {
-	runs []ui.InlineRun
+	runs    []ui.InlineRun
+	width   int
+	col     int
+	pending string
 }
 
 func (w *zfChipWriter) text(s, tone string) {
 	if s != "" {
 		w.runs = append(w.runs, ui.InlineRun{Kind: "text", Text: s, Tone: tone})
+		w.col += utf8.RuneCountInString(s)
 	}
 }
 
 func (w *zfChipWriter) nl() {
 	w.runs = append(w.runs, ui.InlineRun{Kind: "text", Text: "\n"})
+	w.col = 0
 }
 
-func (w *zfChipWriter) rule(n int) {
-	if n < 36 {
-		n = 36
+// trimmed drops the final newline so the overlay's height is its content.
+func (w *zfChipWriter) trimmed() []ui.InlineRun {
+	runs := w.runs
+	if n := len(runs); n > 0 && runs[n-1].Text == "\n" {
+		runs = runs[:n-1]
 	}
-	w.text(strings.Repeat("─", n), "border")
+	return runs
+}
+
+// rule is a divider across the overlay's whole inner width.
+func (w *zfChipWriter) rule() {
+	w.text(strings.Repeat("─", w.width), "border")
+	w.nl()
 }
 
 func (w *zfChipWriter) badge(label, tone, bg string) {
 	if label != "" {
 		w.runs = append(w.runs, ui.InlineRun{Kind: "badge", Label: label, Tone: tone, Bg: bg})
+		w.col += utf8.RuneCountInString(label)
 	}
 }
 
-func (w *zfChipWriter) addHintCap(hint, pending string) bool {
+// fit starts a new, indented line when the next item (n wide) would pass
+// the width.
+func (w *zfChipWriter) fit(n int) {
+	if w.col > zeroFieldLabelW && w.col+n > w.width {
+		w.nl()
+		w.text(strings.Repeat(" ", zeroFieldLabelW), "")
+	}
+}
+
+// hintCap draws a hint key; it reports whether the chip is dimmed because
+// a pending chord rules it out.
+func (w *zfChipWriter) hintCap(hint string) bool {
 	if hint == "" {
 		return false
 	}
-	if pending != "" {
-		if strings.HasPrefix(hint, pending) {
-			rem := hint[len(pending):]
-			w.badge(" "+pending, "dim", "surface")
-			w.badge(rem+" ", "badge.warning", "")
-			return false
-		}
-		w.badge(" "+hint+" ", "dim", "surface")
-		return true
+	if w.pending == "" {
+		w.badge(" "+hint+" ", "match", "selection")
+		return false
 	}
-	w.badge(" "+hint+" ", "match", "selection")
-	return false
+	if rem, ok := strings.CutPrefix(hint, w.pending); ok {
+		w.badge(" "+w.pending, "dim", "surface")
+		w.badge(rem+" ", "badge.warning", "")
+		return false
+	}
+	w.badge(" "+hint+" ", "dim", "surface")
+	return true
 }
 
-func (w *zfChipWriter) addChip(c ZeroFieldChip, pending string) {
-	dimmed := w.addHintCap(c.Hint, pending)
+func chipWidth(c ZeroFieldChip) int {
+	n := utf8.RuneCountInString(c.Label) + 2
+	if c.Hint != "" {
+		n += utf8.RuneCountInString(c.Hint) + 2
+	}
+	if c.HasClause {
+		n += 2
+	}
+	return n
+}
+
+func (w *zfChipWriter) chip(c ZeroFieldChip) {
+	dimmed := w.hintCap(c.Hint)
 	label := " " + c.Label + " "
 	if c.HasClause && !c.Active {
 		label = " " + c.Label + " ● "
 	}
-	if dimmed {
+	switch {
+	case dimmed:
 		w.badge(label, "dim", "badge")
-		return
-	}
-	if c.Active {
+	case c.Active:
 		w.badge(label, nonEmptyStr(c.ActiveTone, "badge.accent"), c.ActiveBg)
-		return
+	default:
+		tone := nonEmptyStr(c.InactiveTone, "badge")
+		bg := "badge"
+		if tone == "badge" {
+			bg = ""
+		}
+		w.badge(label, tone, bg)
 	}
-	tone := nonEmptyStr(c.InactiveTone, "badge")
-	bg := "badge"
-	if tone == "badge" {
-		bg = ""
-	}
-	w.badge(label, tone, bg)
 }
 
-func (w *zfChipWriter) addAction(hint, label, tone, pending string) {
-	if w.addHintCap(hint, pending) {
-		w.badge(" "+label+" ", "dim", "badge")
+// row draws a labeled, wrapped row of chips; an empty row draws nothing.
+func (w *zfChipWriter) row(label string, chips []ZeroFieldChip) {
+	if len(chips) == 0 {
 		return
 	}
-	w.badge(" "+label+" ", tone, "badge")
+	w.text(fmt.Sprintf("%-*s", zeroFieldLabelW, label), "muted")
+	for i, c := range chips {
+		if i > 0 {
+			w.fit(chipWidth(c) + 2)
+			if w.col > zeroFieldLabelW {
+				w.text("  ", "")
+			}
+		}
+		w.chip(c)
+	}
+	w.nl()
 }
 
-func (w *zfChipWriter) addSettingPill(p ZeroFieldSettingPill, pending string) {
-	dimmed := false
-	if p.RemoveHint != "" {
-		dimmed = w.addHintCap(p.RemoveHint, pending)
+func (w *zfChipWriter) settings(pills []ZeroFieldSettingPill) {
+	w.text(fmt.Sprintf("%-*s", zeroFieldLabelW, "CURRENT"), "muted")
+	for i, p := range pills {
+		if i > 0 {
+			w.fit(utf8.RuneCountInString(p.ModeLabel+p.ValueLabel+p.RemoveHint) + 8)
+			if w.col > zeroFieldLabelW {
+				w.text("  ", "")
+			}
+		}
+		w.settingPill(p)
 	}
-	if dimmed {
+	w.nl()
+}
+
+func (w *zfChipWriter) settingPill(p ZeroFieldSettingPill) {
+	if w.hintCap(p.RemoveHint) {
 		w.badge(" "+p.ModeLabel+" ", "dim", "badge")
 		w.badge(" "+p.ValueLabel+" ", "dim", "surface")
 		return
@@ -277,37 +294,41 @@ func (w *zfChipWriter) addSettingPill(p ZeroFieldSettingPill, pending string) {
 	w.badge(" "+p.ValueLabel+" ", p.InactiveTone, "badge")
 }
 
-func (w *zfChipWriter) addExprPill(ep ZeroFieldExprPill, pending string) {
-	if ep.Kind == "op" {
-		w.badge(" "+ep.Label+" ", "muted", "surface")
+func (w *zfChipWriter) expr(pills []ZeroFieldExprPill) {
+	if len(pills) == 0 {
 		return
 	}
-	if ep.Kind == "lparen" || ep.Kind == "rparen" {
-		w.badge(" "+ep.Label+" ", "info", "surface")
+	w.text(fmt.Sprintf("%-*s", zeroFieldLabelW, "EXPR"), "muted")
+	for i, ep := range pills {
+		if i > 0 {
+			w.fit(utf8.RuneCountInString(ep.Label+ep.RemoveHint) + 7)
+			if w.col > zeroFieldLabelW {
+				w.text(" ", "")
+			}
+		}
+		w.exprPill(ep)
+	}
+	w.nl()
+}
+
+// zfTokenTones are the tones of the expression's structural tokens; a
+// clause (not listed) is a removable pill.
+var zfTokenTones = map[string]string{"op": "muted", "lparen": "info", "rparen": "info"}
+
+func (w *zfChipWriter) exprPill(ep ZeroFieldExprPill) {
+	if tone, structural := zfTokenTones[ep.Kind]; structural {
+		w.badge(" "+ep.Label+" ", tone, "surface")
 		return
 	}
-	dimmed := false
-	if ep.RemoveHint != "" {
-		dimmed = w.addHintCap(ep.RemoveHint, pending)
-	}
-	if dimmed {
+	if w.hintCap(ep.RemoveHint) {
 		w.badge(" "+ep.Label+" ", "dim", "badge")
 		return
 	}
+	tone := "info"
 	if ep.Invert {
-		w.badge(" NOT ", "badge.error", "")
+		tone = "error"
 	}
-	w.badge(" "+ep.Label+" ", "info", "badge")
-}
-
-func (w *zfChipWriter) addRow(prefix string, chips []ZeroFieldChip, pending string) {
-	w.text(prefix, "muted")
-	for i, c := range chips {
-		if i > 0 {
-			w.text("  ", "")
-		}
-		w.addChip(c, pending)
-	}
+	w.badge(" "+ep.Label+" ", tone, "badge")
 }
 
 func nonEmptyStr(s, fallback string) string {

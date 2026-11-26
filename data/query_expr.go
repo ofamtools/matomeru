@@ -1,7 +1,6 @@
 package data
 
 import (
-	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -42,7 +41,10 @@ type ExprToken struct {
 	Values []string      `json:"values,omitempty"`
 	All    bool          `json:"all,omitempty"` // false = any/in, true = all
 	Invert bool          `json:"invert,omitempty"`
-	Op     string        `json:"op,omitempty"` // "AND", "OR" or "NOT"
+	// Op is the operator of an op token ("AND", "OR" or "NOT"). On a "("
+	// token it is the join its quantifier implies: OR for any(, AND for
+	// all(, empty for a plain group.
+	Op string `json:"op,omitempty"`
 }
 
 // QuerySpec is the pure serializable data representation of a unified
@@ -52,6 +54,42 @@ type QuerySpec struct {
 	GroupBy string      `json:"groupBy,omitempty"`
 	SortBy  string      `json:"sortBy,omitempty"`
 	SortDir string      `json:"sortDir,omitempty"` // "asc" | "desc"
+	// GroupSortDir orders the groups themselves by their GroupBy value
+	// ("asc" | "desc"), ahead of the record order SortBy gives inside each.
+	GroupSortDir string `json:"groupSortDir,omitempty"`
+}
+
+// Clone is a deep copy of q: editing it never reaches q's tokens.
+func (q QuerySpec) Clone() QuerySpec {
+	out := q
+	out.Tokens = make([]ExprToken, len(q.Tokens))
+	for i, tok := range q.Tokens {
+		tok.Values = slices.Clone(tok.Values)
+		out.Tokens[i] = tok
+	}
+	if len(out.Tokens) == 0 {
+		out.Tokens = nil
+	}
+	return out
+}
+
+// QuerySortKey is one ordering key of a query.
+type QuerySortKey struct {
+	Field string
+	Desc  bool
+}
+
+// SortKeys is the query's ordering, outermost first: the groups' order
+// (when set) and then the records' order.
+func (q QuerySpec) SortKeys() []QuerySortKey {
+	var keys []QuerySortKey
+	if q.GroupBy != "" && q.GroupSortDir != "" {
+		keys = append(keys, QuerySortKey{Field: q.GroupBy, Desc: q.GroupSortDir == "desc"})
+	}
+	if q.SortBy != "" {
+		keys = append(keys, QuerySortKey{Field: q.SortBy, Desc: q.SortDir == "desc"})
+	}
+	return keys
 }
 
 // QueryFieldDef describes one queryable field derived automatically from a noun's Schema.
@@ -61,6 +99,12 @@ type QueryFieldDef struct {
 	Type      string
 	Options   []string
 	Substring bool
+}
+
+// Groupable reports whether records fall into a useful number of groups by
+// the field: not the ID and not free text (a date groups by its day).
+func (fd QueryFieldDef) Groupable() bool {
+	return fd.Name != "id" && (!fd.Substring || fd.Type == "time")
 }
 
 // SchemaFieldDefs enumerates every queryable data point of a Schema in stable order:
@@ -185,43 +229,10 @@ func RecordFieldText(rec Record, field string) string {
 }
 
 // FormatClause returns a concise human-readable label for a clause token.
-func FormatClause(tok ExprToken) string {
-	prefix := ""
-	if tok.Invert {
-		prefix = "NOT "
-	}
-	if len(tok.Values) == 1 {
-		return fmt.Sprintf("%s%s=%s", prefix, tok.Field, tok.Values[0])
-	}
-	quant := "any"
-	if tok.All {
-		quant = "all"
-	}
-	return fmt.Sprintf("%s%s %s (%s)", prefix, tok.Field, quant, strings.Join(tok.Values, ", "))
-}
+func FormatClause(tok ExprToken) string { return ClauseLabels{}.Clause(tok) }
 
 // FilterSummary returns a readable boolean expression string for the query's filter clauses.
-func (q QuerySpec) FilterSummary() string {
-	if len(q.Tokens) == 0 {
-		return ""
-	}
-	parts := make([]string, 0, len(q.Tokens))
-	for _, tok := range q.Tokens {
-		switch tok.Kind {
-		case ExprTokenLParen:
-			parts = append(parts, "(")
-		case ExprTokenRParen:
-			parts = append(parts, ")")
-		case ExprTokenOp:
-			parts = append(parts, tok.Op)
-		case ExprTokenClause:
-			if len(tok.Values) > 0 {
-				parts = append(parts, FormatClause(tok))
-			}
-		}
-	}
-	return strings.Join(parts, " ")
-}
+func (q QuerySpec) FilterSummary() string { return ClauseLabels{}.Summary(q) }
 
 // HasFilter reports whether q contains at least one active filter clause.
 func (q QuerySpec) HasFilter() bool {

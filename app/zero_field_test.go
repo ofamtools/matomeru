@@ -2,26 +2,41 @@ package app
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 )
+
+// zfKeys returns the keys of the open modal's action running verb on arg.
+func zfKeys(t *testing.T, a *App, verb, arg string) []string {
+	t.Helper()
+	m, ok := a.activeZeroFieldModal()
+	if !ok {
+		t.Fatalf("no Zero-Field modal open: %q", a.Modal())
+	}
+	for _, r := range m.actions() {
+		if r.Cmd.Verb == verb && r.Cmd.Arg == arg {
+			return strings.Split(r.Keys, "")
+		}
+	}
+	t.Fatalf("no %s %q action among %+v", verb, arg, m.actions())
+	return nil
+}
 
 func TestZeroFieldUnifiedModalCycleAndApplyOnEsc(t *testing.T) {
 	a, d := demo(t)
-	// Switch to 2 Work table layout so table is directly focused.
 	d.Keys("2", "g", "t")
 
-	// Pressing f opens unified Zero-Field modal by default in filter mode.
 	d.Keys("f")
-	if a.Modal() != zeroFieldModalID {
-		t.Fatalf("f did not open Zero-Field modal: got %q", a.Modal())
-	}
-	if a.Mode() != ModeZeroField {
-		t.Fatalf("expected ModeZeroField, got %q", a.Mode())
+	if a.Modal() != zeroFieldModalID || a.Mode() != ModeZeroField {
+		t.Fatalf("f did not open the Zero-Field modal: %q / %q", a.Modal(), a.Mode())
 	}
 	frame := d.Frame()
 	for _, want := range []string{"CURRENT", "MODE", "FIELDS", "Filter", "Group", "Sort", "apply & close"} {
@@ -30,27 +45,27 @@ func TestZeroFieldUnifiedModalCycleAndApplyOnEsc(t *testing.T) {
 		}
 	}
 
-	// Switch to Group mode (g), select a field chord (e1 = id), and press esc: MUST APPLY (never discard!).
-	d.Keys("g", "e", "1", "esc")
+	// Group by a field and press esc: it applies, never discards.
+	d.Keys("g")
+	d.Keys(zfKeys(t, a, zfVerbField, "workStatus")...)
+	d.Keys("esc")
 	if a.Modal() != "" {
 		t.Fatalf("esc did not close Zero-Field modal: %q", a.Modal())
 	}
-	if got := a.nav.tables[workTable].GroupField; got != "id" {
-		t.Fatalf("esc discarded Zero-Field group selection: GroupField = %q, want %q", got, "id")
+	if got := a.nav.tables[workTable].GroupField; got != "workStatus" {
+		t.Fatalf("esc discarded the group: GroupField = %q", got)
 	}
 
-	// Cycle from Zero-Field to classic "field" picker with ")" and back with ")".
+	// ")" swaps to the classic field picker and back, keeping the mode.
 	d.Keys("g", "s")
-	if a.Modal() != zeroFieldModalID {
-		t.Fatalf("g s did not open Zero-Field modal: got %q", a.Modal())
-	}
 	d.Keys(")")
 	if a.Modal() != "field" {
-		t.Fatalf(") from Zero-Field did not cycle to classic field picker: got %q", a.Modal())
+		t.Fatalf(") from Zero-Field did not open the classic field picker: %q", a.Modal())
 	}
 	d.Keys(")")
-	if a.Modal() != zeroFieldModalID {
-		t.Fatalf(") from classic field picker did not cycle back to Zero-Field: got %q", a.Modal())
+	m, ok := a.activeZeroFieldModal()
+	if !ok || m.draft.Mode != data.QueryModeSort {
+		t.Fatalf(") from the classic picker did not return to Zero-Field sort: %q", a.Modal())
 	}
 	d.Keys("esc")
 }
@@ -58,26 +73,215 @@ func TestZeroFieldUnifiedModalCycleAndApplyOnEsc(t *testing.T) {
 func TestGenericPresetSaveAndApply(t *testing.T) {
 	a, d := demo(t)
 	d.Keys("2", "g", "t")
-	d.Keys("g", "z", "g", "e", "1", "esc")
-	if a.nav.tables[workTable].GroupField != "id" {
-		t.Fatalf("expected GroupField=id, got %q", a.nav.tables[workTable].GroupField)
+	d.Keys("g", "z", "g")
+	d.Keys(zfKeys(t, a, zfVerbField, "workStatus")...)
+	d.Keys("esc")
+	if a.nav.tables[workTable].GroupField != "workStatus" {
+		t.Fatalf("expected GroupField=workStatus, got %q", a.nav.tables[workTable].GroupField)
 	}
 	d.Send(core.CommandEvent{Command: core.Command{
 		ID:   CmdPresetSave,
-		Args: map[string]any{"name": "ByID", "kind": data.PresetKindQuery},
+		Args: map[string]any{"name": "ByStatus", "kind": data.PresetKindQuery},
 	}})
 	list := a.genericPresets.List(data.PresetKindQuery, "")
-	if len(list) != 1 || list[0].Name != "ByID" {
-		t.Fatalf("expected saved generic preset ByID, got %+v", list)
+	if len(list) != 1 || list[0].Name != "ByStatus" {
+		t.Fatalf("expected saved generic preset ByStatus, got %+v", list)
 	}
-	// Reset group, then apply saved preset.
 	a.nav.tables[workTable].GroupField = ""
 	d.Send(core.CommandEvent{Command: core.Command{
 		ID:   CmdPresetApply,
-		Args: map[string]any{"name": "ByID", "kind": data.PresetKindQuery},
+		Args: map[string]any{"name": "ByStatus", "kind": data.PresetKindQuery},
 	}})
-	if a.nav.tables[workTable].GroupField != "id" {
-		t.Fatalf("applying preset ByID did not restore GroupField=id: got %q", a.nav.tables[workTable].GroupField)
+	if a.nav.tables[workTable].GroupField != "workStatus" {
+		t.Fatalf("applying preset ByStatus did not restore the group: %q", a.nav.tables[workTable].GroupField)
+	}
+}
+
+// zfRenderedHints are the hint caps the overlay draws.
+func zfRenderedHints(m *zeroFieldModal) map[string]bool {
+	out := map[string]bool{}
+	node := m.View(140, 50)
+	for _, r := range node.Find(views.ZeroFieldID).Props["runs"].([]ui.InlineRun) {
+		if r.Kind == "badge" && r.Tone == "match" {
+			out[strings.TrimSpace(r.Label)] = true
+		}
+	}
+	return out
+}
+
+// Across every mode, empty and busy, the hints a draft shows are unique,
+// no single key starts a chord, every drawn hint is an action (or one of
+// the modal's bindings), and typing an action's keys runs that action.
+func TestZeroFieldHintsDisjointAndRoundTrip(t *testing.T) {
+	a, d := demo(t)
+	d.Keys("2", "g", "t")
+	if a.genericPresets == nil {
+		a.initGenericPresets()
+	}
+	for _, name := range []string{"One", "Two", "Three"} {
+		q := data.QuerySpec{Tokens: []data.ExprToken{{Kind: data.ExprTokenClause, Field: "priority", Values: []string{"P1"}}}}
+		if _, err := a.genericPresets.Save(data.Preset{Name: name, Kind: data.PresetKindQuery, Scope: a.workKind(), Values: map[string]any{"query": q}}, a.now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d.Keys("f")
+	m, ok := a.activeZeroFieldModal()
+	if !ok {
+		t.Fatalf("f did not open the Zero-Field modal: %q", a.Modal())
+	}
+	bound := map[string]bool{}
+	for _, c := range boundChips() {
+		bound[c.Hint] = true
+	}
+	busy := func(dr *data.QueryDraft) {
+		dr.SelectField("priority")
+		dr.ToggleValue("P1")
+		dr.SetOperator(data.ExprOpOr)
+		dr.OpenParen()
+		dr.SelectField("workStatus")
+		dr.ToggleValue("todo")
+		dr.SelectField("id") // 12+ values
+	}
+	states := map[string]func(dr *data.QueryDraft){
+		"filter empty": func(dr *data.QueryDraft) { dr.SelectField("id") },
+		"filter busy":  busy,
+		"group":        func(dr *data.QueryDraft) { busy(dr); dr.SetMode(data.QueryModeGroup); dr.SelectField("workStatus") },
+		"sort records": func(dr *data.QueryDraft) {
+			busy(dr)
+			dr.SelectField("workStatus")
+			dr.SetMode(data.QueryModeSort)
+			dr.SelectField("title")
+		},
+		"sort groups": func(dr *data.QueryDraft) {
+			dr.SetMode(data.QueryModeGroup)
+			dr.SelectField("workStatus")
+			dr.SetMode(data.QueryModeSort)
+			dr.ToggleSortTarget()
+		},
+	}
+	base := *m
+	for name, setup := range states {
+		t.Run(name, func(t *testing.T) {
+			state := base
+			state.draft = data.NewQueryDraft(data.QueryModeFilter, data.QuerySpec{}, base.fields)
+			setup(&state.draft)
+			rows := state.actions()
+			if name == "filter busy" && len(chips(rows, zfRowValue)) < 12 {
+				t.Fatalf("want at least 12 values, got %d", len(chips(rows, zfRowValue)))
+			}
+			keys := map[string]bool{}
+			for _, r := range rows {
+				if keys[r.Keys] {
+					t.Fatalf("two actions share %q", r.Keys)
+				}
+				keys[r.Keys] = true
+			}
+			for k := range keys {
+				for other := range keys {
+					if k != other && strings.HasPrefix(other, k) {
+						t.Fatalf("%q is both a hint and the prefix of %q", k, other)
+					}
+				}
+			}
+			for hint := range zfRenderedHints(&state) {
+				if !keys[hint] && !bound[hint] {
+					t.Fatalf("drawn hint %q runs nothing", hint)
+				}
+			}
+			for k := range keys {
+				if !zfRenderedHints(&state)[k] {
+					t.Fatalf("action %q is not drawn", k)
+				}
+			}
+			for _, r := range rows {
+				run := state
+				run.draft.Query = state.draft.Query.Clone()
+				var res modal.Result
+				for _, ch := range strings.Split(r.Keys, "") {
+					res = run.Handle(core.Command{ID: CmdZeroFieldKey, Args: map[string]any{"text": ch}})
+				}
+				if !res.Handled || run.pending != "" || !strings.Contains(run.flash, r.Label) {
+					t.Fatalf("%q did not run %q: handled=%v pending=%q flash=%q", r.Keys, r.Label, res.Handled, run.pending, run.flash)
+				}
+			}
+			switch name {
+			case "filter empty":
+				if keys["&"] || keys["|"] || keys["]"] {
+					t.Fatalf("an empty filter offers AND/OR or ): %v", keys)
+				}
+			case "filter busy":
+				if !keys["&"] || !keys["]"] {
+					t.Fatalf("a busy filter hides AND or ): %v", keys)
+				}
+			case "group":
+				if len(chips(rows, zfRowValue)) > 0 || len(chips(rows, zfRowCombine)) > 0 {
+					t.Fatal("Group mode offers values or operators")
+				}
+			case "sort groups":
+				if !keys["T"] || len(chips(rows, zfRowField)) != 1 {
+					t.Fatalf("sorting groups offers %v", chips(rows, zfRowField))
+				}
+			}
+		})
+	}
+	d.Keys("esc")
+}
+
+// A reference value shows as its target's chip, never kind:id; choosing it
+// stores the exact reference, and Apply and a replayed preset keep the
+// same rows.
+func TestZeroFieldResolvedRefChipAppliesAndReplays(t *testing.T) {
+	a, d := demo(t)
+	d.Keys("2", "g", "t")
+	d.Keys("f")
+	d.Keys(zfKeys(t, a, zfVerbField, "parent")...)
+	m, _ := a.activeZeroFieldModal()
+	values := chips(m.actions(), zfRowValue)
+	if len(values) == 0 {
+		t.Fatal("parent offers no values")
+	}
+	idLike := regexp.MustCompile(`task:[0-9a-f]{6,}`)
+	for _, c := range values {
+		if idLike.MatchString(c.Label) {
+			t.Fatalf("value chip leaks an ID: %q", c.Label)
+		}
+	}
+	var pick zeroFieldAction
+	for _, r := range m.actions() {
+		if r.Row == zfRowValue {
+			pick = r
+			break
+		}
+	}
+	d.Keys(strings.Split(pick.Keys, "")...)
+	if tok := m.draft.Query.Tokens; len(tok) != 1 || !strings.HasPrefix(tok[0].Values[0], "task:") {
+		t.Fatalf("the clause does not hold the stored reference: %+v", tok)
+	}
+	if frame := d.Frame(); idLike.MatchString(frame) {
+		t.Fatalf("the overlay shows a raw ID:\n%s", frame)
+	}
+	want := len(m.matched())
+	if want == 0 || want == len(m.records) {
+		t.Fatalf("the parent filter keeps %d of %d", want, len(m.records))
+	}
+	d.Keys("esc")
+	rows := func() int {
+		n := 0
+		for _, it := range a.records(workTable, a.workKind()).Items() {
+			if !it.Header {
+				n++
+			}
+		}
+		return n
+	}
+	if got := rows(); got != want {
+		t.Fatalf("applied table shows %d rows, preview said %d", got, want)
+	}
+	d.Send(core.CommandEvent{Command: core.Command{ID: CmdPresetSave, Args: map[string]any{"name": "ByParent", "kind": data.PresetKindQuery}}})
+	a.applyQuerySpec(workTable, data.QuerySpec{})
+	d.Send(core.CommandEvent{Command: core.Command{ID: CmdPresetApply, Args: map[string]any{"name": "ByParent", "kind": data.PresetKindQuery}}})
+	if got := rows(); got != want {
+		t.Fatalf("replayed preset shows %d rows, want %d", got, want)
 	}
 }
 
@@ -164,7 +368,7 @@ func TestZeroFieldPreviewApplyAndPresetKeepTheSameRecords(t *testing.T) {
 			if !ok {
 				t.Fatalf("f did not open the Zero-Field modal: %q", a.Modal())
 			}
-			m.query = query
+			m.draft.Query = query
 			if preview := recordIDs(m.matched()); !slices.Equal(preview, want) {
 				t.Fatalf("preview keeps %v, want %v", preview, want)
 			}
