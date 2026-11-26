@@ -116,7 +116,10 @@ func (a *App) bottomStatusLine(s core.State, root ui.ViewNode, w int) string {
 		parts = append(parts, a.status)
 	}
 	if len(parts) == 0 {
-		return " : command · / filter · ? help"
+		if f, _, _ := a.activeFilterTarget(s, &root); f != nil {
+			return " : command · / filter · ? help"
+		}
+		return " : command · ? help"
 	}
 	return clip(" "+strings.Join(parts, " · "), w)
 }
@@ -130,11 +133,20 @@ func isSpaceScope(scope string) bool {
 }
 
 // hintScopeRank ranks a binding's scope so actions unique to the focused noun
-// or component come FIRST (rank 0..N-1), enclosing space actions come SECOND
-// (100+), and shared/global ("", "app") actions come LAST (200+).
+// or component come FIRST (0..99), enclosing space actions come SECOND (100..159),
+// shared reusable trait actions come THIRD (160..199), and global ("", "app")
+// actions come LAST (200+).
 func hintScopeRank(scope string, chain []core.ContextFrame) int {
 	if scope == "" || scope == "app" {
 		return 200
+	}
+	if strings.HasPrefix(scope, "trait.") {
+		for i, f := range chain {
+			if f.Scope == scope {
+				return 160 + i
+			}
+		}
+		return 190
 	}
 	for i, f := range chain {
 		if f.Scope == scope {
