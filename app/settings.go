@@ -194,6 +194,7 @@ const (
 	SetChromeSystemStats               = "ui.chromeSystemStats"
 	SetSelfHostedFeaturesEnabled       = "selfHosted.featuresPage.enabled"
 	SetSelfHostedFeaturesRepoPath      = "selfHosted.featuresPage.repoPath"
+	SetFeaturesItemization             = "features.itemization"
 	SetHintsDefaultAction              = "hints.defaultAction"
 	SetProjectHomeDashboard            = "project.homeDashboard"
 	SetPanesCompactTopArea             = "panes.compactTopArea"
@@ -380,6 +381,7 @@ func SettingSpecs() []core.ParamSpec {
 		enum(SetColorByRecency, views.RecencyCell, "color records by recency bucket (today/this week/last week/older): cell, row, or off", views.RecencyCell, views.RecencyRow, views.RecencyOff),
 		flag(SetStickyTreeBreadcrumbs, true, "pin scrolled-off ancestor breadcrumb lines at the top of deep tree views"),
 		flag(SetActionLogEnabled, true, "record executed actions, target, and context in the generic action log"),
+		flag(SetFeaturesItemization, true, "show itemized schema props and page views and enable suggestions for them in Features"),
 	}
 }
 

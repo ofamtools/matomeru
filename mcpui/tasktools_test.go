@@ -18,6 +18,9 @@ func TestTaskToolSpecsMatchRealParams(t *testing.T) {
 		ToolTaskNote:      TaskNoteArgs{},
 		ToolTaskThread:    TaskThreadArgs{},
 		ToolTaskDispatch:  TaskDispatchArgs{},
+		ToolTaskRewrite:   taskRewriteArgs{},
+		ToolTaskSplit:     taskSplitArgs{},
+		ToolTaskJoin:      taskJoinArgs{},
 	}
 	specs := NewTaskTools(nil).ToolSpecs()
 	if len(specs) != len(args) {

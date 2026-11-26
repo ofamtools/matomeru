@@ -28,6 +28,9 @@ const (
 	CmdFeaturesCaptureFocus   = "features.capture.focus"
 	CmdFeaturesCaptureToggle  = "features.capture.expand"
 	CmdFeaturesItemOpen       = "features.item.open"
+	CmdFeaturesSuggestProp    = "features.suggest.prop"
+	CmdFeaturesSuggestView    = "features.suggest.view"
+	CmdFeaturesSuggestConcept = "features.suggest.concept"
 )
 
 // FeaturesController owns cached local-checkout detection, left-nav selection
@@ -149,6 +152,16 @@ func (a *App) buildFeaturesNav(snap featuresSnapshot, activeKey string) ([]views
 			Active:  activeKey == itemKey,
 		})
 	}
+	if a.featuresItemizationEnabled() {
+		for _, component := range featuresComponentCatalog {
+			itemKey := "component:" + component.Key
+			validKeys[itemKey] = true
+			pageItems = append(pageItems, views.FeaturesNavItem{
+				Key: itemKey, Section: "pages", Label: component.View.Name,
+				Icon: "·", Active: activeKey == itemKey,
+			})
+		}
+	}
 
 	// 2. By Noun: live schemas merged with catalog (including planned nouns).
 	liveByKind := map[string]data.Schema{}
@@ -225,18 +238,24 @@ func (a *App) buildFeaturesNav(snap featuresSnapshot, activeKey string) ([]views
 		{Key: "pages", Title: "By Page", Collapsed: fc.collapsedGroups["pages"], Items: pageItems},
 		{Key: "nouns", Title: "By Noun", Collapsed: fc.collapsedGroups["nouns"], Items: nounItems},
 		{Key: "groups", Title: "Organized Groups", Collapsed: fc.collapsedGroups["groups"], Items: groupItems},
+		a.featuresConceptNav(snap.concepts, activeKey, validKeys),
 	}, validKeys
 }
 
 func (a *App) buildFeaturesDetail(snap featuresSnapshot, activeKey string) views.FeaturesDetailSpec {
+	itemized := a.featuresItemizationEnabled()
 	switch {
 	case strings.HasPrefix(activeKey, "page:"):
 		pk := strings.TrimPrefix(activeKey, "page:")
 		cat, _ := lookupFeaturesPageCatalog(pk)
 		var linkedGroups, thoughts []views.FeaturesLinkedItem
+		nounKinds := slices.Clone(featuresPageNouns(pk))
 		for _, g := range snap.featureGroups {
 			if a.recordMatchesTarget(g, "targetPages", pk, cat.Keywords, true) {
 				linkedGroups = append(linkedGroups, a.linkedItemFromRecord(g))
+				if containsFold(stringListField(g, "targetPages"), pk) {
+					nounKinds = append(nounKinds, stringListField(g, "targetNouns")...)
+				}
 			}
 		}
 		for _, rt := range snap.rawThoughts {
@@ -244,16 +263,40 @@ func (a *App) buildFeaturesDetail(snap featuresSnapshot, activeKey string) views
 				thoughts = append(thoughts, a.linkedItemFromRecord(rt))
 			}
 		}
-		return views.FeaturesDetailSpec{
-			Kind:         "page",
-			Key:          activeKey,
-			Title:        firstNonEmpty(cat.Title, views.Label(pk)),
-			Subtitle:     "Page · " + pk,
-			Summary:      firstNonEmpty(cat.Summary, fmt.Sprintf("Registered Matomeru space %q.", pk)),
-			Badges:       []ui.Badge{{Text: "page", Tone: "info"}},
-			Highlights:   slices.Clone(cat.Highlights),
-			LinkedGroups: linkedGroups,
-			RawThoughts:  thoughts,
+		detail := views.FeaturesDetailSpec{
+			Kind:          "page",
+			Key:           activeKey,
+			Title:         firstNonEmpty(cat.Title, views.Label(pk)),
+			Subtitle:      "Page · " + pk,
+			Summary:       firstNonEmpty(cat.Summary, fmt.Sprintf("Registered Matomeru space %q.", pk)),
+			Badges:        []ui.Badge{{Text: "page", Tone: "info"}},
+			Highlights:    slices.Clone(cat.Highlights),
+			LinkedGroups:  linkedGroups,
+			RawThoughts:   thoughts,
+			ItemizedNouns: a.featuresItemizedNouns(nounKinds, snap.concepts),
+			Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
+				return featuresConceptTargets(rec, pk, activeKey)
+			}),
+			CanSuggestView: itemized,
+		}
+		if itemized {
+			detail.Views = featuresViewsWithSuggestions(featuresPageViews(pk, detail), snap.concepts, pk, activeKey)
+		}
+		return detail
+
+	case strings.HasPrefix(activeKey, "component:"):
+		key := strings.TrimPrefix(activeKey, "component:")
+		if component, ok := lookupFeaturesComponent(key); itemized && ok {
+			page, _ := lookupFeaturesPageCatalog(component.Page)
+			return views.FeaturesDetailSpec{
+				Kind: "component", Key: activeKey, Title: component.View.Name, Subtitle: "Component · " + page.Title,
+				ItemizedNouns: a.featuresItemizedNouns(component.Nouns, snap.concepts),
+				Views:         featuresViewsWithSuggestions([]views.FeaturesViewRow{component.View}, snap.concepts, key, activeKey),
+				Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
+					return featuresConceptTargets(rec, key, activeKey)
+				}),
+				CanSuggestView: true,
+			}
 		}
 
 	case strings.HasPrefix(activeKey, "noun:"):
@@ -305,6 +348,10 @@ func (a *App) buildFeaturesDetail(snap featuresSnapshot, activeKey string) views
 				thoughts = append(thoughts, a.linkedItemFromRecord(rt))
 			}
 		}
+		var props []views.FeaturesPropRow
+		if itemized {
+			props = featuresPropRows(sc, kind, snap.concepts)
+		}
 		return views.FeaturesDetailSpec{
 			Kind:             "noun",
 			Key:              activeKey,
@@ -317,6 +364,11 @@ func (a *App) buildFeaturesDetail(snap featuresSnapshot, activeKey string) views
 			PlannedVerbs:     plannedVerbs,
 			LinkedGroups:     linkedGroups,
 			RawThoughts:      thoughts,
+			Props:            props,
+			Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
+				return featuresConceptTargets(rec, kind, activeKey)
+			}),
+			CanSuggestProp: itemized,
 		}
 
 	case strings.HasPrefix(activeKey, "group:"):
@@ -344,15 +396,83 @@ func (a *App) buildFeaturesDetail(snap featuresSnapshot, activeKey string) views
 				TargetTags:         tags,
 				LinkedLanes:        a.groupLinkedLanes(g, snap.lanes),
 				RawThoughts:        a.groupProvenanceRawThoughts(g),
+				ItemizedNouns:      a.featuresItemizedNouns(stringListField(g, "targetNouns"), snap.concepts),
+				Concepts:           a.featuresGroupConcepts(snap.concepts, g),
 			}
+		}
+
+	case strings.HasPrefix(activeKey, "concept:"):
+		kind := strings.TrimPrefix(activeKey, "concept:")
+		return views.FeaturesDetailSpec{
+			Kind: "concept", Key: activeKey, Title: views.Label(kind) + " concepts",
+			Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
+				return rec.Text(data.FieldConceptKind) == kind
+			}),
 		}
 	}
 	return views.FeaturesDetailSpec{
 		Kind:     "page",
 		Key:      activeKey,
 		Title:    "Features",
-		Subtitle: "Select a page, noun, or organized feature group from the left rail.",
+		Subtitle: "Select an item from the left rail.",
 	}
+}
+
+func (a *App) featuresSuggestProp(s core.State, _ core.Command) core.StepResult {
+	return a.featuresSuggestItem(s, data.ConceptKindProp, "Suggest prop")
+}
+
+func (a *App) featuresSuggestView(s core.State, _ core.Command) core.StepResult {
+	return a.featuresSuggestItem(s, data.ConceptKindView, "Suggest view")
+}
+
+func (a *App) featuresSuggestItem(s core.State, kind, title string) core.StepResult {
+	if !a.featuresPageActive() || !a.featuresItemizationEnabled() || s.ActivePage != SpaceFeatures {
+		a.say("open Features with itemization enabled to suggest a %s", kind)
+		return core.Next(s)
+	}
+	section, target, _ := strings.Cut(a.featuresCtrl().activeItemKey(), ":")
+	if target == "" || (kind == data.ConceptKindProp && section != "noun") ||
+		(kind == data.ConceptKindView && section != "page" && section != "component") {
+		a.say("select a Features target for this %s", kind)
+		return core.Next(s)
+	}
+	return a.create(s, core.Command{ID: views.CmdNew, Args: map[string]any{
+		"kind": data.KindConcept, "title": title + " for " + target,
+		"fields": []string{"title", "summary", "body"},
+		"defaults": map[string]any{
+			data.FieldConceptKind:       kind,
+			data.FieldConceptTargetKind: target,
+			data.FieldConceptStatus:     data.ConceptStatusProposed,
+		},
+	}})
+}
+
+func (a *App) featuresSuggestConcept(s core.State, _ core.Command) core.StepResult {
+	if !a.featuresPageActive() {
+		a.say("Features is inactive")
+		return core.Next(s)
+	}
+	defaults := map[string]any{}
+	if s.ActivePage == SpaceFeatures {
+		section, target, _ := strings.Cut(a.featuresCtrl().activeItemKey(), ":")
+		switch section {
+		case "page", "noun":
+			defaults[data.FieldConceptKind] = section
+			defaults[data.FieldConceptTargetKind] = target
+		case "component":
+			defaults[data.FieldConceptKind] = data.ConceptKindView
+			defaults[data.FieldConceptTargetKind] = target
+		case "group":
+			defaults[data.FieldConceptTargetKind] = target
+		case "concept":
+			defaults[data.FieldConceptKind] = target
+		}
+	}
+	return a.create(s, core.Command{ID: views.CmdNew, Args: map[string]any{
+		"kind": data.KindConcept, "title": "Track concept", "defaults": defaults,
+		"fields": []string{"title", data.FieldConceptKind, data.FieldConceptTargetKind, data.FieldConceptStatus, "summary", "body"},
+	}})
 }
 
 // featuresSpace projects the complete self-hosted Features page view tree.

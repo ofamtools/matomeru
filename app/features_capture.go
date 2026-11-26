@@ -168,13 +168,13 @@ func featuresPageSpecs() []core.CommandSpec {
 		{
 			ID:          CmdFeaturesNavGroupToggle,
 			Description: "Collapse or expand the focused Features navigation group",
-			Params:      []core.ParamSpec{{Name: "group", Type: core.ParamString, Description: "optional nav group key (pages, nouns, groups)"}},
+			Params:      []core.ParamSpec{{Name: "group", Type: core.ParamString, Description: "optional nav group key"}},
 			Meta:        map[string]any{"selfHosted": true},
 		},
 		sh(CmdFeaturesQuickCapture, "Quick-capture a raw feature thought into the Features Wishlist outline", "editing"),
 		sh(CmdFeaturesCaptureFocus, "Focus the Quick Capture (Features Wishlist) outline pane"),
 		sh(CmdFeaturesCaptureToggle, "Toggle the Quick Capture pane between docked and expanded layout"),
-		sh(CmdFeaturesItemOpen, "Open the focused linked feature group, lane, or raw thought in 2 Work"),
+		sh(CmdFeaturesItemOpen, "Open the focused linked record in 2 Work"),
 	}
 }
 
@@ -208,6 +208,9 @@ func (a *App) registerFeaturesPageHandlers() {
 	a.handle(CmdFeaturesCaptureFocus, a.featuresCaptureFocus)
 	a.handle(CmdFeaturesCaptureToggle, a.featuresCaptureToggle)
 	a.handle(CmdFeaturesItemOpen, a.featuresItemOpen)
+	a.handle(CmdFeaturesSuggestProp, a.featuresSuggestProp)
+	a.handle(CmdFeaturesSuggestView, a.featuresSuggestView)
+	a.handle(CmdFeaturesSuggestConcept, a.featuresSuggestConcept)
 }
 
 // --- Quick Capture Outline & Handlers -------------------------------------------
@@ -407,14 +410,12 @@ func (a *App) featuresNavGroupToggle(s core.State, c core.Command) core.StepResu
 	if groupKey, ok := strings.CutPrefix(focus, views.FeaturesGroupPrefix); ok && groupKey != "" {
 		return a.toggleFeaturesNavGroup(s, groupKey)
 	}
-	if itemKey, ok := strings.CutPrefix(focus, views.FeaturesNavPrefix); ok && itemKey != "" {
-		switch {
-		case strings.HasPrefix(itemKey, "page:"):
-			return a.toggleFeaturesNavGroup(s, "pages")
-		case strings.HasPrefix(itemKey, "noun:"):
-			return a.toggleFeaturesNavGroup(s, "nouns")
-		case strings.HasPrefix(itemKey, "group:"):
-			return a.toggleFeaturesNavGroup(s, "groups")
+	if strings.HasPrefix(focus, views.FeaturesNavPrefix) {
+		root := a.View(s)
+		if node := root.Find(focus); node != nil {
+			if section, ok := node.Facts["section"].(string); ok && section != "" {
+				return a.toggleFeaturesNavGroup(s, section)
+			}
 		}
 	}
 	a.say("focus a navigation group to toggle")
@@ -467,6 +468,7 @@ type featuresSnapshot struct {
 	groupsRoot    *data.Record
 	featureGroups []data.Record
 	lanes         []data.Record
+	concepts      []data.Record
 	specs         []core.CommandSpec
 	keysByID      map[string]string
 }
@@ -553,6 +555,9 @@ func (a *App) collectFeaturesSnapshot() featuresSnapshot {
 	}
 	if lanesRes, err := a.Store.Query(data.Query{Kind: data.KindLane, IncludeArchived: a.nav.showArchived}); err == nil {
 		snap.lanes = lanesRes.Items
+	}
+	if concepts, err := a.Store.Query(data.Query{Kind: data.KindConcept, IncludeArchived: a.nav.showArchived}); err == nil {
+		snap.concepts = concepts.Items
 	}
 	return snap
 }
@@ -661,7 +666,7 @@ func (a *App) groupProvenanceRawThoughts(group data.Record) []views.FeaturesLink
 	seen := map[core.Ref]bool{group.Ref(): true}
 	var items []views.FeaturesLinkedItem
 	addRef := func(ref core.Ref) {
-		if ref.ID == "" || seen[ref] || ref.Kind == data.KindLane {
+		if ref.ID == "" || seen[ref] || ref.Kind == data.KindLane || ref.Kind == data.KindConcept {
 			return
 		}
 		if rec, err := a.Store.Get(ref); err == nil && rec != nil {

@@ -24,8 +24,8 @@ const (
 
 // FeaturesNavItem describes one selectable entry in the Features left rail.
 type FeaturesNavItem struct {
-	Key     string // e.g. "page:panes", "noun:schedule", "group:<taskID>"
-	Section string // "pages" | "nouns" | "groups"
+	Key     string
+	Section string
 	Label   string
 	Icon    string
 	Badge   string
@@ -37,8 +37,8 @@ type FeaturesNavItem struct {
 
 // FeaturesNavGroup describes one collapsible section of the Features left rail.
 type FeaturesNavGroup struct {
-	Key       string // "pages" | "nouns" | "groups"
-	Title     string // "By Page" | "By Noun" | "Organized Groups"
+	Key       string
+	Title     string
 	Collapsed bool
 	Items     []FeaturesNavItem
 }
@@ -54,7 +54,7 @@ type FeaturesVerbRow struct {
 	Implemented bool
 }
 
-// FeaturesLinkedItem describes a focusable linked feature group, lane, or raw thought.
+// FeaturesLinkedItem describes a focusable linked record.
 type FeaturesLinkedItem struct {
 	ID       string
 	Title    string
@@ -67,7 +67,7 @@ type FeaturesLinkedItem struct {
 
 // FeaturesDetailSpec is the pure data contract for the right-hand detail panel.
 type FeaturesDetailSpec struct {
-	Kind               string // "page" | "noun" | "group"
+	Kind               string
 	Key                string
 	Title              string
 	Subtitle           string
@@ -81,6 +81,12 @@ type FeaturesDetailSpec struct {
 	LinkedGroups       []FeaturesLinkedItem // organized groups for Page/Noun
 	LinkedLanes        []FeaturesLinkedItem // planned/running/done lanes
 	RawThoughts        []FeaturesLinkedItem // raw captured thoughts (provenance or mentions)
+	Props              []FeaturesPropRow
+	ItemizedNouns      []FeaturesItemizedNoun
+	Views              []FeaturesViewRow
+	Concepts           []FeaturesLinkedItem
+	CanSuggestProp     bool
+	CanSuggestView     bool
 }
 
 // FeaturesPageSpec is the pure data contract for FeaturesPageView.
@@ -341,10 +347,12 @@ func featuresContentPanel(detail FeaturesDetailSpec, activeKey string, compact b
 	}
 
 	facts := map[string]any{
-		"activeItem":       activeKey,
-		"section":          detail.Kind,
-		"verbCount":        len(detail.ImplementedVerbs),
-		"plannedVerbCount": len(detail.PlannedVerbs),
+		"activeItem":             activeKey,
+		"section":                detail.Kind,
+		"verbCount":              len(detail.ImplementedVerbs),
+		"plannedVerbCount":       len(detail.PlannedVerbs),
+		"featuresCanSuggestProp": detail.CanSuggestProp,
+		"featuresCanSuggestView": detail.CanSuggestView,
 	}
 
 	if compact {
@@ -382,6 +390,10 @@ func featuresContentPanel(detail FeaturesDetailSpec, activeKey string, compact b
 	}
 	if len(detail.LinkedLanes) > 0 {
 		sections = append(sections, featuresLinkedSection("features.section.lanes", "Linked Lanes", "features.lane.", detail.LinkedLanes))
+	}
+	sections = append(sections, featuresItemizedSections(detail)...)
+	if len(detail.Concepts) > 0 {
+		sections = append(sections, featuresLinkedSection("features.section.concepts", "Concepts", "features.concept.", detail.Concepts))
 	}
 	sections = append(sections, featuresThoughtsSection(detail.RawThoughts))
 
@@ -452,14 +464,15 @@ func featuresHeaderCard(detail FeaturesDetailSpec) ui.ViewNode {
 	}
 
 	return ui.ViewNode{
-		ID:       "features.detail.header",
-		Kind:     ui.KindCard,
-		Scope:    ScopeFeaturesContent,
-		Title:    title,
-		Badges:   detail.Badges,
-		Border:   true,
-		Props:    props,
-		Children: rows,
+		ID:        "features.detail.header",
+		Kind:      ui.KindCard,
+		Scope:     ScopeFeaturesContent,
+		Title:     title,
+		Badges:    detail.Badges,
+		Border:    true,
+		Focusable: detail.CanSuggestProp || detail.CanSuggestView,
+		Props:     props,
+		Children:  rows,
 	}
 }
 

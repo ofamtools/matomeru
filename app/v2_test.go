@@ -86,14 +86,14 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetFilesScanDepth: 3, SetFilesDefaultSort: "recent",
 		SetTopChromeRedesign: true, SetHintsNounFirst: true, SetDetachFocusTarget: DetachFocusLeft,
 		SetFlagsOnLeft: true, SetColorByRecency: views.RecencyCell, SetStickyTreeBreadcrumbs: true,
-		SetActionLogEnabled: true}
+		SetActionLogEnabled: true, SetFeaturesItemization: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
 		t.Fatalf("%d declared settings, want %d", len(specs), len(want))
 	}
-	if specs[len(specs)-1].Name != SetActionLogEnabled {
-		t.Fatalf("last setting is %q, want %q", specs[len(specs)-1].Name, SetActionLogEnabled)
+	if specs[len(specs)-1].Name != SetFeaturesItemization {
+		t.Fatalf("last declared setting = %s, want %s", specs[len(specs)-1].Name, SetFeaturesItemization)
 	}
 	for name, def := range want {
 		if defaults[name] != def {
@@ -164,6 +164,10 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 	if w := a.Shell.State.Layout.Rects["panes.rail"].W; w > 40 {
 		t.Fatalf("the rail stays %d wide when it lost the focus", w)
 	}
+	set(SetFeaturesItemization, "space")
+	if a.featuresItemizationEnabled() {
+		t.Fatal("features.itemization remained enabled after toggling")
+	}
 
 	raw, err := os.ReadFile(filepath.Join(dir, settingsFileName))
 	if err != nil {
@@ -174,17 +178,20 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, v := range map[string]any{SetFlagsColumn: false, SetBorderStyle: "sharp", SetMatchMode: "fuzzy", SetShowMetadata: false,
-		SetShowEmpty: false, SetEditUniversal: false, SetRailAutoWiden: true} {
+		SetShowEmpty: false, SetEditUniversal: false, SetRailAutoWiden: true, SetFeaturesItemization: false} {
 		if saved[name] != v {
 			t.Errorf("settings.json %s = %v, want %v", name, saved[name], v)
 		}
 	}
-	if len(saved) != 7 {
-		t.Errorf("settings.json holds %d keys, want only the 7 that were changed: %v", len(saved), saved)
+	if len(saved) != 8 {
+		t.Errorf("settings.json holds %d keys, want only the 8 that were changed: %v", len(saved), saved)
 	}
 	again, _ := configured(t, dir)
 	if again.Shell.Theme.BorderStyle != ui.BorderSharp || again.cfg.Settings.Bool(SetFlagsColumn, true) || again.matchMode() != "fuzzy" {
 		t.Fatalf("the next start: border %q, flags %v, match %q", again.Shell.Theme.BorderStyle, again.cfg.Settings.Bool(SetFlagsColumn, true), again.matchMode())
+	}
+	if again.featuresItemizationEnabled() {
+		t.Fatal("saved features.itemization opt-out was not loaded")
 	}
 	// A theme preset brings its own density; a density set after it wins.
 	set(SetTheme, "l")

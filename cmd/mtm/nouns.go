@@ -38,6 +38,7 @@ var nounSpecs = []nounSpec{
 	{name: "question", aliases: []string{"questions", "q"}, kind: data.KindQuestion, summary: "manage agent questions and Q&A"},
 	{name: "command", aliases: []string{"commands", "cmd"}, kind: data.KindCommand, summary: "manage suggested shell commands"},
 	{name: "context", aliases: []string{"contexts", "ctx"}, kind: data.KindContext, summary: "manage context items"},
+	{name: "concept", aliases: []string{"concepts"}, kind: data.KindConcept, summary: "manage tracked design concepts"},
 	{name: "page", aliases: []string{"pages", data.KindPage}, kind: data.KindPage, summary: "manage UI pages"},
 	{name: "occurrence", aliases: []string{"occurrences", data.KindOccurrence}, kind: data.KindOccurrence, summary: "manage schedule occurrences"},
 }
@@ -79,6 +80,8 @@ var nounAliases = map[string]string{
 	"context":             data.KindContext,
 	"contexts":            data.KindContext,
 	"ctx":                 data.KindContext,
+	"concept":             data.KindConcept,
+	"concepts":            data.KindConcept,
 	"page":                data.KindPage,
 	"pages":               data.KindPage,
 	"ui.page":             data.KindPage,
@@ -604,6 +607,7 @@ func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
 
 	if kind == data.KindTask {
 		children = append(children, mtmTaskQueueCommands(g)...)
+		children = append(children, mtmTaskLineageCommands(g)...)
 	}
 
 	if kind == data.KindSchedule {

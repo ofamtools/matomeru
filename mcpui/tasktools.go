@@ -151,7 +151,7 @@ func attachmentSchema() props {
 // ToolSpecs returns the task.* tools with JSON schemas matching their real parameters.
 func (t *TaskTools) ToolSpecs() []ToolSpec {
 	by := text("who is writing: an agent ID recorded on the change set; default " + DefaultAgentID)
-	return []ToolSpec{
+	return append([]ToolSpec{
 		{
 			Name:        ToolTaskQueue,
 			Description: "List agent-flagged tasks ready for pickup or inspection, ordered by priority, sibling order, and creation time, with hydrated note threads, attachments, and linked context. Returns {items, count}.",
@@ -208,7 +208,7 @@ func (t *TaskTools) ToolSpecs() []ToolSpec {
 				"contextIds":            props{"type": "array", "items": props{"type": "string"}, "description": "explicit context record IDs overriding the project's default official context bundle"},
 			}),
 		},
-	}
+	}, taskLineageToolSpecs(by)...)
 }
 
 // HasTool reports whether name is one of the task.* tools.
@@ -219,6 +219,9 @@ func (t *TaskTools) HasTool(name string) bool {
 		ToolTaskNote,
 		ToolTaskThread,
 		ToolTaskDispatch,
+		ToolTaskRewrite,
+		ToolTaskSplit,
+		ToolTaskJoin,
 	}, name)
 }
 
@@ -257,6 +260,8 @@ func (t *TaskTools) Call(ctx context.Context, actor core.Actor, toolName string,
 		if err = decodeArgs(rawArgs, &args); err == nil {
 			out, err = t.Dispatch(args)
 		}
+	case ToolTaskRewrite, ToolTaskSplit, ToolTaskJoin:
+		out, err = t.callTaskLineage(actor, toolName, rawArgs)
 	default:
 		return nil, fmt.Errorf("mcpui: unknown tool %q", toolName)
 	}

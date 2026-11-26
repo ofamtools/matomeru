@@ -41,6 +41,27 @@ func CommandSpecs() []core.CommandSpec {
 	base := append(append(append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...), viewCycleSpecs()...), traits.SelectCommandSpecs()...)
 	base = append(base, filesCommandSpecs()...)
 	base = append(base, jobsSpecs()...)
+	base = append(base, taskLineageSpecs()...)
+	base = append(base,
+		core.CommandSpec{
+			ID:          CmdFeaturesSuggestProp,
+			Description: "Suggest a property for the active Features noun",
+			Tags:        []string{"editing"},
+			Meta:        map[string]any{"selfHosted": true},
+		},
+		core.CommandSpec{
+			ID:          CmdFeaturesSuggestView,
+			Description: "Suggest a view for the active Features page or component",
+			Tags:        []string{"editing"},
+			Meta:        map[string]any{"selfHosted": true},
+		},
+		core.CommandSpec{
+			ID:          CmdFeaturesSuggestConcept,
+			Description: "Create a tracked concept",
+			Tags:        []string{"editing"},
+			Meta:        map[string]any{"selfHosted": true},
+		},
+	)
 	return append(append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
