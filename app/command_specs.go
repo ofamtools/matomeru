@@ -42,6 +42,7 @@ func CommandSpecs() []core.CommandSpec {
 	base = append(base, filesCommandSpecs()...)
 	base = append(base, queueCommandSpecs()...)
 	base = append(base, threadsCommandSpecs()...)
+	base = append(base, sessionsCommandSpecs()...)
 	base = append(base, jobsSpecs()...)
 	base = append(base, taskLineageSpecs()...)
 	base = append(base,

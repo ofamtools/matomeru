@@ -852,6 +852,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, filesBindings()...)
 	out = append(out, queueBindings()...)
 	out = append(out, threadsBindings()...)
+	out = append(out, sessionsBindings()...)
 	out = append(out, paneSearchBindings()...)
 	out = append(out, projectHomeBindings()...)
 	out = append(out, projectPortalBindings()...)
