@@ -6,7 +6,7 @@
 //	mtm --smoke [--dump]                     a scripted run with no terminal; exits 0 when every check holds
 //	mtm about [--socket PATH] [--json]       version, daemon, storage, config, and harnesses overview
 //	mtm config export [--jsonl]              the settings and bindings in effect
-//	mtm inspect actions|bindings|modes|schemas [--json]
+//	mtm inspect actions|bindings|modes|schemas|presentations [--json]
 //	mtm record list KIND [--query Q] [--mode substring|fuzzy|regex] [--archived] [--starred]
 //	mtm record get KIND ID
 //	mtm record create KIND --title "..." [--field k=v ...]
@@ -60,7 +60,7 @@ mtm --smoke [--dump]                     scripted run, no terminal needed
 mtm about [--socket PATH] [--json]       show version, daemon, storage, config, and harness status
 mtm config export [--jsonl]              print the settings and bindings in effect, as JSON or
                                          as JSON lines (settings first, then bindings)
-mtm inspect actions|bindings|modes|schemas [--json]
+mtm inspect actions|bindings|modes|schemas|presentations [--json]
                                          the registries the app runs on, as a table or as JSON:
                                          every action with its keys, the keymap, the modes, the nouns
 mtm binding list [--all] [--json]        list effective key bindings
@@ -332,11 +332,11 @@ func mtmInspectCommand() oden.Command {
 					return err
 				}
 				if len(p.Positional()) != 0 {
-					return errors.New("usage: mtm inspect actions|bindings|modes|schemas [--json]")
+					return errors.New("usage: mtm inspect actions|bindings|modes|schemas|presentations [--json]")
 				}
 				v, err := app.Inspect(kind, configDir())
 				if err != nil {
-					return fmt.Errorf("%w\nusage: mtm inspect actions|bindings|modes|schemas [--json]", err)
+					return fmt.Errorf("%w\nusage: mtm inspect actions|bindings|modes|schemas|presentations [--json]", err)
 				}
 				if p.Format() == "json" {
 					return printJSON(sc.Stdout, v)
@@ -348,7 +348,7 @@ func mtmInspectCommand() oden.Command {
 	}
 	return oden.Command{
 		Name:     "inspect",
-		Summary:  "inspect actions, bindings, modes, and schemas",
+		Summary:  "inspect actions, bindings, modes, schemas, and presentations",
 		Category: "Configuration",
 		Handle: func(c *oden.Ctx) error {
 			sub := c.Sub()
@@ -357,6 +357,7 @@ func mtmInspectCommand() oden.Command {
 				inspectLeaf(app.InspectBindings, "list all effective key bindings"),
 				inspectLeaf(app.InspectModes, "list registered input modes"),
 				inspectLeaf(app.InspectSchemas, "list registered record schemas"),
+				inspectLeaf(app.InspectPresentations, "list every noun's presentation forms (chip, inline, row, card, detail)"),
 			)
 			if len(c.Args) == 1 && (c.Args[0] == "-h" || c.Args[0] == "--help") {
 				sub.Help(c.Stdout)
@@ -364,9 +365,9 @@ func mtmInspectCommand() oden.Command {
 			}
 			sub.Default = func(_ context.Context, subArgs []string) error {
 				if len(subArgs) == 0 {
-					return errors.New("usage: mtm inspect actions|bindings|modes|schemas [--json]")
+					return errors.New("usage: mtm inspect actions|bindings|modes|schemas|presentations [--json]")
 				}
-				return fmt.Errorf("inspect %s: not one of %s\nusage: mtm inspect actions|bindings|modes|schemas [--json]", subArgs[0], strings.Join(app.InspectKinds, ", "))
+				return fmt.Errorf("inspect %s: not one of %s\nusage: mtm inspect actions|bindings|modes|schemas|presentations [--json]", subArgs[0], strings.Join(app.InspectKinds, ", "))
 			}
 			return sub.Run(c.Context)
 		},

@@ -37,24 +37,29 @@ func sectionTitle(sec data.ShowSection) string {
 }
 
 // linkCard is the focusable card of one linked record.
-func linkCard(link data.ShowLink, id string) ui.ViewNode {
+func linkCard(link data.ShowLink, id string, opts ShowOptions) ui.ViewNode {
 	if link.Record != nil {
 		return RecordCard(link.Schema, *link.Record, id)
 	}
 	// Not a stored record (a tag, a directory): still a focusable thing of its kind.
 	target := link.Ref
+	if opts.DeclarativePresentations {
+		card := PresentCardNode(id, link.Presentation)
+		card.Badges = append([]ui.Badge{{Text: target.Kind, Tone: "info"}}, card.Badges...)
+		return card
+	}
 	return ui.ViewNode{ID: id, Kind: ui.KindCard, Scope: target.Kind, Ref: &target, Focusable: true, Border: true,
 		Title: target.ID, Badges: []ui.Badge{{Text: target.Kind, Tone: "info"}}}
 }
 
 // sectionOf lays out one snapshot section: a card and an entry per link.
-func sectionOf(src data.ShowSection) section {
+func sectionOf(src data.ShowSection, opts ShowOptions) section {
 	sec := section{key: src.Key, title: sectionTitle(src), targetKind: src.TargetKind, field: src.Field, relKind: src.RelKind,
 		always: src.Always, creatable: src.Creatable}
 	for _, link := range src.Links {
 		id := "show.sec." + src.Key + "." + data.RefText(link.Ref)
-		sec.cards = append(sec.cards, linkCard(link, id))
-		sec.entries = append(sec.entries, sectionEntry{id: id, ref: link.Ref, schema: link.Schema, rec: link.Record})
+		sec.cards = append(sec.cards, linkCard(link, id, opts))
+		sec.entries = append(sec.entries, sectionEntry{id: id, ref: link.Ref, schema: link.Schema, rec: link.Record, pres: link.Presentation})
 	}
 	return sec
 }
@@ -62,10 +67,10 @@ func sectionOf(src data.ShowSection) section {
 // relatedSections lays out the related side of a Show page from its snapshot.
 // A relation section named like an earlier one joins it: a task's notes by
 // reference and its notes by "about" are one "Notes" list.
-func relatedSections(snap data.ShowSnapshot) []section {
+func relatedSections(snap data.ShowSnapshot, opts ShowOptions) []section {
 	var out []section
 	for _, src := range snap.Sections {
-		sec := sectionOf(src)
+		sec := sectionOf(src, opts)
 		named := slices.IndexFunc(out, func(s section) bool { return s.title == sec.title })
 		if src.RelKind == "" || named < 0 {
 			out = append(out, sec)
@@ -111,6 +116,10 @@ func propsPanel(snap data.ShowSnapshot, opts ShowOptions, omitted map[string]boo
 				link.Title = Title(other.Schema, *other.Record)
 				link.Badges = append(link.Badges, StatusBadges(other.Schema, *other.Record)...)
 				link.Facts["missing"] = false
+			} else if opts.DeclarativePresentations {
+				link.Title = refPresentation(other, target).Label
+				link.Badges = append(link.Badges, ui.Badge{Text: "not stored here"})
+				link.Facts["missing"] = true
 			} else {
 				link.Badges = append(link.Badges, ui.Badge{Text: "not stored here"})
 				link.Facts["missing"] = true
@@ -210,6 +219,20 @@ type ShowOptions struct {
 	RelatedScrollOffset *int
 	// PropsScrollOffset is the same for show.props.scroll.
 	PropsScrollOffset *int
+	// DeclarativePresentations draws references from their noun's declared
+	// presentation forms (data.ResolvedPresentation): a title, or
+	// "(missing task)" for a dead one, and never kind:id. false keeps the
+	// raw reference text.
+	DeclarativePresentations bool
+}
+
+// refPresentation is a field link's resolved presentation, or the missing
+// one when the snapshot holds no link for target.
+func refPresentation(link data.ShowLink, target core.Ref) data.ResolvedPresentation {
+	if link.Presentation.Label == "" {
+		return data.MissingPresentation(target, data.FormChip)
+	}
+	return link.Presentation
 }
 
 // showScrollProps are the props of a Show scroll column: the record as its
@@ -234,7 +257,8 @@ func DefaultShowOptions() ShowOptions {
 		ShowEmptyRelations: true,
 		ShowContent:        true,
 
-		TitleAttachmentChips: true,
+		TitleAttachmentChips:     true,
+		DeclarativePresentations: true,
 	}
 }
 
@@ -573,7 +597,7 @@ func headerSummary(schema data.Schema, rec data.Record, rendered map[string]bool
 // single-column Ledger Outline presenter by default (or the classic 2-column
 // split when opts.Layout == ShowLayoutClassic).
 func ShowViewWith(snap data.ShowSnapshot, focusID string, opts ShowOptions) ui.ViewNode {
-	sections := relatedSections(snap)
+	sections := relatedSections(snap, opts)
 	if opts.effectiveLayout() != ShowLayoutClassic {
 		return showViewLedger(snap, sections, focusID, opts)
 	}

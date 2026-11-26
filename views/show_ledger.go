@@ -29,6 +29,7 @@ type sectionEntry struct {
 	ref    core.Ref
 	schema data.Schema
 	rec    *data.Record // nil when target is an unstored ref (e.g. a tag)
+	pres   data.ResolvedPresentation
 }
 
 func (o ShowOptions) effectiveLayout() string {
@@ -263,12 +264,18 @@ func ledgerPropsRegion(snap data.ShowSnapshot, opts ShowOptions, omitted map[str
 			title := target.ID
 			missing := true
 			var statusBadges []ui.Badge
-			if other := snap.FieldLinks[name]; other.Record != nil {
+			other := snap.FieldLinks[name]
+			if other.Record != nil {
 				title = Title(other.Schema, *other.Record)
 				statusBadges = StatusBadges(other.Schema, *other.Record)
 				missing = false
+			} else if opts.DeclarativePresentations {
+				title = refPresentation(other, target).Label
 			}
 			line := fmt.Sprintf("%s%-14s → %s (%s)", prefixFor(), label, title, data.RefText(target))
+			if opts.DeclarativePresentations {
+				line = fmt.Sprintf("%s%-14s → %s", prefixFor(), label, title)
+			}
 			copyLines = append(copyLines, label+": "+data.RefText(target))
 			t := target
 			rows = append(rows, ui.ViewNode{
@@ -518,6 +525,9 @@ func ledgerConnectionsRegion(sections []section, regionNum int, opts ShowOptions
 		for i, entry := range sec.entries {
 			glyph, glyphTone, rowTone, ended := entryStatusStyle(entry.schema, entry.rec)
 			title := entry.ref.ID
+			if opts.DeclarativePresentations && entry.pres.Label != "" {
+				title = entry.pres.Label
+			}
 			unread := false
 			starred := false
 			facts := map[string]any{

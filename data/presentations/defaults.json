@@ -1,0 +1,116 @@
+{
+  "nouns": [
+    {"kind": "task", "forms": {
+      "chip":   {"icon": "◇", "titleFields": ["title"], "toneField": "workStatus", "iconField": "workStatus", "maxLen": 32},
+      "inline": {"icon": "◇", "titleFields": ["title"], "maxLen": 48},
+      "row":    {"titleFields": ["title"], "metaFields": ["priority"], "badgeFields": ["workStatus"]},
+      "card":   {"titleFields": ["title"], "subtitleFields": ["description", "summary"], "metaFields": ["priority"], "badgeFields": ["workStatus", "agentStatus"]},
+      "detail": {"titleFields": ["title"], "subtitleFields": ["description", "summary"], "metaFields": ["priority", "defaultDir"], "badgeFields": ["workStatus", "agentStatus"]}
+    }},
+    {"kind": "pane", "forms": {
+      "chip":   {"icon": "▣", "titleFields": ["title", "cwd"], "toneField": "runStatus", "maxLen": 28},
+      "inline": {"icon": "▣", "titleFields": ["title", "cwd"], "maxLen": 40},
+      "row":    {"titleFields": ["title", "cwd"], "metaFields": ["cwd"], "badgeFields": ["runStatus"]},
+      "card":   {"titleFields": ["title", "cwd"], "subtitleFields": ["cwd"], "badgeFields": ["runStatus", "role"]},
+      "detail": {"titleFields": ["title", "cwd"], "subtitleFields": ["cwd"], "metaFields": ["pid"], "badgeFields": ["runStatus", "role"]}
+    }},
+    {"kind": "lane", "forms": {
+      "chip":   {"icon": "≡", "titleFields": ["title"], "maxLen": 32},
+      "inline": {"icon": "≡", "titleFields": ["title"], "maxLen": 48},
+      "row":    {"titleFields": ["title"], "subtitleFields": ["summary"], "badgeFields": ["laneStatus"]},
+      "card":   {"titleFields": ["title"], "subtitleFields": ["summary"], "metaFields": ["worktree"], "badgeFields": ["laneStatus"]},
+      "detail": {"titleFields": ["title"], "subtitleFields": ["summary"], "metaFields": ["worktree", "branch"], "badgeFields": ["laneStatus"]}
+    }},
+    {"kind": "document", "forms": {
+      "chip":   {"icon": "▤", "titleFields": ["title", "filePath"], "maxLen": 32},
+      "inline": {"icon": "▤", "titleFields": ["title", "filePath"], "maxLen": 48},
+      "row":    {"titleFields": ["title", "filePath"], "metaFields": ["filePath"]},
+      "card":   {"titleFields": ["title", "filePath"], "subtitleFields": ["summary", "filePath"]},
+      "detail": {"titleFields": ["title", "filePath"], "subtitleFields": ["summary"], "metaFields": ["filePath"]}
+    }},
+    {"kind": "note", "forms": {
+      "chip":   {"icon": "✎", "titleFields": ["title", "body"], "maxLen": 32},
+      "inline": {"icon": "✎", "titleFields": ["title", "body"], "maxLen": 48},
+      "row":    {"titleFields": ["title", "body"], "metaFields": ["authorKind"]},
+      "card":   {"titleFields": ["title", "body"], "subtitleFields": ["body"], "metaFields": ["authorKind"]},
+      "detail": {"titleFields": ["title", "body"], "metaFields": ["authorKind"]}
+    }},
+    {"kind": "question", "forms": {
+      "chip":   {"icon": "?", "titleFields": ["prompt"], "toneField": "status", "maxLen": 36},
+      "inline": {"icon": "?", "titleFields": ["prompt"], "maxLen": 56},
+      "row":    {"titleFields": ["prompt"], "metaFields": ["questionKind"], "badgeFields": ["status"]},
+      "card":   {"titleFields": ["prompt"], "subtitleFields": ["answer"], "metaFields": ["questionKind"], "badgeFields": ["status"]},
+      "detail": {"titleFields": ["prompt"], "subtitleFields": ["answer"], "metaFields": ["questionKind"], "badgeFields": ["status"]}
+    }},
+    {"kind": "command", "forms": {
+      "chip":   {"icon": "$", "titleFields": ["title", "command"], "toneField": "status", "maxLen": 32},
+      "inline": {"icon": "$", "titleFields": ["title", "command"], "maxLen": 48},
+      "row":    {"titleFields": ["title", "command"], "metaFields": ["command"], "badgeFields": ["status"]},
+      "card":   {"titleFields": ["title", "command"], "subtitleFields": ["command"], "metaFields": ["cwd"], "badgeFields": ["status"]},
+      "detail": {"titleFields": ["title", "command"], "subtitleFields": ["command"], "metaFields": ["cwd", "scriptPath"], "badgeFields": ["status"]}
+    }},
+    {"kind": "ui.page", "forms": {
+      "chip":   {"icon": "◫", "titleFields": ["title", "slug"], "maxLen": 32},
+      "inline": {"icon": "◫", "titleFields": ["title", "slug"], "maxLen": 48},
+      "row":    {"titleFields": ["title", "slug"], "metaFields": ["pageKind"]},
+      "card":   {"titleFields": ["title", "slug"], "subtitleFields": ["summary"], "metaFields": ["pageKind"]},
+      "detail": {"titleFields": ["title", "slug"], "metaFields": ["pageKind", "slug"]}
+    }},
+    {"kind": "run", "forms": {
+      "chip":   {"icon": "▸", "titleFields": ["title", "command"], "toneField": "runStatus", "maxLen": 32},
+      "inline": {"icon": "▸", "titleFields": ["title", "command"], "maxLen": 48},
+      "row":    {"titleFields": ["title", "command"], "metaFields": ["exitCode"], "badgeFields": ["runStatus"]},
+      "card":   {"titleFields": ["title", "command"], "subtitleFields": ["command"], "metaFields": ["cwd", "exitCode"], "badgeFields": ["runStatus"]},
+      "detail": {"titleFields": ["title", "command"], "subtitleFields": ["command"], "metaFields": ["cwd", "exitCode", "durationMs"], "badgeFields": ["runStatus"]}
+    }},
+    {"kind": "signal", "forms": {
+      "chip":   {"icon": "⚑", "titleFields": ["title"], "toneField": "triageState", "maxLen": 32},
+      "inline": {"icon": "⚑", "titleFields": ["title"], "maxLen": 48},
+      "row":    {"titleFields": ["title"], "metaFields": ["source"], "badgeFields": ["triageState"]},
+      "card":   {"titleFields": ["title"], "subtitleFields": ["body", "summary"], "metaFields": ["source"], "badgeFields": ["triageState"]},
+      "detail": {"titleFields": ["title"], "subtitleFields": ["body", "summary"], "metaFields": ["source", "url"], "badgeFields": ["triageState"]}
+    }},
+    {"kind": "schedule", "forms": {
+      "chip":   {"icon": "◷", "titleFields": ["title"], "maxLen": 32},
+      "inline": {"icon": "◷", "titleFields": ["title"], "maxLen": 48},
+      "row":    {"titleFields": ["title"], "metaFields": ["scheduleKind"]},
+      "card":   {"titleFields": ["title"], "subtitleFields": ["description"], "metaFields": ["scheduleKind"]},
+      "detail": {"titleFields": ["title"], "subtitleFields": ["description"], "metaFields": ["scheduleKind"]}
+    }},
+    {"kind": "triage.rule", "forms": {
+      "chip":   {"icon": "⚙", "titleFields": ["title"], "maxLen": 32},
+      "inline": {"icon": "⚙", "titleFields": ["title"], "maxLen": 48},
+      "row":    {"titleFields": ["title"], "metaFields": ["action", "priority"]},
+      "card":   {"titleFields": ["title"], "subtitleFields": ["when"], "metaFields": ["action", "priority"]},
+      "detail": {"titleFields": ["title"], "subtitleFields": ["when"], "metaFields": ["action", "priority"]}
+    }},
+    {"kind": "extension", "forms": {
+      "chip":   {"icon": "⧉", "titleFields": ["name"], "toneField": "runStatus", "maxLen": 28},
+      "inline": {"icon": "⧉", "titleFields": ["name"], "maxLen": 40},
+      "row":    {"titleFields": ["name"], "subtitleFields": ["description"], "badgeFields": ["runStatus"]},
+      "card":   {"titleFields": ["name"], "subtitleFields": ["description"], "badgeFields": ["runStatus"]},
+      "detail": {"titleFields": ["name"], "subtitleFields": ["description"], "badgeFields": ["runStatus"]}
+    }},
+    {"kind": "directory", "forms": {
+      "chip":   {"icon": "▸", "titleFields": ["id"], "maxLen": 40},
+      "inline": {"icon": "▸", "titleFields": ["id"], "maxLen": 64},
+      "row":    {"titleFields": ["id"]},
+      "card":   {"titleFields": ["id"]},
+      "detail": {"titleFields": ["id"]}
+    }},
+    {"kind": "tag", "forms": {
+      "chip":   {"icon": "#", "titleFields": ["name", "id"], "maxLen": 24},
+      "inline": {"icon": "#", "titleFields": ["name", "id"], "maxLen": 32},
+      "row":    {"titleFields": ["name", "id"]},
+      "card":   {"titleFields": ["name", "id"]},
+      "detail": {"titleFields": ["name", "id"]}
+    }},
+    {"kind": "context", "forms": {
+      "chip":   {"icon": "↗", "titleFields": ["title", "value"], "maxLen": 32},
+      "inline": {"icon": "↗", "titleFields": ["title", "value"], "maxLen": 48},
+      "row":    {"titleFields": ["title", "value"], "metaFields": ["contextKind"]},
+      "card":   {"titleFields": ["title", "value"], "subtitleFields": ["value"], "metaFields": ["contextKind", "source"]},
+      "detail": {"titleFields": ["title", "value"], "subtitleFields": ["value"], "metaFields": ["contextKind", "source"]}
+    }}
+  ]
+}

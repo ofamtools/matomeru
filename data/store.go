@@ -98,6 +98,7 @@ CREATE INDEX IF NOT EXISTS change_targets_ref ON change_targets (kind, id, chang
 type Store struct {
 	db        *sql.DB
 	reg       *Registry
+	pres      *PresentationRegistry
 	dsn       string
 	filesRoot string
 

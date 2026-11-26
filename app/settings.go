@@ -24,11 +24,14 @@ import (
 // ConfigController owns user settings, theme overlay, file/URL handlers, and
 // form draft persistence.
 type ConfigController struct {
-	Settings     *config.Settings
-	userSettings map[string]any
-	themeOverlay []byte
-	Handlers     *handlers.Registry
-	drafts       *form.DraftStore
+	Settings *config.Settings
+	// Presentations are the nouns' declared presentation forms: the
+	// embedded defaults with presentations.json laid over them.
+	Presentations *data.PresentationRegistry
+	userSettings  map[string]any
+	themeOverlay  []byte
+	Handlers      *handlers.Registry
+	drafts        *form.DraftStore
 }
 
 func newConfigController() *ConfigController {
@@ -66,6 +69,9 @@ func (a *App) loadConfig(dir string) {
 		} else {
 			a.cfg.themeOverlay = b
 		}
+	}
+	if b, ok := read(presentationsFileName); ok {
+		a.loadPresentations(b)
 	}
 	if b, ok := read("bindings.json"); ok {
 		user, err := config.LoadBindings(b)
@@ -235,6 +241,7 @@ const (
 	SetFocusHideNonPriority            = "focus.hideNonPriorityProjects"
 	SetFocusEnforceLocks               = "focus.enforceLocks"
 	SetFocusChromeCountdown            = "focus.chromeCountdown"
+	SetDeclarativePresentations        = "ui.declarativePresentations"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -418,6 +425,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetFocusHideNonPriority, true, "while today has priority projects (g Z), the task outline hides every other top-level project; the capture bucket stays"),
 		flag(SetFocusEnforceLocks, true, "refuse to open a project locked by a Pomodoro, a scheduled focus window or a time-budget cooldown (off: locks are shown but not enforced)"),
 		flag(SetFocusChromeCountdown, true, "show a short Pomodoro countdown chip in the chrome while a Pomodoro runs"),
+		flag(SetDeclarativePresentations, true, "draw references from each noun's declared presentation forms (chip, inline, row, card, detail; presentations.json) instead of raw kind:id text"),
 	}
 }
 
@@ -527,7 +535,8 @@ func (a *App) showOptions() views.ShowOptions {
 	chips := a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetShowTitleAttachmentChips, true)
 	if a.nav != nil && a.nav.showCompact {
 		return views.ShowOptions{
-			TitleAttachmentChips: chips,
+			TitleAttachmentChips:     chips,
+			DeclarativePresentations: a.declarativePresentations(),
 
 			Layout:             layout,
 			HideEmptyRelations: hideEmpty,
@@ -539,7 +548,8 @@ func (a *App) showOptions() views.ShowOptions {
 		}
 	}
 	return views.ShowOptions{
-		TitleAttachmentChips: chips,
+		TitleAttachmentChips:     chips,
+		DeclarativePresentations: a.declarativePresentations(),
 
 		Layout:             layout,
 		HideEmptyRelations: hideEmpty,

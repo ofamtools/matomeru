@@ -19,7 +19,7 @@ import (
 // The registries the app runs on are things to look at, like any noun: the
 // actions (every command, and the keys it is on) and the modes. They open
 // from the palette ("inspect actions", "inspect modes"), from "g n", and
-// from the command line (mtm inspect actions|bindings|modes|schemas).
+// from the command line (mtm inspect actions|bindings|modes|schemas|presentations).
 
 // What can be inspected.
 const (
@@ -27,10 +27,13 @@ const (
 	InspectBindings = "bindings"
 	InspectModes    = "modes"
 	InspectSchemas  = "schemas"
+	// InspectPresentations lists every noun's presentation forms as they
+	// resolve (embedded defaults, catalog schemas, presentations.json).
+	InspectPresentations = "presentations"
 )
 
 // InspectKinds lists what Inspect takes.
-var InspectKinds = []string{InspectActions, InspectBindings, InspectModes, InspectSchemas}
+var InspectKinds = []string{InspectActions, InspectBindings, InspectModes, InspectSchemas, InspectPresentations}
 
 const unboundBadge = "(unbound)"
 
@@ -265,6 +268,8 @@ func Inspect(what, configDir string) (any, error) {
 		return a.bind.bindings, nil
 	case InspectModes:
 		return ModesOf(Modes(), a.bind.bindings), nil
+	case InspectPresentations:
+		return a.presentations().Effective(store.Registry().List()), nil
 	}
 	return store.Registry().List(), nil
 }
@@ -316,6 +321,8 @@ func InspectText(v any) string {
 			}
 			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", r.Kind, r.Title, strings.Join(fields, " "), strings.Join(cols, " "))
 		}
+	case []data.NounPresentations:
+		presentationsText(tw, rows)
 	}
 	tw.Flush()
 	return b.String()
