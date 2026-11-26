@@ -223,6 +223,7 @@ const (
 	SetCompactTestOutput               = "runs.compactTestOutput"
 	SetZeroFieldQueryDefault           = "ui.zeroFieldQueryDefault"
 	SetProjectHomeQueueProgress        = "projects.homeQueueProgress"
+	SetThreadsIMessageStyle            = "threads.imessageStyle"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -394,6 +395,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetCompactTestOutput, true, "summarize Go test events in Run output with one symbol per result"),
 		flag(SetZeroFieldQueryDefault, true, "open the unified Zero-Field chip view by default on f / g s / g b (cycle views with ( / ))"),
 		flag(SetProjectHomeQueueProgress, true, "show live segmented queue progress bars (queue, lanes, child lanes, AI checklist) on the Project Portal Homepage"),
+		flag(SetThreadsIMessageStyle, true, "show the Threads Page as a split rail and iMessage-style chat transcript (off: one compact linear thread list)"),
 	}
 }
 

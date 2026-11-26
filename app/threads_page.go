@@ -1,0 +1,407 @@
+package app
+
+import (
+	"fmt"
+	"os"
+	"slices"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+
+	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/views"
+	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/table"
+	"ofam.dev/ochazuke/widgets/toast"
+)
+
+// Space, section and commands of the Threads Page.
+const (
+	SpaceThreads          = "threads"
+	projectThreadsSection = "threads"
+
+	CmdThreadsOpen = "threads.open"
+
+	cmdThreadsRowsMove = "threads.rows.move"
+	cmdThreadsReply    = "threads.reply"
+	cmdThreadsNew      = "threads.new"
+	cmdThreadsDispatch = "threads.dispatch"
+	cmdThreadsMarkRead = "threads.read"
+
+	threadsComposerModalID = "threads.composer"
+	threadsFilterField     = "search"
+)
+
+// threadsSnapshot is the threads of one project scope at one store revision.
+type threadsSnapshot struct {
+	key     string
+	threads []data.AgentThread
+}
+
+// threadsController owns the Threads Page's view state: the filterable rail
+// and the scope it was last shown for.
+type threadsController struct {
+	list      *table.Model
+	projectID string // scope of the page last shown ("" is every project)
+	visible   []data.AgentThread
+	snapshots map[string]threadsSnapshot
+}
+
+func (a *App) initThreads() {
+	list := table.New(nil, nil)
+	list.MatchMode = a.matchMode()
+	list.FilterField = threadsFilterField
+	a.threads = &threadsController{list: list, snapshots: map[string]threadsSnapshot{}}
+	a.registerFilterable(views.ThreadsListID, list)
+}
+
+func (a *App) threadsIMessageStyleEnabled() bool {
+	return a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetThreadsIMessageStyle, true)
+}
+
+// --- snapshot ---------------------------------------------------------------------
+
+// threadsSnapshot aggregates the scope's threads. It reads the store only
+// when the store moved since the last call.
+func (a *App) threadsSnapshot(projectID string) []data.AgentThread {
+	if a.Store == nil {
+		return nil
+	}
+	rev, _ := a.Store.LatestChangeSetNumber()
+	key := fmt.Sprintf("%d", rev)
+	if snap, ok := a.threads.snapshots[projectID]; ok && snap.key == key {
+		return snap.threads
+	}
+	threads, err := a.Store.QueryAgentThreads(projectID)
+	if err != nil {
+		a.fail("load threads", err)
+	}
+	a.threads.snapshots[projectID] = threadsSnapshot{key: key, threads: threads}
+	return threads
+}
+
+// syncThreads points the controller at projectID's scope and brings the rail
+// in line with its threads, keeping the selected thread selected.
+func (a *App) syncThreads(projectID string) {
+	tc := a.threads
+	tc.projectID = projectID
+	threads := a.threadsSnapshot(projectID)
+	selected, _ := tc.list.FocusedRow()
+	rows := make([]table.Row, 0, len(threads))
+	byID := make(map[string]data.AgentThread, len(threads))
+	for _, th := range threads {
+		byID[th.TaskID] = th
+		search := []string{th.Title, views.ThreadAgentLabel(th), th.ProjectTitle}
+		for _, m := range th.Messages {
+			search = append(search, m.Body)
+		}
+		rows = append(rows, table.Row{ID: th.TaskID, Cells: map[string]any{threadsFilterField: strings.Join(search, " ")}})
+	}
+	tc.list.Rows = rows
+	shown := tc.list.Filtered()
+	if i := slices.IndexFunc(shown, func(r table.Row) bool { return r.ID == selected.ID }); i >= 0 {
+		tc.list.SelectedIdx = i
+	} else {
+		tc.list.SelectedIdx = min(tc.list.SelectedIdx, max(0, len(shown)-1))
+	}
+	tc.visible = tc.visible[:0]
+	for _, r := range shown {
+		tc.visible = append(tc.visible, byID[r.ID])
+	}
+}
+
+// threadsScope is the project the Threads Page is scoped to under s: every
+// project on the standalone page, and the open project in a Project Portal.
+func (a *App) threadsScope(s core.State) string {
+	if s.ActivePage == SpaceThreads {
+		return ""
+	}
+	return a.activePortalProjectID(s)
+}
+
+// selectedThread is the thread the rail's selection is on.
+func (a *App) selectedThread(s core.State) (data.AgentThread, bool) {
+	a.syncThreads(a.threadsScope(s))
+	row, ok := a.threads.list.FocusedRow()
+	if !ok || row.ID == "" {
+		return data.AgentThread{}, false
+	}
+	i := slices.IndexFunc(a.threads.visible, func(th data.AgentThread) bool { return th.TaskID == row.ID })
+	if i < 0 {
+		return data.AgentThread{}, false
+	}
+	return a.threads.visible[i], true
+}
+
+// selectThread moves the rail's selection to taskID when it is shown.
+func (a *App) selectThread(projectID, taskID string) {
+	a.syncThreads(projectID)
+	if i := slices.IndexFunc(a.threads.visible, func(th data.AgentThread) bool { return th.TaskID == taskID }); i >= 0 {
+		a.threads.list.SelectedIdx = i
+	}
+}
+
+// --- views ------------------------------------------------------------------------
+
+func (a *App) threadsSpace() ui.ViewNode { return a.threadsView("", "") }
+
+// projectSectionThreads is the Project Portal's "threads" section: the same
+// page, scoped to the project.
+func (a *App) projectSectionThreads(ws projectWorkspaceData) ui.ViewNode {
+	return a.threadsView(ws.projectID, projectThreadsSection)
+}
+
+func (a *App) threadsView(projectID, section string) ui.ViewNode {
+	a.syncThreads(projectID)
+	tc := a.threads
+	spec := views.ThreadsPageSpec{
+		Threads: tc.visible, SelectedIdx: tc.list.SelectedIdx, FilterQuery: tc.list.FilterQuery(),
+		Now: a.now(), IMessageStyle: a.threadsIMessageStyleEnabled(), Section: section,
+	}
+	if len(tc.visible) == 0 {
+		spec.SelectedIdx = -1
+	}
+	if projectID != "" {
+		spec.ProjectTitle = a.title(core.Ref{Kind: data.KindTask, ID: projectID})
+	}
+	return views.ThreadsPageView(spec)
+}
+
+// projectThreadCount counts the project's threads, for the Project Portal's
+// left-nav count.
+func (a *App) projectThreadCount(projectID string) int {
+	if projectID == "" {
+		return 0
+	}
+	return len(a.threadsSnapshot(projectID))
+}
+
+// --- specs, bindings, handlers ----------------------------------------------------
+
+func threadsCommandSpecs() []core.CommandSpec {
+	return []core.CommandSpec{
+		spec(CmdThreadsOpen, "Open Threads (conversations with agents)"),
+		{ID: cmdThreadsRowsMove, Description: "Move the Threads selection", Params: []core.ParamSpec{
+			{Name: "direction", Type: core.ParamString, Enum: []string{"up", "down"}},
+		}, Meta: map[string]any{"internal": true}},
+		spec(cmdThreadsReply, "Reply in the selected thread and send it to the thread's agent", "editing"),
+		spec(cmdThreadsNew, "Start a new thread with a new or existing agent", "editing"),
+		spec(cmdThreadsDispatch, "Dispatch the selected thread to a new or existing agent"),
+		spec(cmdThreadsMarkRead, "Mark the selected thread read", "editing"),
+	}
+}
+
+func threadsBindings() []core.Binding {
+	n, scope := ModeNormal, views.ScopeThreads
+	return []core.Binding{
+		bind(n, "", "g T", CmdThreadsOpen, "threads"),
+		when(bind(n, scope, "r", cmdThreadsReply, "reply"), "facts.hasSelection"),
+		bind(n, scope, "n", cmdThreadsNew, "new thread"),
+		when(bind(n, scope, "d", cmdThreadsDispatch, "dispatch to agent"), "facts.hasSelection"),
+		when(bind(n, scope, "m", cmdThreadsMarkRead, "mark read"), "facts.hasSelection"),
+		when(hidden(bind(n, scope, "enter", cmdThreadsMarkRead, "open thread")), "facts.hasSelection"),
+		with(bind(n, scope, "j", cmdThreadsRowsMove, "next thread"), map[string]any{"direction": "down"}),
+		with(bind(n, scope, "k", cmdThreadsRowsMove, "previous thread"), map[string]any{"direction": "up"}),
+		hidden(with(bind(n, scope, "down", cmdThreadsRowsMove, "next thread"), map[string]any{"direction": "down"})),
+		hidden(with(bind(n, scope, "up", cmdThreadsRowsMove, "previous thread"), map[string]any{"direction": "up"})),
+	}
+}
+
+func (a *App) registerThreads() {
+	a.handle(CmdThreadsOpen, func(s core.State, _ core.Command) core.StepResult {
+		return core.Next(a.openSpace(s, SpaceThreads))
+	})
+	a.handle(cmdThreadsRowsMove, func(s core.State, c core.Command) core.StepResult {
+		a.syncThreads(a.threadsScope(s))
+		c.ID = "motion." + c.Arg("direction")
+		a.threads.list.HandleCommand(c)
+		return core.Next(s)
+	})
+	a.handle(cmdThreadsReply, a.threadsReply)
+	a.handle(cmdThreadsNew, a.threadsNew)
+	a.handle(cmdThreadsDispatch, a.threadsDispatch)
+	a.handle(cmdThreadsMarkRead, a.threadsMarkRead)
+}
+
+func (a *App) threadsMarkRead(s core.State, _ core.Command) core.StepResult {
+	th, ok := a.selectedThread(s)
+	if !ok {
+		a.say("no thread selected · n starts one")
+		return core.Next(s)
+	}
+	n, err := a.Store.MarkTaskNotesRead(th.TaskID, a.now(), User)
+	if err != nil {
+		a.fail("mark thread read", err)
+		return core.Next(s)
+	}
+	if n == 0 {
+		a.say("%q has nothing unread", th.Title)
+	} else {
+		a.say("marked %d message(s) read in %q", n, th.Title)
+	}
+	return core.Next(s)
+}
+
+// threadComposer opens the rich composer for a thread message.
+func (a *App) threadComposer(s core.State, title, subtitle, draftKey, taskID, cwdTaskID string, onText func(text string, attachments []data.Attachment) error) core.State {
+	cwd := ""
+	if cwdTaskID != "" {
+		cwd = a.defaultDirForTask(core.Ref{Kind: data.KindTask, ID: cwdTaskID})
+	}
+	if cwd == "" {
+		if wd, err := os.Getwd(); err == nil {
+			cwd = wd
+		}
+	}
+	cm := newRichComposerModal(a, richComposerSpec{
+		ID:                threadsComposerModalID,
+		Scope:             "composer",
+		Title:             title,
+		Subtitle:          subtitle,
+		InputTitle:        "Message",
+		Placeholder:       "Write a message… (@file, @ctx, @agent, $skill, /cmd · ctrl+v/f attach · ctrl+s send)",
+		Cwd:               cwd,
+		DraftKey:          draftKey,
+		ShowDeliveryModes: false,
+		ContextTaskID:     taskID,
+		OnSubmit: func(text string, attachments []data.Attachment, _ ComposerMode) (tea.Cmd, error) {
+			if strings.TrimSpace(text) == "" && len(attachments) > 0 {
+				text = "Attached " + attachments[0].Label
+			}
+			return nil, onText(text, attachments)
+		},
+	})
+	return a.pushModal(s, cm)
+}
+
+// threadsReply appends the owner's reply to the selected thread and sends
+// it to the thread's pane, or asks for a target when no live pane is bound.
+func (a *App) threadsReply(s core.State, _ core.Command) core.StepResult {
+	th, ok := a.selectedThread(s)
+	if !ok {
+		a.say("no thread selected · n starts one")
+		return core.Next(s)
+	}
+	taskID := th.TaskID
+	st := a.threadComposer(s, "Reply · "+th.Title, fmt.Sprintf("Thread task:%s · append-only", taskID), "threads.reply:"+taskID, taskID, taskID,
+		func(text string, attachments []data.Attachment) error {
+			note, err := a.Store.AppendTaskNote(data.AppendTaskNoteInput{
+				TaskID: taskID, Body: text, AuthorKind: "owner", AuthorLabel: "owner", Attachments: attachments,
+			}, User)
+			if err != nil {
+				return err
+			}
+			// Replying is reading: what the agent said before is seen.
+			if _, err := a.Store.MarkTaskNotesRead(taskID, a.now(), User); err != nil {
+				a.fail("mark thread read", err)
+			}
+			a.afterModal(func(st core.State) core.State { return a.sendThreadMessage(st, taskID, note.ID, text) })
+			return nil
+		})
+	a.say("reply in %s · ctrl+s sends it to the thread's agent", th.Title)
+	return core.Next(st)
+}
+
+// threadsNew starts a new logical thread (a task of its own) in the page's
+// project and asks which agent gets it: New Agent first, or a live pane.
+func (a *App) threadsNew(s core.State, _ core.Command) core.StepResult {
+	projectID := a.threadsScope(s)
+	parent := projectID
+	if parent == "" {
+		// The standalone page has no project: the new thread joins the
+		// selected thread's project, or stays unassociated.
+		if th, ok := a.selectedThread(s); ok {
+			parent = th.ProjectID
+		}
+	}
+	subtitle := "a new conversation · unassociated"
+	if parent != "" {
+		subtitle = "a new conversation in " + a.title(core.Ref{Kind: data.KindTask, ID: parent})
+	}
+	st := a.threadComposer(s, "New thread", subtitle, "threads.new:"+parent, parent, parent,
+		func(text string, attachments []data.Attachment) error {
+			task, note, err := a.Store.CreateAgentThread(data.NewAgentThreadInput{
+				ParentTaskID: parent, Body: text, AuthorKind: "owner", AuthorLabel: "owner", Attachments: attachments,
+			}, User)
+			if err != nil {
+				return err
+			}
+			a.afterModal(func(st core.State) core.State {
+				a.selectThread(projectID, task.ID)
+				return a.sendThreadMessage(st, task.ID, note.ID, text)
+			})
+			return nil
+		})
+	a.say("new thread · the first line is its title · ctrl+s picks the agent")
+	return core.Next(st)
+}
+
+// threadsDispatch hands the selected thread, as it stands, to a new or an
+// existing agent.
+func (a *App) threadsDispatch(s core.State, _ core.Command) core.StepResult {
+	th, ok := a.selectedThread(s)
+	if !ok {
+		a.say("no thread selected · n starts one")
+		return core.Next(s)
+	}
+	return core.Next(a.openThreadTargetPicker(s, th, "", fmt.Sprintf("Dispatch thread %q to", th.Title)))
+}
+
+// sendThreadMessage delivers the owner's message noteID of thread taskID: to
+// the thread's pane when it is a live agent, else through the target picker.
+func (a *App) sendThreadMessage(s core.State, taskID, noteID, text string) core.State {
+	th, ok, err := a.Store.AgentThreadByID(taskID)
+	if err != nil || !ok {
+		a.fail("send thread message", err)
+		return s
+	}
+	// The prompt carries the new message once, as the owner's reply.
+	th = th.WithoutMessage(noteID)
+	if th.PaneID != "" {
+		if pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: th.PaneID}); err == nil && a.isLiveAgentPane(*pane) {
+			a.deliverThread(th, text, false, *pane)
+			return s
+		}
+	}
+	return a.openThreadTargetPicker(s, th, text, fmt.Sprintf("Send %q to", th.Title))
+}
+
+// openThreadTargetPicker asks where the thread goes, with the one target
+// picker of the app: New Agent first, then the live agent panes.
+func (a *App) openThreadTargetPicker(s core.State, th data.AgentThread, text, title string) core.State {
+	projectID := th.ProjectID
+	if projectID == "" {
+		projectID = a.Store.RootTaskID(th.TaskID)
+	}
+	return a.openDispatchTargetPicker(s, dispatchTargetRequest{
+		Title: title, ProjectID: projectID, TaskID: th.TaskID,
+		Defaults: data.DispatchTargetSpec{NewAgent: true, IncludeProjectContext: a.autoInjectProjectContextEnabled()},
+		OnTarget: func(spec data.DispatchTargetSpec, pane data.Record) {
+			a.deliverThread(th, text, spec.IncludeProjectContext, pane)
+		},
+	})
+}
+
+// deliverThread links the thread and the pane to each other and delivers
+// the thread handoff prompt (IDs, recent messages, the owner's message).
+func (a *App) deliverThread(th data.AgentThread, text string, includeProjectContext bool, pane data.Record) {
+	if err := a.Store.LinkThreadPane(th.TaskID, pane.Ref(), a.now(), User); err != nil {
+		a.fail("link thread pane", err)
+	}
+	paneTitle := views.Title(a.schema(data.KindPane), pane)
+	th.PaneID, th.PaneTitle, th.Harness = pane.ID, paneTitle, strings.TrimSpace(pane.Text("harness"))
+	var projectCtx []data.Record
+	if includeProjectContext && th.ProjectID != "" {
+		include := true
+		ctx, err := a.Store.ResolveProjectContextBundle(th.ProjectID, data.ProjectContextOverrides{IncludeProjectContext: &include})
+		if err != nil {
+			a.fail("thread project context", err)
+		}
+		projectCtx = ctx
+	}
+	a.deliverComposerPrompt(pane, data.BuildThreadDispatchPrompt(th, text, includeProjectContext, projectCtx), ComposerModeQueue)
+	msg := fmt.Sprintf("Sent thread %q to %s", th.Title, paneTitle)
+	a.say("%s", msg)
+	a.pushToast(msg, toast.Ok)
+}

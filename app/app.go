@@ -74,8 +74,9 @@ type standalonePageDef struct {
 
 // Standalone pages have no numbered tab slot in the normal navigation cycle.
 var standalonePages = map[string]standalonePageDef{
-	SpaceFiles: {title: "Files & Directories", focus: views.FilesListID, render: (*App).filesSpace},
-	SpaceQueue: {title: "Queues & Dispatch", focus: views.QueueListID, render: (*App).queueSpace},
+	SpaceFiles:   {title: "Files & Directories", focus: views.FilesListID, render: (*App).filesSpace},
+	SpaceQueue:   {title: "Queues & Dispatch", focus: views.QueueListID, render: (*App).queueSpace},
+	SpaceThreads: {title: "Threads", focus: views.ThreadsListID, render: (*App).threadsSpace},
 }
 
 // Node IDs the app gives focus to.
@@ -191,6 +192,7 @@ type App struct {
 	features          *FeaturesController
 	files             *filesController
 	queue             *queueController
+	threads           *threadsController
 	rt                *RuntimeController
 	ext               *ExtensionController
 	ctx               *ContextController
@@ -238,6 +240,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 	}
 	a.initFiles()
 	a.initQueue()
+	a.initThreads()
 	a.loadPresets()
 	a.initToasts()
 	a.loadHandlers(opts.ConfigDir)
@@ -842,6 +845,7 @@ func (a *App) register() {
 	a.handle(CmdSessionSandboxOpen, a.sessionSandboxOpen)
 	a.registerFiles()
 	a.registerQueue()
+	a.registerThreads()
 	a.handle(CmdFDSearch, a.fdSearch)
 	a.handle(CmdFDSearchAgain, a.fdSearchAgain)
 	for _, id := range []string{CmdFDResultYank, CmdFDResultOpenWith, CmdFDResultAttach, CmdFDResultRefine} {

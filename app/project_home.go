@@ -67,6 +67,7 @@ var defaultProjectNavSections = []projectNavDef{
 	{Key: "panes", Label: "Panes", Icon: "▣", Group: "Workspace"},
 	{Key: "lanes", Label: "Lanes", Icon: "⎇", Group: "Workspace"},
 	{Key: projectQueueSection, Label: "Queues", Icon: "⇶", Group: "Workspace", EntryFocus: views.QueueListID, Leaf: true},
+	{Key: projectThreadsSection, Label: "Threads", Icon: "✉", Group: "Workspace", EntryFocus: views.ThreadsListID, Leaf: true},
 	{Key: "worktrees", Label: "Worktrees", Icon: "⌘", Group: "Workspace"},
 	{Key: "prs", Label: "PRs", Icon: "⇅", Group: "Workspace"},
 	{Key: "documents", Label: "Documents", Icon: "▤", Group: "Knowledge"},
