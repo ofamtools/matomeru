@@ -196,7 +196,7 @@ func (a *App) tabsMemoKey(s core.State) string {
 func (a *App) build(s core.State) ui.ViewNode {
 	a.viewMemo.builds++
 	var tabs ui.ViewNode
-	canReuseTabs := len(s.Modals) == 0 || s.Modals[len(s.Modals)-1].ID != "settings"
+	canReuseTabs := !a.focusHintsActive() && (len(s.Modals) == 0 || s.Modals[len(s.Modals)-1].ID != "settings")
 	tKey := a.tabsMemoKey(s)
 	if s.ActivePage == SpaceJobs {
 		tabs = a.jobsView()
@@ -253,7 +253,9 @@ func (a *App) build(s core.State) ui.ViewNode {
 				Children: []ui.ViewNode{standalone.render(a)},
 			})
 		}
-		a.viewMemo.tabsKey, a.viewMemo.tabs = a.tabsMemoKey(s), tabs
+		if !a.focusHintsActive() {
+			a.viewMemo.tabsKey, a.viewMemo.tabs = a.tabsMemoKey(s), tabs
+		}
 	}
 	root := ui.ViewNode{
 		ID:       "root",
