@@ -175,3 +175,165 @@ func TestCLISetup(t *testing.T) {
 		t.Fatalf("setup bogus: code=%d err=%s", code, errs)
 	}
 }
+
+func TestCLISetupSyncPurgeAndInitShell(t *testing.T) {
+	home := t.TempDir()
+	db := filepath.Join(t.TempDir(), "mtm.db")
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+
+	// Seed a user instruction file with personal prose so we verify purge preserves it cleanly.
+	codexPath := filepath.Join(home, ".codex", "AGENTS.md")
+	if err := os.MkdirAll(filepath.Dir(codexPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	userProse := "# My Personal Codex Rules\nNever delete this line.\n"
+	if err := os.WriteFile(codexPath, []byte(userProse), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runMTM := func(args ...string) (int, string, string) {
+		var out, errs bytes.Buffer
+		code := run(append([]string{"--db", db}, args...), strings.NewReader(""), &out, &errs)
+		return code, out.String(), errs.String()
+	}
+
+	type syncResp struct {
+		OK     bool         `json:"ok"`
+		Synced bool         `json:"synced"`
+		Hash   string       `json:"hash"`
+		Report setup.Report `json:"report"`
+	}
+
+	// 1. First `mtm setup sync --home <tmp> --json` runs full sync and writes stamp.
+	code, out, errs := runMTM("setup", "sync", "--home", home, "--json")
+	if code != 0 {
+		t.Fatalf("first setup sync exit %d: %s %s", code, out, errs)
+	}
+	var sr1 syncResp
+	if err := json.Unmarshal([]byte(out), &sr1); err != nil {
+		t.Fatalf("sync 1 JSON: %v\n%s", err, out)
+	}
+	if !sr1.OK || !sr1.Synced || sr1.Hash != setup.AssetsHash() || len(sr1.Report.Actions) == 0 {
+		t.Fatalf("sync 1 resp = %+v", sr1)
+	}
+	stampPath := filepath.Join(home, ".local", "state", "matomeru", setup.SyncStampFilename)
+	if _, err := os.Stat(stampPath); err != nil {
+		t.Fatalf("expected sync stamp at %s: %v", stampPath, err)
+	}
+
+	// 2. Second `mtm setup sync --home <tmp> --json` is a fast no-op (synced=false).
+	code, out, errs = runMTM("setup", "sync", "--home", home, "--json")
+	if code != 0 {
+		t.Fatalf("second setup sync exit %d: %s %s", code, out, errs)
+	}
+	var sr2 syncResp
+	if err := json.Unmarshal([]byte(out), &sr2); err != nil {
+		t.Fatalf("sync 2 JSON: %v\n%s", err, out)
+	}
+	if !sr2.OK || sr2.Synced || sr2.Hash != setup.AssetsHash() {
+		t.Fatalf("sync 2 resp = %+v, want synced=false", sr2)
+	}
+
+	// 3. Text output when up to date prints short hash; --quiet prints nothing.
+	code, out, errs = runMTM("setup", "sync", "--home", home)
+	if code != 0 || !strings.Contains(out, "setup sync: up to date ("+setup.AssetsHash()[:12]+")") {
+		t.Fatalf("sync up-to-date text: code=%d out=%q err=%q", code, out, errs)
+	}
+	code, out, errs = runMTM("setup", "sync", "--home", home, "--quiet")
+	if code != 0 || out != "" || errs != "" {
+		t.Fatalf("sync --quiet up-to-date: code=%d out=%q err=%q", code, out, errs)
+	}
+
+	// 4. --force re-runs even when stamp matches.
+	code, out, errs = runMTM("setup", "sync", "--home", home, "--force", "--json")
+	if code != 0 {
+		t.Fatalf("sync --force exit %d: %s %s", code, out, errs)
+	}
+	var srForce syncResp
+	if err := json.Unmarshal([]byte(out), &srForce); err != nil {
+		t.Fatalf("sync --force JSON: %v\n%s", err, out)
+	}
+	if !srForce.OK || !srForce.Synced {
+		t.Fatalf("sync --force resp = %+v, want synced=true", srForce)
+	}
+
+	// 5. `mtm setup purge --home <tmp> --dry-run --json` previews purge without clearing stamp or file.
+	code, out, errs = runMTM("setup", "purge", "--home", home, "--dry-run", "--json")
+	if code != 0 {
+		t.Fatalf("purge --dry-run exit %d: %s %s", code, out, errs)
+	}
+	var dryPurge setup.Report
+	if err := json.Unmarshal([]byte(out), &dryPurge); err != nil {
+		t.Fatalf("purge dry-run JSON: %v\n%s", err, out)
+	}
+	if !dryPurge.OK || !dryPurge.DryRun {
+		t.Fatalf("purge dry-run = %+v", dryPurge)
+	}
+	if _, err := os.Stat(stampPath); err != nil {
+		t.Fatalf("purge --dry-run unexpectedly deleted stamp: %v", err)
+	}
+
+	// 6. `mtm setup purge --home <tmp> --json` strips ONLY the managed block and deletes the sync stamp.
+	code, out, errs = runMTM("setup", "purge", "--home", home, "--json")
+	if code != 0 {
+		t.Fatalf("purge exit %d: %s %s", code, out, errs)
+	}
+	var purgeRep setup.Report
+	if err := json.Unmarshal([]byte(out), &purgeRep); err != nil {
+		t.Fatalf("purge JSON: %v\n%s", err, out)
+	}
+	if !purgeRep.OK {
+		t.Fatalf("purge report = %+v", purgeRep)
+	}
+	if _, err := os.Stat(stampPath); !os.IsNotExist(err) {
+		t.Fatalf("expected purge to remove stamp %s (err=%v)", stampPath, err)
+	}
+	afterPurge, err := os.ReadFile(codexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(afterPurge) != userProse {
+		t.Fatalf("codex AGENTS.md after purge:\ngot:  %q\nwant: %q", string(afterPurge), userProse)
+	}
+
+	// 7. Subsequent `mtm setup sync` re-applies because purge removed the stamp.
+	code, out, errs = runMTM("setup", "sync", "--home", home, "--json")
+	if code != 0 {
+		t.Fatalf("sync after purge exit %d: %s %s", code, out, errs)
+	}
+	var srAfterPurge syncResp
+	if err := json.Unmarshal([]byte(out), &srAfterPurge); err != nil {
+		t.Fatalf("sync after purge JSON: %v\n%s", err, out)
+	}
+	if !srAfterPurge.OK || !srAfterPurge.Synced {
+		t.Fatalf("sync after purge = %+v, want synced=true", srAfterPurge)
+	}
+
+	// 8. `mtm setup init-shell` outputs lightweight background hook snippet.
+	code, out, errs = runMTM("setup", "init-shell")
+	if code != 0 || errs != "" || !strings.Contains(out, "mtm setup sync --quiet") {
+		t.Fatalf("init-shell: code=%d out=%q err=%q", code, out, errs)
+	}
+
+	// 9. autoSyncSetupIfChanged honors MTM_NO_AUTO_SETUP and isolates HOME/XDG_STATE_HOME.
+	autoHome := t.TempDir()
+	autoState := filepath.Join(t.TempDir(), "xdg-state")
+	t.Setenv("HOME", autoHome)
+	t.Setenv("XDG_STATE_HOME", autoState)
+	t.Setenv("MTM_NO_AUTO_SETUP", "1")
+	t.Setenv("MTM_SMOKE", "")
+	if w := autoSyncSetupIfChanged(); w != "" {
+		t.Fatalf("autoSyncSetupIfChanged disabled returned warning %q", w)
+	}
+	if _, err := os.Stat(filepath.Join(autoState, "matomeru", setup.SyncStampFilename)); !os.IsNotExist(err) {
+		t.Fatalf("MTM_NO_AUTO_SETUP=1 still wrote stamp")
+	}
+
+	t.Setenv("MTM_NO_AUTO_SETUP", "")
+	if w := autoSyncSetupIfChanged(); w != "" {
+		t.Fatalf("autoSyncSetupIfChanged enabled returned warning %q", w)
+	}
+	if _, err := os.Stat(filepath.Join(autoState, "matomeru", setup.SyncStampFilename)); err != nil {
+		t.Fatalf("autoSyncSetupIfChanged did not write stamp: %v", err)
+	}
+}

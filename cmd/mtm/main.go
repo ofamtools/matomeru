@@ -837,6 +837,9 @@ func runMigrate(ctx context.Context, g globalOpts, p oden.Parsed, stdout io.Writ
 // when the program ends.
 func runTUI(store *data.Store, dbPath string, stderr io.Writer) (bool, error) {
 	opts, warnings := buildTUIOptions(context.Background(), dbPath, configDir(), stderr, nil)
+	if w := autoSyncSetupIfChanged(); w != "" {
+		warnings = append(warnings, w)
+	}
 	a, err := app.New(store, opts)
 	if err != nil {
 		return false, err

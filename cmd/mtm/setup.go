@@ -5,13 +5,39 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
 	"ofam.dev/matomeru/setup"
 	"ofam.dev/oden"
 )
 
-const setupUsage = "usage: mtm setup [machine|agents|skills|hooks|mcp|check] [--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--dry-run] [--check] [--force] [--json]"
+const setupUsage = "usage: mtm setup [machine|agents|skills|hooks|mcp|check|sync|purge|init-shell] [--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--dry-run] [--check] [--force] [--quiet] [--json]"
+
+func setupStateDir(homeOverride string) string {
+	if h := strings.TrimSpace(homeOverride); h != "" {
+		return filepath.Join(filepath.Clean(h), ".local", "state", "matomeru")
+	}
+	if xdg := strings.TrimSpace(os.Getenv("XDG_STATE_HOME")); xdg != "" {
+		return filepath.Join(xdg, "matomeru")
+	}
+	if h, err := os.UserHomeDir(); err == nil && strings.TrimSpace(h) != "" {
+		return filepath.Join(h, ".local", "state", "matomeru")
+	}
+	return ""
+}
+
+func autoSyncSetupIfChanged() string {
+	if os.Getenv("MTM_NO_AUTO_SETUP") != "" || os.Getenv("MTM_SMOKE") != "" {
+		return ""
+	}
+	if _, _, err := setup.SyncIfChanged(setup.Options{}, setupStateDir(""), false); err != nil {
+		return "setup auto-sync: " + err.Error()
+	}
+	return ""
+}
 
 func setupParameters() []oden.Parameter {
 	return []oden.Parameter{
@@ -96,9 +122,12 @@ func mtmSetupCommand() oden.Command {
 		Name:       "setup",
 		Summary:    "configure agent instructions, OFAM skills, harness hooks, and MCP",
 		Category:   "Configuration",
-		Usage:      "[machine|agents|skills|hooks|mcp|check] [--home DIR] [--dry-run] [--check] [--force] [--json]",
+		Usage:      "[machine|agents|skills|hooks|mcp|check|sync|purge|init-shell] [--home DIR] [--dry-run] [--check] [--force] [--quiet] [--json]",
 		Parameters: params,
 		Handle: func(c *oden.Ctx) error {
+			syncParams := append(append([]oden.Parameter(nil), params...),
+				oden.Parameter{Name: "quiet", Type: "bool", Description: "Suppress output when up to date or synced cleanly"},
+			)
 			sub := c.Sub()
 			sub.Add(
 				oden.Command{
@@ -142,6 +171,99 @@ func mtmSetupCommand() oden.Command {
 					Usage:      "[--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--json]",
 					Parameters: params,
 					Handle:     runTarget("check", true, true),
+				},
+				oden.Command{
+					Name:       "sync",
+					Summary:    "hash-gated machine setup sync (no-op when embedded assets are unchanged)",
+					Usage:      "[--quiet] [--force] [--home DIR] [--dry-run] [--json]",
+					Parameters: syncParams,
+					Handle: func(c *oden.Ctx) error {
+						p, err := c.Parse(syncParams)
+						if err != nil {
+							return err
+						}
+						if len(p.Positional()) != 0 {
+							return errors.New("usage: mtm setup sync [--quiet] [--force] [--home DIR] [--dry-run] [--json]")
+						}
+						opts := setupOptionsFromParsed(p)
+						quiet := p.Bool("quiet")
+						rep, ran, err := setup.SyncIfChanged(opts, setupStateDir(opts.Home), opts.Force)
+						if err != nil {
+							return err
+						}
+						if p.Format() == "json" {
+							if err := printJSON(c.Stdout, map[string]any{
+								"ok":     rep.OK,
+								"synced": ran,
+								"hash":   setup.AssetsHash(),
+								"report": rep,
+							}); err != nil {
+								return err
+							}
+						} else if !ran {
+							if !quiet {
+								if _, err := fmt.Fprintf(c.Stdout, "setup sync: up to date (%s)\n", setup.AssetsHash()[:12]); err != nil {
+									return err
+								}
+							}
+						} else if !quiet || !rep.OK {
+							if err := writeSetupOutput(c.Stdout, p.Format(), rep); err != nil {
+								return err
+							}
+						}
+						if !rep.OK && (opts.Check || !opts.DryRun) {
+							return &oden.ExitError{Code: 1}
+						}
+						return nil
+					},
+				},
+				oden.Command{
+					Name:       "purge",
+					Summary:    "remove only the managed OFAM policy block from global agent instruction files",
+					Usage:      "[--home DIR] [--dry-run] [--json]",
+					Parameters: params,
+					Handle: func(c *oden.Ctx) error {
+						p, err := c.Parse(params)
+						if err != nil {
+							return err
+						}
+						if len(p.Positional()) != 0 {
+							return errors.New("usage: mtm setup purge [--home DIR] [--dry-run] [--json]")
+						}
+						opts := setupOptionsFromParsed(p)
+						rep, err := setup.RunPurgeAgents(opts)
+						if err != nil {
+							return err
+						}
+						if !opts.DryRun && rep.OK {
+							if stateDir := setupStateDir(opts.Home); stateDir != "" {
+								_ = os.Remove(filepath.Join(stateDir, setup.SyncStampFilename))
+							}
+						}
+						if err := writeSetupOutput(c.Stdout, p.Format(), rep); err != nil {
+							return err
+						}
+						if !rep.OK && !opts.DryRun {
+							return &oden.ExitError{Code: 1}
+						}
+						return nil
+					},
+				},
+				oden.Command{
+					Name:    "init-shell",
+					Summary: "print a lightweight, non-blocking shell startup hook for setup sync",
+					Usage:   "",
+					Handle: func(c *oden.Ctx) error {
+						p, err := c.Parse(nil)
+						if err != nil {
+							return err
+						}
+						if len(p.Positional()) != 0 {
+							return errors.New("usage: mtm setup init-shell")
+						}
+						_, err = io.WriteString(c.Stdout, "# Matomeru already auto-syncs on TUI startup and g U.\n# Optional background shell hook:\nif command -v mtm >/dev/null 2>&1; then (mtm setup sync --quiet >/dev/null 2>&1 &); fi\n")
+						return err
+					},
 				},
 			)
 			if len(c.Args) == 1 && (c.Args[0] == "-h" || c.Args[0] == "--help") {

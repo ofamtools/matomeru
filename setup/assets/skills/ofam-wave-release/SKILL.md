@@ -7,6 +7,8 @@ description: End-of-wave release runbook for o-family Go repositories and binari
 
 Use this runbook when closing a wave or shipping updated o-family Go binaries (`mtm`, `nabe`, `o-lane`, `o-questions`, `o-cmds`, `o-md`, `o-git`, and sibling tools). Execute steps in order and stop immediately if any check fails.
 
+**Fast path:** Use `o-release <repo> [patch|minor|major|vX.Y.Z]` (`~/hub/tools/o-release`, installed at `~/bin/o-release`). Pass `--skip-tests` when free public GitHub Actions CI is already green on the commit being released.
+
 ## 1. Verify repository health and run checks
 
 1. Confirm `go.mod` has no stray local `replace` directives pointing at sibling checkouts or worktrees:
@@ -18,22 +20,22 @@ Use this runbook when closing a wave or shipping updated o-family Go binaries (`
 2. Run Go checks one at a time through `~/bin/heavy` (never parallel local builds or test runs) with `GOWORK=off GOFLAGS=-trimpath`:
 
    ```bash
-   heavy env GOWORK=off GOFLAGS=-trimpath gofmt -l .
+   git ls-files '*.go' | xargs -r gofmt -l
    heavy env GOWORK=off GOFLAGS=-trimpath go vet ./...
    heavy env GOWORK=off GOFLAGS=-trimpath go test -race ./...
    ```
 
-   `gofmt -l .` must print nothing. For configuration-only changes, scale tests per the "Checks scale with the change" rule.
+   `gofmt -l` must print nothing. For configuration-only changes, scale tests per the "Checks scale with the change" rule.
 
-3. For TUI binaries, verify `--smoke` and `binding check` against isolated temporary directories (never the owner's live data or config):
+3. For TUI binaries (`mtm`), verify `--smoke` and `binding check` against isolated temporary directories (never the owner's live data or config):
 
    ```bash
    tmp="$(mktemp -d /tmp/ofam-release-check.XXXXXX)"
    trap 'rm -rf "$tmp"' EXIT
    HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/cfg" XDG_STATE_HOME="$tmp/state" XDG_DATA_HOME="$tmp/data" \
-     "$bin_path" --data "$tmp/data" --smoke
+     "$bin_path" --smoke
    HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/cfg" XDG_STATE_HOME="$tmp/state" XDG_DATA_HOME="$tmp/data" \
-     "$bin_path" --data "$tmp/data" binding check
+     "$bin_path" binding check
    ```
 
 ## 2. Commit with explicit paths
@@ -99,10 +101,10 @@ Use this runbook when closing a wave or shipping updated o-family Go binaries (`
    "$HOME/bin/$bin" version || "$HOME/bin/$bin" --version
    ```
 
-5. If `mtm` was installed, post a restart request in the running app instead of restarting or quitting it yourself:
+5. If `mtm` was installed, upgrade the daemon in place without killing live panes and let the owner reload the TUI with `g U`:
 
    ```bash
-   mtm restart-request post "installed $(mtm --version): <what changed>" --version "$(mtm --version)"
+   "$HOME/bin/mtm" daemon upgrade --json
    ```
 
 ## 5. Update lanes, dossiers, and report
