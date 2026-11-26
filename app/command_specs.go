@@ -62,6 +62,8 @@ func CommandSpecs() []core.CommandSpec {
 			Meta:        map[string]any{"selfHosted": true},
 		},
 	)
+	base = append(base, chipSpecs()...)
+	base = append(base, gitHubSpecs()...)
 	return append(append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),

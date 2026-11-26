@@ -140,10 +140,16 @@ func (a *App) projectContextPanel(panelID, tableID, section, title string, ws pr
 	if tbl.Query != "" {
 		badges = append(badges, ui.Badge{Text: "/" + tbl.Query, Tone: "accent"})
 	}
-	return ui.ViewNode{
+	panel := ui.ViewNode{
 		ID: panelID, Kind: ui.KindPanel, Scope: ScopeProjectContext, Title: title, Border: true,
 		Badges: badges, Facts: map[string]any{"section": section}, Children: []ui.ViewNode{node},
 	}
+	if a.livePointerChipsEnabled() && (a.Focus() == tableID || strings.HasPrefix(a.Focus(), panelID+".chips")) {
+		if row, ok := tbl.FocusedRow(); ok && row.Ref != nil {
+			panel = withPointerChips(panel, panelID+".chips", a.contextPointerChips(a.panes.projectCtxRows[row.ID], *row.Ref))
+		}
+	}
+	return panel
 }
 
 func (a *App) projectUnifiedContextItems(ws projectWorkspaceData, scope data.ProjectScope, paneTitles map[string]string) (items, review []CollectedContextItem, records map[string]data.Record) {

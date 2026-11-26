@@ -860,6 +860,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, composerContextBindings()...)
 	out = append(out, insertPickerBindings()...)
 	out = append(out, clipboardAttachBindings()...)
+	out = append(out, gitHubBindings()...)
 	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeCommandLine, ModeOutlineEdit, ModePickerFilter} {
 		out = append(out, with(bind(mode, all, "alt+h", CmdPaneHints, "paste terminal hint"), map[string]any{"action": HintsActionInsert}))
 	}
@@ -873,7 +874,7 @@ func DefaultBindings() []core.Binding {
 			out[i].Hidden = true
 		}
 	}
-	return out
+	return append(out, chipBindings()...)
 }
 
 // appendReadlineBindings appends Ochazuke's default Readline bindings for

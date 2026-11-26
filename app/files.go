@@ -191,7 +191,13 @@ func (a *App) filesSpace() ui.ViewNode {
 			spec.Entries = visibleFiles(rows, f.paths, func(entry data.PathEntry) string { return entry.Path })
 		}
 	}
-	return views.FilesViewAt(spec, a.now())
+	view := views.FilesViewAt(spec, a.now())
+	if a.livePointerChipsEnabled() {
+		path, _ := view.Facts["selectedPath"].(string)
+		isDir, _ := view.Facts["selectedIsDir"].(bool)
+		view = withPointerChips(view, "files.chips", filesPointerChips(path, isDir))
+	}
+	return view
 }
 
 func (a *App) recordPathUse(entry pathpicker.DirEntry) {

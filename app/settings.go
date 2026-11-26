@@ -219,6 +219,8 @@ const (
 	SetActionLogEnabled                = "ui.actionLogEnabled"
 	SetProjectPortalOnP                = "project.portalOnP"
 	SetPagedNoteComposer               = "ui.pagedNoteComposer"
+	SetLivePointerChips                = "ui.livePointerChips"
+	SetCompactTestOutput               = "runs.compactTestOutput"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -386,6 +388,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetFeaturesItemization, true, "show itemized schema props and page views and enable suggestions for them in Features"),
 		flag(SetProjectPortalOnP, true, "pressing P or ctrl+a P opens the item's Project Portal tab (staying live from terminals)"),
 		flag(SetPagedNoteComposer, true, "alt+n opens the floating paged Markdown Note Deck composer instead of the single-shot UX note form"),
+		flag(SetLivePointerChips, true, "show focusable pointer chips on file, worktree, and context selections"),
+		flag(SetCompactTestOutput, true, "summarize Go test events in Run output with one symbol per result"),
 	}
 }
 
