@@ -805,7 +805,7 @@ func contextTargetPath(kind, value string, pane *data.Record) string {
 		return val
 	case contextitems.KindFile:
 		base, _, _ := splitContextFileLoc(val)
-		p := expandHome(base)
+		p := cleanLocalTargetPath(base)
 		if !filepath.IsAbs(p) && pane != nil {
 			if cwd := expandHome(pane.Text("cwd")); cwd != "" {
 				p = filepath.Join(cwd, p)
@@ -816,7 +816,7 @@ func contextTargetPath(kind, value string, pane *data.Record) string {
 		if handlers.IsURL(val) {
 			return val
 		}
-		return expandHome(val)
+		return cleanLocalTargetPath(val)
 	}
 }
 

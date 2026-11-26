@@ -78,6 +78,12 @@ func DefaultRules() []Rule {
 		{Name: NewPane, Match: MatchDir, Kind: KindBuiltin, Priority: 50},
 		{Name: SystemOpen, Match: "http://*", Kind: KindBuiltin, Priority: 100},
 		{Name: SystemOpen, Match: "https://*", Kind: KindBuiltin, Priority: 100},
+		{Name: SystemOpen, Match: "*.png", Kind: KindBuiltin, Priority: 100},
+		{Name: SystemOpen, Match: "*.jpg", Kind: KindBuiltin, Priority: 100},
+		{Name: SystemOpen, Match: "*.jpeg", Kind: KindBuiltin, Priority: 100},
+		{Name: SystemOpen, Match: "*.gif", Kind: KindBuiltin, Priority: 100},
+		{Name: SystemOpen, Match: "*.webp", Kind: KindBuiltin, Priority: 100},
+		{Name: SystemOpen, Match: "*.svg", Kind: KindBuiltin, Priority: 100},
 	}
 }
 

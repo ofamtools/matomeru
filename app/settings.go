@@ -193,6 +193,8 @@ const (
 	SetProjectHomeDashboard          = "project.homeDashboard"
 	SetPanesCompactTopArea           = "panes.compactTopArea"
 	SetFilterInPlaceTree             = "filter.inPlaceTree"
+	SetAttachmentsEnabled            = "input.clipboardAttachments"
+	SetAttachmentsDir                = "attachments.dir"
 	HintsActionCopy                  = "copy"
 	HintsActionInsert                = "insert"
 	HintsActionOpen                  = "open"
@@ -337,6 +339,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectHomeDashboard, true, "show interactive Project Page Home dashboard with decisions, new items, panes, recent prompts, and recent questions"),
 		flag(SetPanesCompactTopArea, true, "render a concise, prominent lane progress bar and trim verbose top-area chrome above live panes"),
 		flag(SetFilterInPlaceTree, true, "filter task/pane/lane/outline trees in place as a tree instead of swapping 2 Work to a flat table"),
+		flag(SetAttachmentsEnabled, true, "paste clipboard images/files as @path attachments on ctrl+v in any text input"),
+		{Name: SetAttachmentsDir, Type: core.ParamString, Default: "", Description: "directory for pasted attachments (empty = XDG data dir matomeru/attachments)"},
 	}
 }
 

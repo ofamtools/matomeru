@@ -124,3 +124,39 @@ func TestExtractVisibleMatchesCoordinates(t *testing.T) {
 		t.Errorf("match[3] = %+v", m3)
 	}
 }
+
+func TestExtractAtPrefixedAttachmentPathsAndIgnoreEmails(t *testing.T) {
+	input := "" +
+		"@/Users/alice/.local/share/matomeru/attachments/20261126-073000-a1b2c3.png\n" +
+		"Inspect @~/.local/share/matomeru/attachments/shot.png and (@/tmp/diagram.webp).\n" +
+		"Contact user@example.com or admin@example.org or dev@team.md for help.\n"
+
+	items := contextitems.Extract(input, contextitems.Options{Source: contextitems.SourcePrompt})
+	byVal := map[string]contextitems.Item{}
+	for _, it := range items {
+		byVal[it.Value] = it
+	}
+
+	for _, want := range []string{
+		"/Users/alice/.local/share/matomeru/attachments/20261126-073000-a1b2c3.png",
+		"~/.local/share/matomeru/attachments/shot.png",
+		"/tmp/diagram.webp",
+	} {
+		if it, ok := byVal[want]; !ok || it.Kind != contextitems.KindFile {
+			t.Errorf("expected @-prefixed file %q to be extracted, got %+v (all=%+v)", want, it, items)
+		}
+	}
+
+	for _, emailDomain := range []string{"example.com", "example.org", "team.md"} {
+		if _, ok := byVal[emailDomain]; ok {
+			t.Errorf("email domain %q should NOT have been extracted (all=%+v)", emailDomain, items)
+		}
+	}
+
+	matches := contextitems.ExtractVisibleMatches([]string{
+		"See @/tmp/screen.png and user@example.org",
+	})
+	if len(matches) != 1 || matches[0].Kind != contextitems.KindFile || matches[0].Value != "/tmp/screen.png" {
+		t.Fatalf("ExtractVisibleMatches = %+v, want single /tmp/screen.png match", matches)
+	}
+}

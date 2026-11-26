@@ -323,10 +323,20 @@ func scanPlainLine(line string, row int) []Match {
 		if overlapsCols(byteSpans, start, end) {
 			continue
 		}
-		// Reject tokens glued onto an identifier prefix (e.g. email or scheme).
+		// Reject tokens glued onto an identifier prefix (e.g. email or scheme),
+		// while allowing @path references preceded by start-of-line, whitespace,
+		// or opening delimiters.
 		if start > 0 {
-			prev, _ := utf8.DecodeLastRuneInString(line[:start])
-			if unicode.IsLetter(prev) || unicode.IsDigit(prev) || prev == '@' || prev == '#' {
+			prev, size := utf8.DecodeLastRuneInString(line[:start])
+			if prev == '@' {
+				beforeAt := start - size
+				if beforeAt > 0 {
+					before, _ := utf8.DecodeLastRuneInString(line[:beforeAt])
+					if !unicode.IsSpace(before) && !strings.ContainsRune("([{\"'`,;:<", before) {
+						continue
+					}
+				}
+			} else if unicode.IsLetter(prev) || unicode.IsDigit(prev) || prev == '#' {
 				continue
 			}
 		}
@@ -577,6 +587,7 @@ func looksLikeURLToken(tok string) bool {
 }
 
 func looksLikePathToken(tok string) bool {
+	tok = strings.TrimPrefix(tok, "@")
 	return strings.HasPrefix(tok, "/") ||
 		strings.HasPrefix(tok, "~/") ||
 		strings.HasPrefix(tok, "./") ||

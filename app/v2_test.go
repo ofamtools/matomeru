@@ -78,7 +78,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetProjectsTopNavTab: true, SetProjectsDynamicTabs: true, SetProjectsChildPaneView: true,
 		SetSelfHostedFeaturesEnabled: SelfHostedFeaturesAuto, SetSelfHostedFeaturesRepoPath: "",
 		SetProjectsNavTree: true, SetOutlineGutter: true, SetChromeSystemStats: true, SetProjectsNavSurfaceUnread: true,
-		SetHintsDefaultAction: HintsActionCopy, SetProjectHomeDashboard: true, SetPanesCompactTopArea: true}
+		SetHintsDefaultAction: HintsActionCopy, SetProjectHomeDashboard: true, SetPanesCompactTopArea: true, SetFilterInPlaceTree: true,
+		SetAttachmentsEnabled: true, SetAttachmentsDir: ""}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

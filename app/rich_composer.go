@@ -17,6 +17,7 @@ import (
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/modal"
+	"ofam.dev/ochazuke/widgets/toast"
 )
 
 // ComposerMode names how a pane prompt is delivered.
@@ -387,20 +388,40 @@ func (m *richComposerModal) Handle(c core.Command) modal.Result {
 }
 
 func (m *richComposerModal) handleAttachClipboard() modal.Result {
-	filesRoot := ""
-	if m.a != nil && m.a.Store != nil {
-		filesRoot = m.a.Store.FilesRoot()
+	now := time.Now()
+	if m.a != nil {
+		now = m.a.now()
 	}
-	idPrefix := fmt.Sprintf("clip-%d", m.a.now().UnixNano())
-	att, text, err := captureClipboardFunc(filesRoot, idPrefix)
+	idPrefix := newAttachmentPrefix(now)
+	var (
+		att  data.Attachment
+		text string
+		err  error
+	)
+	if m.a != nil {
+		att, text, err = m.a.captureClipboard(idPrefix)
+	} else if captureClipboardFunc != nil {
+		att, text, err = captureClipboardFunc("", idPrefix)
+	} else {
+		att, text, err = captureClipboardToDirWith("", idPrefix, true, activeClipboardEnv)
+	}
 	if err != nil {
 		return modal.Result{Handled: true, Status: "clipboard: " + err.Error(), SetStatus: true}
 	}
 	if att.Path != "" || att.Ref != "" {
-		if m.AddAttachment(att) {
-			return modal.Result{Handled: true, Status: "attached " + att.Label, SetStatus: true}
+		added := m.AddAttachment(att)
+		if ref := formatAttachmentRef(att.Path); ref != "" && m.in != nil {
+			m.in.HandleCommand(core.Command{ID: input.CmdInsert, Args: map[string]any{"text": ref + " "}})
+			m.updateCompletions()
 		}
-		return modal.Result{Handled: true, Status: "already attached " + att.Label, SetStatus: true}
+		if added {
+			msg := "attached " + att.Label + " (@path inserted)"
+			if m.a != nil {
+				m.a.pushToast(msg, toast.Ok)
+			}
+			return modal.Result{Handled: true, Status: msg, SetStatus: true}
+		}
+		return modal.Result{Handled: true, Status: "already attached " + att.Label + " (@path inserted)", SetStatus: true}
 	}
 	if text != "" {
 		m.in.HandleCommand(core.Command{ID: input.CmdInsert, Args: map[string]any{"text": text}})

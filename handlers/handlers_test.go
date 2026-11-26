@@ -26,6 +26,12 @@ func TestDefaultRulesMatch(t *testing.T) {
 		"https://ofam.dev/a/b?c=d":  {SystemOpen},
 		"http://localhost:8080":     {SystemOpen},
 		"https://ofam.dev/guide.md": {SystemOpen}, // a URL is never matched by a file glob
+		"/attachments/shot.png":     {SystemOpen},
+		"/attachments/PHOTO.JPG":    {SystemOpen},
+		"/attachments/pic.jpeg":     {SystemOpen},
+		"/attachments/anim.gif":     {SystemOpen},
+		"/attachments/clip.webp":    {SystemOpen},
+		"/attachments/diagram.svg":  {SystemOpen},
 		"/bin/ls":                   nil,
 		"":                          nil,
 	} {

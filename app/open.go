@@ -69,7 +69,7 @@ func (a *App) targetOf(rec data.Record) (openTarget, bool) {
 		if v := strings.TrimSpace(rec.Text(field)); v != "" {
 			t.path = v
 			if !handlers.IsURL(v) {
-				t.path = expandHome(v)
+				t.path = cleanLocalTargetPath(v)
 			}
 			t.rules = a.cfg.Handlers.Match(t.path)
 			return t, true
@@ -419,7 +419,7 @@ func (a *App) followLink(rm *modal.MarkdownModal, href string) modal.Result {
 	target, frag := href, ""
 	if !handlers.IsURL(href) {
 		target, frag, _ = strings.Cut(href, "#")
-		target = expandHome(target)
+		target = cleanLocalTargetPath(target)
 		if !filepath.IsAbs(target) {
 			if rm.Path() == "" {
 				return modal.Result{Handled: true, Status: fmt.Sprintf("%s is relative, and this text has no file to be relative to", href), SetStatus: true}

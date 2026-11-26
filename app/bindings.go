@@ -811,6 +811,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, featuresPageBindings()...)
 	out = append(out, composerContextBindings()...)
 	out = append(out, insertPickerBindings()...)
+	out = append(out, clipboardAttachBindings()...)
 	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeCommandLine, ModeOutlineEdit, ModePickerFilter} {
 		out = append(out, with(bind(mode, all, "alt+h", CmdPaneHints, "paste terminal hint"), map[string]any{"action": HintsActionInsert}))
 	}
