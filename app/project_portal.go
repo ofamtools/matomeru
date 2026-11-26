@@ -57,7 +57,7 @@ func (a *App) registerProjectPortalHandlers() {
 // Portal Tab. When invoked from a live terminal (ctrl+a P), opens that live
 // pane inline in the Project Portal and stays attached in ModeTerminal.
 func (a *App) projectPortalOpen(s core.State, c core.Command) core.StepResult {
-	if !a.projectPortalOnPEnabled() || !a.projectsDynamicTabsEnabled() {
+	if !a.projectPortalOnPEnabled() || !a.projectsDynamicTabsEnabled() || !a.projectWorkspaceEnabled() {
 		return a.projectHomeOpen(s, c)
 	}
 	wasTerminal := a.Engine.Mode(s) == ModeTerminal
