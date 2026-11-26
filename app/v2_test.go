@@ -87,7 +87,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetTopChromeRedesign: true, SetHintsNounFirst: true, SetDetachFocusTarget: DetachFocusLeft,
 		SetFlagsOnLeft: true, SetColorByRecency: views.RecencyCell, SetStickyTreeBreadcrumbs: true,
 		SetActionLogEnabled: true, SetFeaturesItemization: true,
-		SetProjectPortalOnP: true, SetPagedNoteComposer: true}
+		SetProjectPortalOnP: true, SetPagedNoteComposer: true,
+		SetLivePointerChips: true, SetCompactTestOutput: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -166,6 +167,11 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 	if a.featuresItemizationEnabled() {
 		t.Fatal("features.itemization remained enabled after toggling")
 	}
+	set(SetLivePointerChips, "space")
+	set(SetCompactTestOutput, "space")
+	if a.livePointerChipsEnabled() || a.cfg.Settings.Bool(SetCompactTestOutput, true) {
+		t.Fatal("pointer chips or compact test output remained enabled after changing Settings")
+	}
 
 	raw, err := os.ReadFile(filepath.Join(dir, settingsFileName))
 	if err != nil {
@@ -176,13 +182,14 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, v := range map[string]any{SetFlagsColumn: false, SetBorderStyle: "sharp", SetMatchMode: "fuzzy", SetShowMetadata: false,
-		SetShowEmpty: false, SetEditUniversal: false, SetRailAutoWiden: true, SetFeaturesItemization: false} {
+		SetShowEmpty: false, SetEditUniversal: false, SetRailAutoWiden: true, SetFeaturesItemization: false,
+		SetLivePointerChips: false, SetCompactTestOutput: false} {
 		if saved[name] != v {
 			t.Errorf("settings.json %s = %v, want %v", name, saved[name], v)
 		}
 	}
-	if len(saved) != 8 {
-		t.Errorf("settings.json holds %d keys, want only the 8 that were changed: %v", len(saved), saved)
+	if len(saved) != 10 {
+		t.Errorf("settings.json holds %d keys, want only the 10 that were changed: %v", len(saved), saved)
 	}
 	again, _ := configured(t, dir)
 	if again.Shell.Theme.BorderStyle != ui.BorderSharp || again.cfg.Settings.Bool(SetFlagsColumn, true) || again.matchMode() != "fuzzy" {
@@ -190,6 +197,9 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 	}
 	if again.featuresItemizationEnabled() {
 		t.Fatal("saved features.itemization opt-out was not loaded")
+	}
+	if again.livePointerChipsEnabled() || again.cfg.Settings.Bool(SetCompactTestOutput, true) {
+		t.Fatal("pointer chips or compact test output was re-enabled on restart")
 	}
 	// A theme preset brings its own density; a density set after it wins.
 	set(SetTheme, "l")

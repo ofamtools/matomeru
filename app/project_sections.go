@@ -460,11 +460,19 @@ func (a *App) projectSectionWorktrees(ws projectWorkspaceData) ui.ViewNode {
 	}
 	node := tbl.View(projectWorktreesTable)
 	node.Scope = scopeProjectWorktrees
-	return ui.ViewNode{
+	panel := ui.ViewNode{
 		ID: "project.worktrees", Kind: ui.KindPanel, Scope: scopeProjectWorktrees, Title: "Worktrees", Border: true,
 		Badges: []ui.Badge{{Text: fmt.Sprintf("%d paths", len(ws.worktrees))}},
 		Facts:  map[string]any{"section": "worktrees"}, Children: []ui.ViewNode{node},
 	}
+	if a.livePointerChipsEnabled() {
+		if row, ok := tbl.FocusedRow(); ok {
+			if i := slices.IndexFunc(ws.worktrees, func(wt data.ProjectWorktree) bool { return wt.Path == row.ID }); i >= 0 {
+				panel = withPointerChips(panel, "project.worktrees.chips", worktreePointerChips(ws.worktrees[i]))
+			}
+		}
+	}
+	return panel
 }
 
 func (a *App) projectSectionNotes(ws projectWorkspaceData) ui.ViewNode {

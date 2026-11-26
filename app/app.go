@@ -806,6 +806,8 @@ func (a *App) register() {
 	a.registerComposerContextHandlers()
 	a.registerInsertPickerHandlers()
 	a.registerClipboardAttachHandlers()
+	a.registerChipHandlers()
+	a.registerGitHubHandlers()
 	for _, id := range []string{tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll} {
 		a.handle(id, a.treeFoldCommand(id))
 	}

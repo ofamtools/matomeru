@@ -907,7 +907,10 @@ func (a *App) detail(sp spaceDef, schema data.Schema, rec data.Record) ui.ViewNo
 				long = append(long, text("", views.Label(f.Name), "accent"), ui.ViewNode{Kind: ui.KindMarkdown, Props: map[string]any{"markdown": raw, "wrap": true}})
 			}
 		case f.ShowFormat == data.ShowFormatCode:
-			if raw := data.Text(v); strings.TrimSpace(raw) != "" {
+			raw := data.Text(v)
+			if summary, ok := a.compactTestOutput(rec, f.Name, raw); ok {
+				long = append(long, summary)
+			} else if strings.TrimSpace(raw) != "" {
 				long = append(long, text("", views.Label(f.Name), "accent"), ui.ViewNode{Kind: ui.KindText, Tone: "md.code", Props: map[string]any{"text": raw, "wrap": true}})
 			}
 		case f.ShowFormat == data.ShowFormatText:
