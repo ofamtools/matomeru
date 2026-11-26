@@ -901,19 +901,19 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 		t.Fatalf("form commit after readline = %q (err=%v)", rec.Text("title"), err)
 	}
 
-	// 2. Table filter mode: ctrl+w, ctrl+a, ctrl+u, ctrl+y.
+	// 2. Work tree filter mode: ctrl+w, ctrl+a, ctrl+u, ctrl+y.
 	d.Keys("/")
 	d.Type("one two")
 	d.Keys("ctrl+w")
-	if got := a.nav.tables[workTable].Query; got != "one " {
+	if got := a.trees.workModel(data.KindTask).Query; got != "one " {
 		t.Fatalf("filter ctrl+w -> %q", got)
 	}
 	d.Keys("ctrl+u")
-	if got := a.nav.tables[workTable].Query; got != "" {
+	if got := a.trees.workModel(data.KindTask).Query; got != "" {
 		t.Fatalf("filter ctrl+u -> %q", got)
 	}
 	d.Keys("ctrl+y")
-	if got := a.nav.tables[workTable].Query; got != "one " {
+	if got := a.trees.workModel(data.KindTask).Query; got != "one " {
 		t.Fatalf("filter ctrl+y -> %q", got)
 	}
 	d.Keys("esc")

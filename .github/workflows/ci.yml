@@ -10,8 +10,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  pkgs:
+    runs-on: macos-latest
     env:
       GOWORK: "off"
       GOFLAGS: "-trimpath"
@@ -33,7 +33,7 @@ jobs:
 
       - name: Check gofmt
         run: |
-          unformatted="$(git ls-files '*.go' | xargs -r gofmt -l)"
+          unformatted="$(git ls-files '*.go' | xargs gofmt -l)"
           if [ -n "$unformatted" ]; then
             echo "Unformatted Go files:" >&2
             echo "$unformatted" >&2
@@ -43,11 +43,40 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      - name: go test -race
-        run: go test -race ./...
+      - name: go test -race (non-app packages)
+        run: |
+          pkgs="$(go list ./... | grep -v '^ofam\.dev/matomeru/app$')"
+          go test -race $pkgs
+
+  app:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: A-O
+            pattern: "^Test[A-O]"
+          - name: P
+            pattern: "^TestP"
+          - name: Q-Z
+            pattern: "^Test[Q-Za-z]"
+    name: app (${{ matrix.name }})
+    env:
+      GOWORK: "off"
+      GOFLAGS: "-trimpath"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go test -race ./app (${{ matrix.name }})
+        run: go test -race -run "${{ matrix.pattern }}" ./app
 
   smoke:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     env:
       GOWORK: "off"
       GOFLAGS: "-trimpath"

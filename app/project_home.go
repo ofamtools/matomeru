@@ -539,6 +539,13 @@ func (a *App) resolveProjectTargetRef(s core.State, c core.Command) (core.Ref, b
 	if ref, ok := a.railActiveProjectTask(s); ok {
 		return ref, true
 	}
+	if s.ActivePage == SpacePanes {
+		if _, _, onProj := a.selectedRailProject(); !onProj {
+			if _, ok := a.SelectedPane(); ok {
+				return core.Ref{}, false
+			}
+		}
+	}
 	if pc := a.projectCtrl(); pc.activeProjectID != "" {
 		return core.Ref{Kind: data.KindTask, ID: pc.activeProjectID}, true
 	}

@@ -157,6 +157,8 @@ func TestWave4ConfirmationModalQuitAndDaemonReset(t *testing.T) {
 func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "mtm-cfg")
 	a, d := configured(t, dir)
+	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
+	a.reloadSettings()
 
 	// Configure work.table with filter + sort + group and save via g v -> s.
 	d.Keys("2", "/")

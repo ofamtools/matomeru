@@ -198,7 +198,7 @@ func TestWave3StableProjectPaneRailGrouping(t *testing.T) {
 
 	// Verify clear status indicator symbols render for all 4 states.
 	frame := d.Frame()
-	for _, want := range []string{"AlphaProject", "BetaProject", "Unassigned", "✓ done", "○ idle", "▶ running", "◆ needs_you"} {
+	for _, want := range []string{"AlphaProject", "BetaProject", "Unassigned", "✓ alpha-newest", "○ alpha-older", "▶ beta-pane", "◆ ● loose-pane"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("rail frame missing %q:\n%s", want, frame)
 		}
@@ -242,6 +242,8 @@ func TestWave3StableProjectPaneRailGrouping(t *testing.T) {
 // 2. Project header overview + filterable/sortable/groupable Context Items table on right of 1 Panes
 func TestWave3ProjectHeaderOverviewAndContextTable(t *testing.T) {
 	a, d := demo(t)
+	a.cfg.userSettings[SetProjectWorkspaceInPanes] = false
+	a.reloadSettings()
 	pane := titled(t, a, data.KindPane, "claude: wave 5B")
 	a.harvestPrompt(pane, "Check https://example.com/spec and app/wave3_rail.go:42 and ofam/matomeru#101")
 
@@ -253,7 +255,7 @@ func TestWave3ProjectHeaderOverviewAndContextTable(t *testing.T) {
 	}
 
 	frame := d.Frame()
-	for _, want := range []string{"Project · matomeru-v2", "Tasks (", "Notes (", "Links (", "Context Items", "https://example.com/spec", "app/wave3_rail.go:42", "ofam/matomeru#101"} {
+	for _, want := range []string{"Project · matomeru-v2", "tasks", "lanes", "context", "Context Items", "https://example.com/spec", "app/wave3_rail.go:42", "ofam/matomeru#101"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("project overview missing %q:\n%s", want, frame)
 		}

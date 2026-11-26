@@ -709,7 +709,7 @@ func TestWaveD2WorkTasksTreeLayoutAndOutlineAddFold(t *testing.T) {
 	if ed := a.trees.activeEdit(); a.Mode() != ModeOutlineEdit || ed == nil || ed.Kind != tree.EditAddAbove {
 		t.Fatalf("O in T Outline did not start inline above row: mode=%q edit=%+v", a.Mode(), ed)
 	}
-	d.Keys("esc", "esc")
+	d.Keys("esc", "esc", "esc")
 
 	// Opt-out setting work.tasksLayout = "table" switches cleanly to flat table view.
 	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable

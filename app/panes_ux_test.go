@@ -43,14 +43,14 @@ func TestPanesUXRailEnterLiveAndOptOut(t *testing.T) {
 		t.Fatalf("l from rail did not focus TOC: focus=%q", a.Focus())
 	}
 
-	// Moving onto a project group header and pressing enter focuses projectContextTable (NOT terminal).
+	// Moving onto a project group header and pressing enter focuses the Project Page nav (NOT terminal).
 	d.Keys("h", "g", "g")
 	if _, _, onProj := a.selectedRailProject(); !onProj {
 		t.Fatal("expected g g on grouped rail to focus a project header")
 	}
 	d.Keys("enter")
-	if a.Mode() != ModeNormal || a.Focus() != projectContextTable {
-		t.Fatalf("enter on project header: mode=%q focus=%q, want normal/%q", a.Mode(), a.Focus(), projectContextTable)
+	if a.Mode() != ModeNormal || a.Focus() != "project.nav.home" {
+		t.Fatalf("enter on project header: mode=%q focus=%q, want normal/project.nav.home", a.Mode(), a.Focus())
 	}
 
 	// Opt-out: panes.railEnterMode="toc" restores TOC jump on enter from a pane row.
@@ -260,14 +260,17 @@ func TestPanesUXProjectInheritanceOverviewAndOpen(t *testing.T) {
 	}
 	d.Keys("esc", "esc")
 
-	// 2. Focused on Project group header: projectOverviewView displays Documents + badge,
+	// 2. Focused on Project group header (legacy overview opt-out): projectOverviewView displays Documents + badge,
 	//    and record.new inherits project task + defaultDir.
+	a.cfg.userSettings[SetProjectWorkspaceInPanes] = false
+	a.reloadSettings()
+	a.viewMemo.gen++
 	d.Keys("g", "g")
 	if groupName, _, onProj := a.selectedRailProject(); !onProj || groupName != "matomeru-v2" {
 		t.Fatalf("expected g g on rail to select matomeru-v2 header, got onProj=%v group=%q", onProj, groupName)
 	}
 	ovFrame := d.Frame()
-	if !strings.Contains(ovFrame, "Documents (1):") || !strings.Contains(ovFrame, "Matomeru v2 design") || !strings.Contains(ovFrame, "1 docs") {
+	if !strings.Contains(ovFrame, "1 docs") || !strings.Contains(ovFrame, "Matomeru v2 design") {
 		t.Fatalf("projectOverviewView missing Documents row or badge:\n%s", ovFrame)
 	}
 

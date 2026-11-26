@@ -250,7 +250,9 @@ func TestListsWorkOnAnyField(t *testing.T) {
 	if a.nav.tables[workTable].SortField != "" {
 		t.Fatalf("still sorted by %q", a.nav.tables[workTable].SortField)
 	}
-	// Regex over every field; an invalid one is reported and matched as text.
+	// Regex over every field on the flat table; an invalid one is reported and matched as text.
+	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
+	a.reloadSettings()
 	d.Keys("/", "tab", "tab")
 	d.Type("wave 5[ab]: ")
 	if got := len(a.nav.tables[workTable].Filtered()); got != 2 || a.nav.tables[workTable].MatchMode != "regex" {

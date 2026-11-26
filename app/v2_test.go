@@ -401,7 +401,7 @@ func TestAssign(t *testing.T) {
 	tier := titled(t, a, data.KindTask, "Tier 1: core, ui, tea")
 	d.Keys("2", "/")
 	d.Type("Tier 1:")
-	d.Keys("enter", "g", "m")
+	d.Keys("enter", "j", "g", "m")
 	if a.Modal() != "assign" {
 		t.Fatalf("g m: modal %q, status %q", a.Modal(), a.Status())
 	}
