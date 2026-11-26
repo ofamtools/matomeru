@@ -357,3 +357,118 @@ func (c *Client) Telemetry(ctx context.Context, paneID string) (*TelemetryResult
 		PendingApprovals: pending,
 	}, nil
 }
+
+// RegisterHook adds or replaces an in-memory callback rule on the daemon.
+func (c *Client) RegisterHook(ctx context.Context, rule HookRule) error {
+	_, err := c.call(ctx, Request{Op: OpHookRegister, Rule: &rule}, 0)
+	return err
+}
+
+// UnregisterHook removes in-memory callback rule id, reporting whether it existed.
+func (c *Client) UnregisterHook(ctx context.Context, id string) (bool, error) {
+	resp, err := c.call(ctx, Request{Op: OpHookUnregister, ID: id}, 0)
+	return resp.Found, err
+}
+
+// HookRules lists the daemon's hooks.json and in-memory callback rules.
+func (c *Client) HookRules(ctx context.Context) ([]HookRule, error) {
+	resp, err := c.call(ctx, Request{Op: OpHookList}, 0)
+	return resp.Rules, err
+}
+
+// HookLog returns recent callback deliveries, oldest first (limit <= 0 = all).
+func (c *Client) HookLog(ctx context.Context, limit int) ([]HookDelivery, error) {
+	resp, err := c.call(ctx, Request{Op: OpHookLog, Limit: limit}, 0)
+	return resp.Deliveries, err
+}
+
+// WaitAgentDone blocks until paneID emits agent.done, or ctx ends. Unless
+// next is set, a pane whose telemetry already reads done or idle returns at
+// once with an event built from that telemetry (PrevState empty).
+func (c *Client) WaitAgentDone(ctx context.Context, paneID string, next bool) (*AgentDoneEvent, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "unix", c.socketPath)
+	if err != nil {
+		return nil, fmt.Errorf("daemon dial %s: %w", c.socketPath, err)
+	}
+	defer conn.Close()
+	stopWatch := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
+	defer stopWatch()
+
+	b, err := json.Marshal(Request{Op: OpWatchEvents, PaneID: paneID})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := conn.Write(append(b, '\n')); err != nil {
+		return nil, fmt.Errorf("daemon write %s: %w", OpWatchEvents, err)
+	}
+	scanner := bufio.NewScanner(conn)
+	scanner.Buffer(make([]byte, 64*1024), maxRPCLineBytes)
+	read := func() (Response, error) {
+		if !scanner.Scan() {
+			if ctx.Err() != nil {
+				return Response{}, ctx.Err()
+			}
+			if err := scanner.Err(); err != nil {
+				return Response{}, fmt.Errorf("daemon read %s: %w", OpWatchEvents, err)
+			}
+			return Response{}, fmt.Errorf("daemon %s: connection closed", OpWatchEvents)
+		}
+		var resp Response
+		if err := json.Unmarshal(scanner.Bytes(), &resp); err != nil {
+			return Response{}, fmt.Errorf("daemon decode %s: %w", OpWatchEvents, err)
+		}
+		if !resp.OK {
+			return resp, errors.New(resp.Error)
+		}
+		return resp, nil
+	}
+	if _, err := read(); err != nil {
+		return nil, err
+	}
+	if !next {
+		if ev := c.currentDone(ctx, paneID); ev != nil {
+			return ev, nil
+		}
+	}
+	for {
+		resp, err := read()
+		if err != nil {
+			return nil, err
+		}
+		if resp.Event != nil && (paneID == "" || resp.Event.PaneID == paneID) {
+			return resp.Event, nil
+		}
+	}
+}
+
+func (c *Client) currentDone(ctx context.Context, paneID string) *AgentDoneEvent {
+	if paneID == "" {
+		return nil
+	}
+	res, err := c.Telemetry(ctx, paneID)
+	if err != nil {
+		return nil
+	}
+	pt := res.Telemetry[paneID]
+	if pt == nil || !isRestState(pt.State) {
+		return nil
+	}
+	ev := &AgentDoneEvent{
+		Event:          EventAgentDone,
+		PaneID:         paneID,
+		Harness:        pt.Harness,
+		State:          pt.State,
+		Summary:        pt.Summary,
+		SessionID:      pt.SessionID,
+		TranscriptPath: pt.TranscriptPath,
+		At:             pt.LastEventAt,
+	}
+	if n := len(pt.RecentTurns); n > 0 {
+		ev.Response = pt.RecentTurns[n-1].Response
+	}
+	return ev
+}

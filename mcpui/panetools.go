@@ -66,6 +66,27 @@ type PaneRuntime interface {
 	Close(ctx context.Context, paneID string) error
 }
 
+// PaneOnDone is a one-shot callback fired the first time a spawned pane
+// emits agent.done: Command gets the event JSON on stdin, Webhook gets it as
+// a POST body.
+type PaneOnDone struct {
+	Command    []string          `json:"command,omitempty"`
+	Webhook    string            `json:"webhook,omitempty"`
+	Headers    map[string]string `json:"headers,omitempty"`
+	TimeoutSec int               `json:"timeoutSec,omitempty"`
+}
+
+// Empty reports whether no callback target is set.
+func (o *PaneOnDone) Empty() bool {
+	return o == nil || (len(o.Command) == 0 && strings.TrimSpace(o.Webhook) == "")
+}
+
+// PaneCallbackRuntime is an optional PaneRuntime extension that registers a
+// one-shot agent.done callback for a pane.
+type PaneCallbackRuntime interface {
+	RegisterOnDone(ctx context.Context, paneID string, onDone PaneOnDone) error
+}
+
 // PaneTools serves pane.spawn, pane.snapshot, pane.send, pane.status, and
 // pane.close over a data.Store and optional live PaneRuntime.
 type PaneTools struct {
@@ -96,6 +117,7 @@ type PaneSpawnArgs struct {
 	Rows      int               `json:"rows,omitempty"`
 	Env       map[string]string `json:"env,omitempty"`
 	NoLaunch  bool              `json:"noLaunch,omitempty"`
+	OnDone    *PaneOnDone       `json:"onDone,omitempty"`
 	By        string            `json:"by,omitempty"`
 }
 
@@ -107,6 +129,7 @@ type PaneSpawnResult struct {
 	Spawned   bool           `json:"spawned"`
 	Command   string         `json:"command,omitempty"`
 	Cwd       string         `json:"cwd,omitempty"`
+	OnDone    bool           `json:"onDoneRegistered,omitempty"`
 }
 
 // PaneSnapshotArgs are the arguments of pane.snapshot.
@@ -187,7 +210,17 @@ func (p *PaneTools) ToolSpecs() []ToolSpec {
 				"rows":      count("initial terminal rows (default 36)"),
 				"env":       props{"type": "object", "description": "optional extra environment variables"},
 				"noLaunch":  flag("if true, create the pane record and relations without starting a live PTY"),
-				"by":        by,
+				"onDone": props{
+					"type":        "object",
+					"description": "optional one-shot callback fired when this pane first emits agent.done (running/needs_you -> done/idle)",
+					"properties": props{
+						"command":    props{"type": "array", "items": props{"type": "string"}, "description": "argv to run; the agent.done event JSON arrives on stdin"},
+						"webhook":    text("URL that receives the agent.done event JSON as an HTTP POST body"),
+						"headers":    props{"type": "object", "description": "extra webhook headers; ${VAR} expands from the daemon environment"},
+						"timeoutSec": count("per-attempt timeout in seconds (default 15; one retry on failure)"),
+					},
+				},
+				"by": by,
 			}),
 		},
 		{
@@ -451,6 +484,16 @@ func (p *PaneTools) Spawn(ctx context.Context, actor core.Actor, args PaneSpawnA
 	}
 	res.Spawned = true
 	res.Command = cmdStr
+	if !args.OnDone.Empty() {
+		cb, ok := p.Runtime.(PaneCallbackRuntime)
+		if !ok {
+			return res, errors.New("pane.spawn: onDone: runtime does not support callbacks")
+		}
+		if err := cb.RegisterOnDone(ctx, rec.ID, *args.OnDone); err != nil {
+			return res, fmt.Errorf("pane.spawn: onDone: %w", err)
+		}
+		res.OnDone = true
+	}
 	if cmdStr != "" {
 		if updated, _, err := p.store.Patch(data.PatchInput{
 			Ref:    rec.Ref(),

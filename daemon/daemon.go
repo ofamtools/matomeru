@@ -68,6 +68,10 @@ type Config struct {
 	HandoffPath string
 	// ExecFunc overrides syscall.Exec during OpUpgrade (for tests).
 	ExecFunc func(argv0 string, argv []string, envv []string) error
+	// HooksPath is the declarative callback rules file (hooks.json), re-read
+	// on every agent.done event. Empty disables file rules; in-memory rules
+	// registered over RPC still fire.
+	HooksPath string
 }
 
 type paneMeta struct {
@@ -85,6 +89,7 @@ type Server struct {
 	socketPath string
 	host       *ptyhost.LocalHost
 	telemetry  *telemetryStore
+	callbacks  *callbackBus
 	scheduler  *Scheduler
 	clock      func() time.Time
 	startedAt  time.Time
@@ -158,11 +163,14 @@ func New(cfg Config) (*Server, error) {
 		socketPath: sockPath,
 		host:       host,
 		telemetry:  newTelemetryStore(),
+		callbacks:  newCallbackBus(cfg.HooksPath, clock),
 		clock:      clock,
 		panes:      map[string]*paneMeta{},
 		subs:       map[*frameSubscriber]struct{}{},
 	}
+	srv.telemetry.onDone = srv.callbacks.publish
 	if cfg.Store != nil {
+		srv.callbacks.enrich = srv.enrichAgentDone
 		disp := cfg.QueueDispatcher
 		if disp == nil {
 			disp = NewServerQueueDispatcher(srv)
@@ -261,6 +269,7 @@ func (s *Server) Start(ctx context.Context) error {
 		s.startedAt = handoff.StartedAt
 	}
 	s.unixLn = unixLn
+	s.callbacks.start(s.ctx, &s.wg)
 
 	// Restore inherited panes, PTY sessions, and telemetry before serving.
 	if handoff != nil {
@@ -275,6 +284,7 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 		s.mu.Unlock()
 		s.telemetry.restore(handoff.Telemetry)
+		s.callbacks.restore(handoff.Hooks)
 	}
 
 	// Start shared HTTP MCP server when Store is configured and not disabled.
@@ -433,6 +443,10 @@ func (s *Server) serveConn(conn net.Conn) {
 		}
 		if req.Op == OpSubscribe {
 			s.serveSubscribe(conn, enc)
+			return
+		}
+		if req.Op == OpWatchEvents {
+			s.serveWatchEvents(conn, enc, req.PaneID)
 			return
 		}
 		if req.Op == OpUpgrade {
@@ -747,6 +761,7 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 		delete(s.panes, id)
 		s.mu.Unlock()
 		s.telemetry.clearPane(id)
+		s.callbacks.forgetPane(id)
 		s.notifyPaneChanged(id)
 		if err != nil {
 			return Response{OK: false, Error: err.Error()}, false
@@ -764,6 +779,7 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 		s.host.CloseAll()
 		s.telemetry.reset("daemon reset")
 		for _, pid := range closedIDs {
+			s.callbacks.forgetPane(pid)
 			s.notifyPaneChanged(pid)
 		}
 		return Response{OK: true}, false
@@ -814,6 +830,9 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 			return Response{OK: false, Error: err.Error()}, false
 		}
 		return Response{OK: true}, false
+
+	case OpHookRegister, OpHookUnregister, OpHookList, OpHookLog:
+		return s.handleHookRequest(req), false
 
 	case OpTelemetry:
 		tel, pending := s.telemetry.snapshot(id)
