@@ -257,6 +257,7 @@ func mtmDaemonCommand(g globalOpts) oden.Command {
 					if err != nil {
 						return err
 					}
+					_ = autoSyncSetupIfChanged()
 					if p.Format() == "json" {
 						return printJSON(c.Stdout, map[string]any{
 							"ok":        true,

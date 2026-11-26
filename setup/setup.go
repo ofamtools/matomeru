@@ -35,6 +35,8 @@ const (
 	StatusWouldLink   = "would_link"
 	StatusMissing     = "missing"
 	StatusOutdated    = "outdated"
+	StatusPurged      = "purged"
+	StatusWouldPurge  = "would_purge"
 )
 
 // Options controls machine setup, dry-run preview, and drift checks.
