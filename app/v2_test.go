@@ -89,7 +89,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetActionLogEnabled: true, SetFeaturesItemization: true,
 		SetProjectPortalOnP: true, SetPagedNoteComposer: true,
 		SetLivePointerChips: true, SetCompactTestOutput: true,
-		SetZeroFieldQueryDefault: true}
+		SetZeroFieldQueryDefault: true, SetProjectHomeQueueProgress: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

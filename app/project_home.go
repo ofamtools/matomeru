@@ -53,6 +53,8 @@ const (
 
 type projectNavDef struct {
 	Key, Label, Icon, Group, EntryFocus string
+	// Leaf sections show a count but have no records to expand under them.
+	Leaf bool
 }
 
 var defaultProjectNavSections = []projectNavDef{
@@ -64,6 +66,7 @@ var defaultProjectNavSections = []projectNavDef{
 	{Key: "pinned", Label: "Pinned Links & Files", Icon: "★", Group: "Context"},
 	{Key: "panes", Label: "Panes", Icon: "▣", Group: "Workspace"},
 	{Key: "lanes", Label: "Lanes", Icon: "⎇", Group: "Workspace"},
+	{Key: projectQueueSection, Label: "Queues", Icon: "⇶", Group: "Workspace", EntryFocus: views.QueueListID, Leaf: true},
 	{Key: "worktrees", Label: "Worktrees", Icon: "⌘", Group: "Workspace"},
 	{Key: "prs", Label: "PRs", Icon: "⇅", Group: "Workspace"},
 	{Key: "documents", Label: "Documents", Icon: "▤", Group: "Knowledge"},

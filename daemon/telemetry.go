@@ -113,12 +113,16 @@ type telemetryStore struct {
 	seq     atomic.Uint64
 	// onDone receives edge-triggered agent.done events; called without ts.mu held.
 	onDone func(AgentDoneEvent)
+	// transcripts remembers the mtime+size of each pane's transcript at its
+	// last checklist read, so an unchanged file is never read again.
+	transcripts map[string]transcriptStamp
 }
 
 func newTelemetryStore() *telemetryStore {
 	return &telemetryStore{
-		panes:   map[string]*PaneTelemetry{},
-		pending: map[string]*pendingEntry{},
+		panes:       map[string]*PaneTelemetry{},
+		pending:     map[string]*pendingEntry{},
+		transcripts: map[string]transcriptStamp{},
 	}
 }
 
@@ -148,6 +152,7 @@ func (ts *telemetryStore) recordEvent(ev HookEvent, now time.Time) {
 	done := ts.applyEventLocked(ev, now)
 	onDone := ts.onDone
 	ts.mu.Unlock()
+	ts.refreshTranscriptChecklist(ev.PaneID)
 	if done != nil && onDone != nil {
 		onDone(*done)
 	}
@@ -181,6 +186,7 @@ func (ts *telemetryStore) applyEventLocked(ev HookEvent, now time.Time) *AgentDo
 	if ev.Payload != nil {
 		pt.Payload = cloneMap(ev.Payload)
 		updateStickyMetadata(pt, ev.Payload)
+		ingestHookChecklist(pt, ev, now)
 	}
 	appendRecentTurn(pt, ev, now)
 	if ev.Kind == HookKindSubagent && ev.SubagentID != "" {
@@ -349,6 +355,7 @@ func (ts *telemetryStore) clearPane(paneID string) {
 	}
 	ts.mu.Lock()
 	delete(ts.panes, paneID)
+	delete(ts.transcripts, paneID)
 	var toCancel []*pendingEntry
 	for id, entry := range ts.pending {
 		if entry.info.PaneID == paneID {
@@ -369,6 +376,7 @@ func (ts *telemetryStore) clearPane(paneID string) {
 func (ts *telemetryStore) reset(reason string) {
 	ts.mu.Lock()
 	ts.panes = map[string]*PaneTelemetry{}
+	ts.transcripts = map[string]transcriptStamp{}
 	all := ts.pending
 	ts.pending = map[string]*pendingEntry{}
 	ts.mu.Unlock()
@@ -393,6 +401,7 @@ func (ts *telemetryStore) snapshot(paneID string) (map[string]*PaneTelemetry, []
 		}
 		cp := *pt
 		cp.Payload = cloneMap(pt.Payload)
+		cp.Checklist = pt.Checklist.Clone()
 		if len(pt.RecentTurns) > 0 {
 			cp.RecentTurns = slices.Clone(pt.RecentTurns)
 		}

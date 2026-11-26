@@ -39,6 +39,7 @@ var nounSpecs = []nounSpec{
 	{name: "command", aliases: []string{"commands", "cmd"}, kind: data.KindCommand, summary: "manage suggested shell commands"},
 	{name: "context", aliases: []string{"contexts", "ctx"}, kind: data.KindContext, summary: "manage context items"},
 	{name: "concept", aliases: []string{"concepts"}, kind: data.KindConcept, summary: "manage tracked design concepts"},
+	{name: "queue", aliases: []string{"queues"}, kind: data.KindQueue, summary: "manage named agent queues"},
 	{name: "page", aliases: []string{"pages", data.KindPage}, kind: data.KindPage, summary: "manage UI pages"},
 	{name: "occurrence", aliases: []string{"occurrences", data.KindOccurrence}, kind: data.KindOccurrence, summary: "manage schedule occurrences"},
 }
@@ -82,6 +83,8 @@ var nounAliases = map[string]string{
 	"ctx":                 data.KindContext,
 	"concept":             data.KindConcept,
 	"concepts":            data.KindConcept,
+	"queue":               data.KindQueue,
+	"queues":              data.KindQueue,
 	"page":                data.KindPage,
 	"pages":               data.KindPage,
 	"ui.page":             data.KindPage,
