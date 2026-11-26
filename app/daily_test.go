@@ -394,6 +394,27 @@ func TestHandlersConfig(t *testing.T) {
 		t.Fatalf("a document with no task gave the pane %v", task)
 	}
 
+	// A "shell" handler runs in the background without creating a pane or stealing space focus.
+	shellDir := t.TempDir()
+	shellRules := `[{"name": "mdoc", "match": "*.md", "kind": "shell", "command": "mdoc {target}", "priority": 200}]`
+	if err := os.WriteFile(filepath.Join(shellDir, handlersFileName), []byte(shellRules), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sa, sd := configured(t, shellDir)
+	sdoc := mkRec(t, sa, data.KindDocument, map[string]any{"title": "Spec", "filePath": "/docs/spec.md"})
+	sd.Keys("2")
+	browseTo(t, sa, sd, sdoc)
+	sd.Keys("o")
+	if sa.Space() != SpaceWork {
+		t.Fatalf("shell handler switched space to %q, want %q", sa.Space(), SpaceWork)
+	}
+	if _, err := sa.Store.GetByField(data.KindPane, "command", "mdoc /docs/spec.md"); err == nil {
+		t.Fatal("shell handler unexpectedly created a terminal pane")
+	}
+	if runRec, err := sa.Store.GetByField(data.KindRun, "command", "mdoc /docs/spec.md"); err != nil || runRec.Text("cwd") != "/docs" {
+		t.Fatalf("shell handler did not record background run: %+v err=%v (status %q)", runRec, err, sa.Status())
+	}
+
 	// The daemon switch is read from settings.json; it has no row in the form.
 	if a.cfg.Settings.Bool(setTerminalDaemon, false) {
 		t.Fatal("terminal.daemon is on by default")

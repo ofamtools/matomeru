@@ -23,6 +23,8 @@ const (
 	KindBuiltin = "builtin"
 	// KindExec runs Rule.Command with the target, in a pane of its own.
 	KindExec = "exec"
+	// KindShell runs Rule.Command with the target as a background shell command without opening a pane.
+	KindShell = "shell"
 )
 
 // Names of the built-in handlers.
@@ -129,11 +131,11 @@ func (r *Registry) LoadJSONC(data []byte) error {
 			rule.Kind = KindExec
 		case rule.Kind == "":
 			rule.Kind = KindBuiltin
-		case rule.Kind != KindExec && rule.Kind != KindBuiltin:
-			return fmt.Errorf("handlers: rule %d (%s): kind %q is not %q or %q", i+1, rule.Name, rule.Kind, KindBuiltin, KindExec)
+		case rule.Kind != KindExec && rule.Kind != KindBuiltin && rule.Kind != KindShell:
+			return fmt.Errorf("handlers: rule %d (%s): kind %q is not %q, %q, or %q", i+1, rule.Name, rule.Kind, KindBuiltin, KindExec, KindShell)
 		}
-		if rule.Kind == KindExec && rule.Command == "" {
-			return errors.New("handlers: rule " + rule.Name + " is of kind exec and has no command")
+		if (rule.Kind == KindExec || rule.Kind == KindShell) && rule.Command == "" {
+			return errors.New("handlers: rule " + rule.Name + " is of kind " + rule.Kind + " and has no command")
 		}
 	}
 	r.Add(rules...)

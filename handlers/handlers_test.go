@@ -67,12 +67,15 @@ func TestLoadJSONCMergesAndOrders(t *testing.T) {
 	if cmd := r.Match("a.mkv")[0].CommandLine("it's.mkv"); cmd != `mpv 'it'\''s.mkv' --fs` {
 		t.Fatalf("command = %q", cmd)
 	}
-	// The object form, and what is refused.
-	if err := r.LoadJSONC([]byte(`{"rules": [{"name": "zathura", "match": "*.pdf", "command": "zathura"}]}`)); err != nil || len(r.Match("x.pdf")) != 1 {
+	// The object form, shell kind, and what is refused.
+	if err := r.LoadJSONC([]byte(`{"rules": [{"name": "zathura", "match": "*.pdf", "command": "zathura"}, {"name": "mdoc", "match": "*.md", "kind": "shell", "command": "mdoc {target}", "priority": 250}]}`)); err != nil || len(r.Match("x.pdf")) != 1 {
 		t.Fatalf("object form: %v", err)
 	}
+	if md := r.Match("/docs/plan.md"); len(md) == 0 || md[0].Name != "mdoc" || md[0].Kind != KindShell || md[0].CommandLine("/docs/plan.md") != "mdoc /docs/plan.md" {
+		t.Fatalf("shell rule = %+v", md)
+	}
 	before := len(r.Rules())
-	for _, bad := range []string{`[{"name": "x"}]`, `[{"name": "x", "match": "*.x", "kind": "exec"}]`, `[{"name": "x", "match": "*.x", "kind": "nope"}]`, `{nope`} {
+	for _, bad := range []string{`[{"name": "x"}]`, `[{"name": "x", "match": "*.x", "kind": "exec"}]`, `[{"name": "x", "match": "*.x", "kind": "shell"}]`, `[{"name": "x", "match": "*.x", "kind": "nope"}]`, `{nope`} {
 		if err := r.LoadJSONC([]byte(bad)); err == nil {
 			t.Errorf("LoadJSONC(%s) did not fail", bad)
 		}
