@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -823,50 +824,14 @@ func (t *txn) value(v any) (any, error) {
 // when IfRevision is positive and is not the record's current
 // ChangeSetNumber, the write is applied and a Conflict is recorded on the
 // returned change set. A read-only field is written as a local override, and
-// archiveStatus and starStatus are written as the status columns they are.
-// The change set is nil when the patch changed nothing.
+// archiveStatus, starStatus and snoozedUntil are written as the status
+// columns they are. The change set is nil when the patch changed nothing.
 func (s *Store) Patch(in PatchInput, actor core.Actor) (*Record, *ChangeSet, error) {
-	keys := make([]string, 0, len(in.Fields))
-	for k := range in.Fields {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
 	summary := in.Summary
 	if summary == "" {
-		summary = "patch " + RefText(in.Ref) + ": " + strings.Join(keys, ", ")
+		summary = "patch " + RefText(in.Ref) + ": " + strings.Join(in.keys(), ", ")
 	}
-	cs, err := s.write(actor, "patch", summary, 0, false, func(t *txn) error {
-		rec, err := s.loadRecord(t.tx, in.Ref)
-		if err != nil {
-			return err
-		}
-		if in.IfRevision > 0 && in.IfRevision != rec.ChangeSetNumber {
-			t.conflict(Conflict{Kind: ConflictRevision, Ref: in.Ref, Fields: keys, IfRevision: in.IfRevision, Revision: rec.ChangeSetNumber,
-				Message: fmt.Sprintf("written over revision %d; the writer had seen revision %d", rec.ChangeSetNumber, in.IfRevision)})
-		}
-		for _, k := range keys {
-			nv, err := t.value(in.Fields[k])
-			if err != nil {
-				return fmt.Errorf("field %q: %w", k, err)
-			}
-			ch := FieldChange{Ref: in.Ref, Op: OpField, Field: k, New: nv, HasNew: nv != nil}
-			switch {
-			case k == ColSnoozedUntil:
-				ch.Op = OpStatus
-			case k == ColArchiveStatus || k == ColStarStatus:
-				if nv == nil {
-					nv = map[string]any{ColArchiveStatus: ArchiveActive, ColStarStatus: StarUnstarred}[k]
-				}
-				ch.Op, ch.New = OpStatus, Text(nv)
-			case rec.ReadOnly[k]:
-				ch.Op = OpLocal
-			}
-			if err := t.apply(ch); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	cs, err := s.write(actor, "patch", summary, 0, false, func(t *txn) error { return t.patch(in) })
 	if err != nil {
 		return nil, nil, err
 	}
@@ -874,8 +839,9 @@ func (s *Store) Patch(in PatchInput, actor core.Actor) (*Record, *ChangeSet, err
 	return rec, cs, err
 }
 
-// PatchMany applies multiple record patches in one transaction and one
-// immutable change set, so a single Undo takes all of them back together.
+// PatchMany applies multiple record patches with Patch's semantics in one
+// transaction and one immutable change set, so a single Undo takes all of
+// them back together and a failing patch writes none of them.
 func (s *Store) PatchMany(patches []PatchInput, action, summary string, actor core.Actor) (*ChangeSet, error) {
 	if len(patches) == 0 {
 		return nil, nil
@@ -888,39 +854,55 @@ func (s *Store) PatchMany(patches []PatchInput, action, summary string, actor co
 	}
 	return s.write(actor, action, summary, 0, false, func(t *txn) error {
 		for _, in := range patches {
-			rec, err := s.loadRecord(t.tx, in.Ref)
-			if err != nil {
+			if err := t.patch(in); err != nil {
 				return err
-			}
-			keys := make([]string, 0, len(in.Fields))
-			for k := range in.Fields {
-				keys = append(keys, k)
-			}
-			slices.Sort(keys)
-			for _, k := range keys {
-				nv, err := t.value(in.Fields[k])
-				if err != nil {
-					return fmt.Errorf("field %q: %w", k, err)
-				}
-				ch := FieldChange{Ref: in.Ref, Op: OpField, Field: k, New: nv, HasNew: nv != nil}
-				switch {
-				case k == ColSnoozedUntil:
-					ch.Op = OpStatus
-				case k == ColArchiveStatus || k == ColStarStatus:
-					if nv == nil {
-						nv = map[string]any{ColArchiveStatus: ArchiveActive, ColStarStatus: StarUnstarred}[k]
-					}
-					ch.Op, ch.New = OpStatus, Text(nv)
-				case rec.ReadOnly[k]:
-					ch.Op = OpLocal
-				}
-				if err := t.apply(ch); err != nil {
-					return err
-				}
 			}
 		}
 		return nil
 	})
+}
+
+// keys returns the patched field names in sorted order.
+func (in PatchInput) keys() []string {
+	keys := slices.Collect(maps.Keys(in.Fields))
+	slices.Sort(keys)
+	return keys
+}
+
+// patch applies one PatchInput inside the transaction: the IfRevision
+// check, then each field as a field, local override or status change.
+func (t *txn) patch(in PatchInput) error {
+	rec, err := t.s.loadRecord(t.tx, in.Ref)
+	if err != nil {
+		return err
+	}
+	keys := in.keys()
+	if in.IfRevision > 0 && in.IfRevision != rec.ChangeSetNumber {
+		t.conflict(Conflict{Kind: ConflictRevision, Ref: in.Ref, Fields: keys, IfRevision: in.IfRevision, Revision: rec.ChangeSetNumber,
+			Message: fmt.Sprintf("written over revision %d; the writer had seen revision %d", rec.ChangeSetNumber, in.IfRevision)})
+	}
+	for _, k := range keys {
+		nv, err := t.value(in.Fields[k])
+		if err != nil {
+			return fmt.Errorf("field %q: %w", k, err)
+		}
+		ch := FieldChange{Ref: in.Ref, Op: OpField, Field: k, New: nv, HasNew: nv != nil}
+		switch {
+		case k == ColSnoozedUntil:
+			ch.Op = OpStatus
+		case k == ColArchiveStatus || k == ColStarStatus:
+			if nv == nil {
+				nv = map[string]any{ColArchiveStatus: ArchiveActive, ColStarStatus: StarUnstarred}[k]
+			}
+			ch.Op, ch.New = OpStatus, Text(nv)
+		case rec.ReadOnly[k]:
+			ch.Op = OpLocal
+		}
+		if err := t.apply(ch); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Delete removes a record, its local overrides and its relations in one
