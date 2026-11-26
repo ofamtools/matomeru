@@ -86,12 +86,18 @@ func (a *App) records(id, kind string) *table.Model {
 	if extItems, ok := a.externalRecords(kind); ok {
 		items = extItems
 	} else {
-		res, err := a.Store.Query(data.Query{Kind: kind, IncludeArchived: a.nav.showArchived})
+		// A kind with a hierarchy reads its archived records too, so the
+		// table hides what its tree hides: everything under an archived one.
+		hierarchical := a.schema(kind).EffectiveHierarchy() != nil && !a.nav.showArchived
+		res, err := a.Store.Query(data.Query{Kind: kind, IncludeArchived: a.nav.showArchived || hierarchical})
 		if err != nil {
 			a.fail("read "+kind, err)
 		}
 		items = res.Items
-		if !a.nav.showArchived {
+		switch {
+		case hierarchical:
+			items = a.activeRecords(kind, items)
+		case !a.nav.showArchived:
 			items = a.appendAnimatingRecords(kind, items)
 		}
 	}

@@ -86,7 +86,7 @@ func newNavController() *NavController {
 
 // regionRoots are the nodes whose focusable descendants form one column: h
 // and l move between regions, j and k walk every focusable in drawing order.
-var regionRoots = []string{"panes.rail", "projects.dir", "projects.preview", "project.nav", "project.content", "project.overview", "features.nav", "features.content", "features.capture", "site.toc", "site.content", "site.side.panel", showHeader, "show.props", "show.related",
+var regionRoots = []string{views.LaneBarsID, "panes.rail", "projects.dir", "projects.preview", "project.nav", "project.content", "project.overview", "features.nav", "features.content", "features.capture", "site.toc", "site.content", "site.side.panel", showHeader, "show.props", "show.related",
 	SpaceWork, SpaceRuns, SpaceExtensions, "runs.detail", "extensions.detail"}
 
 type fnode struct{ id, region string }
@@ -202,13 +202,17 @@ func (a *App) step(s core.State, delta int) core.State {
 // column moves the focus to the next or previous region.
 func (a *App) column(s core.State, delta int) core.State {
 	nodes := a.focusables(s)
+	cur := slices.IndexFunc(nodes, func(n fnode) bool { return n.id == s.ActiveFrame().FocusID })
 	var regions []string
 	for _, n := range nodes {
+		// A skipped region is a column only while the focus is inside it.
+		if slices.Contains(columnSkippedRegions, n.region) && (cur < 0 || nodes[cur].region != n.region) {
+			continue
+		}
 		if !slices.Contains(regions, n.region) {
 			regions = append(regions, n.region)
 		}
 	}
-	cur := slices.IndexFunc(nodes, func(n fnode) bool { return n.id == s.ActiveFrame().FocusID })
 	if cur < 0 || len(regions) < 2 {
 		return s
 	}

@@ -66,6 +66,10 @@ type SiteOptions struct {
 	// ShowLaneBar puts the ambient lane progress bar (LaneBar) as one line
 	// above the site when the pane works in an active lane tree.
 	ShowLaneBar bool
+	// KeepCompletedLaneBars stacks the pane's finished lane trees above the
+	// active lane bar; DismissedLaneBars holds the LaneBarEntry keys to leave out.
+	KeepCompletedLaneBars bool
+	DismissedLaneBars     map[string]bool
 	// CompactTopArea renders the lane progress bar as a prominent, concise
 	// ui.KindProgress bar instead of the legacy verbose text strip.
 	CompactTopArea bool
@@ -394,16 +398,16 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 		site.Facts["lane"] = laneID
 	}
 	if opts.ShowLaneBar {
-		var bar ui.ViewNode
-		var ok bool
-		if opts.CompactTopArea {
-			bar, ok = LaneBarCompact(opts.Store, pane, opts.LaneSuffix, opts.LaneSuffixTone)
-		} else {
-			bar, ok = LaneBar(opts.Store, pane, opts.LaneHint, opts.Width)
-		}
+		stack, ok := LaneBarStack(opts.Store, pane, LaneBarStackOptions{
+			Compact: opts.CompactTopArea, Hint: opts.LaneHint, Width: opts.Width,
+			Suffix: opts.LaneSuffix, SuffixTone: opts.LaneSuffixTone,
+			KeepCompleted: opts.KeepCompletedLaneBars, Dismissed: opts.DismissedLaneBars,
+		})
 		if ok {
-			site.Facts["lane"] = bar.Facts["lane"]
-			site.Children = append([]ui.ViewNode{bar}, site.Children...)
+			if active := stack.Find(LaneBarID); active != nil {
+				site.Facts["lane"] = active.Facts["lane"]
+			}
+			site.Children = append([]ui.ViewNode{stack}, site.Children...)
 		}
 	}
 	return site

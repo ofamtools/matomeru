@@ -854,6 +854,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, threadsBindings()...)
 	out = append(out, sessionsBindings()...)
 	out = append(out, paneSearchBindings()...)
+	out = append(out, laneBarBindings()...)
 	out = append(out, projectHomeBindings()...)
 	out = append(out, projectPortalBindings()...)
 	out = append(out, noteDeckBindings()...)

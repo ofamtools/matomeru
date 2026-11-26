@@ -17,17 +17,43 @@ import (
 const (
 	CmdProjectNavMarkRead        = "project.nav.mark_read"
 	CmdProjectNavMarkSectionRead = "project.nav.mark_section_read"
+	CmdProjectNavNewItemsToggle  = "project.nav.new_items.toggle"
 )
 
 func projectNavUnreadSpecs() []core.CommandSpec {
 	return []core.CommandSpec{
 		spec(CmdProjectNavMarkRead, "Mark the focused Project Page left-nav item (or section) as read"),
 		spec(CmdProjectNavMarkSectionRead, "Mark all unread items in the focused Project Page left-nav section (or project) as read"),
+		spec(CmdProjectNavNewItemsToggle, "Turn the Project left nav's listing of new (unread) items on or off (projects.navShowNewItems); unread counts stay"),
 	}
 }
 
 func (a *App) projectNavSurfaceUnreadEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectsNavSurfaceUnread, true)
+}
+
+// projectNavShowNewItemsEnabled: the left nav opens collapsed sections and
+// parents onto their new (unread) items. Off keeps them closed; the unread
+// count badges on the sections stay either way.
+func (a *App) projectNavShowNewItemsEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectNavShowNewItems, true)
+}
+
+// projectNavNewItemsToggle flips projects.navShowNewItems from the Project
+// Home row, so the nav can be quieted without leaving the portal.
+func (a *App) projectNavNewItemsToggle(s core.State, _ core.Command) core.StepResult {
+	if on := a.toggleSetting(SetProjectNavShowNewItems, true); on {
+		a.say("left nav lists new items again · projects.navShowNewItems on")
+	} else {
+		a.say("left nav no longer opens onto new items; counts stay · projects.navShowNewItems off")
+	}
+	return core.Next(s)
+}
+
+// projectNavPeeksUnread: both settings agree to list new items under a
+// collapsed nav section.
+func (a *App) projectNavPeeksUnread() bool {
+	return a.projectNavTreeEnabled() && a.projectNavSurfaceUnreadEnabled() && a.projectNavShowNewItemsEnabled()
 }
 
 func (a *App) projectNavSurfaceContextUnreadEnabled() bool {
@@ -283,7 +309,7 @@ func isProjectNavAckCommand(cmdID string) bool {
 		core.CmdAppQuit,
 		CmdHistoryBack, CmdHistoryForward,
 		CmdProjectNavToggle,
-		CmdProjectNavMarkRead, CmdProjectNavMarkSectionRead,
+		CmdProjectNavMarkRead, CmdProjectNavMarkSectionRead, CmdProjectNavNewItemsToggle,
 		CmdProjectPageBack, CmdPageLeave, CmdTermDetach, CmdModalCancel, CmdWake,
 		CmdProjectTabOpen, CmdProjectTabClose, CmdProjectPageOpen,
 		CmdHelpOpen, CmdSettingsOpen, CmdBindingsOpen, CmdAppAbout,

@@ -362,6 +362,19 @@ func formSpecsAndValuesFromCard(card *ui.ViewNode) ([]core.ParamSpec, map[string
 	return specs, values
 }
 
+// cardAnswerQuestion reads the question a ui.page card asks: its title and
+// the summary under it (ui.ask's details).
+func cardAnswerQuestion(card *ui.ViewNode) views.AnswerQuestion {
+	if card == nil {
+		return views.AnswerQuestion{}
+	}
+	q := views.AnswerQuestion{Prompt: card.Title}
+	if s, ok := card.Props["summary"].(string); ok {
+		q.Details = s
+	}
+	return q
+}
+
 func (a *App) newAnswerFormModal(fm *form.Model, am *answerFormModal) *answerFormModal {
 	fm.Wrap = a.wrapInputs()
 	a.attachFormDrafts(fm, am.draftKey)
@@ -370,6 +383,12 @@ func (a *App) newAnswerFormModal(fm *form.Model, am *answerFormModal) *answerFor
 		ID:          "answer",
 		Scope:       "answer",
 		DraftBadges: true,
+		RenderBody: func(m *form.Model, focusID string) ui.ViewNode {
+			if am.question.Empty() || !a.cfg.Settings.Bool(SetAnswerShowQuestion, true) {
+				return m.View(focusID)
+			}
+			return views.AnswerBody("answer", m.Title, am.question, m.View(focusID))
+		},
 		Badges: func(*form.Model) []ui.Badge {
 			if am.batch != nil && len(am.batch.cards) > 1 {
 				return []ui.Badge{{
@@ -471,6 +490,7 @@ func (a *App) newAnswerCardModal(pageID string, card *ui.ViewNode, batch *batchQ
 		batch:    batch,
 		batchPos: batchPos,
 		draftKey: answerDraftKey(pageID, card.ID),
+		question: cardAnswerQuestion(card),
 	})
 	status := "space and h/l choose · i types · ctrl+s sends"
 	if batch != nil && len(batch.cards) > 1 {
@@ -715,6 +735,7 @@ func (a *App) openAnswerFormForQuestionRecord(s core.State, rec data.Record) cor
 		ref:        rec.Ref(),
 		questionID: rec.ID,
 		draftKey:   "answer:question:" + rec.ID,
+		question:   views.AnswerQuestion{Prompt: rec.Text("prompt"), Details: rec.Text("details")},
 	})
 	a.say("space/h/l choose · i types · ctrl+s sends and syncs to pane")
 	return a.pushModal(s, am)

@@ -389,7 +389,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(tree.CmdHoistOut, "Zoom out one level from the hoisted subtree"),
 		spec(tree.CmdHoistClear, "Clear all hoisting and return to the full tree"),
 		spec(CmdWorkLayoutToggle, "Toggle 2 Work between tree and table layout for hierarchical nouns"),
-	}...), append(append(append(append(append(append(append(append(append(append(append(append(sessionRecorderSpecs(), uxNotesSpecs()...), pageModeSpecs()...), fdSearchSpecs()...), paneSearchSpecs()...), projectHomeSpecs()...), projectTabsSpecs()...), featuresPageSpecs()...), composerContextSpecs()...), insertPickerSpecs()...), clipboardAttachSpecs()...), projectPortalSpecs()...), noteDeckSpecs()...)...)
+	}...), append(append(append(append(append(append(append(append(append(append(append(append(sessionRecorderSpecs(), uxNotesSpecs()...), pageModeSpecs()...), fdSearchSpecs()...), paneSearchSpecs()...), projectHomeSpecs()...), projectTabsSpecs()...), featuresPageSpecs()...), composerContextSpecs()...), insertPickerSpecs()...), clipboardAttachSpecs()...), projectPortalSpecs()...), append(noteDeckSpecs(), laneBarSpecs()...)...)...)
 }
 
 // readerSpecs are the Markdown widget's own commands. They only make sense

@@ -563,3 +563,47 @@ func (s *Store) RecordTree(kind string, includeArchived bool) ([]TreeNode, error
 func (s *Store) TaskTree(includeArchived bool) ([]TaskNode, error) {
 	return s.RecordTree(KindTask, includeArchived)
 }
+
+// WithoutArchivedSubtrees returns recs, in order, without the archived
+// records and without every record under one (through parentField; "" for a
+// flat kind): what a list that hides archived work shows, whether it draws a
+// tree or a table. keep names the archived records to leave in (a row still
+// animating out); nothing under an archived record survives either way.
+func WithoutArchivedSubtrees(recs []Record, parentField string, keep func(Record) bool) []Record {
+	byRef := make(map[core.Ref]Record, len(recs))
+	for _, rec := range recs {
+		byRef[rec.Ref()] = rec
+	}
+	underArchived := func(rec Record) bool {
+		if parentField == "" {
+			return false
+		}
+		cur := rec
+		for range len(recs) { // bounded: parents may form a loop
+			parentRef, ok := cur.RefField(parentField)
+			if !ok || parentRef == cur.Ref() {
+				return false
+			}
+			parent, known := byRef[parentRef]
+			if !known {
+				return false
+			}
+			if parent.IsArchived() {
+				return true
+			}
+			cur = parent
+		}
+		return false
+	}
+	out := make([]Record, 0, len(recs))
+	for _, rec := range recs {
+		if rec.IsArchived() && (keep == nil || !keep(rec)) {
+			continue
+		}
+		if underArchived(rec) {
+			continue
+		}
+		out = append(out, rec)
+	}
+	return out
+}

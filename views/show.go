@@ -270,6 +270,9 @@ type ShowOptions struct {
 	// ShowContent renders full Markdown body and multi-line/long-text fields
 	// in dedicated readable panels without truncation.
 	ShowContent bool
+	// TitleAttachmentChips lifts @/path attachments out of the header title
+	// onto their own chip line, so a long path never crowds the prose.
+	TitleAttachmentChips bool
 	// ResolvedFiles supplies disk contents loaded by the caller for fields
 	// annotated with ContentFile (or keyed by "body").
 	ResolvedFiles map[string]string
@@ -302,6 +305,8 @@ func DefaultShowOptions() ShowOptions {
 		ShowMetadata:       true,
 		ShowEmptyRelations: true,
 		ShowContent:        true,
+
+		TitleAttachmentChips: true,
 	}
 }
 
@@ -761,8 +766,17 @@ func showViewClassic(store *data.Store, schema data.Schema, recVal data.Record, 
 		open.Args = map[string]any{"ref": map[string]any{"kind": focused.Ref.Kind, "id": focused.Ref.ID}}
 	}
 	// The header takes focus: with it focused, the subject is the page's own record.
-	header := ui.ViewNode{ID: "show.header", Kind: ui.KindCard, Border: true, Focusable: true, Title: Title(schema, *rec), Badges: badges,
+	fullTitle := Title(schema, *rec)
+	ht := HeaderTitle{Prose: fullTitle}
+	if opts.TitleAttachmentChips {
+		ht = SplitHeaderTitle(fullTitle)
+	}
+	header := ui.ViewNode{ID: "show.header", Kind: ui.KindCard, Border: true, Focusable: true, Title: ht.Prose, Badges: badges,
 		Actions: []ui.ActionHint{{Key: "e", Label: "edit", Command: CmdEdit}, star, archive, snooze, open}}
+	if chips := showAttachmentChipLine(ht.Attachments, opts.Width); chips != nil {
+		header.Children = []ui.ViewNode{*chips}
+		header.Facts = map[string]any{"copy": fullTitle}
+	}
 	if s := headerSummary(schema, *rec, renderedFields); s != "" {
 		header.Props = map[string]any{"summary": s}
 	}

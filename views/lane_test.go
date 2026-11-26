@@ -63,7 +63,7 @@ func TestLaneBar(t *testing.T) {
 	if got := nodeText(bar); got != want {
 		t.Fatalf("bar = %q\nwant  %q", got, want)
 	}
-	if site.Children[0].ID != LaneBarID || bar.Ref == nil || *bar.Ref != root.Ref() || site.Facts["lane"] != root.ID {
+	if site.Children[0].ID != LaneBarsID || bar.Ref == nil || *bar.Ref != root.Ref() || site.Facts["lane"] != root.ID {
 		t.Fatalf("the bar is not the first line of the site, or does not name the root lane: %+v", bar)
 	}
 	if toc := site.Find("site.toc"); toc.Find(LaneBarID) != nil || strings.Contains(frame(t, *toc, "", 40, 20), "Lane:") {
@@ -124,7 +124,7 @@ func TestLaneBarCompact(t *testing.T) {
 	if bar == nil || bar.Kind != ui.KindProgress {
 		t.Fatalf("compact bar = %+v, want KindProgress", bar)
 	}
-	if bar.Ref == nil || *bar.Ref != root.Ref() || site.Children[0].ID != LaneBarID {
+	if bar.Ref == nil || *bar.Ref != root.Ref() || site.Children[0].ID != LaneBarsID {
 		t.Fatalf("compact bar placement/ref = %+v", bar)
 	}
 	if got, _ := bar.Props["label"].(string); got != "Ochazuke v2 Wave 3" {

@@ -84,6 +84,7 @@ type cachedProjectWorkspace struct {
 	groupName    string
 	projID       string
 	railPanesKey string
+	animKey      string
 	data         projectWorkspaceData
 }
 
@@ -279,6 +280,7 @@ func projectHomeBindings() []core.Binding {
 		when(bind(n, views.ScopeProjectNav, "space", CmdProjectNavToggle, "expand / collapse"), "facts.navExpandable"),
 		when(bind(n, views.ScopeProjectNav, "r", CmdProjectNavMarkRead, "mark read"), "facts.unread || facts.sectionUnread"),
 		when(bind(n, views.ScopeProjectNav, "R", CmdProjectNavMarkSectionRead, "mark section read"), "facts.unread || facts.sectionUnread || (facts.section == \"home\" && facts.projectUnread)"),
+		when(bind(n, views.ScopeProjectNav, "z u", CmdProjectNavNewItemsToggle, "new items on/off"), "facts.section == \"home\""),
 		when(bind(n, views.ScopeProjectContent, "esc", CmdProjectPageBack, "back to pages"), "facts.projectOpenPage && !facts.inChildPaneView"),
 		hidden(when(bind(n, views.ScopeProjectContent, "h", CmdProjectPageBack, "back to pages"), "facts.projectOpenPage && !facts.inChildPaneView")),
 		hidden(when(bind(n, views.ScopeProjectContent, "esc", CmdProjectPageBack, "back to nav"), "!facts.projectOpenPage && !facts.inChildPaneView && !facts.visualActive && !(facts.markedCount > 0)")),
@@ -304,6 +306,7 @@ func (a *App) registerProjectHomeHandlers() {
 	a.handle(CmdProjectNavToggle, a.projectNavToggle)
 	a.handle(CmdProjectNavMarkRead, a.projectMarkRead)
 	a.handle(CmdProjectNavMarkSectionRead, a.projectMarkSectionRead)
+	a.handle(CmdProjectNavNewItemsToggle, a.projectNavNewItemsToggle)
 	a.handle(CmdProjectPageBack, a.projectPageBack)
 	a.handle(CmdProjectContentOpen, a.projectContentOpen)
 	a.handle(CmdContextOfficialToggle, a.contextOfficialToggle)
@@ -430,7 +433,9 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 	}
 	if !inChildPane {
 		if strings.HasPrefix(focusID, projectNavNodePrefix) {
-			if target, ok := pc.navTarget(projKey, focusID); ok {
+			if target, ok := pc.navTarget(projKey, focusID); ok && a.projectNavPreselectsTask(target) {
+				activeBody = a.projectNavTaskPreselectBody(s, ws, target)
+			} else if ok {
 				activeBody = a.buildProjectNavItemBody(s, ws, target, true)
 			} else {
 				activeBody = a.buildProjectSectionBody(s, ws, activeKey)

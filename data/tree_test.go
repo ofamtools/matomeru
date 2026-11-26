@@ -1,6 +1,7 @@
 package data
 
 import (
+	"strings"
 	"testing"
 
 	"ofam.dev/ochazuke/core"
@@ -219,5 +220,38 @@ func TestRecordTreeCustomSchemaInferredHierarchy(t *testing.T) {
 	}
 	if len(nodes) != 1 || nodes[0].Record.ID != "n1" || len(nodes[0].Children) != 1 || nodes[0].Children[0].Record.ID != "n2" {
 		t.Fatalf("custom inferred hierarchy tree = %+v", nodes)
+	}
+}
+
+// A list that hides archived work drops the archived record and everything
+// under it; keep leaves one archived record in, but never its subtree.
+func TestWithoutArchivedSubtrees(t *testing.T) {
+	rec := func(id, parent string, archived bool) Record {
+		r := Record{Kind: KindLane, ID: id, Fields: map[string]any{}}
+		if parent != "" {
+			r.Fields["parentLane"] = core.Ref{Kind: KindLane, ID: parent}
+		}
+		if archived {
+			r.ArchiveStatus = ArchiveArchived
+		}
+		return r
+	}
+	recs := []Record{rec("live", "", false), rec("gone", "", true), rec("child", "gone", false), rec("grandchild", "child", false)}
+	ids := func(in []Record) string {
+		var out []string
+		for _, r := range in {
+			out = append(out, r.ID)
+		}
+		return strings.Join(out, ",")
+	}
+	if got := ids(WithoutArchivedSubtrees(recs, "parentLane", nil)); got != "live" {
+		t.Fatalf("active records = %q, want only live", got)
+	}
+	keepGone := func(r Record) bool { return r.ID == "gone" }
+	if got := ids(WithoutArchivedSubtrees(recs, "parentLane", keepGone)); got != "live,gone" {
+		t.Fatalf("with a kept archived record = %q, want live,gone", got)
+	}
+	if got := ids(WithoutArchivedSubtrees(recs, "", nil)); got != "live,child,grandchild" {
+		t.Fatalf("flat kind = %q, want live,child,grandchild", got)
 	}
 }
