@@ -51,6 +51,7 @@ var DefaultTools = []string{
 	"o-ai", "o-ai2",
 	"o-cmds", "o-cmds2",
 	"o-csv", "o-csv2",
+	"o-design",
 	"o-df", "o-df2",
 	"o-fleet", "o-fleet2",
 	"o-gh", "o-gh2",
