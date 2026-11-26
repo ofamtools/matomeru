@@ -447,9 +447,10 @@ func TestDaemonModeArbitraryLocalFiles(t *testing.T) {
 	for _, want := range []string{
 		"Daemon Notes",
 		`"basePath":"/md"`,
-		`/md/static/beautiful-mermaid.js`,
+		`/md/static/app.css`,
 		`/md/static/app.js`,
 		`/md/assets?file=`,
+		`id="live-toggle"`,
 	} {
 		if !strings.Contains(viewHTML, want) {
 			t.Errorf("GET /md/view missing %q", want)
@@ -508,5 +509,29 @@ func TestDaemonModeArbitraryLocalFiles(t *testing.T) {
 		if rec.Code != http.StatusBadRequest && rec.Code != http.StatusForbidden {
 			t.Errorf("expected 400/403 for daemon bad asset %q, got %d", bad, rec.Code)
 		}
+	}
+}
+
+func TestOptInLiveControlsAndLazyMermaidScript(t *testing.T) {
+	root := t.TempDir()
+	plainPath := filepath.Join(root, "plain.md")
+	mustWriteFile(t, plainPath, "# Plain Doc\n\nJust markdown, no diagrams.\n")
+
+	h := NewHandler(Config{RootDir: root})
+	defer h.Close()
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/view?file=plain.md", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /view?file=plain.md: status=%d", rec.Code)
+	}
+	page := rec.Body.String()
+	for _, want := range []string{`id="refresh-btn"`, `id="live-toggle"`, `aria-pressed="false"`, `Live: Off`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("expected opt-in live control %q in page HTML", want)
+		}
+	}
+	if strings.Contains(page, `/static/beautiful-mermaid.js`) {
+		t.Errorf("plain markdown page without mermaid blocks should not eagerly load beautiful-mermaid.js")
 	}
 }
