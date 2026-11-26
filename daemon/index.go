@@ -3,27 +3,19 @@ package daemon
 import (
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
-	"unicode"
 
+	"ofam.dev/matomeru/contextitems"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/panesearch"
 	"ofam.dev/ochazuke/core"
-)
-
-var (
-	hookURLRe     = regexp.MustCompile(`https?://[^\s<>"{}|\\^` + "`" + `]+`)
-	hookPRRefRe   = regexp.MustCompile(`(?:^|[\s(\[{"',;:])([A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100}#[1-9][0-9]*)\b`)
-	hookGHPRURLRe = regexp.MustCompile(`^https?://github\.com/([A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100})/pull/([1-9][0-9]*)(?:[/?#].*)?$`)
-	hookPathRe    = regexp.MustCompile(`[A-Za-z0-9@%+=_.~/-]+(?::([0-9]+)(?::([0-9]+))?)?`)
 )
 
 type extractedContext struct {
 	title       string
 	value       string
 	contextKind string
+	language    string
 	canonKey    string
 	line        int
 	col         int
@@ -193,8 +185,11 @@ func (s *Server) upsertHookContext(item extractedContext, paneID, taskID string,
 				patchFields["pane"] = core.Ref{Kind: data.KindPane, ID: paneID}
 			}
 		}
-		if strings.HasPrefix(strings.ToLower(item.value), "http") && !strings.HasPrefix(strings.ToLower(existing.Text("value")), "http") {
+		if item.contextKind != "code" && strings.HasPrefix(strings.ToLower(item.value), "http") && !strings.HasPrefix(strings.ToLower(existing.Text("value")), "http") {
 			patchFields["value"] = item.value
+		}
+		if item.language != "" && existing.Text("language") == "" {
+			patchFields["language"] = item.language
 		}
 		if line := existing.Text("line"); (line == "" || line == "0") && item.line > 0 {
 			patchFields["value"] = item.value
@@ -220,6 +215,9 @@ func (s *Server) upsertHookContext(item extractedContext, paneID, taskID string,
 			"contextKind": item.contextKind,
 			"source":      "response",
 			"canonKey":    item.canonKey,
+		}
+		if item.language != "" {
+			fields["language"] = item.language
 		}
 		if item.line > 0 {
 			fields["line"] = item.line
@@ -276,168 +274,82 @@ func markdownTitle(filePath string) string {
 
 func extractResponseContext(text string) []extractedContext {
 	text = panesearch.MaskSecrets(text)
-	seen := map[string]bool{}
-	var out []extractedContext
-	var spans [][2]int
+	items := contextitems.Extract(text, contextitems.Options{Source: contextitems.SourceResponse})
+	if len(items) == 0 {
+		return nil
+	}
+	seen := map[string]int{}
+	out := make([]extractedContext, 0, len(items))
 
-	for _, loc := range hookURLRe.FindAllStringIndex(text, -1) {
-		raw := text[loc[0]:loc[1]]
-		cleaned := trimURLPunctuation(raw)
-		if cleaned == "" {
-			continue
+	add := func(ec extractedContext) {
+		if ec.value == "" || ec.canonKey == "" {
+			return
 		}
-		spans = append(spans, [2]int{loc[0], loc[0] + len(cleaned)})
+		if idx, exists := seen[ec.canonKey]; exists {
+			if ec.contextKind != "code" && strings.HasPrefix(strings.ToLower(ec.value), "http") && !strings.HasPrefix(strings.ToLower(out[idx].value), "http") {
+				out[idx].value = ec.value
+			}
+			if out[idx].line == 0 && ec.line > 0 {
+				out[idx].value = ec.value
+				out[idx].line = ec.line
+				out[idx].col = ec.col
+			}
+			if out[idx].language == "" && ec.language != "" {
+				out[idx].language = ec.language
+				out[idx].title = ec.title
+			}
+			return
+		}
+		seen[ec.canonKey] = len(out)
+		out = append(out, ec)
+	}
 
-		var it extractedContext
-		if m := hookGHPRURLRe.FindStringSubmatch(cleaned); len(m) == 3 {
-			prRef := m[1] + "#" + m[2]
-			it = extractedContext{
-				title:       prRef,
-				value:       cleaned,
+	for _, it := range items {
+		switch it.Kind {
+		case contextitems.KindCode:
+			title, canonKey := data.DeriveContextTitleAndCanon(it.Value, "code", "", it.Language)
+			add(extractedContext{
+				title:       title,
+				value:       it.Value,
+				contextKind: "code",
+				language:    it.Language,
+				canonKey:    canonKey,
+			})
+		case contextitems.KindURL, contextitems.KindOSC8:
+			kind := data.ClassifyContextKind(it.Value, "")
+			title, canonKey := data.DeriveContextTitleAndCanon(it.Value, kind, it.Label, "")
+			add(extractedContext{
+				title:       title,
+				value:       it.Value,
+				contextKind: kind,
+				canonKey:    canonKey,
+			})
+		case contextitems.KindPR:
+			title, canonKey := data.DeriveContextTitleAndCanon(it.Value, "pr", "", "")
+			add(extractedContext{
+				title:       title,
+				value:       it.Value,
 				contextKind: "pr",
-				canonKey:    "pr:" + strings.ToLower(prRef),
+				canonKey:    canonKey,
+			})
+		case contextitems.KindFile:
+			p := it.Path
+			if p == "" {
+				p = it.Value
 			}
-		} else {
-			it = extractedContext{
-				title:       cleaned,
-				value:       cleaned,
-				contextKind: "url",
-				canonKey:    "url:" + strings.ToLower(strings.TrimRight(cleaned, "/")),
+			clean := filepath.Clean(p)
+			if clean == "." || clean == ".." || clean == "/" {
+				continue
 			}
-		}
-		if !seen[it.canonKey] {
-			seen[it.canonKey] = true
-			out = append(out, it)
-		}
-	}
-
-	for _, m := range hookPRRefRe.FindAllStringSubmatchIndex(text, -1) {
-		if len(m) < 4 {
-			continue
-		}
-		start, end := m[2], m[3]
-		if overlapsHookText(spans, start, end) {
-			continue
-		}
-		spans = append(spans, [2]int{start, end})
-		ref := text[start:end]
-		key := "pr:" + strings.ToLower(ref)
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		out = append(out, extractedContext{
-			title:       ref,
-			value:       ref,
-			contextKind: "pr",
-			canonKey:    key,
-		})
-	}
-	for _, m := range hookPathRe.FindAllStringSubmatchIndex(text, -1) {
-		start, end := m[0], m[1]
-		if overlapsHookText(spans, start, end) {
-			continue
-		}
-		if item, ok := responseFile(text, m); ok {
-			out = append(out, item)
+			add(extractedContext{
+				title:       filepath.Base(clean),
+				value:       it.Value,
+				contextKind: "file",
+				canonKey:    "file:" + clean,
+				line:        it.Line,
+				col:         it.Col,
+			})
 		}
 	}
 	return out
-}
-
-func overlapsHookText(spans [][2]int, start, end int) bool {
-	for _, span := range spans {
-		if start < span[1] && end > span[0] {
-			return true
-		}
-	}
-	return false
-}
-
-func responseFile(text string, match []int) (extractedContext, bool) {
-	start, end := match[0], match[1]
-	pathEnd := end
-	line, col := 0, 0
-	if match[2] >= 0 {
-		pathEnd = match[2] - 1
-		line, _ = strconv.Atoi(text[match[2]:match[3]])
-	}
-	if match[4] >= 0 {
-		col, _ = strconv.Atoi(text[match[4]:match[5]])
-	}
-	path := strings.TrimRight(text[start:pathEnd], ".")
-	clean := filepath.Clean(path)
-	if clean == "." || clean == ".." || clean == "/" {
-		return extractedContext{}, false
-	}
-
-	explicit := strings.HasPrefix(path, "/") || strings.HasPrefix(path, "./") ||
-		strings.HasPrefix(path, "../") || strings.HasPrefix(path, "~/")
-	extension := filepath.Ext(clean)
-	fileSuffix := len(extension) > 1 && unicode.IsLetter(rune(extension[1]))
-	nested := strings.Contains(clean, "/")
-	marked := start > 0 && end < len(text) && (text[start-1] == '`' && text[end] == '`' ||
-		start > 1 && text[start-2:start] == "](" && text[end] == ')')
-	if !explicit && !(nested && (fileSuffix || line > 0)) &&
-		!knownResponseFileExtension(extension) && !(marked && fileSuffix) &&
-		!(line > 0 && knownResponseFileName(clean)) {
-		return extractedContext{}, false
-	}
-	value := path
-	if pathEnd < end {
-		value += text[pathEnd:end]
-	}
-	return extractedContext{
-		title: filepath.Base(clean), value: value, contextKind: "file",
-		canonKey: "file:" + clean, line: line, col: col,
-	}, true
-}
-
-// Bare words need a known file suffix or a recognized extensionless filename
-// with a line number. This leaves identifiers, dotted prose, and versions out.
-func knownResponseFileExtension(extension string) bool {
-	switch strings.ToLower(extension) {
-	case ".go", ".mod", ".sum",
-		".md", ".markdown", ".txt", ".rst", ".org", ".pdf", ".docx",
-		".json", ".jsonc", ".jsonl", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".env", ".xml",
-		".csv", ".tsv", ".sql", ".db", ".sqlite",
-		".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css", ".scss", ".html", ".htm", ".svg",
-		".py", ".rb", ".rs", ".c", ".h", ".cc", ".cpp", ".hpp", ".java", ".kt", ".swift", ".zig", ".lua", ".php",
-		".sh", ".bash", ".zsh", ".fish",
-		".proto", ".graphql", ".gql", ".tf", ".hcl",
-		".log", ".diff", ".patch", ".lock",
-		".png", ".jpg", ".jpeg", ".gif", ".webp":
-		return true
-	default:
-		return false
-	}
-}
-
-func knownResponseFileName(name string) bool {
-	switch strings.ToLower(name) {
-	case "makefile", "dockerfile", "justfile", "procfile", "vagrantfile",
-		"readme", "license", "changelog", "agents", "claude", "gemfile", "rakefile":
-		return true
-	default:
-		return false
-	}
-}
-
-func trimURLPunctuation(u string) string {
-	for len(u) > 0 {
-		last := u[len(u)-1]
-		switch last {
-		case '.', ',', ';', ':', '!', '?', '"', '\'', '>', ']':
-			u = u[:len(u)-1]
-		case ')':
-			if strings.Count(u, ")") > strings.Count(u, "(") {
-				u = u[:len(u)-1]
-			} else {
-				return u
-			}
-		default:
-			return u
-		}
-	}
-	return u
 }

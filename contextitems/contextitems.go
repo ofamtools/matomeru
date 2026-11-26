@@ -1,7 +1,7 @@
 // Package contextitems extracts high-signal context items (HTTP/HTTPS URLs,
-// OSC-8 terminal hyperlinks, file/document paths with optional :line[:col], and
-// GitHub owner/repo#123 PR/issue references) from terminal screens, prompts,
-// agent responses, and created file lists.
+// OSC-8 terminal hyperlinks, file/document paths with optional :line[:col],
+// GitHub owner/repo#123 PR/issue references, and Markdown fenced/inline code
+// snippets) from terminal screens, prompts, agent responses, and created file lists.
 //
 // It intentionally excludes noisy bare commit SHAs and uncontextualized git
 // branch names, and provides ExtractVisibleMatches with exact visual screen
@@ -28,6 +28,7 @@ const (
 	KindOSC8 = "osc8"
 	KindFile = "file"
 	KindPR   = "pr"
+	KindCode = "code"
 )
 
 // Source tags identifying where a context item was harvested.
@@ -40,13 +41,15 @@ const (
 
 // Item is one deduplicated high-signal context item.
 type Item struct {
-	Kind   string `json:"kind"`
-	Value  string `json:"value"`
-	Path   string `json:"path,omitempty"`
-	Line   int    `json:"line,omitempty"`
-	Col    int    `json:"col,omitempty"`
-	Label  string `json:"label,omitempty"`
-	Source string `json:"source,omitempty"`
+	Kind     string `json:"kind"`
+	Value    string `json:"value"`
+	Path     string `json:"path,omitempty"`
+	Line     int    `json:"line,omitempty"`
+	Col      int    `json:"col,omitempty"`
+	Label    string `json:"label,omitempty"`
+	Language string `json:"language,omitempty"`
+	Inline   bool   `json:"inline,omitempty"`
+	Source   string `json:"source,omitempty"`
 }
 
 // Match locates an extractable target on a visible terminal screen line in
@@ -68,12 +71,15 @@ type Options struct {
 	// WrapWidth, when > 0, is the terminal column width used to detect
 	// soft-wrapped lines in addition to URL/path continuation heuristics.
 	WrapWidth int
+	// DisableCodeBlocks skips extracting Markdown fenced code blocks and inline
+	// code spans when true.
+	DisableCodeBlocks bool
 }
 
 var (
 	urlRe      = regexp.MustCompile(`https?://[^\s<>"{}|\\^` + "`" + `]+`)
-	prRefRe    = regexp.MustCompile(`(?:^|[\s(\[{"',;:])([A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100}#[1-9][0-9]*)\b`)
-	pathRe     = regexp.MustCompile(`(?:~?/|\./|\.\./|(?:[A-Za-z0-9_.-]+/)+)[A-Za-z0-9_@%+=,.:~/-]+|\b[A-Za-z0-9_.-]+\.[A-Za-z][A-Za-z0-9]{0,9}(?::[0-9]+(?::[0-9]+)?)?`)
+	prRefRe    = regexp.MustCompile(`(?:^|[\s(\[{"',;:` + "`" + `])([A-Za-z0-9][A-Za-z0-9_.-]{0,38}/[A-Za-z0-9_.-]{1,100}#[1-9][0-9]*)\b`)
+	pathRe     = regexp.MustCompile(`(?:~?/|\./|\.\./|(?:[A-Za-z0-9_.-]+/)+)[A-Za-z0-9_@%+=,.:~/-]+|\b[A-Za-z0-9_.-]+\.[A-Za-z][A-Za-z0-9]{0,9}(?::[0-9]+(?::[0-9]+)?)?|\b[A-Za-z][A-Za-z0-9_-]*:[0-9]+(?::[0-9]+)?`)
 	locRe      = regexp.MustCompile(`:([0-9]+)(?::([0-9]+))?$`)
 	hexSHARe   = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 	semverRe   = regexp.MustCompile(`^v?[0-9]+\.[0-9]+(\.[0-9]+)?`)
@@ -143,9 +149,15 @@ func ExtractLines(lines []string, opts Options) []Item {
 			return
 		}
 		if idx, exists := seen[key]; exists {
-			// Upgrade metadata if the newer sighting has a label or line info.
+			// Upgrade metadata if the newer sighting has a label, language, or line info.
 			if out[idx].Label == "" && it.Label != "" {
 				out[idx].Label = it.Label
+			}
+			if out[idx].Language == "" && it.Language != "" {
+				out[idx].Language = it.Language
+			}
+			if out[idx].Inline && !it.Inline {
+				out[idx].Inline = false
 			}
 			if out[idx].Line == 0 && it.Line > 0 {
 				out[idx].Line = it.Line
@@ -160,11 +172,13 @@ func ExtractLines(lines []string, opts Options) []Item {
 
 	// 1. Parse each line for OSC-8 hyperlinks while producing clean visual lines.
 	plainLines := make([]string, len(lines))
+	navValues := map[string]bool{}
 	for i, raw := range lines {
 		plain, links := parseLineANSI(raw)
 		plainLines[i] = plain
 		for _, l := range links {
 			if uri := cleanOSC8URI(l.uri); uri != "" {
+				navValues[uri] = true
 				addItem(Item{
 					Kind:  KindOSC8,
 					Value: uri,
@@ -174,10 +188,18 @@ func ExtractLines(lines []string, opts Options) []Item {
 		}
 	}
 
-	// 2. Join soft-wrapped continuations on plain lines.
-	joined := joinSoftWrappedLines(plainLines, opts.WrapWidth)
+	// 2. Extract fenced code blocks before soft-wrap joining so wrapped lines
+	// inside fenced code are preserved verbatim.
+	var fencedBlocks []parsedCodeBlock
+	scanLines := plainLines
+	if !opts.DisableCodeBlocks {
+		fencedBlocks, scanLines = extractFencedCodeBlocks(plainLines)
+	}
 
-	// 3. Extract URLs, GitHub PR refs, and file paths without overlapping spans.
+	// 3. Join soft-wrapped continuations on non-fenced plain lines.
+	joined := joinSoftWrappedLines(scanLines, opts.WrapWidth)
+
+	// 4. Extract URLs, GitHub PR refs, and file paths without overlapping spans.
 	for _, line := range joined {
 		for _, m := range scanPlainLine(line, 0) {
 			it := Item{
@@ -185,10 +207,37 @@ func ExtractLines(lines []string, opts Options) []Item {
 				Value: m.Value,
 				Label: m.Label,
 			}
+			navValues[m.Value] = true
 			if m.Kind == KindFile {
 				it.Path, it.Line, it.Col = splitFileLocation(m.Value)
+				if it.Path != "" {
+					navValues[it.Path] = true
+				}
 			}
 			addItem(it)
+		}
+	}
+
+	// 5. Add fenced code blocks and meaningful inline code spans (skipping
+	// inline spans that are purely a URL, PR ref, or file path).
+	if !opts.DisableCodeBlocks {
+		for _, blk := range fencedBlocks {
+			addItem(Item{
+				Kind:     KindCode,
+				Value:    blk.body,
+				Language: blk.language,
+				Inline:   false,
+			})
+		}
+		for _, sp := range extractInlineCodeSpans(scanLines) {
+			if isNavTargetCodeSpan(sp.body, navValues) {
+				continue
+			}
+			addItem(Item{
+				Kind:   KindCode,
+				Value:  sp.body,
+				Inline: true,
+			})
 		}
 	}
 
@@ -428,8 +477,11 @@ func isHighSignalPath(raw string) bool {
 		return false
 	}
 
-	// Bare filename without slash (e.g. "main.go:42", "README.md", "harnesses.json").
-	// Must have a recognized code/doc/config extension.
+	// Bare filename without slash (e.g. "main.go:42", "README.md", "harnesses.json",
+	// or a known extensionless filename with :line such as "Makefile:12").
+	if lineNum > 0 && knownBasenames[strings.ToLower(trimmed)] {
+		return true
+	}
 	return hasKnownExtension(trimmed)
 }
 
@@ -756,6 +808,12 @@ func dedupeKey(it Item) string {
 	case KindFile:
 		p, _, _ := splitFileLocation(val)
 		return "file\x00" + p
+	case KindCode:
+		norm := strings.TrimSpace(strings.ReplaceAll(it.Value, "\r\n", "\n"))
+		if norm == "" {
+			return ""
+		}
+		return "code\x00" + norm
 	default:
 		return it.Kind + "\x00" + val
 	}

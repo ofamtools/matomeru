@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"ofam.dev/matomeru/contextitems"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/handlers"
 	"ofam.dev/matomeru/views"
@@ -114,7 +115,7 @@ func worktreePointerChips(wt data.ProjectWorktree) []views.ChipNodeSpec {
 }
 
 func (a *App) contextPointerChips(item CollectedContextItem, ref core.Ref) []views.ChipNodeSpec {
-	if item.Value == "" {
+	if item.Value == "" || item.Kind == contextitems.KindCode {
 		return nil
 	}
 	var pane *data.Record

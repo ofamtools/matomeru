@@ -294,6 +294,9 @@ func (m *richComposerModal) newComposerContextPickerModal() *modal.PickerModal {
 			}
 			badges = append(badges, ui.Badge{Text: kind, Tone: "info"})
 			sub := strings.TrimSpace(rec.Text("value"))
+			if kind == "code" {
+				sub = singleLineContextText(sub)
+			}
 			if notes := strings.TrimSpace(rec.Text("notes")); notes != "" {
 				if sub != "" {
 					sub += " · " + clip(notes, 48)
@@ -373,11 +376,14 @@ func formatPromptWithContext(prompt string, attachments []data.Attachment, ctxRe
 }
 
 func contextRecordDisplayTitle(rec data.Record) string {
-	if t := strings.TrimSpace(rec.Text("title")); t != "" {
+	if t := singleLineContextText(rec.Text("title")); t != "" {
 		return t
 	}
 	if v := strings.TrimSpace(rec.Text("value")); v != "" {
-		return v
+		if contextRecordKind(rec) == "code" {
+			return data.CodeContextTitle(v, rec.Text("language"))
+		}
+		return singleLineContextText(v)
 	}
 	return rec.ID
 }

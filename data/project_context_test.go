@@ -20,10 +20,13 @@ func TestSchemaProjectContextAndPageKinds(t *testing.T) {
 	if !ok {
 		t.Fatal("KindContext missing contextKind field")
 	}
-	for _, want := range []string{"url", "pr", "file", "doc", "gdoc", "sheet"} {
+	for _, want := range []string{"url", "pr", "file", "doc", "gdoc", "sheet", "code"} {
 		if !slices.Contains(ckField.Enum, want) {
 			t.Errorf("contextKind enum %v missing %q", ckField.Enum, want)
 		}
+	}
+	if _, ok := ctxSchema.Field("language"); !ok {
+		t.Error("KindContext missing language field")
 	}
 	srcField, ok := ctxSchema.Field("source")
 	if !ok || !slices.Contains(srcField.Enum, "curated") {
@@ -76,11 +79,97 @@ func TestClassifyContextKind(t *testing.T) {
 		{"cmd/mtm/main.go", "", "file"},
 		{"https://docs.google.com/document/d/abc", "url", "url"},
 		{"https://example.com/something", "gdoc", "gdoc"},
+		{"fmt.Println(1)", "code", "code"},
+		{"fmt.Println(1)", "snippet", "code"},
+		{"fmt.Println(1)", "SNIPPET", "code"},
 		{"not-a-path", "", "url"},
 	}
 	for _, tc := range cases {
 		if got := ClassifyContextKind(tc.value, tc.explicit); got != tc.want {
 			t.Errorf("ClassifyContextKind(%q, %q) = %q, want %q", tc.value, tc.explicit, got, tc.want)
+		}
+	}
+}
+
+func TestCodeContextTitleCanonKeyAndMarkdown(t *testing.T) {
+	code := "func main() {\n\tfmt.Println(\"../not/a/path\")\n}"
+	title, canon := DeriveContextTitleAndCanon(code, "code", "", "go")
+	if title != "go: func main() {" {
+		t.Fatalf("title = %q, want %q", title, "go: func main() {")
+	}
+	if !strings.HasPrefix(canon, "code:") || len(canon) != len("code:")+16 {
+		t.Fatalf("canonKey = %q, want code:<16-hex>", canon)
+	}
+	// CRLF vs LF normalize to the same hash canonKey.
+	_, canonCRLF := DeriveContextTitleAndCanon(strings.ReplaceAll(code, "\n", "\r\n"), "code", "", "go")
+	if canonCRLF != canon {
+		t.Fatalf("CRLF canonKey = %q, want %q", canonCRLF, canon)
+	}
+	// Long single-line code is clipped cleanly without newlines.
+	longTitle := CodeContextTitle("   "+strings.Repeat("a", 80)+"\nsecond line", "python")
+	if strings.Contains(longTitle, "\n") || len([]rune(longTitle)) > 60 {
+		t.Fatalf("longTitle = %q (len=%d), want single line <= 60 runes", longTitle, len([]rune(longTitle)))
+	}
+
+	// Markdown fence lengthens when code contains triple backticks.
+	nestedBlock := FormatCodeMarkdownBlock("```go\nprintln(1)\n```", "markdown")
+	if !strings.HasPrefix(nestedBlock, "````markdown\n") || !strings.HasSuffix(nestedBlock, "\n````") {
+		t.Fatalf("nestedBlock = %q, want 4-backtick fence", nestedBlock)
+	}
+
+	// FormatProjectContextMarkdown renders multi-line code in fenced blocks and
+	// single-line inline code in backticks.
+	s, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	owner := core.Actor{Kind: "user", ID: "owner"}
+	proj, _, err := s.Create(CreateInput{Kind: KindTask, Fields: map[string]any{"title": "Code Proj"}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockRec, deduped, err := s.AddOfficialProjectContext(OfficialContextInput{
+		ProjectID:   proj.ID,
+		Value:       code,
+		ContextKind: "snippet", // alias normalizes to "code"
+		Language:    "go",
+		Pinned:      true,
+	}, owner)
+	if err != nil {
+		t.Fatalf("AddOfficialProjectContext code: %v", err)
+	}
+	if deduped || blockRec.Text("contextKind") != "code" || blockRec.Text("language") != "go" || blockRec.Text("canonKey") != canon {
+		t.Fatalf("blockRec = %+v (deduped=%v)", blockRec.Fields, deduped)
+	}
+	// Re-adding same code deduplicates by hash canonKey.
+	dupRec, deduped2, err := s.AddOfficialProjectContext(OfficialContextInput{
+		ProjectID:   proj.ID,
+		Value:       code,
+		ContextKind: "code",
+	}, owner)
+	if err != nil || !deduped2 || dupRec.ID != blockRec.ID {
+		t.Fatalf("expected dedupe: dup=%v id=%q want=%q err=%v", deduped2, dupRec.ID, blockRec.ID, err)
+	}
+
+	inlineRec, _, err := s.AddOfficialProjectContext(OfficialContextInput{
+		ProjectID:   proj.ID,
+		Value:       "go test ./...",
+		ContextKind: "code",
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	md := FormatProjectContextMarkdown([]Record{blockRec, inlineRec})
+	for _, want := range []string{
+		"- [code] **go: func main() {**",
+		"  ```go",
+		"  func main() {",
+		"- [code] `go test ./...`",
+	} {
+		if !strings.Contains(md, want) {
+			t.Errorf("FormatProjectContextMarkdown missing %q:\n%s", want, md)
 		}
 	}
 }

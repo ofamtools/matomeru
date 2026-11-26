@@ -523,7 +523,7 @@ func (a *App) projectContextOpen(s core.State, _ core.Command) core.StepResult {
 			pane = rec
 		}
 	}
-	return a.openContextValue(s, it.Kind, it.Value, pane)
+	return a.openCollectedContextItem(s, it, pane)
 }
 
 func (a *App) projectContextYank(s core.State, _ core.Command) core.StepResult {

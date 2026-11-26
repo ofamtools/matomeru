@@ -15,8 +15,6 @@ import (
 	"ofam.dev/oden"
 )
 
-var cliContextKinds = []string{"url", "pr", "file", "doc", "gdoc", "sheet"}
-
 type contextAddOfficialOutput struct {
 	ProjectID    string       `json:"projectId"`
 	Context      *data.Record `json:"context"`
@@ -171,7 +169,7 @@ func mtmContextAddOfficialSubcmd(g globalOpts) oden.Command {
 	params := []oden.Parameter{
 		{Name: "project", Type: "string", Description: "Project or task ID/title (defaults to $MTM_TASK_ID or $MTM_PANE_ID's task)"},
 		{Name: "title", Type: "string", Description: "Display title (derived from value when omitted)"},
-		{Name: "kind", Type: "string", Enum: cliContextKinds, Description: "Context kind (url, pr, file, doc, gdoc, sheet)"},
+		{Name: "kind", Type: "string", Enum: data.ValidContextKinds, Description: "Context kind (" + strings.Join(data.ValidContextKinds, ", ") + ")"},
 		{Name: "notes", Type: "string", Description: "Why this context item matters to agents and humans"},
 	}
 	return oden.Command{

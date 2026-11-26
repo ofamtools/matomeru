@@ -678,7 +678,7 @@ func (a *App) projectHomeItemOpen(s core.State, _ core.Command) core.StepResult 
 		if target.Ref != nil && target.Ref.Kind == data.KindContext {
 			return core.Next(a.show(s, *target.Ref))
 		}
-		return a.openContextValue(s, target.ContextItem.Kind, target.ContextItem.Value, nil)
+		return a.openCollectedContextItem(s, *target.ContextItem, nil)
 	}
 
 	if target.Ref != nil {

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"ofam.dev/matomeru/contextitems"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
@@ -552,9 +553,13 @@ func (a *App) projectContextNavNodes(ws projectWorkspaceData, secKey string, ite
 		seen[nodeID]++
 
 		nodeFocusID := projectNavNodePrefix + secKey + "." + nodeID
-		label := strings.TrimSpace(it.Label)
+		label := singleLineContextText(it.Label)
 		if label == "" {
-			label = it.Value
+			if it.Kind == contextitems.KindCode {
+				label = data.CodeContextTitle(it.Value, it.Language)
+			} else {
+				label = singleLineContextText(it.Value)
+			}
 		}
 		icon := ""
 		tone := ""

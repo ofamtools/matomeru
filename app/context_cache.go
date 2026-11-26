@@ -162,9 +162,15 @@ func contextCanonKey(kind, value string) string {
 	case contextitems.KindFile:
 		base, _, _ := splitContextFileLoc(val)
 		return "file\x00" + base
+	case contextitems.KindCode:
+		return data.CodeContextCanonKey(val)
 	default:
 		return kind + "\x00" + val
 	}
+}
+
+func singleLineContextText(s string) string {
+	return strings.Join(strings.Fields(strings.ReplaceAll(s, "\r\n", "\n")), " ")
 }
 
 func splitContextFileLoc(raw string) (path string, line, col int) {
@@ -195,6 +201,7 @@ func contextItemVisibleEqual(a, b *CollectedContextItem) bool {
 		a.Line == b.Line &&
 		a.Col == b.Col &&
 		a.Label == b.Label &&
+		a.Language == b.Language &&
 		a.Source == b.Source &&
 		a.PaneID == b.PaneID &&
 		a.PaneTitle == b.PaneTitle &&

@@ -76,7 +76,13 @@ func (a *App) targetOf(rec data.Record) (openTarget, bool) {
 		}
 	}
 	if rec.Kind == data.KindContext {
-		if v := strings.TrimSpace(rec.Text("value")); v != "" {
+		if raw := rec.Text("value"); strings.TrimSpace(raw) != "" {
+			if data.ClassifyContextKind(raw, rec.Text("contextKind")) == "code" {
+				t.body = data.FormatCodeMarkdownBlock(raw, rec.Text("language"))
+				t.rules = a.inlineMarkdownRules()
+				return t, true
+			}
+			v := strings.TrimSpace(raw)
 			var pane *data.Record
 			if pRef, hasPane := rec.RefField("pane"); hasPane {
 				if p, err := a.Store.Get(pRef); err == nil {
@@ -90,18 +96,25 @@ func (a *App) targetOf(rec data.Record) (openTarget, bool) {
 	}
 	if body := rec.Text("body"); body != "" && (rec.Kind == data.KindDocument || rec.Kind == data.KindNote) {
 		t.body = body
-		// Inline text has no path: only the reader can show it.
-		for _, rule := range a.cfg.Handlers.Match("inline.md") {
-			if rule.Kind == handlers.KindBuiltin && rule.Name == handlers.MarkdownReader {
-				t.rules = append(t.rules, rule)
-			}
-		}
-		if len(t.rules) == 0 {
-			t.rules = []handlers.Rule{{Name: handlers.MarkdownReader, Match: "*.md", Kind: handlers.KindBuiltin}}
-		}
+		t.rules = a.inlineMarkdownRules()
 		return t, true
 	}
 	return t, false
+}
+
+// inlineMarkdownRules returns the built-in MarkdownReader rule for inline text
+// targets that have no filesystem path or URL.
+func (a *App) inlineMarkdownRules() []handlers.Rule {
+	var rules []handlers.Rule
+	for _, rule := range a.cfg.Handlers.Match("inline.md") {
+		if rule.Kind == handlers.KindBuiltin && rule.Name == handlers.MarkdownReader {
+			rules = append(rules, rule)
+		}
+	}
+	if len(rules) == 0 {
+		rules = []handlers.Rule{{Name: handlers.MarkdownReader, Match: "*.md", Kind: handlers.KindBuiltin}}
+	}
+	return rules
 }
 
 // openable reports whether "o" has something to open on a record.
