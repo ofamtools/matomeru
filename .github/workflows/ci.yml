@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+      GOFLAGS: "-trimpath"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check go.mod for stray replace directives
+        run: |
+          if grep -Eq '^[[:space:]]*replace\b' go.mod; then
+            echo "Found replace directive in go.mod:" >&2
+            grep -En '^[[:space:]]*replace\b' go.mod >&2
+            exit 1
+          fi
+
+      - name: Check gofmt
+        run: |
+          unformatted="$(git ls-files '*.go' | xargs -r gofmt -l)"
+          if [ -n "$unformatted" ]; then
+            echo "Unformatted Go files:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test -race
+        run: go test -race ./...
+
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+      GOFLAGS: "-trimpath"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build mtm
+        run: go build -o /tmp/mtm ./cmd/mtm
+
+      - name: Run isolated smoke and binding check
+        run: |
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/cfg" XDG_STATE_HOME="$tmp/state" XDG_DATA_HOME="$tmp/data" /tmp/mtm --smoke
+          HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/cfg" XDG_STATE_HOME="$tmp/state" XDG_DATA_HOME="$tmp/data" /tmp/mtm binding check
