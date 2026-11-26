@@ -225,6 +225,7 @@ const (
 	CmdTaskThreadToggle  = "task.thread.toggle"
 	CmdTaskNoteReply     = "task.note.reply"
 	CmdTaskQueueDispatch = "task.queue.dispatch"
+	CmdTaskPriorityCycle = "task.priority.cycle"
 	CmdWorkLayoutToggle  = "work.layout.toggle"
 	CmdShowFoldToggle    = "show.fold.toggle"
 	CmdShowYank          = "show.yank"
@@ -358,6 +359,7 @@ func DefaultBindings() []core.Binding {
 		hidden(when(bind(n, views.ScopeIndex, "esc", CmdOutlineCleanSlateExit, "exit clean slate"), "facts.isTree && !facts.visualActive && !(facts.markedCount > 0) && !facts.hoisted && facts.cleanSlate")),
 		hidden(when(bind(n, views.ScopeIndex, "X", CmdOutlineTriage, "triage outline with agent"), "facts.isTree")),
 		hidden(bind(n, data.KindTask, "w", CmdTaskAgentToggle, "toggle agent queue")),
+		hidden(bind(n, data.KindTask, "g P", CmdTaskPriorityCycle, "cycle task priority")),
 		hidden(bind(n, data.KindTask, "r", CmdTaskNoteReply, "reply with note")),
 		hidden(bind(n, data.KindNote, "r", CmdTaskNoteReply, "reply with note")),
 		hidden(when(bind(n, views.ScopeIndex, "t", CmdTaskThreadToggle, "toggle note thread"), "facts.isTree")),
@@ -842,6 +844,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, projectTabsBindings()...)
 	out = append(out, projectPanesSectionBindings()...)
 	out = append(out, featuresPageBindings()...)
+	out = append(out, jobsBindings()...)
 	out = append(out, composerContextBindings()...)
 	out = append(out, insertPickerBindings()...)
 	out = append(out, clipboardAttachBindings()...)

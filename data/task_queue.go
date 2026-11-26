@@ -315,6 +315,14 @@ func taskLineage(rec Record, byID map[string]Record) (projectID, projectTitle st
 	return projectID, projectTitle, ancestorPath
 }
 
+// NextTaskPriority advances the editable task priorities and then clears the field.
+// Legacy values outside this cycle start at P0.
+func NextTaskPriority(priority string) string {
+	priorities := []string{"P0", "P1", "P2", "P3", ""}
+	index := slices.Index(priorities, strings.ToUpper(strings.TrimSpace(priority)))
+	return priorities[(index+1)%len(priorities)]
+}
+
 func priorityRank(p string) int {
 	switch strings.ToUpper(strings.TrimSpace(p)) {
 	case "P0":

@@ -212,7 +212,9 @@ func (a *App) build(s core.State) ui.ViewNode {
 	var tabs ui.ViewNode
 	canReuseTabs := len(s.Modals) > 0 && s.Modals[len(s.Modals)-1].ID != "settings"
 	tKey := a.tabsMemoKey(s)
-	if canReuseTabs && tKey != "" && tKey == a.viewMemo.tabsKey && a.viewMemo.tabs.ID != "" {
+	if s.ActivePage == SpaceJobs {
+		tabs = a.jobsView()
+	} else if canReuseTabs && tKey != "" && tKey == a.viewMemo.tabsKey && a.viewMemo.tabs.ID != "" {
 		tabs = a.viewMemo.tabs
 	} else {
 		topTabs := a.topTabs()

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -191,4 +192,42 @@ func TestTaskQueueCLIWorkflow(t *testing.T) {
 	c.fails("schedule", "preset", "agent-queue", "--cron", "not-a-cron")
 	// Conflicting --off and --status fails cleanly.
 	c.fails("task", "flag", t1.ID, "--off", "--status", "working")
+}
+
+func TestTaskDispatchPriorityOrder(t *testing.T) {
+	c := cli{t: t, db: filepath.Join(t.TempDir(), "mtm.db")}
+	want := []struct {
+		title, priority string
+	}{
+		{"Critical fix", "P0"},
+		{"High priority", "P1"},
+		{"Normal priority", "P2"},
+		{"Low priority", "P3"},
+		{"Unprioritized", ""},
+	}
+
+	// Give lower priorities both earlier creation times and smaller order values.
+	for i := len(want) - 1; i >= 0; i-- {
+		item := want[i]
+		args := []string{"task", "create", "--title", item.title, "--field", fmt.Sprintf("order=%d", len(want)-i)}
+		if item.priority != "" {
+			args = append(args, "--field", "priority="+item.priority)
+		}
+		task := decode[record](t, c.ok(args...))
+		c.ok("task", "flag", task.ID)
+	}
+
+	dispatch := decode[taskDispatchOutput](t, c.ok("task", "dispatch", "--dry-run", "--json"))
+	if len(dispatch.Tasks) != len(want) {
+		t.Fatalf("dispatch returned %d tasks, want %d", len(dispatch.Tasks), len(want))
+	}
+	for i, item := range want {
+		got := dispatch.Tasks[i].Task
+		if got.Text("title") != item.title {
+			t.Errorf("dispatch task %d = %q, want %q", i+1, got.Text("title"), item.title)
+		}
+		if heading := fmt.Sprintf("\n## %d. %s (", i+1, item.title); !strings.Contains(dispatch.Prompt, heading) {
+			t.Errorf("dispatch prompt missing %q:\n%s", heading, dispatch.Prompt)
+		}
+	}
 }
