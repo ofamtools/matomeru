@@ -162,6 +162,9 @@ type viewMemoState struct {
 // store; View reads both.
 type App struct {
 	Store           *data.Store
+	actionLog       *data.ActionLogStore
+	actionResult    *actionLogResult
+	jobs            jobsController
 	Router          *mcpui.Router
 	Engine          *core.Engine
 	Shell           *otea.Shell
@@ -215,6 +218,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		ctx:             newContextController(),
 		navUnreadCutoff: time.Now().UTC(),
 	}
+	a.actionLog = a.newActionLog()
 	a.bind.specs = CommandSpecs()
 	a.bind.bindings = a.baseBindings()
 	a.cfg.Settings, _ = config.LoadSettings(nil, DefaultSettings())
@@ -241,11 +245,14 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.nav.showArchived = a.cfg.Settings.Bool("showArchived", false)
 	a.register()
 
-	frames := make([]core.Frame, 0, len(spaces)+2+len(standalonePages))
+	frames := make([]core.Frame, 0, len(spaces)+3+len(standalonePages))
 	for _, sp := range spaces {
 		frames = append(frames, core.Frame{ID: sp.id, Mode: ModeNormal, FocusID: sp.table})
 	}
-	frames = append(frames, core.Frame{ID: SpaceProjects, Mode: ModeNormal, FocusID: projectsDirTable})
+	frames = append(frames,
+		core.Frame{ID: SpaceProjects, Mode: ModeNormal, FocusID: projectsDirTable},
+		core.Frame{ID: SpaceJobs, Mode: ModeNormal, FocusID: views.JobsListID},
+	)
 	if a.featuresPageActive() {
 		frames = append(frames, core.Frame{ID: SpaceFeatures, Mode: ModeNormal, FocusID: views.FeaturesNavPrefix + a.featuresCtrl().activeItemKey()})
 	}
@@ -406,6 +413,7 @@ func (a *App) say(format string, args ...any) { a.status = fmt.Sprintf(format, a
 
 // fail reports an error in the status line. Nothing is refused silently.
 func (a *App) fail(what string, err error) {
+	a.observeActionFailure(err)
 	if errors.Is(err, data.ErrNotFound) {
 		a.say("%s: not a stored record (%v)", what, err)
 		return
@@ -454,7 +462,7 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 		prevMode := a.Engine.Mode(s)
 		a.syncEscapeGuardModal(prevModal)
 		unreadNavTarget, hasUnreadNav := a.unreadNavTargetAt(s)
-		out := fn(s, c)
+		out := a.executeAction(s, c, fn)
 		if hasUnreadNav && isProjectNavAckCommand(c.ID) {
 			if a.markProjectNavTargetRead(unreadNavTarget) {
 				out.State = a.settleNavFocusAfterRead(out.State, unreadNavTarget)
@@ -474,6 +482,7 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 }
 
 func (a *App) register() {
+	a.registerJobsHandlers()
 	for _, id := range []string{"motion.down", "motion.up", "motion.left", "motion.right", "motion.top", "motion.bottom",
 		"motion.half.down", "motion.half.up", "motion.page.down", "motion.page.up", "motion.block.next", "motion.block.prev",
 		"motion.scroll.down", "motion.scroll.up"} {
@@ -781,6 +790,7 @@ func (a *App) register() {
 	a.handle(CmdTaskThreadToggle, a.taskThreadToggle)
 	a.handle(CmdTaskNoteReply, a.taskNoteReply)
 	a.handle(CmdTaskQueueDispatch, a.taskQueueDispatch)
+	a.handle(CmdTaskPriorityCycle, a.cycleTaskPriority)
 	a.registerProjectHomeHandlers()
 	a.registerProjectTabsHandlers()
 	a.registerFeaturesPageHandlers()

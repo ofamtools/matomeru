@@ -468,6 +468,30 @@ func (a *App) taskAgentStatus(s core.State, c core.Command) core.StepResult {
 	return core.Next(s)
 }
 
+func (a *App) cycleTaskPriority(s core.State, c core.Command) core.StepResult {
+	ref, ok := a.subject(s, c)
+	if !ok || ref.Kind != data.KindTask {
+		a.fail("cycle priority", data.ErrNotFound)
+		return core.Next(s)
+	}
+	task, err := a.Store.Get(ref)
+	if err != nil {
+		a.fail("cycle priority", err)
+		return core.Next(s)
+	}
+	next := data.NextTaskPriority(task.Text("priority"))
+	label := next
+	if label == "" {
+		label = "unset"
+	}
+	summary := views.Title(a.schema(ref.Kind), *task) + " priority → " + label
+	_, cs, err := a.Store.Patch(data.PatchInput{
+		Ref: ref, Fields: map[string]any{"priority": next}, IfRevision: task.ChangeSetNumber, Summary: summary,
+	}, User)
+	a.wrote(summary, cs, err)
+	return core.Next(s)
+}
+
 func (a *App) taskThreadToggle(s core.State, c core.Command) core.StepResult {
 	if !a.inlineNoteThreadsEnabled() {
 		a.say("inline note threads are disabled (tasks.inlineNoteThreads=false)")

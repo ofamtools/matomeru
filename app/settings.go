@@ -215,6 +215,7 @@ const (
 	DetachFocusLeft                    = "left"
 	DetachFocusRail                    = "rail"
 	DetachFocusStay                    = "stay"
+	SetActionLogEnabled                = "ui.actionLogEnabled"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -378,6 +379,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetFlagsOnLeft, true, "place unread/star/snooze/archive flag marks on the left edge of tables beside focus"),
 		enum(SetColorByRecency, views.RecencyCell, "color records by recency bucket (today/this week/last week/older): cell, row, or off", views.RecencyCell, views.RecencyRow, views.RecencyOff),
 		flag(SetStickyTreeBreadcrumbs, true, "pin scrolled-off ancestor breadcrumb lines at the top of deep tree views"),
+		flag(SetActionLogEnabled, true, "record executed actions, target, and context in the generic action log"),
 	}
 }
 

@@ -40,6 +40,7 @@ func CommandSpecs() []core.CommandSpec {
 	text := []core.ParamSpec{{Name: "text", Type: core.ParamString}}
 	base := append(append(append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...), viewCycleSpecs()...), traits.SelectCommandSpecs()...)
 	base = append(base, filesCommandSpecs()...)
+	base = append(base, jobsSpecs()...)
 	return append(append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
@@ -88,7 +89,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdExtInstallAll, "Install all missing core OFAM extensions via go install", "editing"),
 		{ID: CmdTermPrefix, Description: "The pane's prefix key and the key after it: [ copy mode, t side terminal, v side vim",
 			Params: []core.ParamSpec{{Name: "key", Type: core.ParamString}}, Meta: map[string]any{"internal": true}},
-		{ID: CmdWake, Description: "Look at what changed off the UI goroutine", Meta: map[string]any{"internal": true}},
+		{ID: CmdWake, Description: "Look at what changed off the UI goroutine", Meta: map[string]any{"internal": true, "actionLog": false}},
 		spec(CmdOutlineOpen, "Open the outline of every task"),
 		spec(CmdOutlineJump, "Open the selected task"),
 		spec(CmdOutlineMoveDown, "Move the selected task down among its siblings", "editing"),
@@ -323,6 +324,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(CmdTaskAddSibling, "Add a sibling task beside the focused task", "editing"),
 		spec(CmdTaskAddChild, "Add a child subtask under the focused task", "editing"),
 		spec(CmdTaskFoldToggle, "Fold or unfold the focused task subtree"),
+		recordSpec(CmdTaskPriorityCycle, "Cycle task priority through P0, P1, P2, P3, and unset", []string{data.KindTask}, "", "editing"),
 		recordSpec(CmdTaskAgentToggle, "Toggle whether the focused task is queued for agent pickup", []string{data.KindTask}, "", "editing"),
 		{
 			ID:          CmdTaskAgentStatus,

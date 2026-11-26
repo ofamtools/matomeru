@@ -120,6 +120,9 @@ func (a *App) defaultFocus(s core.State) string {
 	if s.ActivePage == SpaceProjects {
 		return projectsDirTable
 	}
+	if s.ActivePage == SpaceJobs {
+		return views.JobsListID
+	}
 	if s.ActivePage == SpaceFeatures {
 		return views.FeaturesNavPrefix + a.featuresCtrl().activeItemKey()
 	}
@@ -144,7 +147,7 @@ func (a *App) settle(s core.State) core.State {
 	if len(s.Modals) > 0 {
 		return s
 	}
-	if _, standalone := standalonePages[s.ActivePage]; !standalone && !a.isValidTopTab(s.ActivePage) {
+	if _, standalone := standalonePages[s.ActivePage]; !standalone && s.ActivePage != SpaceJobs && !a.isValidTopTab(s.ActivePage) {
 		s.ActivePage = SpacePanes
 		a.viewMemo.gen++
 	}
@@ -550,7 +553,7 @@ func (a *App) recordJump(from, to jumpEntry) {
 
 func (a *App) openSpace(s core.State, id string) core.State {
 	switch {
-	case slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == id }), standalonePages[id].render != nil:
+	case id == SpaceJobs || slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == id }), standalonePages[id].render != nil:
 	case id == SpaceProjects:
 		if !a.projectsTopNavTabEnabled() {
 			a.say("Projects tab is disabled (projects.topNavTab.enabled=false)")

@@ -85,11 +85,15 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetShowLayout: views.ShowLayoutLedger, SetShowHideEmptyRelations: true,
 		SetFilesScanDepth: 3, SetFilesDefaultSort: "recent",
 		SetTopChromeRedesign: true, SetHintsNounFirst: true, SetDetachFocusTarget: DetachFocusLeft,
-		SetFlagsOnLeft: true, SetColorByRecency: views.RecencyCell, SetStickyTreeBreadcrumbs: true}
+		SetFlagsOnLeft: true, SetColorByRecency: views.RecencyCell, SetStickyTreeBreadcrumbs: true,
+		SetActionLogEnabled: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
 		t.Fatalf("%d declared settings, want %d", len(specs), len(want))
+	}
+	if specs[len(specs)-1].Name != SetActionLogEnabled {
+		t.Fatalf("last setting is %q, want %q", specs[len(specs)-1].Name, SetActionLogEnabled)
 	}
 	for name, def := range want {
 		if defaults[name] != def {

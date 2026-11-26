@@ -102,6 +102,11 @@ func (a *App) syncFilterRegistry(s core.State) {
 		return
 	}
 	a.registerFilterable("toc", tocFilterable{a: a})
+	if s.ActivePage == SpaceJobs && jobsTabs[a.jobs.tab] != views.JobsTabAll {
+		a.registerFilterable(views.JobsListID, jobsFilterable{a: a})
+	} else {
+		a.filterRegistry().Unregister(views.JobsListID)
+	}
 	for id, tbl := range a.nav.tables {
 		if tbl != nil {
 			a.registerTableFilterable(id, tbl)
