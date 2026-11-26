@@ -448,6 +448,11 @@ func RenderFullPage(opts PageRenderOptions) string {
 		shellClass = "shell has-toc"
 	}
 
+	mermaidScript := ""
+	if ir.Stats.MermaidCount > 0 {
+		mermaidScript = fmt.Sprintf(`<script src="%s/static/beautiful-mermaid.js%s"></script>`+"\n", base, query)
+	}
+
 	return fmt.Sprintf(`<!doctype html>
 <html lang="en">
 <head>
@@ -466,6 +471,8 @@ func RenderFullPage(opts PageRenderOptions) string {
     </div>
     <div class="status-group">
       <span class="sync-pill" id="sync-pill"><span class="sync-dot"></span><span id="sync-text">Synced · %s</span></span>
+      <button type="button" class="bar-btn" id="refresh-btn" title="Refresh from disk">Refresh</button>
+      <button type="button" class="bar-btn" id="live-toggle" aria-pressed="false" title="Opt in to live SSE auto-reload streams">Live: Off</button>
       <button type="button" class="bar-btn" id="drawer-toggle">Source &amp; Actions</button>
       <button type="button" class="bar-btn" id="theme-toggle">Theme</button>
     </div>
@@ -519,14 +526,13 @@ func RenderFullPage(opts PageRenderOptions) string {
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>window.__MD_LIVE__ = %s;</script>
-<script src="%s/static/beautiful-mermaid.js%s"></script>
-<script src="%s/static/app.js%s"></script>
+%s<script src="%s/static/app.js%s"></script>
 </body>
 </html>`,
 		escapeHTML(ir.Title), base, query, escapeHTML(base), escapeHTML(opts.RootLabel),
 		fileOpts.String(), renderStatChips(ir.Stats), escapeHTML(shortRevision(ir.Revision)),
 		shellClass, tocHTML, bodyHTML, escapeHTML(opts.Source),
-		bootstrap, base, query, base, query)
+		bootstrap, mermaidScript, base, query)
 }
 
 // RenderIndexPage renders the landing page shown when no ?file= is active yet.

@@ -29,7 +29,26 @@
   const filePicker = document.getElementById('file-picker');
   const shell = document.getElementById('shell');
   const drawerToggle = document.getElementById('drawer-toggle');
+  const refreshBtn = document.getElementById('refresh-btn');
+  const liveToggle = document.getElementById('live-toggle');
   const toastEl = document.getElementById('toast');
+
+  let mermaidLoadPromise = null;
+  function ensureMermaidLoaded() {
+    if (window.beautifulMermaid && typeof window.beautifulMermaid.renderMermaidSVG === 'function') {
+      return Promise.resolve(true);
+    }
+    if (mermaidLoadPromise) return mermaidLoadPromise;
+    mermaidLoadPromise = new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = apiUrl('/static/beautiful-mermaid.js');
+      s.async = true;
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.body.appendChild(s);
+    });
+    return mermaidLoadPromise;
+  }
 
   const MERMAID_LIGHT_THEME = {
     bg: '#ffffff',
@@ -818,7 +837,10 @@
 
     state.revision = data.revision;
     docBody.innerHTML = data.html;
-    renderAllMermaidCards(docBody);
+    if (docBody.querySelector('.mermaid-card')) {
+      await ensureMermaidLoaded();
+      renderAllMermaidCards(docBody);
+    }
     if (typeof data.toc === 'string' && shell) {
       const existingToc = shell.querySelector('nav.toc');
       if (data.toc) {
@@ -848,28 +870,111 @@
     }
   }
 
-  if (state.file) {
-    const fileEvents = new EventSource(apiUrl('/api/events?file=' + encodeURIComponent(state.file)));
-    fileEvents.addEventListener('doc:updated', (ev) => {
-      try {
-        const payload = JSON.parse(ev.data);
-        if (payload.revision === state.revision || inFlightMutations > 0) return;
-        refreshFromServer(true);
-      } catch {}
-    });
+  // Opt-in live SSE streams: off by default so multiple tabs never exhaust the
+  // browser's 6-connection HTTP/1.1 per-origin pool. Users can click Refresh
+  // for a one-shot fetch or toggle Live: On (or pass ?live=1) to stream updates.
+  let liveEnabled = new URLSearchParams(window.location.search).get('live') === '1';
+  let fileEvents = null;
+  let actionEvents = null;
+  let actionsLoaded = false;
 
+  function loadActionsOnce() {
+    if (!state.file || actionsLoaded) return;
+    actionsLoaded = true;
     fetch(apiUrl('/api/actions?file=' + encodeURIComponent(state.file)))
       .then((r) => r.json())
       .then((list) => {
         if (Array.isArray(list)) list.forEach(prependAction);
       })
-      .catch(() => {});
+      .catch(() => {
+        actionsLoaded = false;
+      });
+  }
 
-    const actionEvents = new EventSource(apiUrl('/api/actions/stream?file=' + encodeURIComponent(state.file)));
-    actionEvents.addEventListener('action', (ev) => {
-      try {
-        prependAction(JSON.parse(ev.data));
-      } catch {}
+  function disconnectLiveStreams() {
+    if (fileEvents) {
+      fileEvents.close();
+      fileEvents = null;
+    }
+    if (actionEvents) {
+      actionEvents.close();
+      actionEvents = null;
+    }
+  }
+
+  function connectLiveStreams() {
+    if (!state.file || !liveEnabled || document.visibilityState === 'hidden') return;
+    if (!fileEvents) {
+      fileEvents = new EventSource(apiUrl('/api/events?file=' + encodeURIComponent(state.file)));
+      fileEvents.addEventListener('doc:updated', (ev) => {
+        try {
+          const payload = JSON.parse(ev.data);
+          if (payload.revision === state.revision || inFlightMutations > 0) return;
+          refreshFromServer(true);
+        } catch {}
+      });
+    }
+    if (!actionEvents) {
+      actionEvents = new EventSource(apiUrl('/api/actions/stream?file=' + encodeURIComponent(state.file)));
+      actionEvents.addEventListener('action', (ev) => {
+        try {
+          prependAction(JSON.parse(ev.data));
+        } catch {}
+      });
+    }
+  }
+
+  function updateLiveUI() {
+    if (liveToggle) {
+      liveToggle.textContent = liveEnabled ? 'Live: On' : 'Live: Off';
+      liveToggle.setAttribute('aria-pressed', liveEnabled ? 'true' : 'false');
+    }
+  }
+
+  if (refreshBtn && state.file) {
+    refreshBtn.addEventListener('click', async () => {
+      setSyncState('saving', 'Refreshing…');
+      await refreshFromServer(true);
+      setSyncState('ok', 'Synced · ' + String(state.revision || '').slice(0, 7));
     });
+  }
+
+  if (liveToggle && state.file) {
+    liveToggle.addEventListener('click', () => {
+      liveEnabled = !liveEnabled;
+      updateLiveUI();
+      if (liveEnabled) {
+        loadActionsOnce();
+        connectLiveStreams();
+        refreshFromServer(true);
+      } else {
+        disconnectLiveStreams();
+      }
+    });
+  }
+
+  if (drawerToggle && state.file) {
+    drawerToggle.addEventListener('click', () => {
+      loadActionsOnce();
+    });
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (!liveEnabled) return;
+    if (document.visibilityState === 'hidden') {
+      disconnectLiveStreams();
+    } else {
+      connectLiveStreams();
+      refreshFromServer(true);
+    }
+  });
+
+  window.addEventListener('pagehide', disconnectLiveStreams);
+  window.addEventListener('beforeunload', disconnectLiveStreams);
+
+  updateLiveUI();
+  if (liveEnabled) {
+    loadActionsOnce();
+    connectLiveStreams();
   }
 })();
