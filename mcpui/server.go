@@ -42,13 +42,14 @@ func Tools(router *Router, dataTools *DataTools) []ToolSpec {
 	out = append(out, dataTools.ToolSpecs()...)
 	out = append(out, NewTriageTools(nil).ToolSpecs()...)
 	out = append(out, NewPaneSearchTools(nil).ToolSpecs()...)
+	out = append(out, NewPaneTools(nil).ToolSpecs()...)
 	out = append(out, NewTaskTools(nil).ToolSpecs()...)
 	return append(out, NewContextTools(nil).ToolSpecs()...)
 }
 
 // Toolbox is every tool over one store: the Open UI tools, the lane tools,
-// the data tools, the triage tools, pane search, task tools and context tools,
-// behind one Call. The MCP server and the CLI both run tools through it.
+// the data tools, the triage tools, pane search, pane orchestration, task
+// tools and context tools, behind one Call.
 // Getenv reads the environment (nil is os.Getenv).
 type Toolbox struct {
 	Router     *Router
@@ -56,6 +57,7 @@ type Toolbox struct {
 	Data       *DataTools
 	Triage     *TriageTools
 	PaneSearch *PaneSearchTools
+	Panes      *PaneTools
 	Tasks      *TaskTools
 	Context    *ContextTools
 	Getenv     func(string) string
@@ -72,6 +74,7 @@ func NewToolbox(store *data.Store, router *Router) *Toolbox {
 		Data:       NewDataTools(store),
 		Triage:     NewTriageTools(store),
 		PaneSearch: NewPaneSearchTools(store),
+		Panes:      NewPaneTools(store),
 		Tasks:      NewTaskTools(store),
 		Context:    NewContextTools(store),
 	}
@@ -86,6 +89,9 @@ func (b *Toolbox) ToolSpecs() []ToolSpec {
 	}
 	if b.PaneSearch != nil {
 		out = append(out, b.PaneSearch.ToolSpecs()...)
+	}
+	if b.Panes != nil {
+		out = append(out, b.Panes.ToolSpecs()...)
 	}
 	if b.Tasks != nil {
 		out = append(out, b.Tasks.ToolSpecs()...)
@@ -236,6 +242,8 @@ func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw j
 		return b.Triage.Call(ctx, actor, name, raw)
 	case b.PaneSearch != nil && b.PaneSearch.HasTool(name):
 		return b.PaneSearch.Call(ctx, actor, name, raw)
+	case b.Panes != nil && b.Panes.HasTool(name):
+		return b.Panes.Call(ctx, actor, name, raw)
 	case b.Tasks != nil && b.Tasks.HasTool(name):
 		return b.Tasks.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
 	case b.Context != nil && b.Context.HasTool(name):
@@ -303,7 +311,13 @@ func ServeStdio(ctx context.Context, in io.Reader, out io.Writer, store *data.St
 	if router == nil {
 		router = New(store)
 	}
-	s := &server{box: NewToolbox(store, router), out: out,
+	return ServeStdioWithToolbox(ctx, in, out, NewToolbox(store, router))
+}
+
+// ServeStdioWithToolbox runs the JSON-RPC 2.0 stdio MCP server over an already
+// wired Toolbox (for example, with a live daemon PaneRuntime attached).
+func ServeStdioWithToolbox(ctx context.Context, in io.Reader, out io.Writer, box *Toolbox) error {
+	s := &server{box: box, out: out,
 		actor: core.Actor{Kind: "agent", ID: DefaultAgentID, Label: ServerName}}
 	s.tools = s.box.ToolSpecs()
 

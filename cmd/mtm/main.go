@@ -371,15 +371,8 @@ func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.
 
 	baseDefault := a.Default
 	a.Default = func(ctx context.Context, rootArgs []string) error {
-		if len(rootArgs) > 0 && strings.EqualFold(rootArgs[0], data.KindTriageRule) {
-			if e := a.Catalog().Lookup("rule"); e != nil {
-				return a.RunEntry(ctx, e, rootArgs[1:])
-			}
-		}
-		if len(rootArgs) > 1 && strings.EqualFold(rootArgs[0], "commands") {
-			if e := a.Catalog().Lookup("command"); e != nil {
-				return a.RunEntry(ctx, e, rootArgs[1:])
-			}
+		if handled, err := dispatchDynamicNoun(ctx, a, g, rootArgs); handled {
+			return err
 		}
 		return baseDefault(ctx, rootArgs)
 	}
@@ -669,7 +662,7 @@ func mtmMCPCommand(g globalOpts) oden.Command {
 					}
 					defer store.Close()
 					actor := core.Actor{Kind: "agent", ID: os.Getenv("MTM_PANE_ID"), Label: "mtm mcp call"}
-					out, err := mcpui.NewToolbox(store, nil).Call(c.Context, actor, pos[0], json.RawMessage(raw))
+					out, err := newCLIToolbox(g, store).Call(c.Context, actor, pos[0], json.RawMessage(raw))
 					if err != nil {
 						return err
 					}
@@ -692,7 +685,7 @@ func mtmMCPCommand(g globalOpts) oden.Command {
 						return err
 					}
 					defer store.Close()
-					err = mcpui.ServeStdio(c.Context, c.Stdin, c.Stdout, store, mcpui.New(store))
+					err = mcpui.ServeStdioWithToolbox(c.Context, c.Stdin, c.Stdout, newCLIToolbox(g, store))
 					if errors.Is(err, context.Canceled) {
 						return nil // interrupted: a normal end for a server
 					}

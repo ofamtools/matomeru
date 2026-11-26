@@ -297,6 +297,18 @@ func (s *Server) Start(ctx context.Context) error {
 		if box.PaneSearch != nil {
 			box.PaneSearch.LiveData = s.paneSearchLiveData
 		}
+		if box.Panes != nil {
+			box.Panes.Runtime = NewServerPaneRuntime(s)
+			box.Panes.ResolveLaunch = func(harnessID, mcpURL, paneID, customCmd string) (string, map[string]string, error) {
+				return ResolveHarnessLaunch(DefaultConfigDir(), harnessID, mcpURL, paneID, customCmd)
+			}
+			box.Panes.MCPURL = func(paneID string) string {
+				if base := s.MCPURL(); base != "" {
+					return base + "/mcp/" + url.PathEscape(paneID)
+				}
+				return ""
+			}
+		}
 		mcpHandler := mcpui.NewHTTPHandlerWithToolbox(box)
 		mdHandler := mdweb.NewHandler(mdweb.Config{
 			BasePath:          "/md",

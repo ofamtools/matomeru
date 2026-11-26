@@ -155,7 +155,8 @@ func TestServeStdioSession(t *testing.T) {
 		names = append(names, spec["name"].(string))
 	}
 	want := []string{ToolCreatePage, ToolUpdatePage, ToolAsk, ToolListPages, ToolLaneStart, ToolLaneUpdate, ToolLaneLog, ToolLaneAttach, ToolSchemas, ToolQuery, ToolGet, ToolRelated,
-		ToolTaskTree, ToolHistory, ToolCreateNote, ToolRecordAgentInput, ToolSuggestCommand, ToolCreateDocument, ToolAddContext, ToolLogQA, ToolCreate, ToolUpdate, ToolTriageIngest, ToolTriageEvaluate, ToolPaneSearch,
+		ToolTaskTree, ToolHistory, ToolCreateNote, ToolRecordAgentInput, ToolSuggestCommand, ToolCreateDocument, ToolAddContext, ToolLogQA, ToolCreate, ToolUpdate, ToolRelate, ToolUnrelate,
+		ToolTriageIngest, ToolTriageEvaluate, ToolPaneSearch, ToolPaneSpawn, ToolPaneSnapshot, ToolPaneSend, ToolPaneStatus, ToolPaneClose,
 		ToolTaskQueue, ToolTaskFlagAgent, ToolTaskNote, ToolTaskThread, ToolTaskDispatch,
 		ToolContextOfficial, ToolContextProject, ToolContextAddOfficial}
 	if !slices.Equal(names, want) {
@@ -274,6 +275,7 @@ func TestDataToolSpecsMatchRealParams(t *testing.T) {
 		ToolTaskTree: TaskTreeArgs{}, ToolHistory: HistoryArgs{}, ToolCreateNote: CreateNoteArgs{}, ToolRecordAgentInput: RecordAgentInputArgs{},
 		ToolSuggestCommand: SuggestCommandArgs{}, ToolCreateDocument: CreateDocumentArgs{}, ToolAddContext: AddContextArgs{},
 		ToolLogQA: LogQAArgs{}, ToolCreate: CreateRecordArgs{}, ToolUpdate: UpdateRecordArgs{},
+		ToolRelate: RelateArgs{}, ToolUnrelate: RelateArgs{},
 	}
 	specs := NewDataTools(nil).ToolSpecs()
 	if len(specs) != len(args) {
