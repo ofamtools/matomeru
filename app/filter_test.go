@@ -7,6 +7,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/traits"
+	"ofam.dev/ochazuke/ui"
 )
 
 func TestUniversalFilterableAcrossProjectTasksOutlineWorkTreeNavAndBindings(t *testing.T) {
@@ -128,4 +129,114 @@ func TestUniversalFilterableAcrossProjectTasksOutlineWorkTreeNavAndBindings(t *t
 		t.Fatalf("B search 'group toggle' matched %d rows, want >= 4", got)
 	}
 	_ = core.Ref{}
+}
+
+func TestFilterBarBottomLeft(t *testing.T) {
+	a, d := demo(t)
+	proj, _, err := a.Store.Create(data.CreateInput{
+		Kind:   data.KindTask,
+		Fields: map[string]any{"title": "Very Long Project Workspace Name For Breadcrumb Testing"},
+	}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pc := a.projectCtrl()
+	pc.openTabs = append(pc.openTabs, proj.ID)
+	pc.setSection(proj.ID, "home")
+	d.Keys("6")
+	a.Shell.State = withFocus(a.State(), projectNavPrefix+"home")
+	_ = d.Frame()
+
+	// 1. Project Page project.nav in ModeFilter: bottom line is anchored at col 0
+	// and the status breadcrumb does not contain the inline /query.
+	d.Keys("/")
+	if a.Mode() != ModeFilter {
+		t.Fatalf("expected ModeFilter, got %q", a.Mode())
+	}
+	d.Type("lanes")
+	frame := d.Frame()
+	lines := strings.Split(frame, "\n")
+	if len(lines) < 2 {
+		t.Fatalf("unexpected short frame (%d lines):\n%s", len(lines), frame)
+	}
+	statusLine := lines[len(lines)-2]
+	bottomLine := lines[len(lines)-1]
+	if !strings.HasPrefix(bottomLine, " nav /lanes█  [substring]") {
+		t.Fatalf("bottom line not anchored at col 0:\nstatus: %q\nbottom: %q", statusLine, bottomLine)
+	}
+	if !strings.Contains(bottomLine, "enter keep · esc clear · tab mode") {
+		t.Fatalf("bottom line missing filter hints: %q", bottomLine)
+	}
+	if strings.Contains(statusLine, "/lanes") || strings.Contains(statusLine, "nav /") {
+		t.Fatalf("status line should not duplicate inline filter while bottom-left bar is active:\nstatus: %q", statusLine)
+	}
+
+	// Cursor motion (ctrl+a) redraws the bottom-left bar via viewKey.
+	d.Keys("ctrl+a")
+	lines = strings.Split(d.Frame(), "\n")
+	if !strings.HasPrefix(lines[len(lines)-1], " nav /█lanes  [substring]") {
+		t.Fatalf("ctrl+a did not redraw cursor in filter bar: %q", lines[len(lines)-1])
+	}
+
+	// Narrow width clips cleanly without out-of-bounds ToneSpans.
+	clippedNode, ok := a.filterBarNode(a.State(), 18)
+	if !ok {
+		t.Fatal("filterBarNode unexpectedly inactive")
+	}
+	clippedText, _ := clippedNode.Props["text"].(string)
+	maxRunes := len([]rune(clippedText))
+	if maxRunes != 18 {
+		t.Fatalf("clipped width = %d runes, want 18 (%q)", maxRunes, clippedText)
+	}
+	if spans, _ := clippedNode.Props["spans"].([]ui.ToneSpan); len(spans) > 0 {
+		for _, sp := range spans {
+			if sp.From < 0 || sp.From >= sp.To || sp.To > maxRunes {
+				t.Fatalf("out-of-bounds span %+v for maxRunes=%d (%q)", sp, maxRunes, clippedText)
+			}
+		}
+	}
+
+	// Keeping the filter in Normal mode shows inline status and restores normal hints.
+	d.Keys("enter")
+	if a.Mode() != ModeNormal {
+		t.Fatalf("expected ModeNormal after enter, got %q", a.Mode())
+	}
+	lines = strings.Split(d.Frame(), "\n")
+	if !strings.Contains(lines[len(lines)-2], "nav /lanes (") {
+		t.Fatalf("kept filter missing from status line: %q", lines[len(lines)-2])
+	}
+	if strings.HasPrefix(lines[len(lines)-1], " nav /lanes") {
+		t.Fatalf("bottom line should restore normal hints after enter: %q", lines[len(lines)-1])
+	}
+	d.Keys("/", "esc")
+
+	// 2. Invalid regex in ModeFilter renders "invalid regex" inside the bottom-left bar.
+	a.Shell.State = withFocus(a.State(), projectNavPrefix+"home")
+	d.Keys("/", "tab", "tab")
+	d.Type("[")
+	lines = strings.Split(d.Frame(), "\n")
+	bottomLine = lines[len(lines)-1]
+	if !strings.HasPrefix(bottomLine, " nav /[█  [regex]") || !strings.Contains(bottomLine, "invalid regex") {
+		t.Fatalf("invalid regex not rendered cleanly in bottom-left filter bar: %q", bottomLine)
+	}
+	d.Keys("esc")
+
+	// 3. Opt-out ui.filterBarBottomLeft=false restores the legacy inline status filter.
+	a.cfg.userSettings[SetFilterBarBottomLeft] = false
+	a.reloadSettings()
+	a.applySettings()
+	a.Shell.State = withFocus(a.State(), projectNavPrefix+"home")
+	d.Keys("/")
+	d.Type("la")
+	lines = strings.Split(d.Frame(), "\n")
+	statusLine = lines[len(lines)-2]
+	bottomLine = lines[len(lines)-1]
+	if !strings.Contains(statusLine, "nav /la█ (") {
+		t.Fatalf("opt-out did not restore inline filter in status line: %q", statusLine)
+	}
+	if strings.HasPrefix(bottomLine, " nav /la█") {
+		t.Fatalf("opt-out should not render bottom-left filter bar: %q", bottomLine)
+	}
+	d.Keys("esc")
 }

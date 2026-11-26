@@ -164,6 +164,9 @@ func (a *App) viewKey(s core.State) string {
 	}
 	if f, fid := a.activeFilterable(s); f != nil && (f.IsFiltered() || a.Engine.Mode(s) == ModeFilter) {
 		fmt.Fprintf(&b, "|flt:%s:%q:%s", fid, f.FilterQuery(), f.FilterMode())
+		if a.Engine.Mode(s) == ModeFilter {
+			fmt.Fprintf(&b, ":%d:%t", a.nav.filterLine.Cursor, a.filterBarBottomLeftEnabled())
+		}
 	}
 	return b.String()
 }
@@ -283,9 +286,13 @@ func (a *App) build(s core.State) ui.ViewNode {
 			}
 		}
 	}
+	bottomLine, ok := a.filterBarNode(s, w)
+	if !ok {
+		bottomLine = line("hints", clip(a.hintLine(s, chain), w), "muted")
+	}
 	footer := []ui.ViewNode{
 		line("status", statusText, "accent"),
-		line("hints", clip(a.hintLine(s, chain), w), "muted"),
+		bottomLine,
 	}
 	root.Children = append(append([]ui.ViewNode{tabs}, footer...), overlays...)
 	applyTreeGuides(&root, a.cfg.Settings.Bool(SetTreeGuides, true))
@@ -314,29 +321,22 @@ func (a *App) statusLine(s core.State, chain []core.ContextFrame) string {
 	if p := s.Input.Prefix; len(p) > 0 {
 		out += " · " + strings.Join(p, " ") + "…"
 	}
-	// A filter is shown while it is typed and for as long as it narrows any Filterable.
+	// A filter is shown in the status line while kept in Normal mode, or while
+	// typing when the fixed bottom-left Filter Bar is disabled.
 	typing := a.Engine.Mode(s) == ModeFilter
-	if f, fid := a.activeFilterable(s); f != nil && (f.IsFiltered() || typing) {
-		prefix := ""
-		switch {
-		case fid == "toc":
-			prefix = "pages "
-		case strings.HasPrefix(fid, "project.nav.filter:"):
-			prefix = "nav "
-		default:
-			if tbl := a.nav.tables[fid]; tbl != nil && tbl.FilterField != views.AnyField && tbl.FilterField != "" {
-				prefix = tbl.FilterField + " "
+	if !typing || !a.filterBarBottomLeftEnabled() {
+		if f, fid := a.activeFilterable(s); f != nil && (f.IsFiltered() || typing) {
+			prefix := a.filterPrefix(fid)
+			q := f.FilterQuery()
+			shownQuery := q
+			if typing {
+				a.nav.filterLine.Sync(q)
+				rs := []rune(q)
+				ci := min(max(a.nav.filterLine.Cursor, 0), len(rs))
+				shownQuery = string(rs[:ci]) + "█" + string(rs[ci:])
 			}
+			out += " · " + prefix + "/" + shownQuery + " (" + string(f.FilterMode()) + ")"
 		}
-		q := f.FilterQuery()
-		shownQuery := q
-		if typing {
-			a.nav.filterLine.Sync(q)
-			rs := []rune(q)
-			ci := min(max(a.nav.filterLine.Cursor, 0), len(rs))
-			shownQuery = string(rs[:ci]) + "█" + string(rs[ci:])
-		}
-		out += " · " + prefix + "/" + shownQuery + " (" + string(f.FilterMode()) + ")"
 	}
 	if a.status != "" {
 		out += " · " + a.status
