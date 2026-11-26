@@ -71,8 +71,8 @@ func TestFilesViewTabs(t *testing.T) {
 				"hasSelection": true, "selectedPath": tc.path, "selectedIsDir": tc.dir,
 				"count": tc.count, "hasFilter": false,
 			}
-			if chain[0].Scope != ScopeFiles || !maps.Equal(chain[0].Facts, want) {
-				t.Fatalf("selected context = %+v, want %v", chain, want)
+			if len(chain) < 2 || chain[0].Scope != "trait.filter" || chain[1].Scope != ScopeFiles || !maps.Equal(chain[1].Facts, want) {
+				t.Fatalf("selected context = %+v, want trait.filter + %v", chain, want)
 			}
 			if filter, id := ui.ResolveFilterSpec(root, FilesListID); filter == nil || id != FilesListID || filter.Prefix != "files " {
 				t.Fatalf("list filter = %+v (%q)", filter, id)
