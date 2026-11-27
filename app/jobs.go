@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -98,14 +99,22 @@ func (a *App) registerJobsHandlers() {
 	a.handle(CmdJobsClear, a.clearJobsActions)
 }
 
+func (a *App) cycleJobsTabDir(s core.State, step int) core.StepResult {
+	cur := jobsTabs[a.jobs.tab]
+	next, _ := traits.Cycle(jobsTabs[:], cur, step, true)
+	if idx := slices.Index(jobsTabs[:], next); idx >= 0 {
+		a.jobs.tab = idx
+	}
+	return core.Next(s)
+}
+
 func (a *App) cycleJobsTab(s core.State, c core.Command) core.StepResult {
 	if s.ActivePage == SpaceJobs {
-		count := len(jobsTabs)
-		step := c.Times() % count
+		step := c.Times()
 		if intArg(c.Args["delta"]) < 0 {
 			step = -step
 		}
-		a.jobs.tab = (a.jobs.tab + step + count) % count
+		return a.cycleJobsTabDir(s, step)
 	}
 	return core.Next(s)
 }

@@ -78,7 +78,6 @@ var specialCaseCeilings = map[string]int{
 	"app/tutorial.go":               3,
 	"app/ux_notes.go":               1,
 	"app/v2.go":                     9,
-	"app/view_cycle.go":             2,
 }
 
 // activePageCeilings ratchets .ActivePage and Space* dispatch branches in app/.
@@ -118,7 +117,6 @@ var activePageCeilings = map[string]int{
 	"app/ux_notes.go":           2,
 	"app/v2.go":                 1,
 	"app/view.go":               11,
-	"app/view_cycle.go":         3,
 }
 
 // focusRegionIDCeilings ratchets focus/region/container string-ID dispatch in app/.
@@ -134,7 +132,6 @@ var focusRegionIDCeilings = map[string]int{
 	"app/smoke.go":                  4,
 	"app/tutorial.go":               1,
 	"app/v2.go":                     1,
-	"app/view_cycle.go":             1,
 }
 
 // parallelFilterCeilings ratchets parallel filter reimplementations in app/ and views/.
@@ -301,7 +298,6 @@ var cyclomaticCeilings = map[string]int{
 	"app/project_nav_tree.go:(App).buildProjectNavChildren":                     16,
 	"app/project_nav_tree.go:(App).projectContextNavNodes":                      29,
 	"app/project_nav_tree.go:(App).projectNavNodeOpen":                          31,
-	"app/project_nav_tree.go:(App).projectNavToggle":                            14,
 	"app/project_nav_tree.go:(App).projectNavViewKey":                           13,
 	"app/project_nav_tree.go:(App).projectTreeNavNodes":                         25,
 	"app/project_nav_unread.go:(App).isNavRecordUnread":                         25,
@@ -382,8 +378,6 @@ var cyclomaticCeilings = map[string]int{
 	"app/view.go:(App).panesSpace":                                              14,
 	"app/view.go:(App).readContentFileCached":                                   14,
 	"app/view.go:(App).tabsMemoKey":                                             35,
-	"app/view_cycle.go:(App).cycleWorkIndexView":                                20,
-	"app/view_cycle.go:(App).viewCycle":                                         27,
 	"data/attachments.go:DecodeAttachments":                                     17,
 	"data/attachments.go:ParseRichTokens":                                       20,
 	"data/attachments.go:isIdentToken":                                          18,

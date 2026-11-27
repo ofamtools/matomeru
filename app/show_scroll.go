@@ -45,8 +45,8 @@ func showScrollOffsetText(off *int) string {
 	return strconv.Itoa(*off)
 }
 
-func (a *App) showFoldToggle(s core.State, _ core.Command) core.StepResult {
-	a.nav.showEmptyFoldExpanded = !a.nav.showEmptyFoldExpanded
+func (a *App) setShowFold(s core.State, action string) core.StepResult {
+	a.nav.showEmptyFoldExpanded = resolveFoldNext(a.nav.showEmptyFoldExpanded, action)
 	a.viewMemo.gen++
 	if a.nav.showEmptyFoldExpanded {
 		a.say("showing empty relations")
@@ -54,6 +54,10 @@ func (a *App) showFoldToggle(s core.State, _ core.Command) core.StepResult {
 		a.say("hiding empty relations")
 	}
 	return core.Next(s)
+}
+
+func (a *App) showFoldToggle(s core.State, _ core.Command) core.StepResult {
+	return a.setShowFold(s, "toggle")
 }
 
 func (a *App) showYank(s core.State, _ core.Command) core.StepResult {

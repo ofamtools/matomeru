@@ -8,6 +8,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/modal"
@@ -342,8 +343,7 @@ func (a *App) registerQueue() {
 	})
 	a.handle(cmdQueueGroupCycle, func(s core.State, _ core.Command) core.StepResult {
 		q := a.queue
-		i := slices.Index(views.QueueGroupModes, q.groupBy)
-		q.groupBy = views.QueueGroupModes[(i+1)%len(views.QueueGroupModes)]
+		q.groupBy, _ = traits.Cycle(views.QueueGroupModes, q.groupBy, 1, true)
 		label := q.groupBy
 		if label == views.QueueGroupNone {
 			label = "none"
@@ -357,22 +357,28 @@ func (a *App) registerQueue() {
 	a.handle(cmdQueueWatch, a.queueWatchConfigure)
 }
 
-func (a *App) queueTabCycle(s core.State, c core.Command) core.StepResult {
+func (a *App) cycleQueueTabDir(s core.State, step int) core.StepResult {
 	snap := a.syncQueue(a.queueScope(s))
 	q := a.queue
-	size := len(snap.queues)
-	if size == 0 {
+	if len(snap.queues) == 0 {
 		return core.Next(s)
 	}
-	i := slices.IndexFunc(snap.queues, func(p data.QueueProgress) bool { return p.Name == q.active })
+	names := make([]string, len(snap.queues))
+	for i, p := range snap.queues {
+		names[i] = p.Name
+	}
+	q.active, _ = traits.Cycle(names, q.active, step, true)
+	q.list.SelectedIdx, q.list.Offset = 0, 0
+	a.say("queue: %s", q.active)
+	return core.Next(s)
+}
+
+func (a *App) queueTabCycle(s core.State, c core.Command) core.StepResult {
 	delta := intArg(c.Args["delta"])
 	if delta == 0 {
 		delta = 1
 	}
-	q.active = snap.queues[((i+delta*c.Times())%size+size)%size].Name
-	q.list.SelectedIdx, q.list.Offset = 0, 0
-	a.say("queue: %s", q.active)
-	return core.Next(s)
+	return a.cycleQueueTabDir(s, delta*c.Times())
 }
 
 // queueRecord returns the queue record named name in the snapshot, or nil

@@ -10,6 +10,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/modal"
 	"ofam.dev/ochazuke/widgets/pathpicker"
@@ -111,7 +112,8 @@ func (a *App) filesSortMode() data.PathSortMode {
 }
 
 func nextFilesSortMode(mode data.PathSortMode) data.PathSortMode {
-	return filesSortModes[(slices.Index(filesSortModes[:], mode)+1)%len(filesSortModes)]
+	next, _ := traits.Cycle(filesSortModes[:], mode, 1, true)
+	return next
 }
 
 func (a *App) refreshFilesPaths() {
@@ -276,19 +278,21 @@ func (a *App) registerFiles() {
 	a.handle(cmdFilesYank, a.filesYank)
 }
 
-func (a *App) filesTabCycle(s core.State, c core.Command) core.StepResult {
+func (a *App) cycleFilesTabDir(s core.State, step int) core.StepResult {
 	f := a.files
-	size := len(filesTabs)
-	i := slices.Index(filesTabs[:], f.tab)
-	delta := intArg(c.Args["delta"])
-	if delta == 0 {
-		delta = 1
-	}
-	f.tab = filesTabs[((i+delta*c.Times())%size+size)%size]
+	f.tab, _ = traits.Cycle(filesTabs[:], f.tab, step, true)
 	f.list.SelectedIdx, f.list.Offset = 0, 0
 	f.list.Rows = nil
 	f.refreshRows()
 	return core.Next(s)
+}
+
+func (a *App) filesTabCycle(s core.State, c core.Command) core.StepResult {
+	delta := intArg(c.Args["delta"])
+	if delta == 0 {
+		delta = 1
+	}
+	return a.cycleFilesTabDir(s, delta*c.Times())
 }
 
 func (a *App) filesBaseAdd(s core.State, _ core.Command) core.StepResult {

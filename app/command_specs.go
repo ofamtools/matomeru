@@ -38,7 +38,7 @@ func recordSpec(id, desc string, kinds []string, whenExpr string, tags ...string
 // the terminal's leader layer leaves them out.
 func CommandSpecs() []core.CommandSpec {
 	text := []core.ParamSpec{{Name: "text", Type: core.ParamString}}
-	base := append(append(append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...), viewCycleSpecs()...), traits.SelectCommandSpecs()...)
+	base := append(append(append(append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...), viewCycleSpecs()...), standardVerbSpecs()...), traits.SelectCommandSpecs()...)
 	base = append(base, filesCommandSpecs()...)
 	base = append(base, queueCommandSpecs()...)
 	base = append(base, threadsCommandSpecs()...)
