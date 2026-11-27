@@ -425,7 +425,7 @@ func TestProjectWorkspaceSettingsOverridesAndOptOut(t *testing.T) {
 	}
 	a.Shell.State = withFocus(a.State(), projectContextTable)
 	d.Keys("P")
-	if shown, ok := a.Showing(); !ok || shown != f.proj.Ref() || a.Space() != SpaceWork {
+	if shown, ok := a.Showing(); !ok || shown != f.proj.Ref() || !isViewTabID(a.Space()) {
 		t.Fatalf("P with workspaceInPanes=false: space=%q showing=%v ok=%v, want %v", a.Space(), shown, ok, f.proj.Ref())
 	}
 	_ = views.ScopeProjectNav

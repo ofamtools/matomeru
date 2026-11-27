@@ -289,14 +289,14 @@ func TestPanesUXProjectInheritanceOverviewAndOpen(t *testing.T) {
 
 	// 3. P opens the top-level Project Show page from both ScopeRail and ScopeSite.
 	d.Keys("P")
-	if shown, ok := a.Showing(); !ok || shown != projRec.Ref() || a.Space() != SpaceWork {
+	if shown, ok := a.Showing(); !ok || shown != projRec.Ref() || !isViewTabID(a.Space()) {
 		t.Fatalf("P from project header: space=%q showing=%v (ok=%v), want %v", a.Space(), shown, ok, projRec.Ref())
 	}
 	d.Keys("1")
 	selectRow(a.rail(), data.RefText(pane.Ref()))
 	a.viewMemo.gen++
 	d.Keys("l", "P") // from ScopeSite (TOC)
-	if shown, ok := a.Showing(); !ok || shown != projRec.Ref() || a.Space() != SpaceWork {
+	if shown, ok := a.Showing(); !ok || shown != projRec.Ref() || !isViewTabID(a.Space()) {
 		t.Fatalf("P from ScopeSite: space=%q showing=%v (ok=%v), want %v", a.Space(), shown, ok, projRec.Ref())
 	}
 

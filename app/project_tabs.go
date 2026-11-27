@@ -39,6 +39,7 @@ type topTabDef struct {
 	projectID string
 	dynamic   bool
 	unlisted  bool
+	viewTab   bool
 }
 
 func (tb topTabDef) projectTitle() string {
@@ -79,9 +80,9 @@ func (a *App) projectChildPaneViewEnabled() bool {
 func (a *App) topTabsCacheKey() string {
 	rev := a.storeRev()
 	pc := a.projectCtrl()
-	return fmt.Sprintf("%d|%t|%t|%t|%t|%t|%t|%d|%s",
+	return fmt.Sprintf("%d|%t|%t|%t|%t|%t|%t|%d|%s|%s",
 		rev, a.Store != nil, a.showLegacyPanesWorkPages(), a.projectsTopNavTabEnabled(), a.projectsDynamicTabsEnabled(),
-		a.featuresPageActive(), a.remindersTopNavTabEnabled(), a.remindersPendingCount(), strings.Join(pc.openTabs, ","),
+		a.featuresPageActive(), a.remindersTopNavTabEnabled(), a.remindersPendingCount(), strings.Join(pc.openTabs, ","), a.viewTabsCacheKey(),
 	)
 }
 
@@ -153,6 +154,7 @@ func (a *App) topTabs() []topTabDef {
 	if a.remindersTopNavTabEnabled() {
 		out = append(out, topTabDef{id: SpaceReminders, title: a.remindersTabTitle()})
 	}
+	out = append(out, a.buildDynamicViewTabs()...)
 	pc.topTabsCache, pc.topTabsCacheKey = out, a.topTabsCacheKey()
 	return slices.Clone(out)
 }
