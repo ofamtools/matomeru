@@ -420,3 +420,29 @@ func TestProjectWorkspacePriorityOrderDeclarative(t *testing.T) {
 		t.Fatalf("legacy nav order = %q, want %q", gotLegacy, wantLegacy)
 	}
 }
+
+func TestProjectWorkspaceNavModeFactsAndBadge(t *testing.T) {
+	secRoot := ProjectWorkspaceView(ProjectWorkspaceSpec{
+		ProjectID: "p-mode",
+		Title:     "ModeCheck",
+		NavItems:  []ProjectNavSection{{Key: "home", Label: "Home", Icon: "⌂", Group: "Core"}},
+	})
+	secNav := secRoot.Find(ProjectNavID)
+	if secNav == nil || secNav.Facts["navMode"] != ProjectNavModeSections || len(secNav.Badges) != 0 {
+		t.Fatalf("default navMode panel = %+v, want sections with no badge", secNav)
+	}
+
+	bpRoot := ProjectWorkspaceView(ProjectWorkspaceSpec{
+		ProjectID: "p-mode",
+		Title:     "ModeCheck",
+		NavMode:   ProjectNavModeByPane,
+		NavItems:  []ProjectNavSection{{Key: "home", Label: "Home", Icon: "⌂", Group: "Core"}},
+	})
+	bpNav := bpRoot.Find(ProjectNavID)
+	if bpNav == nil || bpNav.Facts["navMode"] != ProjectNavModeByPane {
+		t.Fatalf("by-pane nav panel facts = %+v", bpNav)
+	}
+	if len(bpNav.Badges) != 1 || bpNav.Badges[0].Text != ProjectNavModeByPane {
+		t.Fatalf("by-pane nav panel badges = %+v, want [by-pane]", bpNav.Badges)
+	}
+}

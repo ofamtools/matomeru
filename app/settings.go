@@ -254,6 +254,7 @@ const (
 	SetSearchHighlight                 = "ui.searchHighlight"
 	SetOutlineAutoSuggest              = "outline.autoSuggest"
 	SetFeaturesOutline                 = "features.outline"
+	SetProjectNavMode                  = "ui.projectNavMode"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -450,6 +451,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetOutlineAutoSuggest, true, "suggest existing outline items while typing new items (re-anchors clean-slate top-level items to existing projects)"),
 		flag(SetFeaturesOutline, true, "render the Features page content as a unified interactive clean-slate outline across Features, Concepts, Views, Props, and Raw Ideas"),
 		flag(SetProjectNavPriorityOrder, true, "order Project Portal left nav as Home, Panes, Tasks, Lanes, Pages, Documents first (off restores legacy section grouping order)"),
+		enum(SetProjectNavMode, views.ProjectNavModeSections, "Project Portal left-nav layout: sections (grouped by record type) or by-pane (panes as top-level items with pages, questions, lanes, and context grouped underneath)", views.ProjectNavModeSections, views.ProjectNavModeByPane),
 	}
 }
 
@@ -485,6 +487,7 @@ func readUserSettings(b []byte) (map[string]any, error) {
 // reloadSettings rebuilds Settings from the keys the user set.
 func (a *App) reloadSettings() {
 	previousPathSort := a.filesDefaultSort()
+	previousNavMode := a.defaultProjectNavMode()
 	b, err := json.Marshal(a.cfg.userSettings)
 	if err == nil {
 		var s *config.Settings
@@ -497,6 +500,9 @@ func (a *App) reloadSettings() {
 	}
 	if a.files != nil && a.files.sortMode == "" && previousPathSort != a.filesDefaultSort() {
 		a.refreshFilesPaths()
+	}
+	if a.proj != nil && previousNavMode != a.defaultProjectNavMode() {
+		clear(a.proj.navModeByProject)
 	}
 	a.syncToastSetting()
 	a.syncSessionRecorder()

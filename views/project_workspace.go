@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	"ofam.dev/ochazuke/core"
@@ -12,11 +13,14 @@ import (
 
 // Scopes and node ID prefixes used by the Project Page workspace shell.
 const (
-	ScopeProjectNav      = "project.nav"
-	ScopeProjectContent  = "project.content"
-	ScopeProjectOverview = "project.overview"
-	ProjectNavPrefix     = "project.nav."
-	ProjectNavNodePrefix = "project.nav.node."
+	ProjectNavID           = "project.nav"
+	ScopeProjectNav        = "project.nav"
+	ScopeProjectContent    = "project.content"
+	ScopeProjectOverview   = "project.overview"
+	ProjectNavPrefix       = "project.nav."
+	ProjectNavNodePrefix   = "project.nav.node."
+	ProjectNavModeSections = "sections"
+	ProjectNavModeByPane   = "by-pane"
 )
 
 // ProjectNavNode is a pure recursive value object describing one expandable or
@@ -121,6 +125,8 @@ type ProjectWorkspaceSpec struct {
 	Title         string
 	Subtitle      string
 	NavTitle      string
+	NavMode       string
+	NavBadges     []ui.Badge
 	HideHeader    bool
 	UnreadDotOnly *bool // nil or true: color only the leading ● ball on unread nav rows; false: legacy whole-row warning tint
 	NavOptions    ProjectNavOptions
@@ -207,6 +213,7 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 			navFacts["projectUnread"] = pu
 		}
 	}
+	populateProjectNavFacts(navFacts, spec)
 
 	navFilterID := "project.nav.filter:" + spec.ProjectID
 	if spec.ProjectID == "" {
@@ -217,11 +224,12 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 		navFilter = &ui.FilterSpec{ID: navFilterID, Prefix: "nav "}
 	}
 	navPanel := ui.ViewNode{
-		ID:     "project.nav",
+		ID:     ProjectNavID,
 		Kind:   ui.KindPanel,
 		Scope:  ScopeProjectNav,
 		Filter: navFilter,
 		Title:  navTitle,
+		Badges: projectNavPanelBadges(spec),
 		Border: true,
 		Facts:  navFacts,
 		Children: []ui.ViewNode{
@@ -293,6 +301,7 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 		"section":          spec.ActiveKey,
 		"projectWorkspace": true,
 	}
+	populateProjectNavFacts(facts, spec)
 	if spec.Facts != nil {
 		maps.Copy(facts, spec.Facts)
 	}
@@ -310,6 +319,25 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 		Facts:    facts,
 		Children: children,
 	}
+}
+
+func projectNavEffectiveMode(mode string) string {
+	if mode == ProjectNavModeByPane {
+		return ProjectNavModeByPane
+	}
+	return ProjectNavModeSections
+}
+
+func populateProjectNavFacts(dst map[string]any, spec ProjectWorkspaceSpec) {
+	dst["navMode"] = projectNavEffectiveMode(spec.NavMode)
+}
+
+func projectNavPanelBadges(spec ProjectWorkspaceSpec) []ui.Badge {
+	badges := slices.Clone(spec.NavBadges)
+	if projectNavEffectiveMode(spec.NavMode) == ProjectNavModeByPane {
+		badges = append(badges, ui.Badge{Text: ProjectNavModeByPane, Tone: "accent"})
+	}
+	return badges
 }
 
 type navSpanBuilder struct {

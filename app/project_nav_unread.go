@@ -438,6 +438,9 @@ func (a *App) settleNavFocusAfterRead(s core.State, target projectNavTarget) cor
 		fallback = projectNavPrefix + target.Section
 	}
 	if root.Find(fallback) == nil {
+		fallback = projectNavPrefix + "home"
+	}
+	if root.Find(fallback) == nil {
 		return s
 	}
 	return withPage(s, s.ActivePage, fallback, "")
@@ -456,6 +459,9 @@ func (a *App) resolveProjectNavReturnFocus(s core.State, ret string) string {
 		if root.Find(secFocus) != nil {
 			return secFocus
 		}
+	}
+	if homeFocus := projectNavPrefix + "home"; root.Find(homeFocus) != nil {
+		return homeFocus
 	}
 	return ret
 }
