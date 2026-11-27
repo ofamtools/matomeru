@@ -320,8 +320,15 @@ func TestWaveD2CommandRunEditAndYank(t *testing.T) {
 	if got := a.Register(core.RegUnnamed); got != data.RefText(cmdRec.Ref()) {
 		t.Fatalf("y y on KindCommand yanked %q, want %q", got, data.RefText(cmdRec.Ref()))
 	}
-	d.Keys("y", "/")
-	d.Type("command")
+	d.Keys("y")
+	// Row 0 is "ref" whose subtitle ("command:<id>") also contains "command";
+	// step directly to the "command" field row.
+	for _, id := range yankIDs {
+		if id == "command" {
+			break
+		}
+		d.Keys("j")
+	}
 	d.Keys("enter")
 	if got := a.Register(core.RegUnnamed); got != "echo hello-waved2" {
 		t.Fatalf("picking command field yanked %q, want %q", got, "echo hello-waved2")
