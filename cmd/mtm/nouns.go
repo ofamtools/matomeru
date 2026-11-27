@@ -42,6 +42,7 @@ var nounSpecs = []nounSpec{
 	{name: "queue", aliases: []string{"queues"}, kind: data.KindQueue, summary: "manage named agent queues"},
 	{name: "repo", aliases: []string{"repos"}, kind: data.KindRepo, summary: "manage tracked git repositories"},
 	{name: "capture", aliases: []string{"captures"}, kind: data.KindCapture, summary: "manage captured dictation and composed prompts"},
+	{name: "message", aliases: []string{"messages", "msg"}, kind: data.KindMessage, summary: "inter-agent mailbox: send, inbox, ack and reply"},
 	{name: "page", aliases: []string{"pages", data.KindPage}, kind: data.KindPage, summary: "manage UI pages"},
 	{name: "occurrence", aliases: []string{"occurrences", data.KindOccurrence}, kind: data.KindOccurrence, summary: "manage schedule occurrences"},
 }
@@ -91,6 +92,9 @@ var nounAliases = map[string]string{
 	"repos":               data.KindRepo,
 	"capture":             data.KindCapture,
 	"captures":            data.KindCapture,
+	"message":             data.KindMessage,
+	"messages":            data.KindMessage,
+	"msg":                 data.KindMessage,
 	"page":                data.KindPage,
 	"pages":               data.KindPage,
 	"ui.page":             data.KindPage,
@@ -634,6 +638,10 @@ func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
 
 	if kind == data.KindRepo {
 		children = append(children, mtmRepoCommands(g)...)
+	}
+
+	if kind == data.KindMessage {
+		children = append(children, mtmMessageCommands(g)...)
 	}
 
 	if kind == data.KindQuestion {

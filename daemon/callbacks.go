@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -52,7 +53,8 @@ type eventListener struct {
 	ch   chan AgentDoneEvent
 }
 
-// callbackBus fans agent.done events out to RPC listeners and to matching
+// callbackBus fans bus events (agent.done, agent.needs_input, agent.blocked,
+// mail.received) out to RPC listeners and to matching
 // hooks.json / in-memory callback rules, delivering on a bounded worker pool.
 type callbackBus struct {
 	events chan AgentDoneEvent
@@ -62,6 +64,8 @@ type callbackBus struct {
 	clock  func() time.Time
 	// enrich fills store-derived fields (task, lane, project) off the hot path.
 	enrich func(*AgentDoneEvent)
+	// notify delivers a rule's run.notifyPane (mailbox message + idle wake).
+	notify func(ctx context.Context, target string, ev AgentDoneEvent) error
 
 	mu        sync.Mutex
 	memory    []HookRule
@@ -119,7 +123,7 @@ func (b *callbackBus) start(ctx context.Context, wg *sync.WaitGroup) {
 				case <-ctx.Done():
 					return
 				case job := <-b.jobs:
-					b.record(DeliverHook(ctx, b.client, job.rule, job.ev))
+					b.record(b.deliver(ctx, job))
 				}
 			}
 		}()
@@ -276,11 +280,33 @@ func (b *callbackBus) log(limit int) []HookDelivery {
 	return slices.Clone(h)
 }
 
-func hookTarget(r HookRule) string {
-	if len(r.Run.Command) > 0 {
-		return "command:" + r.Run.Command[0]
+// deliver runs job's command/webhook and then its notifyPane delivery.
+func (b *callbackBus) deliver(ctx context.Context, job callbackJob) HookDelivery {
+	d := DeliverHook(ctx, b.client, job.rule, job.ev)
+	target := strings.TrimSpace(job.rule.Run.NotifyPane)
+	if target == "" {
+		return d
 	}
-	return "webhook:" + r.Run.Webhook
+	d.Attempts++
+	err := errors.New("notifyPane: daemon mailbox not wired")
+	if b.notify != nil {
+		err = b.notify(ctx, target, job.ev)
+	}
+	if err != nil {
+		d.OK = false
+		d.Error = strings.TrimPrefix(d.Error+"; "+err.Error(), "; ")
+	}
+	return d
+}
+
+func hookTarget(r HookRule) string {
+	switch {
+	case len(r.Run.Command) > 0:
+		return "command:" + r.Run.Command[0]
+	case strings.TrimSpace(r.Run.Webhook) != "":
+		return "webhook:" + r.Run.Webhook
+	}
+	return "notify:" + r.Run.NotifyPane
 }
 
 // DeliverHook runs rule for ev: the command (event JSON on stdin) and/or the

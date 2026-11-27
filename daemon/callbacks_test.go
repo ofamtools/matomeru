@@ -31,20 +31,23 @@ func TestAgentDoneEdgeTrigger(t *testing.T) {
 
 	send(StateDone) // no previous state: not an edge
 	send(StateRunning)
-	send(StateDone) // running -> done: edge
-	send(StateDone) // done -> done: no duplicate
-	send(StateIdle) // done -> idle: not from an active state
-	send(StateNeedsYou)
-	send(StateIdle) // needs_you -> idle: edge
+	send(StateDone)     // running -> done: edge
+	send(StateDone)     // done -> done: no duplicate
+	send(StateIdle)     // done -> idle: not from an active state
+	send(StateNeedsYou) // idle -> needs_you: agent.needs_input edge
+	send(StateIdle)     // needs_you -> idle: edge
 
-	if len(got) != 2 {
-		t.Fatalf("events = %d, want 2: %+v", len(got), got)
+	if len(got) != 3 {
+		t.Fatalf("events = %d, want 3: %+v", len(got), got)
 	}
 	if got[0].Event != EventAgentDone || got[0].PrevState != StateRunning || got[0].State != StateDone || got[0].Harness != "claude" || got[0].Summary != "s-done" {
 		t.Fatalf("first event = %+v", got[0])
 	}
-	if got[1].PrevState != StateNeedsYou || got[1].State != StateIdle {
-		t.Fatalf("second event = %+v", got[1])
+	if got[1].Event != EventAgentNeedsInput || got[1].PrevState != StateIdle || got[1].State != StateNeedsYou {
+		t.Fatalf("needs_input event = %+v", got[1])
+	}
+	if got[2].Event != EventAgentDone || got[2].PrevState != StateNeedsYou || got[2].State != StateIdle {
+		t.Fatalf("third event = %+v", got[2])
 	}
 }
 

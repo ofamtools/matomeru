@@ -440,10 +440,15 @@ func (c *Client) WaitAgentDone(ctx context.Context, paneID string, next bool) (*
 		if err != nil {
 			return nil, err
 		}
-		if resp.Event != nil && (paneID == "" || resp.Event.PaneID == paneID) {
+		if isDoneFor(resp.Event, paneID) {
 			return resp.Event, nil
 		}
 	}
+}
+
+// isDoneFor reports whether ev is an agent.done event of paneID (any pane when empty).
+func isDoneFor(ev *AgentDoneEvent, paneID string) bool {
+	return ev != nil && ev.Event == EventAgentDone && (paneID == "" || ev.PaneID == paneID)
 }
 
 func (c *Client) currentDone(ctx context.Context, paneID string) *AgentDoneEvent {

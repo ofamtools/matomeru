@@ -37,7 +37,7 @@ func (s *Server) handleHookRequest(req Request) Response {
 	return Response{OK: false, Error: fmt.Sprintf("unknown op %q", req.Op)}
 }
 
-// serveWatchEvents streams agent.done events (optionally for one pane) until
+// serveWatchEvents streams bus events (optionally for one pane) until
 // the client disconnects. The listener is registered before the ack so a
 // client may check current state after the ack without missing an edge.
 func (s *Server) serveWatchEvents(conn net.Conn, enc *json.Encoder, paneID string) {
@@ -75,7 +75,7 @@ func (s *Server) serveWatchEvents(conn net.Conn, enc *json.Encoder, paneID strin
 }
 
 // enrichAgentDone fills task, lane and project from the pane record and its
-// claiming lane. It runs on the callback dispatcher, never under telemetry locks.
+// claiming lane (a lane already on the event, such as a message's, is kept). It runs on the callback dispatcher, never under telemetry locks.
 func (s *Server) enrichAgentDone(ev *AgentDoneEvent) {
 	store := s.cfg.Store
 	if store == nil || ev.PaneID == "" {
@@ -92,14 +92,45 @@ func (s *Server) enrichAgentDone(ev *AgentDoneEvent) {
 			ev.ProjectID = t.ID
 		}
 	}
-	if rels, err := store.Related(pane.Ref(), data.RelClaim, data.Incoming); err == nil {
-		for _, rel := range rels {
-			if rel.From.Kind == data.KindLane && rel.From.ID != "" {
-				ev.LaneID = rel.From.ID
-				break
-			}
+	if ev.LaneID == "" {
+		ev.LaneID = claimingLane(store, pane.Ref())
+	}
+}
+
+// claimingLane returns the ID of the first lane that claims pane.
+func claimingLane(store *data.Store, pane core.Ref) string {
+	rels, err := store.Related(pane, data.RelClaim, data.Incoming)
+	if err != nil {
+		return ""
+	}
+	for _, rel := range rels {
+		if rel.From.Kind == data.KindLane && rel.From.ID != "" {
+			return rel.From.ID
 		}
 	}
+	return ""
+}
+
+// OnDoneNotifyEvents are the events a pane.spawn onDone.notifyPane reports.
+const OnDoneNotifyEvents = EventAgentDone + "," + EventAgentNeedsInput + "," + EventAgentBlocked
+
+// OnDoneRules builds the in-memory rules pane.spawn registers for paneID: the
+// one-shot command/webhook rule and, with NotifyPane, a standing rule that
+// mails NotifyPane on agent.done, agent.needs_input and agent.blocked.
+func OnDoneRules(paneID string, onDone mcpui.PaneOnDone) []HookRule {
+	var rules []HookRule
+	if len(onDone.Command) > 0 || strings.TrimSpace(onDone.Webhook) != "" {
+		rules = append(rules, OnDoneRule(paneID, onDone))
+	}
+	if target := strings.TrimSpace(onDone.NotifyPane); target != "" {
+		rules = append(rules, HookRule{
+			ID:    "pane-" + paneID + "-notify",
+			On:    OnDoneNotifyEvents,
+			Match: HookMatch{Pane: paneID},
+			Run:   HookRun{NotifyPane: target},
+		})
+	}
+	return rules
 }
 
 // OnDoneRule builds the one-shot in-memory rule pane.spawn registers for paneID.
@@ -120,7 +151,12 @@ func OnDoneRule(paneID string, onDone mcpui.PaneOnDone) HookRule {
 
 // RegisterOnDone implements mcpui.PaneCallbackRuntime in-process.
 func (r *serverPaneRuntime) RegisterOnDone(_ context.Context, paneID string, onDone mcpui.PaneOnDone) error {
-	return r.s.callbacks.register(OnDoneRule(paneID, onDone))
+	for _, rule := range OnDoneRules(paneID, onDone) {
+		if err := r.s.callbacks.register(rule); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RegisterOnDone implements mcpui.PaneCallbackRuntime over the daemon socket.
@@ -129,5 +165,10 @@ func (r *clientPaneRuntime) RegisterOnDone(ctx context.Context, paneID string, o
 	if err != nil {
 		return err
 	}
-	return c.RegisterHook(ctx, OnDoneRule(paneID, onDone))
+	for _, rule := range OnDoneRules(paneID, onDone) {
+		if err := c.RegisterHook(ctx, rule); err != nil {
+			return err
+		}
+	}
+	return nil
 }

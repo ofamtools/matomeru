@@ -157,6 +157,7 @@ func TestServeStdioSession(t *testing.T) {
 	want := []string{ToolCreatePage, ToolUpdatePage, ToolAsk, ToolListPages, ToolLaneStart, ToolLaneUpdate, ToolLaneLog, ToolLaneAttach, ToolSchemas, ToolQuery, ToolGet, ToolRelated,
 		ToolTaskTree, ToolHistory, ToolCreateNote, ToolRecordAgentInput, ToolSuggestCommand, ToolCreateDocument, ToolAddContext, ToolLogQA, ToolCreate, ToolUpdate, ToolRelate, ToolUnrelate,
 		ToolTriageIngest, ToolTriageEvaluate, ToolPaneSearch, ToolPaneSpawn, ToolPaneSnapshot, ToolPaneSend, ToolPaneStatus, ToolPaneClose,
+		ToolAgentSend, ToolAgentInbox, ToolAgentAck, ToolAgentReply,
 		ToolTaskQueue, ToolTaskFlagAgent, ToolTaskNote, ToolTaskThread, ToolTaskDispatch,
 		ToolTaskRewrite, ToolTaskSplit, ToolTaskJoin,
 		ToolContextOfficial, ToolContextProject, ToolContextAddOfficial}
