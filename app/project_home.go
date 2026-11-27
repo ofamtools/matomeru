@@ -76,18 +76,6 @@ var defaultProjectNavSections = []projectNavDef{
 	{Key: "commands", Label: "Commands", Icon: "$", Group: "Knowledge"},
 }
 
-type cachedProjectWorkspace struct {
-	rev          int64
-	telemetrySeq uint64
-	showArchived bool
-	ctxGen       uint64
-	groupName    string
-	projID       string
-	railPanesKey string
-	animKey      string
-	data         projectWorkspaceData
-}
-
 type cachedProjectNav struct {
 	key      string
 	sections []views.ProjectNavSection
@@ -114,7 +102,10 @@ type ProjectController struct {
 	lastUsedGen          uint64
 	tables               map[string]*table.Model
 	trees                map[string]*tree.Model
-	wsCache              map[string]cachedProjectWorkspace
+	durableCache         map[string]cachedProjectDurable
+	liveCache            map[string]cachedProjectLive
+	durableBuilds        uint64
+	liveBuilds           uint64
 	navCache             map[string]cachedProjectNav
 	navBuilds            uint64
 	dirCache             []projectDirEntry
@@ -144,7 +135,8 @@ func newProjectController() *ProjectController {
 		lastUsedAt:           map[string]time.Time{},
 		tables:               map[string]*table.Model{},
 		trees:                map[string]*tree.Model{},
-		wsCache:              map[string]cachedProjectWorkspace{},
+		durableCache:         map[string]cachedProjectDurable{},
+		liveCache:            map[string]cachedProjectLive{},
 	}
 }
 
@@ -811,7 +803,7 @@ func (a *App) contextOfficialToggle(s core.State, c core.Command) core.StepResul
 	}
 	a.markOwnerCreated(updated.Ref())
 	a.invalidateContextIndex()
-	msg := fmt.Sprintf("★ Official context: %s (auto-included)", clip(views.Title(a.schema(data.KindContext), updated), 44))
+	msg := fmt.Sprintf("★ Official Context · %s (auto-included)", clip(views.Title(a.schema(data.KindContext), updated), 44))
 	a.say("%s", msg)
 	a.pushToast(msg, toast.Ok)
 	return core.Next(s)
@@ -861,7 +853,7 @@ func (a *App) contextAddOfficial(s core.State, c core.Command) core.StepResult {
 			if existed {
 				verb = "Promoted"
 			}
-			msg := fmt.Sprintf("★ %s official context: %s", verb, clip(views.Title(a.schema(data.KindContext), rec), 44))
+			msg := fmt.Sprintf("★ %s official context · %s", verb, clip(views.Title(a.schema(data.KindContext), rec), 44))
 			a.pushToast(msg, toast.Ok)
 			return modal.Result{
 				Handled: true, Close: true, CloseReason: modal.CloseSubmit,

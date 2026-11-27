@@ -503,7 +503,7 @@ func FormatAboutMarkdown(info AboutInfo) string {
 			if p.Unlinked {
 				parts = append(parts, "[unlinked]")
 			} else if p.Task != "" {
-				parts = append(parts, "task: "+p.Task)
+				parts = append(parts, fmt.Sprintf("task %q", p.Task))
 			}
 			fmt.Fprintf(&b, "  - %s\n", strings.Join(parts, " · "))
 		}

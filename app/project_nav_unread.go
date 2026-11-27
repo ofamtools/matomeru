@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/views"
@@ -174,43 +173,26 @@ func (a *App) paneHasUnreadPage(paneID string) bool {
 	return slices.ContainsFunc(res.Pages, func(p mcpui.PageSummary) bool { return p.Unread })
 }
 
-// populateProjectWorkspaceActivity computes unread indices, total unread items,
-// and live pane activity counts once per cached workspace snapshot.
-func (a *App) populateProjectWorkspaceActivity(ws *projectWorkspaceData) {
-	if ws == nil {
-		return
-	}
-	ws.unreadPagePanes = map[string]bool{}
-	ws.unreadNoteTasks = map[string]bool{}
-	ws.runningPanes = 0
-	ws.needsYouPanes = 0
-	ws.unreadTotal = 0
-
-	for _, p := range ws.pages {
-		if p.IsUnread() {
-			if pRef, ok := p.RefField("pane"); ok && pRef.Kind == data.KindPane && pRef.ID != "" {
-				ws.unreadPagePanes[pRef.ID] = true
-			}
-		}
-	}
-
+func (a *App) collectDurableUnreadNoteTasks(snap *projectDurableSnapshot, ws *projectWorkspaceData) {
 	unreadNotes := map[string]bool{}
-	for _, n := range ws.notes {
+	for _, n := range snap.notes {
 		if !a.isNavRecordUnread(data.KindNote, n, ws) {
 			continue
 		}
 		unreadNotes[n.ID] = true
-		if tRef, ok := n.RefField("task"); ok && tRef.Kind == data.KindTask && ws.taskIDs[tRef.ID] {
-			ws.unreadNoteTasks[tRef.ID] = true
+		if tRef, ok := n.RefField("task"); ok && tRef.Kind == data.KindTask && snap.taskIDs[tRef.ID] {
+			snap.unreadNoteTasks[tRef.ID] = true
 		}
 	}
-	for _, rel := range ws.relations {
+	for _, rel := range snap.relations {
 		if rel.Kind == data.RelAbout && rel.From.Kind == data.KindNote && unreadNotes[rel.From.ID] &&
-			rel.To.Kind == data.KindTask && ws.taskIDs[rel.To.ID] {
-			ws.unreadNoteTasks[rel.To.ID] = true
+			rel.To.Kind == data.KindTask && snap.taskIDs[rel.To.ID] {
+			snap.unreadNoteTasks[rel.To.ID] = true
 		}
 	}
+}
 
+func (a *App) countDurableBaseUnread(snap *projectDurableSnapshot, ws *projectWorkspaceData) int {
 	countRecs := func(kind string, recs []data.Record) int {
 		n := 0
 		for _, rec := range recs {
@@ -220,46 +202,35 @@ func (a *App) populateProjectWorkspaceActivity(ws *projectWorkspaceData) {
 		}
 		return n
 	}
-	baseUnread := 0
-	baseUnread += countRecs(data.KindTask, ws.tasks)
-	baseUnread += countRecs(data.KindPage, ws.pages)
-	baseUnread += countRecs(data.KindLane, ws.allLanes)
-	baseUnread += countRecs(data.KindDocument, ws.documents)
-	baseUnread += countRecs(data.KindNote, ws.notes)
-	baseUnread += countRecs(data.KindQuestion, ws.questions)
-	baseUnread += countRecs(data.KindCommand, ws.commands)
-	baseUnread += len(ws.reviewContext)
-	ws.baseUnreadTotal = baseUnread
-	a.populateProjectLiveTelemetry(ws)
+	return countRecs(data.KindTask, snap.tasks) +
+		countRecs(data.KindPage, snap.pages) +
+		countRecs(data.KindLane, snap.allLanes) +
+		countRecs(data.KindDocument, snap.documents) +
+		countRecs(data.KindNote, snap.notes) +
+		countRecs(data.KindQuestion, snap.questions) +
+		countRecs(data.KindCommand, snap.commands) +
+		len(snap.reviewContext)
 }
 
-// populateProjectLiveTelemetry refreshes only the in-memory daemon telemetry
-// counts (runningPanes, needsYouPanes, and pane attention contribution to
-// unreadTotal) so telemetrySeq ticks never invalidate SQLite workspace data.
-func (a *App) populateProjectLiveTelemetry(ws *projectWorkspaceData) {
-	if ws == nil {
+// populateProjectDurableActivity computes store-derived unread indices and
+// base unread counts once per cached durable workspace snapshot.
+func (a *App) populateProjectDurableActivity(snap *projectDurableSnapshot) {
+	if snap == nil {
 		return
 	}
-	ws.runningPanes = 0
-	ws.needsYouPanes = 0
-	unreadPanes := 0
-	for _, p := range ws.panes {
-		hookState, _, pending := a.effectiveHookState(p.ID)
-		effState := hookState
-		if effState == "" {
-			effState = strings.ToLower(strings.TrimSpace(p.Text("runStatus")))
-		}
-		switch {
-		case len(pending) > 0 || effState == daemon.StateNeedsYou || effState == "waiting":
-			ws.needsYouPanes++
-		case effState == daemon.StateRunning || effState == "working":
-			ws.runningPanes++
-		}
-		if a.isNavRecordUnread(data.KindPane, p, ws) {
-			unreadPanes++
+	snap.unreadPagePanes = map[string]bool{}
+	snap.unreadNoteTasks = map[string]bool{}
+	for _, p := range snap.pages {
+		if p.IsUnread() {
+			if pRef, ok := p.RefField("pane"); ok && pRef.Kind == data.KindPane && pRef.ID != "" {
+				snap.unreadPagePanes[pRef.ID] = true
+			}
 		}
 	}
-	ws.unreadTotal = ws.baseUnreadTotal + unreadPanes
+	ws := projectWorkspaceData{projectDurableSnapshot: *snap}
+	a.collectDurableUnreadNoteTasks(snap, &ws)
+	ws.unreadNoteTasks = snap.unreadNoteTasks
+	snap.baseUnreadTotal = a.countDurableBaseUnread(snap, &ws)
 }
 
 func (a *App) projectTabHasUnread(projectID, title string) bool {
@@ -331,12 +302,8 @@ func (a *App) invalidateProjectUnreadCaches(projKey string) {
 	if a == nil {
 		return
 	}
-	if a.proj != nil && a.proj.wsCache != nil {
-		if projKey != "" {
-			delete(a.proj.wsCache, projKey)
-		} else {
-			clear(a.proj.wsCache)
-		}
+	if a.proj != nil {
+		a.proj.clearWorkspaceCaches(projKey)
 	}
 	if a.trees != nil {
 		a.trees.threadsCache = nil
@@ -428,7 +395,8 @@ func (a *App) markTaskNotesRead(taskID string) bool {
 			addNote(n)
 		}
 	}
-	if rels, err := a.Store.Related(core.Ref{Kind: data.KindTask, ID: taskID}, data.RelAbout, data.Incoming); err == nil {
+	taskRef := core.Ref{Kind: data.KindTask, ID: taskID}
+	if rels, err := a.Store.Related(taskRef, data.RelAbout, data.Incoming); err == nil {
 		for _, rel := range rels {
 			if rel.From.Kind == data.KindNote {
 				if n, gerr := a.Store.Get(rel.From); gerr == nil && n != nil {
@@ -440,7 +408,7 @@ func (a *App) markTaskNotesRead(taskID string) bool {
 	if len(patches) == 0 {
 		return false
 	}
-	_, err := a.Store.PatchMany(patches, "task.notes.read", fmt.Sprintf("mark %d notes read on task:%s", len(patches), taskID), viewer)
+	_, err := a.Store.PatchMany(patches, "task.notes.read", fmt.Sprintf("mark %d notes read on %s", len(patches), data.RefText(taskRef)), viewer)
 	return err == nil
 }
 

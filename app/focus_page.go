@@ -124,7 +124,6 @@ func (a *App) syncFocus() (titles map[string]string) {
 	}
 	all := data.BuildFocusProjectRows(fc.cfg, projects, a.now())
 	fc.total = len(all)
-	selected, _ := fc.list.FocusedRow()
 	rows := make([]table.Row, 0, len(all))
 	byID := make(map[string]data.FocusProjectRow, len(all))
 	for _, r := range all {
@@ -138,13 +137,7 @@ func (a *App) syncFocus() (titles map[string]string) {
 		}
 		rows = append(rows, table.Row{ID: r.ProjectID, Cells: map[string]any{focusFilterField: strings.Join(words, " ")}})
 	}
-	fc.list.Rows = rows
-	shown := fc.list.Filtered()
-	if i := slices.IndexFunc(shown, func(r table.Row) bool { return r.ID == selected.ID }); i >= 0 {
-		fc.list.SelectedIdx = i
-	} else {
-		fc.list.SelectedIdx = min(fc.list.SelectedIdx, max(0, len(shown)-1))
-	}
+	shown := syncTableSelection(fc.list, rows, "")
 	fc.visible = fc.visible[:0]
 	for _, r := range shown {
 		fc.visible = append(fc.visible, byID[r.ID])

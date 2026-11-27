@@ -36,17 +36,8 @@ func keep(old, fresh *table.Model) *table.Model {
 
 // selectRow moves the selection to the row with the given ID, when it is shown.
 func selectRow(tbl *table.Model, id string) bool {
-	if tbl == nil || id == "" {
-		return false
-	}
-	for i, it := range tbl.Items() {
-		if !it.Header && it.Row.ID == id {
-			tbl.SelectedIdx = i
-			tbl.Focused() // clamps the offset around the selection
-			return true
-		}
-	}
-	return false
+	_, ok := selectTableRowID(tbl, id)
+	return ok
 }
 
 func (a *App) pageSize(tbl *table.Model, id string) {

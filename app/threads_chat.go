@@ -295,11 +295,7 @@ func (a *App) threadsPick(s core.State, _ core.Command) core.StepResult {
 		}
 	}
 	items := make([]picker.Item, 0, len(threads))
-	selectedIdx := 0
-	for i, th := range threads {
-		if th.TaskID == currentID {
-			selectedIdx = i
-		}
+	for _, th := range threads {
 		var badges []ui.Badge
 		if th.UnreadCount > 0 {
 			badges = append(badges, ui.Badge{Text: fmt.Sprintf("● %d", th.UnreadCount), Tone: "unread"})
@@ -326,7 +322,7 @@ func (a *App) threadsPick(s core.State, _ core.Command) core.StepResult {
 		})
 	}
 	pm := picker.New("Switch Thread", items)
-	pm.SelectedIdx = selectedIdx
+	selectPickerItemID(pm, currentID)
 	pm.Placeholder = "fuzzy search threads · enter open chat · esc close"
 	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       threadsPickerModalID,
@@ -489,7 +485,7 @@ func (a *App) threadsComposeExpand(s core.State, _ core.Command) core.StepResult
 	s = withMode(s, ModeNormal)
 
 	taskID := th.TaskID
-	st := a.threadComposerWithInitial(s, "Reply · "+th.Title, fmt.Sprintf("Thread task:%s · append-only", taskID), "threads.reply:"+taskID, taskID, taskID, draft,
+	st := a.threadComposerWithInitial(s, "Reply · "+th.Title, threadReplySubtitle(taskID), "threads.reply:"+taskID, taskID, taskID, draft,
 		func(text string, attachments []data.Attachment) error {
 			note, err := a.Store.AppendTaskNote(data.AppendTaskNoteInput{
 				TaskID: taskID, Body: text, AuthorKind: "owner", AuthorLabel: "owner", Attachments: attachments,
