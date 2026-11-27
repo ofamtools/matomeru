@@ -378,26 +378,19 @@ func TestReactiveAndRepeatableLaunchFormEndToEnd(t *testing.T) {
 		t.Fatalf("expected ModeForm after finishing endpoint edit, got %q", a.Mode())
 	}
 
-	// Move down to paths [+ Add path] row and press Enter -> adds item 0!
+	// Move down to paths [+ Add path] row and press Enter -> ochazuke v1.21.0
+	// opens the path picker directly for repeatable ParamPath add rows!
 	d.Keys("j")
 	if fm.ActiveFieldName() != "paths" || !fm.OnAddRow() {
 		t.Fatalf("expected focus on paths [+ Add] row: field=%q onAdd=%v", fm.ActiveFieldName(), fm.OnAddRow())
 	}
 	d.Keys("enter")
-	if fm.ActiveFieldName() != "paths" || fm.ActiveItemIndex() != 0 {
-		t.Fatalf("Enter on [+ Add path] did not create/focus item 0: field=%q itemIdx=%d", fm.ActiveFieldName(), fm.ActiveItemIndex())
-	}
-	if a.Mode() == ModeFormEdit {
-		d.Keys("esc")
-	}
-	// Pick path for item 0 using p (path picker on smokeFS -> /home/owner -> first entry proj).
-	d.Keys("p")
 	if a.Modal() != "path" {
-		t.Fatalf("p on repeatable ParamPath did not open path picker: modal=%q", a.Modal())
+		t.Fatalf("Enter on repeatable ParamPath [+ Add path] did not open path picker: modal=%q", a.Modal())
 	}
-	d.Keys("enter") // picks /home/owner/proj
-	if a.Modal() != "launch" || fm.ActiveFieldName() != "paths" || fm.ActiveItemIndex() != 0 {
-		t.Fatalf("after picking path 0: modal=%q field=%q itemIdx=%d", a.Modal(), fm.ActiveFieldName(), fm.ActiveItemIndex())
+	d.Keys("enter") // picks /home/owner/proj and appends it as item 0
+	if gotPaths, _ := fm.Values["paths"].([]string); a.Modal() != "launch" || fm.ActiveFieldName() != "paths" || !slices.Equal(gotPaths, []string{"/home/owner/proj"}) {
+		t.Fatalf("after picking path 0 from [+ Add path]: modal=%q field=%q paths=%v", a.Modal(), fm.ActiveFieldName(), gotPaths)
 	}
 
 	// Press + on repeatable field -> adds item 1 (2nd repeatable ParamPath item).
