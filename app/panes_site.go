@@ -123,6 +123,7 @@ func (a *App) buildPaneSiteNode(s core.State, pane data.Record, embedded bool) u
 		CompactTOC:        a.cfg.Settings.Bool(SetCompactTOC, true),
 		TOCGrouped:        a.cfg.Settings.Bool(SetTOCGrouped, true),
 		TOCCollapsed:      a.panes.tocCollapsed,
+		MatchMode:         a.filterMode("toc"),
 		PageScrollOffset:  a.pageScrollOffset(shownPageID),
 		PageScrollLocked:  frame.Mode == ModePage,
 		WrapPageScroll:    true,
@@ -132,7 +133,7 @@ func (a *App) buildPaneSiteNode(s core.State, pane data.Record, embedded bool) u
 	if a.Shell != nil {
 		opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once
 	}
-	site := views.PaneSiteViewWith(pane, res.Items, shownPageID, a.nav.tocFilter, opts)
+	site := views.PaneSiteViewWith(pane, res.Items, shownPageID, a.filterQuery("toc"), opts)
 	a.enhanceQuestionsSite(&site, pane, res.Items)
 	a.enhanceCanvasSite(&site, shownPageID)
 	if previewing && shownPageID != views.ScreenPageID {
@@ -247,7 +248,7 @@ func (a *App) openProjectChildPaneInPlace(s core.State, projKey, paneID, returnF
 		delete(pc.childPaneReturnFocus, projKey)
 	}
 	pc.setActiveNavItem(projKey, nil)
-	a.nav.tocFilter = ""
+	a.clearFilter("toc")
 	if a.panes != nil {
 		if a.panes.activePage == nil {
 			a.panes.activePage = map[string]string{}

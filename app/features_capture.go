@@ -339,6 +339,7 @@ func (a *App) featuresCaptureNode(wishlistRoot *data.Record) ui.ViewNode {
 	wid := wishlistRoot.ID
 	tm := a.trees.projectModel(wid)
 	schema, _ := a.syncFeaturesCaptureTree(tm, wid)
+	a.registerTreeFilterable(featuresCaptureTree, tm)
 	csActive := a.isCleanSlateActive(data.KindTask, featuresCaptureTree)
 
 	var extra []ui.Badge

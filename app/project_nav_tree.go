@@ -687,6 +687,47 @@ func (a *App) projectWorktreeNavNodes(projKey string, items []data.ProjectWorktr
 
 // --- Motion & toggle commands (l / h / space / enter) ---------------------------
 
+func (a *App) projectNavNodeHL(s core.State, projKey, focus string, delta int) (core.State, bool) {
+	pc := a.projectCtrl()
+	target, ok := pc.navTarget(projKey, focus)
+	if !ok {
+		_ = a.View(s)
+		target, ok = pc.navTarget(projKey, focus)
+	}
+	if !ok {
+		return s, false
+	}
+	nodeKey := target.Section + "." + target.NodeID
+	if delta > 0 {
+		if target.Expandable && !pc.isNavNodeExpanded(projKey, nodeKey) {
+			pc.setNavNodeExpanded(projKey, nodeKey, true)
+			a.viewMemo.gen++
+			a.say("expanded %s", target.Label)
+			return s, true
+		}
+		// When a pane site with a middle TOC column is rendered in the right
+		// area, let column(+1) step into the TOC instead of jumping straight
+		// into the terminal screen.
+		if hasNodeWithScope(a.View(s), views.ScopeTOC) {
+			return s, false
+		}
+		res := a.projectNavNodeOpen(s, focus)
+		return res.State, true
+	}
+	if target.Expandable && pc.isNavNodeExpanded(projKey, nodeKey) {
+		pc.setNavNodeExpanded(projKey, nodeKey, false)
+		a.viewMemo.gen++
+		a.say("collapsed %s", target.Label)
+		return s, true
+	}
+	parentFocus := target.ParentFocusID
+	if parentFocus == "" {
+		parentFocus = projectNavPrefix + target.Section
+	}
+	a.viewMemo.gen++
+	return withFocus(s, parentFocus), true
+}
+
 func (a *App) projectNavHL(s core.State, delta int) (core.State, bool) {
 	if !a.projectNavTreeEnabled() {
 		return s, false
@@ -699,37 +740,7 @@ func (a *App) projectNavHL(s core.State, delta int) (core.State, bool) {
 	pc := a.projectCtrl()
 
 	if strings.HasPrefix(focus, projectNavNodePrefix) {
-		target, ok := pc.navTarget(projKey, focus)
-		if !ok {
-			_ = a.View(s)
-			target, ok = pc.navTarget(projKey, focus)
-		}
-		if !ok {
-			return s, false
-		}
-		nodeKey := target.Section + "." + target.NodeID
-		if delta > 0 {
-			if target.Expandable && !pc.isNavNodeExpanded(projKey, nodeKey) {
-				pc.setNavNodeExpanded(projKey, nodeKey, true)
-				a.viewMemo.gen++
-				a.say("expanded %s", target.Label)
-				return s, true
-			}
-			res := a.projectNavNodeOpen(s, focus)
-			return res.State, true
-		}
-		if target.Expandable && pc.isNavNodeExpanded(projKey, nodeKey) {
-			pc.setNavNodeExpanded(projKey, nodeKey, false)
-			a.viewMemo.gen++
-			a.say("collapsed %s", target.Label)
-			return s, true
-		}
-		parentFocus := target.ParentFocusID
-		if parentFocus == "" {
-			parentFocus = projectNavPrefix + target.Section
-		}
-		a.viewMemo.gen++
-		return withFocus(s, parentFocus), true
+		return a.projectNavNodeHL(s, projKey, focus, delta)
 	}
 
 	if secKey, isNode := projectNavFocusSection(focus); secKey != "" && !isNode {

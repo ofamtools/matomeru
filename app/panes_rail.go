@@ -437,6 +437,7 @@ func (a *App) buildRail() *table.Model {
 
 	a.pageSize(tbl, railTable)
 	a.nav.tables[railTable] = tbl
+	a.registerTableFilterable(railTable, tbl)
 	return tbl
 }
 

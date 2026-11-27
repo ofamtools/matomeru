@@ -1,7 +1,10 @@
 package app
 
 import (
+	"slices"
+
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 )
 
@@ -137,21 +140,34 @@ func (a *App) terminalAttach(s core.State, _ core.Command) core.StepResult {
 
 // --- filters --------------------------------------------------------------------
 
+// firstDrawnFilterID returns the FilterSpec ID (falling back to node ID) of
+// the first node under root, in drawing order, declaring Filter or TraitFilter.
+func firstDrawnFilterID(root ui.ViewNode) string {
+	if root.Filter != nil {
+		if root.Filter.ID != "" {
+			return root.Filter.ID
+		}
+		if root.ID != "" {
+			return root.ID
+		}
+	}
+	if root.ID != "" && slices.Contains(root.Traits, traits.TraitFilter) {
+		return root.ID
+	}
+	for _, ch := range root.Children {
+		if id := firstDrawnFilterID(ch); id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
 // pageFilterID is the first filterable view drawn on the page, for
-// filter.start when focus is not inside one.
+// filter.start when focus is not inside one. Never reaches behind an open modal.
 func (a *App) pageFilterID(s core.State) string {
-	reg := a.filterRegistry()
-	if reg == nil {
+	if len(s.Modals) > 0 {
 		return ""
 	}
-	return a.pageTargetID(s, func(n ui.ViewNode) bool {
-		if n.Filter == nil {
-			return false
-		}
-		id := n.Filter.ID
-		if id == "" {
-			id = n.ID
-		}
-		return reg.Get(id) != nil
-	})
+	a.View(s) // keeps viewMemo.Page current and mounts rendered filterables
+	return firstDrawnFilterID(a.viewMemo.Page)
 }

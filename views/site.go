@@ -9,6 +9,7 @@ import (
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/layout"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 )
 
@@ -88,6 +89,8 @@ type SiteOptions struct {
 	TOCGrouped bool
 	// TOCCollapsed tracks collapsed TOC group keys (e.g. "pages").
 	TOCCollapsed map[string]bool
+	// MatchMode sets the traits.MatchMode used when filtering TOC pages.
+	MatchMode traits.MatchMode
 	// PageScrollOffset sets the vertical scroll offset for non-screen ui.page
 	// content when WrapPageScroll is true.
 	PageScrollOffset int
@@ -207,6 +210,26 @@ func tocGroupHeader(groupKey, label string, count int, collapsed bool) ui.ViewNo
 	}
 }
 
+func filterTOCPages(sorted []data.Record, tocFilter string, mode traits.MatchMode) ([]data.Record, int) {
+	filter := strings.TrimSpace(tocFilter)
+	var mm traits.MultiMatcher
+	if filter != "" {
+		mm, _ = traits.CompileMultiTerm(tocFilter, mode, traits.FilterConfig{})
+	}
+	unread := 0
+	var matched []data.Record
+	for _, page := range sorted {
+		if !isScreen(page) && page.IsUnread() {
+			unread++
+		}
+		if filter != "" && !mm.Match(traits.FormatFilterableText("title", page.Text("title"), "slug", page.Text("slug"))) {
+			continue
+		}
+		matched = append(matched, page)
+	}
+	return matched, unread
+}
+
 // PaneSiteViewWith is PaneSiteView with options: lane bar / lane-in-TOC,
 // compact grouped TOC, and scrollable ui.page wrapping.
 func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string, tocFilter string, opts SiteOptions) ui.ViewNode {
@@ -238,20 +261,8 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 		laneRow, laneID = LaneTOCEntry(roll), roll.Root.ID
 	}
 
-	filter := strings.ToLower(strings.TrimSpace(tocFilter))
-	unread := 0
-	var matched []data.Record
-	for _, page := range sorted {
-		isUnread := !isScreen(page) && page.IsUnread()
-		if isUnread {
-			unread++
-		}
-		title := page.Text("title")
-		if filter != "" && !strings.Contains(strings.ToLower(title+" "+page.Text("slug")), filter) {
-			continue
-		}
-		matched = append(matched, page)
-	}
+	filter := strings.TrimSpace(tocFilter)
+	matched, unread := filterTOCPages(sorted, tocFilter, opts.MatchMode)
 
 	var entries []ui.ViewNode
 	if opts.CompactTOC {
@@ -326,7 +337,14 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 	if filter != "" {
 		tocBadges = append(tocBadges, ui.Badge{Text: "/" + tocFilter, Tone: "accent"})
 		if len(entries) == 0 {
-			entries = []ui.ViewNode{text("", "no page matches", "muted")}
+			entries = []ui.ViewNode{{
+				ID:        "site.toc.empty",
+				Kind:      ui.KindText,
+				Scope:     ScopeTOC,
+				Focusable: true,
+				Tone:      "muted",
+				Props:     map[string]any{"text": "no page matches"},
+			}}
 		}
 	}
 	tocBody := ui.ViewNode{Kind: ui.KindVStack, Children: entries}
@@ -341,12 +359,12 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 	toc := ui.ViewNode{ID: "site.toc", Kind: ui.KindPanel, Scope: ScopeTOC,
 		Filter: &ui.FilterSpec{ID: "toc", Prefix: "pages "},
 		Title:  "Pages", Border: true, Badges: tocBadges,
-		Facts:    map[string]any{"filter": tocFilter, "hasFilter": filter != "", "unread": unread},
+		Facts:    map[string]any{"siteTOC": true, "filter": tocFilter, "hasFilter": filter != "", "unread": unread},
 		Children: []ui.ViewNode{tocBody}}
 
 	activeRef := active.Ref()
 	content := ui.ViewNode{ID: "site.content", Kind: ui.KindPanel, Scope: data.KindPage, Ref: &activeRef, Border: true,
-		Title: active.Text("title"), Facts: map[string]any{"pageKind": active.Text("pageKind"), "screen": isScreen(active)}}
+		Title: active.Text("title"), Facts: map[string]any{"siteContent": true, "pageKind": active.Text("pageKind"), "screen": isScreen(active)}}
 	if isScreen(active) {
 		content.Children = []ui.ViewNode{{ID: "site.screen", Kind: ui.KindTerminal, Scope: "terminal", Focusable: true,
 			Props: map[string]any{"streamId": pane.ID}}}

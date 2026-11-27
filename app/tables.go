@@ -11,6 +11,7 @@ import (
 	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/widgets/input"
 	"ofam.dev/ochazuke/widgets/table"
+	"ofam.dev/ochazuke/widgets/tree"
 )
 
 // keep carries a table's own state (filter, sort, group, marks and the
@@ -35,7 +36,7 @@ func keep(old, fresh *table.Model) *table.Model {
 
 // selectRow moves the selection to the row with the given ID, when it is shown.
 func selectRow(tbl *table.Model, id string) bool {
-	if id == "" {
+	if tbl == nil || id == "" {
 		return false
 	}
 	for i, it := range tbl.Items() {
@@ -72,6 +73,7 @@ func (a *App) records(id, kind string) *table.Model {
 			key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t|%s|%t|%s", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog(), a.archiveAnimCacheKey(), styleOpts.FlagsOnLeft, styleOpts.ColorByRecency)
 			if a.nav.recCacheKeys != nil && a.nav.recCacheKeys[id] == key && a.nav.tables[id] != nil {
 				a.pageSize(a.nav.tables[id], id)
+				a.registerTableFilterable(id, a.nav.tables[id])
 				return a.nav.tables[id]
 			}
 			defer func() {
@@ -127,6 +129,7 @@ func (a *App) records(id, kind string) *table.Model {
 	}
 	a.pageSize(tbl, id)
 	a.nav.tables[id] = tbl
+	a.registerTableFilterable(id, tbl)
 	return tbl
 }
 
@@ -205,6 +208,7 @@ func (a *App) rail() *table.Model {
 			)
 			if key == a.panes.railCacheKey && a.nav.tables[railTable] != nil {
 				a.pageSize(a.nav.tables[railTable], railTable)
+				a.registerTableFilterable(railTable, a.nav.tables[railTable])
 				return a.nav.tables[railTable]
 			}
 			tbl := a.buildRail()
@@ -235,21 +239,6 @@ func next(list []string, cur string) string {
 }
 
 // --- filter ---------------------------------------------------------------------
-
-// filterTable is the table the list verbs act on: the one being filtered,
-// the focused one, or (when focus is on something that is not a table, such
-// as a nav rail or a tree) the first table drawn on the page. It returns nil
-// only when the page draws no table.
-func (a *App) filterTable(s core.State) (*table.Model, string) {
-	if tbl, id := a.focusedListTable(s); tbl != nil {
-		return tbl, id
-	}
-	a.View(s) // keeps viewMemo.PageListID current for this state
-	if id := a.viewMemo.PageListID; id != "" && a.nav.tables[id] != nil {
-		return a.nav.tables[id], id
-	}
-	return nil, a.focusedListID(s)
-}
 
 func (a *App) filterStart(s core.State, _ core.Command) core.StepResult {
 	f, spec, id := a.resolveFilterTarget(s, nil, "", true)
@@ -391,7 +380,7 @@ func (a *App) tableCommand(s core.State, c core.Command) core.StepResult {
 			return core.Next(s)
 		}
 	}
-	tbl, id := a.filterTable(s)
+	tbl, id := a.activeListTable(s)
 	if a.Modal() != "" {
 		tbl = nil // the list is under an overlay
 	}
@@ -443,4 +432,33 @@ func sortText(tbl *table.Model) string {
 		return "sorted by " + tbl.SortField + ", descending"
 	}
 	return "not sorted"
+}
+
+func (a *App) syncTableSelectionIntoWorkTree(kind string, tbl *table.Model, tm *tree.Model, csActive bool) {
+	if csActive || tbl == nil {
+		return
+	}
+	row, ok := tbl.FocusedRow()
+	if !ok || row.ID == "" || row.Ref == nil || row.Ref.Kind != kind {
+		return
+	}
+	prevSynced := a.trees.workTableRowID[kind]
+	if (prevSynced != "" && row.ID != prevSynced) || tm.SelectedID == "" {
+		tm.SelectedID = row.Ref.ID
+		a.trees.workTableRowID[kind] = row.ID
+	}
+}
+
+func (a *App) syncWorkTreeSelectionIntoTable(kind string, tbl *table.Model, tm *tree.Model) {
+	if tbl == nil {
+		return
+	}
+	row, ok := tm.Focused()
+	if !ok || row.Draft || row.ID == "" {
+		return
+	}
+	refID := data.RefText(core.Ref{Kind: kind, ID: row.ID})
+	if selectRow(tbl, refID) {
+		a.trees.workTableRowID[kind] = refID
+	}
 }

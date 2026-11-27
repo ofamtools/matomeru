@@ -332,6 +332,14 @@ func (a *App) projectOverviewView(s core.State, groupName string, projRef *core.
 	return a.renderProjectWorkspace(s, groupName, projRef, 0.24, "", false)
 }
 
+func (a *App) applyProjectNavFilter(projKey, navTitle string, items []views.ProjectNavSection) ([]views.ProjectNavSection, string) {
+	nf := a.ensureQueryFilter(projectNavFilterID(projKey))
+	if nf == nil || !nf.IsFiltered() {
+		return items, navTitle
+	}
+	return filterProjectNavItems(items, nf.FilterQuery(), nf.FilterMode()), fmt.Sprintf("%s · /%s", navTitle, nf.FilterQuery())
+}
+
 // renderProjectWorkspace renders the shared Project Page workspace shell used
 // both in 1 Panes project overview (navRatio=0.24, header visible) and inside
 // dynamic 6+ Project Tabs (navRatio=0.20, navTitle=projectName, header hidden).
@@ -377,11 +385,7 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 	}
 
 	ws := a.collectProjectWorkspaceData(groupName, projRef)
-	navItems := a.buildProjectNavItems(defs, ws, activeKey, focusID)
-	if nf := (projectNavFilterable{a: a, projKey: projKey}); nf.IsFiltered() {
-		navItems = filterProjectNavItems(navItems, nf.FilterQuery(), nf.FilterMode())
-		navTitle = fmt.Sprintf("%s · /%s", navTitle, nf.FilterQuery())
-	}
+	navItems, navTitle := a.applyProjectNavFilter(projKey, navTitle, a.buildProjectNavItems(defs, ws, activeKey, focusID))
 
 	badges := make([]ui.Badge, 0, 8)
 	if ws.projRec != nil {

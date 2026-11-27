@@ -388,7 +388,7 @@ func queueLaneDetail(q data.QueueProgress) []ui.ViewNode {
 			name = s.PaneID
 		}
 		line.write(name, "")
-		if s.Harness != "" && !strings.Contains(strings.ToLower(name), strings.ToLower(s.Harness)) {
+		if s.Harness != "" && !containsFold(name, s.Harness) {
 			line.write(" ("+s.Harness+")", "muted")
 		}
 		line.write("  ", "")

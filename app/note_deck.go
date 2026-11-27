@@ -355,10 +355,16 @@ func (m *noteDeckModal) View(_, _ int) ui.ViewNode {
 		Box:      layout.Constraints{MinW: 78, MaxW: 112, MinH: 22, MaxH: 30},
 		Children: []ui.ViewNode{previewPanel, composerPanel},
 	}
-	return ui.ViewNode{
-		ID:       noteDeckOverlayID,
-		Kind:     ui.KindOverlay,
-		Props:    map[string]any{"backdrop": true, "title": "Note Deck"},
-		Children: []ui.ViewNode{content},
+	ov := modal.BuildOverlay(modal.Frame{
+		ID:    noteDeckModalID,
+		Scope: noteDeckModalID,
+		Title: "Note Deck",
+	}, content)
+	ov.ID = noteDeckOverlayID
+	if ov.Props == nil {
+		ov.Props = map[string]any{}
 	}
+	ov.Props["backdrop"] = true
+	ov.Props["title"] = "Note Deck"
+	return ov
 }

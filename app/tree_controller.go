@@ -554,23 +554,10 @@ func (a *App) workTreeView() ui.ViewNode {
 	tm := a.trees.workModel(kind)
 	csActive := a.isCleanSlateActive(kind, workTable)
 
-	if !csActive {
-		if row, ok := tbl.FocusedRow(); ok && row.ID != "" && row.Ref != nil && row.Ref.Kind == kind {
-			prevSynced := a.trees.workTableRowID[kind]
-			if (prevSynced != "" && row.ID != prevSynced) || tm.SelectedID == "" {
-				tm.SelectedID = row.Ref.ID
-				a.trees.workTableRowID[kind] = row.ID
-			}
-		}
-	}
-
+	a.syncTableSelectionIntoWorkTree(kind, tbl, tm, csActive)
 	schema, _ := a.syncTreeModel(tm, kind, workTable)
-	if row, ok := tm.Focused(); ok && !row.Draft && row.ID != "" {
-		refID := data.RefText(core.Ref{Kind: kind, ID: row.ID})
-		if selectRow(tbl, refID) {
-			a.trees.workTableRowID[kind] = refID
-		}
-	}
+	a.registerWorkTreeFilterable(tm)
+	a.syncWorkTreeSelectionIntoTable(kind, tbl, tm)
 
 	extra := append([]ui.Badge{{Text: "tree", Tone: "accent"}}, a.focusOutlineBadges(kind)...)
 	if csActive {
@@ -587,6 +574,7 @@ func (a *App) workTreeView() ui.ViewNode {
 func (a *App) outlineTreeView() ui.ViewNode {
 	tm := a.trees.outlineModel()
 	schema, _ := a.syncTreeModel(tm, data.KindTask, outlineTree)
+	a.registerTreeFilterable(outlineTree, tm)
 	csActive := a.isCleanSlateActive(data.KindTask, outlineTree)
 	extra := a.focusOutlineBadges(data.KindTask)
 	if csActive {

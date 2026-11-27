@@ -32,13 +32,12 @@ var specialCaseCeilings = map[string]int{
 	"app/ext_install.go":            3,
 	"app/features_capture.go":       4,
 	"app/features_itemized.go":      1,
-	"app/filter.go":                 1,
 	"app/focus_guard.go":            1,
 	"app/git_hub.go":                2,
 	"app/insert_picker.go":          3,
 	"app/inspect.go":                1,
 	"app/live.go":                   2,
-	"app/nav.go":                    2,
+	"app/nav.go":                    1,
 	"app/open.go":                   5,
 	"app/outline_hoist.go":          3,
 	"app/outline_modal.go":          11,
@@ -91,7 +90,6 @@ var activePageCeilings = map[string]int{
 	"app/features_capture.go":   1,
 	"app/features_page.go":      5,
 	"app/files.go":              2,
-	"app/filter.go":             3,
 	"app/focus_guard.go":        1,
 	"app/jobs.go":               5,
 	"app/list_target.go":        2,
@@ -127,7 +125,6 @@ var activePageCeilings = map[string]int{
 // Zero exceptions in views/ and all new app/ files.
 var focusRegionIDCeilings = map[string]int{
 	"app/features_capture.go":       1,
-	"app/nav.go":                    3,
 	"app/panes_rail.go":             2,
 	"app/panes_terminal.go":         3,
 	"app/project_home.go":           2,
@@ -141,16 +138,7 @@ var focusRegionIDCeilings = map[string]int{
 }
 
 // parallelFilterCeilings ratchets parallel filter reimplementations in app/ and views/.
-var parallelFilterCeilings = map[string]int{
-	"app/filter.go":          16,
-	"app/nav.go":             4,
-	"app/rich_composer.go":   3,
-	"app/tables.go":          1,
-	"views/queue_page.go":    1,
-	"views/sessions_desk.go": 1,
-	"views/site.go":          1,
-	"views/threads_page.go":  2,
-}
+var parallelFilterCeilings = map[string]int{}
 
 // rawNounFormatCeilings ratchets raw colon-prefixed noun/composite-ID formatting
 // in app/ and views/.
@@ -167,11 +155,7 @@ var rawNounFormatCeilings = map[string]int{
 
 // parallelModalChromeCeilings ratchets direct ui.KindOverlay construction in
 // app/ and views/ instead of ochazuke/widgets/modal.Frame.
-var parallelModalChromeCeilings = map[string]int{
-	"app/note_deck.go":    1,
-	"app/panes_hints.go":  1,
-	"views/zero_field.go": 1,
-}
+var parallelModalChromeCeilings = map[string]int{}
 
 // cyclomaticCeilings ratchets per-function McCabe cyclomatic complexity (> 12)
 // across app/, views/, and data/. Keys use "relPath:FuncName" or "relPath:(Recv).Method".
@@ -221,9 +205,6 @@ var cyclomaticCeilings = map[string]int{
 	"app/features_note.go:(App).saveFeaturesRawThought":                         21,
 	"app/features_page.go:(App).buildFeaturesDetailBody":                        39,
 	"app/features_page.go:(App).buildFeaturesNav":                               26,
-	"app/filter.go:(App).filterBarNode":                                         14,
-	"app/filter.go:(App).resolveFilterTarget":                                   21,
-	"app/filter.go:(App).syncFilterRegistry":                                    22,
 	"app/focus_guard.go:(App).focusBeat":                                        18,
 	"app/focus_hints.go:applyFocusHintBadges":                                   18,
 	"app/focus_hints.go:buildFocusHintRootFrame":                                14,
@@ -251,7 +232,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/modals.go:(App).applyModalResult":                                      15,
 	"app/modals.go:(App).newPathPickerModalFor":                                 13,
 	"app/modals.go:(App).paletteEntries":                                        23,
-	"app/nav.go:(App).column":                                                   40,
+	"app/nav.go:(App).column":                                                   20,
 	"app/nav.go:(App).jumpTravel":                                               34,
 	"app/nav.go:(App).motion":                                                   39,
 	"app/nav.go:(App).openSpace":                                                17,
@@ -307,7 +288,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/project_home.go:(App).contextOfficialToggle":                           16,
 	"app/project_home.go:(App).projectContentOpen":                              33,
 	"app/project_home.go:(App).projectSectionSelect":                            15,
-	"app/project_home.go:(App).renderProjectWorkspace":                          35,
+	"app/project_home.go:(App).renderProjectWorkspace":                          34,
 	"app/project_home.go:(App).resolveProjectTargetRef":                         20,
 	"app/project_home_dashboard.go:(App).homeNewGroup":                          18,
 	"app/project_home_dashboard.go:(App).homePanesGroup":                        23,
@@ -319,7 +300,6 @@ var cyclomaticCeilings = map[string]int{
 	"app/project_nav_preview.go:(App).projectOpenInteractivePage":               17,
 	"app/project_nav_tree.go:(App).buildProjectNavChildren":                     16,
 	"app/project_nav_tree.go:(App).projectContextNavNodes":                      29,
-	"app/project_nav_tree.go:(App).projectNavHL":                                20,
 	"app/project_nav_tree.go:(App).projectNavNodeOpen":                          31,
 	"app/project_nav_tree.go:(App).projectNavToggle":                            14,
 	"app/project_nav_tree.go:(App).projectNavViewKey":                           13,
@@ -351,7 +331,6 @@ var cyclomaticCeilings = map[string]int{
 	"app/rich_composer.go:(App).contextRecordCompletions":                       23,
 	"app/rich_composer.go:(richComposerModal).Handle":                           48,
 	"app/rich_composer.go:(richComposerModal).View":                             43,
-	"app/rich_composer.go:(richComposerModal).updateCompletions":                15,
 	"app/runtime_daemon.go:(App).decorateRailRow":                               23,
 	"app/runtime_daemon.go:(App).paneHeaderStrip":                               16,
 	"app/runtime_daemon.go:(App).paneResolveApproval":                           13,
@@ -368,7 +347,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/settings.go:(App).commitSetting":                                       36,
 	"app/settings.go:(App).loadConfig":                                          17,
 	"app/show_scroll.go:(App).showRegionJump":                                   16,
-	"app/smoke.go:RunSmoke":                                                     220,
+	"app/smoke.go:RunSmoke":                                                     217,
 	"app/sysstats.go:parseDarwinVMStat":                                         23,
 	"app/sysstats.go:parseProcMeminfo":                                          15,
 	"app/sysstats.go:visibleWidth":                                              16,
@@ -389,7 +368,6 @@ var cyclomaticCeilings = map[string]int{
 	"app/tree_controller.go:(App).runTreeHoist":                                 22,
 	"app/tree_controller.go:(App).saveTreeFolded":                               13,
 	"app/tree_controller.go:(App).syncTreeModel":                                28,
-	"app/tree_controller.go:(App).workTreeView":                                 15,
 	"app/tutorial.go:SeedTutorial":                                              13,
 	"app/ux_notes.go:(App).sessionNoteCapture":                                  17,
 	"app/ux_notes.go:formatUXNoteMarkdown":                                      13,
@@ -403,7 +381,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/view.go:(App).displayedSitePageID":                                     15,
 	"app/view.go:(App).panesSpace":                                              14,
 	"app/view.go:(App).readContentFileCached":                                   14,
-	"app/view.go:(App).tabsMemoKey":                                             39,
+	"app/view.go:(App).tabsMemoKey":                                             35,
 	"app/view_cycle.go:(App).cycleWorkIndexView":                                20,
 	"app/view_cycle.go:(App).viewCycle":                                         27,
 	"data/attachments.go:DecodeAttachments":                                     17,
@@ -475,7 +453,7 @@ var cyclomaticCeilings = map[string]int{
 	"views/show_ledger.go:ledgerConnectionsRegion":                              51,
 	"views/show_ledger.go:ledgerPropsRegion":                                    29,
 	"views/show_ledger.go:showViewLedger":                                       17,
-	"views/site.go:PaneSiteViewWith":                                            57,
+	"views/site.go:PaneSiteViewWith":                                            52,
 	"views/site.go:compactTOCRow":                                               14,
 	"views/style.go:ResolveRecordStyle":                                         53,
 	"views/threads_page.go:ThreadsPageView":                                     15,

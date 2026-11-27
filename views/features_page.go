@@ -19,6 +19,7 @@ const (
 	ScopeFeaturesCapture = "features.capture"
 
 	FeaturesNavPrefix      = "features.nav."
+	FeaturesNavFilterID    = "features.nav"
 	FeaturesGroupPrefix    = "features.nav.group."
 	FeaturesThoughtInputID = "features.thoughts.input"
 )
@@ -108,6 +109,7 @@ type FeaturesPageSpec struct {
 	RepoPath        string
 	ActiveKey       string
 	NavRatio        float64 // default 0.20 if <= 0
+	NavFilterQuery  string
 	NavGroups       []FeaturesNavGroup
 	Detail          FeaturesDetailSpec
 	CaptureNode     ui.ViewNode // embedded clean-slate outline widget (features.capture.tree)
@@ -209,7 +211,15 @@ func featuresNavPanel(spec FeaturesPageSpec, activeKey string) ui.ViewNode {
 		}
 	}
 
+	if q := strings.TrimSpace(spec.NavFilterQuery); q != "" {
+		navBadges = append(navBadges, ui.Badge{Text: "/" + q, Tone: "accent"})
+	}
+
 	if len(spec.NavGroups) == 0 {
+		emptyMsg := " No feature sections"
+		if strings.TrimSpace(spec.NavFilterQuery) != "" {
+			emptyMsg = " No matching features"
+		}
 		navRows = append(navRows, ui.ViewNode{
 			ID:        "features.nav.empty",
 			Kind:      ui.KindText,
@@ -217,7 +227,7 @@ func featuresNavPanel(spec FeaturesPageSpec, activeKey string) ui.ViewNode {
 			Focusable: true,
 			Tone:      "muted",
 			Box:       layout.Constraints{FixedH: 1},
-			Props:     map[string]any{"text": " No feature sections"},
+			Props:     map[string]any{"text": emptyMsg},
 			Facts:     map[string]any{"empty": true},
 		})
 	}
@@ -226,6 +236,7 @@ func featuresNavPanel(spec FeaturesPageSpec, activeKey string) ui.ViewNode {
 		ID:     "features.nav",
 		Kind:   ui.KindPanel,
 		Scope:  ScopeFeaturesNav,
+		Filter: &ui.FilterSpec{ID: FeaturesNavFilterID, Prefix: "features "},
 		Title:  "Features",
 		Badges: navBadges,
 		Border: true,
@@ -234,6 +245,7 @@ func featuresNavPanel(spec FeaturesPageSpec, activeKey string) ui.ViewNode {
 			"activeItem": activeKey,
 			"groupCount": len(spec.NavGroups),
 			"navCount":   totalItems,
+			"hasFilter":  strings.TrimSpace(spec.NavFilterQuery) != "",
 		},
 		Children: []ui.ViewNode{
 			{

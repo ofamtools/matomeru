@@ -8,6 +8,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/input"
 )
@@ -95,13 +96,39 @@ func (a *App) featuresViewKey(s core.State) string {
 		}
 	}
 	slices.Sort(collapsed)
-	return fmt.Sprintf("1:%s:%s:%t:%t:%t:%t:%d:%s",
+	return fmt.Sprintf("1:%s:%s:%t:%t:%t:%t:%d:%s:%q:%s",
 		repoPath, fc.activeItemKey(), fc.captureExpanded,
 		a.featuresCaptureDockedEnabled(), fc.noteEditing,
 		a.isCleanSlateActive(data.KindTask, featuresCaptureTree),
 		fc.noteGen,
 		strings.Join(collapsed, ","),
+		a.filterQuery(views.FeaturesNavFilterID), a.filterMode(views.FeaturesNavFilterID),
 	)
+}
+
+func filterFeaturesNavGroups(groups []views.FeaturesNavGroup, query string, mode traits.MatchMode) []views.FeaturesNavGroup {
+	if strings.TrimSpace(query) == "" {
+		return groups
+	}
+	mm, _ := traits.CompileMultiTerm(query, mode, traits.FilterConfig{})
+	var out []views.FeaturesNavGroup
+	for _, g := range groups {
+		var kept []views.FeaturesNavItem
+		for _, it := range g.Items {
+			text := traits.FormatFilterableText("group", g.Title, "section", it.Section, "label", it.Label, "key", it.Key, "badge", it.Badge)
+			if mm.Match(text) {
+				kept = append(kept, it)
+			}
+		}
+		if len(kept) == 0 {
+			continue
+		}
+		cp := g
+		cp.Items = kept
+		cp.Collapsed = false
+		out = append(out, cp)
+	}
+	return out
 }
 
 // --- Nav & Detail Projection ----------------------------------------------------
@@ -530,6 +557,8 @@ func (a *App) featuresSpace(s core.State) ui.ViewNode {
 		navGroups, _ = a.buildFeaturesNav(snap, activeKey)
 	}
 	fc.activeKey = activeKey
+	navQuery := a.filterQuery(views.FeaturesNavFilterID)
+	navGroups = filterFeaturesNavGroups(navGroups, navQuery, a.filterMode(views.FeaturesNavFilterID))
 
 	docked := a.featuresCaptureDockedEnabled()
 	var captureNode ui.ViewNode
@@ -541,6 +570,7 @@ func (a *App) featuresSpace(s core.State) ui.ViewNode {
 		RepoPath:        repoPath,
 		ActiveKey:       activeKey,
 		NavRatio:        0.24,
+		NavFilterQuery:  navQuery,
 		NavGroups:       navGroups,
 		Detail:          a.buildFeaturesDetail(snap, activeKey),
 		CaptureNode:     captureNode,

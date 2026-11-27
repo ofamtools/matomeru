@@ -603,7 +603,7 @@ func ThreadAgentLabel(th data.AgentThread) string {
 	switch {
 	case name == "":
 		return h
-	case h != "" && !strings.Contains(strings.ToLower(name), strings.ToLower(h)):
+	case h != "" && !containsFold(name, h):
 		return name + " (" + h + ")"
 	}
 	return name
@@ -757,7 +757,7 @@ func threadAuthorName(m data.ThreadMessage, th data.AgentThread) string {
 		if name == "" {
 			name = "agent"
 		}
-		if pane := strings.TrimSpace(th.PaneTitle); pane != "" && m.PaneID == th.PaneID && !strings.Contains(strings.ToLower(pane), strings.ToLower(name)) {
+		if pane := strings.TrimSpace(th.PaneTitle); pane != "" && m.PaneID == th.PaneID && !containsFold(pane, name) {
 			name += " · " + pane
 		} else if pane != "" && m.PaneID == th.PaneID {
 			name = pane

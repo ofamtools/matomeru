@@ -13,6 +13,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/input"
@@ -736,24 +737,30 @@ func (m *richComposerModal) updateCompletions() {
 		candidates = m.a.cachedSkillCompletions("/")
 	}
 
-	lq := strings.ToLower(query)
-	var filtered []composerCompletion
-	for _, c := range candidates {
-		if lq == "" ||
-			strings.Contains(strings.ToLower(c.Label), lq) ||
-			strings.Contains(strings.ToLower(c.Insert), lq) ||
-			strings.Contains(strings.ToLower(c.Detail), lq) {
-			filtered = append(filtered, c)
-			if len(filtered) >= 12 {
-				break
-			}
-		}
-	}
-	m.compItems = filtered
-	m.compOpen = len(filtered) > 0
-	if m.compSel >= len(filtered) {
+	m.compItems = filterComposerCompletions(candidates, query, 12)
+	m.compOpen = len(m.compItems) > 0
+	if m.compSel >= len(m.compItems) {
 		m.compSel = 0
 	}
+}
+
+func filterComposerCompletions(candidates []composerCompletion, query string, limit int) []composerCompletion {
+	trimmed := strings.TrimSpace(query)
+	var mm traits.MultiMatcher
+	if trimmed != "" {
+		mm, _ = traits.CompileMultiTerm(trimmed, traits.MatchSubstring, traits.FilterConfig{})
+	}
+	var filtered []composerCompletion
+	for _, c := range candidates {
+		if trimmed != "" && !mm.Match(traits.FormatFilterableText("label", c.Label, "insert", c.Insert, "detail", c.Detail)) {
+			continue
+		}
+		filtered = append(filtered, c)
+		if len(filtered) >= limit {
+			break
+		}
+	}
+	return filtered
 }
 
 func (m *richComposerModal) acceptCompletion() {

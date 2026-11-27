@@ -71,21 +71,17 @@ func (a *App) screenHintsOverlay(w, h int) ui.ViewNode {
 		h = 36
 	}
 	lines := a.hintsRenderLines(a.panes.hints.lines, w, h)
-	return ui.ViewNode{
-		ID:   "screen.hints.overlay",
-		Kind: ui.KindOverlay,
-		Props: map[string]any{
-			"widthPct":  100,
-			"heightPct": 100,
-		},
-		Children: []ui.ViewNode{
-			{
-				ID:    "screen.hints.raw",
-				Kind:  ui.KindRaw,
-				Props: map[string]any{"lines": lines},
-			},
-		},
-	}
+	ov := modal.BuildOverlay(modal.Frame{
+		ID:        "screen.hints",
+		WidthPct:  100,
+		HeightPct: 100,
+	}, ui.ViewNode{
+		ID:    "screen.hints.raw",
+		Kind:  ui.KindRaw,
+		Props: map[string]any{"lines": lines},
+	})
+	ov.ID = "screen.hints.overlay"
+	return ov
 }
 
 func (a *App) hintsModifierActionsEnabled() bool {

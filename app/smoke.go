@@ -14,6 +14,7 @@ import (
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 	"ofam.dev/ochazuke/widgets/table"
+	"ofam.dev/ochazuke/widgets/tree"
 )
 
 // memFS is a small fixed file system, so the smoke run's path picker shows
@@ -319,9 +320,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 		k.Keys("a")
 	}
 	archived := func() bool { rec, _ := store.Get(project.Ref()); return rec.IsArchived() }
-	listed := func() bool {
-		return slices.ContainsFunc(a.nav.tables[workTable].Rows, func(r table.Row) bool { return r.ID == data.RefText(project.Ref()) })
-	}
+	listed := func() bool { return smokeWorkListed(a, project) }
 	k.check("d/a archives and starts dissolve animation", archived() && a.archiveAnimActive(project.Ref()))
 	a.opts.Now = func() time.Time { return time.Now().Add(5 * time.Second) }
 	k.Send(wakeMsg())
@@ -331,18 +330,9 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("u brings it back", !archived() && !a.archiveAnimActive(project.Ref()) && listed())
 	k.Keys("/")
 	k.Type("rail")
-	workFiltered := len(a.nav.tables[workTable].Filtered()) == 1
-	if a.inWorkTree(a.State()) {
-		tm := a.trees.workModel(data.KindTask)
-		workFiltered = tm.FilterQuery() == "rail" && len(tm.Flatten()) >= 1
-	}
-	k.check("/ filters on any field as you type", a.Mode() == ModeFilter && workFiltered && k.has("Pane rail sorted"))
+	k.check("/ filters on any field as you type", a.Mode() == ModeFilter && smokeWorkFiltered(a, "rail") && k.has("Pane rail sorted"))
 	k.Keys("esc")
-	workCleared := a.nav.tables[workTable].Query == ""
-	if a.inWorkTree(a.State()) {
-		workCleared = !a.trees.workModel(data.KindTask).IsFiltered()
-	}
-	k.check("esc clears the filter", a.Mode() == ModeNormal && workCleared)
+	k.check("esc clears the filter", a.Mode() == ModeNormal && smokeWorkCleared(a))
 	k.Keys("g", "b")
 	k.check("g b opens Zero-Field unified modal by default", a.Modal() == zeroFieldModalID && k.has("GROUP", "FIELDS"))
 	k.Keys(")")
@@ -623,3 +613,28 @@ func RunSmoke(out io.Writer, dump bool) error {
 
 // has2 is has without the report: for checks that a text is absent.
 func (k *smoke) has2(part string) bool { return strings.Contains(k.Frame(), part) }
+
+func smokeWorkListed(a *App, project data.Record) bool {
+	if a.inWorkTree(a.State()) {
+		tm := a.trees.workModel(data.KindTask)
+		return slices.ContainsFunc(tm.Flatten(), func(r tree.VisibleRow) bool {
+			return r.ID == project.ID || (r.Node.Ref != nil && *r.Node.Ref == project.Ref())
+		})
+	}
+	return slices.ContainsFunc(a.nav.tables[workTable].Rows, func(r table.Row) bool { return r.ID == data.RefText(project.Ref()) })
+}
+
+func smokeWorkFiltered(a *App, query string) bool {
+	if a.inWorkTree(a.State()) {
+		tm := a.trees.workModel(data.KindTask)
+		return tm.FilterQuery() == query && len(tm.Flatten()) >= 1
+	}
+	return len(a.nav.tables[workTable].Filtered()) == 1
+}
+
+func smokeWorkCleared(a *App) bool {
+	if a.inWorkTree(a.State()) {
+		return !a.trees.workModel(data.KindTask).IsFiltered()
+	}
+	return a.nav.tables[workTable].Query == ""
+}

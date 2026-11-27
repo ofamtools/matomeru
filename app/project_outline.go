@@ -166,6 +166,7 @@ func (a *App) projectOutlineView(s *core.State, projectID string) ui.ViewNode {
 	}
 	tm := a.trees.projectModel(projectID)
 	schema, _ := a.syncProjectTaskTree(tm, projectID, projectOutlineTree)
+	a.registerTreeFilterable(projectOutlineTree, tm)
 
 	var extra []ui.Badge
 	if a.nav.showArchived {
