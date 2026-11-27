@@ -137,17 +137,7 @@ func (a *App) resolvePaneProject(pane data.Record) (string, *core.Ref) {
 
 // selectGroupHeader moves the table cursor to the group header for groupName.
 func selectGroupHeader(tbl *table.Model, groupName string) bool {
-	if tbl == nil || groupName == "" {
-		return false
-	}
-	for i, it := range tbl.Items() {
-		if it.Header && it.Group == groupName {
-			tbl.SelectedIdx = i
-			tbl.Focused()
-			return true
-		}
-	}
-	return false
+	return selectTableGroupHeader(tbl, groupName)
 }
 
 // resolvePaneProjectFromTasks walks a pane's task -> parent chain in memory

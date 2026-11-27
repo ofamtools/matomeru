@@ -150,40 +150,48 @@ func (a *App) featuresNoteBoxSpec(_ string, targetTitle string) views.FeaturesNo
 	}
 }
 
-func (a *App) featuresTargetLabel(activeKey string) string {
-	section, target, _ := strings.Cut(strings.TrimSpace(activeKey), ":")
-	switch section {
-	case "page":
-		if cat, ok := lookupFeaturesPageCatalog(target); ok && cat.Title != "" {
-			return cat.Title
-		}
-		return views.Label(target)
-	case "noun":
-		if a.Store != nil {
-			if sc, ok := a.Store.Registry().Get(target); ok {
-				if lbl := firstNonEmpty(sc.Plural, sc.Title); lbl != "" {
-					return lbl
-				}
+func (a *App) featuresNounTargetLabel(target string) string {
+	if a.Store != nil {
+		if sc, ok := a.Store.Registry().Get(target); ok {
+			if lbl := firstNonEmpty(sc.Plural, sc.Title); lbl != "" {
+				return lbl
 			}
 		}
-		if cat, ok := lookupFeaturesNounCatalog(target); ok && cat.Title != "" {
+	}
+	if cat, ok := lookupFeaturesNounCatalog(target); ok && cat.Title != "" {
+		return cat.Title
+	}
+	return views.Label(target)
+}
+
+func (a *App) featuresGroupTargetLabel(target string) string {
+	if a.Store != nil && target != "" {
+		if rec, err := a.Store.Get(core.Ref{Kind: data.KindTask, ID: target}); err == nil && rec != nil {
+			return views.Title(a.schema(data.KindTask), *rec)
+		}
+	}
+	return target
+}
+
+func (a *App) featuresTargetLabel(activeKey string) string {
+	fk, _ := parseFeatureKey(activeKey)
+	switch fk.Kind {
+	case featureKeyPage:
+		if cat, ok := lookupFeaturesPageCatalog(fk.Name); ok && cat.Title != "" {
 			return cat.Title
 		}
-		return views.Label(target)
-	case "component":
-		if comp, ok := lookupFeaturesComponent(target); ok && comp.View.Name != "" {
+		return views.Label(fk.Name)
+	case featureKeyNoun:
+		return a.featuresNounTargetLabel(fk.Name)
+	case featureKeyComponent:
+		if comp, ok := lookupFeaturesComponent(fk.Name); ok && comp.View.Name != "" {
 			return comp.View.Name
 		}
-		return target
-	case "concept":
-		return views.Label(target) + " concepts"
-	case "group":
-		if a.Store != nil && target != "" {
-			if rec, err := a.Store.Get(core.Ref{Kind: data.KindTask, ID: target}); err == nil && rec != nil {
-				return views.Title(a.schema(data.KindTask), *rec)
-			}
-		}
-		return target
+		return fk.Name
+	case featureKeyConcept:
+		return views.Label(fk.Name) + " concepts"
+	case featureKeyGroup:
+		return a.featuresGroupTargetLabel(fk.Name)
 	default:
 		return FeaturesWishlistTitle
 	}
@@ -237,25 +245,16 @@ func (a *App) saveFeaturesRawThought(activeKey, text string, attachments []data.
 		fields["description"] = body
 	}
 
-	section, target, _ := strings.Cut(strings.TrimSpace(activeKey), ":")
-	target = strings.TrimSpace(target)
-	switch section {
-	case "page":
-		if target != "" {
-			fields["targetPages"] = []string{target}
-		}
-	case "noun":
-		if target != "" {
-			fields["targetNouns"] = []string{target}
-		}
-	case "component":
-		if target != "" {
-			fields["targetComponents"] = []string{target}
-		}
-	case "concept":
-		if target != "" {
-			fields["targetConcepts"] = []string{target}
-		}
+	fk, _ := parseFeatureKey(activeKey)
+	switch fk.Kind {
+	case featureKeyPage:
+		fields["targetPages"] = []string{fk.Name}
+	case featureKeyNoun:
+		fields["targetNouns"] = []string{fk.Name}
+	case featureKeyComponent:
+		fields["targetComponents"] = []string{fk.Name}
+	case featureKeyConcept:
+		fields["targetConcepts"] = []string{fk.Name}
 	}
 
 	rec, _, err := a.Store.Create(data.CreateInput{
@@ -269,8 +268,8 @@ func (a *App) saveFeaturesRawThought(activeKey, text string, attachments []data.
 		return nil, err
 	}
 
-	if section == "group" && target != "" {
-		groupRef := core.Ref{Kind: data.KindTask, ID: target}
+	if fk.Kind == featureKeyGroup && fk.Name != "" {
+		groupRef := core.Ref{Kind: data.KindTask, ID: fk.Name}
 		if gRec, gErr := a.Store.Get(groupRef); gErr == nil && gRec != nil {
 			_, _, _ = a.Store.Relate(data.RelateInput{
 				From: rec.Ref(),

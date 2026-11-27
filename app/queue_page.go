@@ -189,7 +189,6 @@ func (a *App) syncQueue(projectID string) queueSnapshot {
 		q.active = data.DefaultQueueName
 	}
 	ordered := views.GroupQueueItems(snap.rows[q.active], q.groupBy)
-	selected, _ := q.list.FocusedRow()
 	rows := make([]table.Row, 0, len(ordered))
 	byID := make(map[string]views.QueueItemRow, len(ordered))
 	for _, item := range ordered {
@@ -198,13 +197,7 @@ func (a *App) syncQueue(projectID string) queueSnapshot {
 			queueFilterField: strings.Join([]string{item.Title, item.Status, item.Priority, item.Project, item.Lane, item.Agent}, " "),
 		}})
 	}
-	q.list.Rows = rows
-	shown := q.list.Filtered()
-	if i := slices.IndexFunc(shown, func(r table.Row) bool { return r.ID == selected.ID }); i >= 0 {
-		q.list.SelectedIdx = i
-	} else {
-		q.list.SelectedIdx = min(q.list.SelectedIdx, max(0, len(shown)-1))
-	}
+	shown := syncTableSelection(q.list, rows, "")
 	q.visible = q.visible[:0]
 	for _, r := range shown {
 		q.visible = append(q.visible, byID[r.ID])
@@ -368,7 +361,7 @@ func (a *App) cycleQueueTabDir(s core.State, step int) core.StepResult {
 		names[i] = p.Name
 	}
 	q.active, _ = traits.Cycle(names, q.active, step, true)
-	q.list.SelectedIdx, q.list.Offset = 0, 0
+	resetTableSelection(q.list)
 	a.say("queue: %s", q.active)
 	return core.Next(s)
 }

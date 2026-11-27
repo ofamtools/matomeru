@@ -97,7 +97,6 @@ func (a *App) syncThreads(projectID string) {
 	tc := a.threads
 	tc.projectID = projectID
 	threads := a.threadsSnapshot(projectID)
-	selected, _ := tc.list.FocusedRow()
 	rows := make([]table.Row, 0, len(threads))
 	byID := make(map[string]data.AgentThread, len(threads))
 	for _, th := range threads {
@@ -108,13 +107,7 @@ func (a *App) syncThreads(projectID string) {
 		}
 		rows = append(rows, table.Row{ID: th.TaskID, Cells: map[string]any{threadsFilterField: strings.Join(search, " ")}})
 	}
-	tc.list.Rows = rows
-	shown := tc.list.Filtered()
-	if i := slices.IndexFunc(shown, func(r table.Row) bool { return r.ID == selected.ID }); i >= 0 {
-		tc.list.SelectedIdx = i
-	} else {
-		tc.list.SelectedIdx = min(tc.list.SelectedIdx, max(0, len(shown)-1))
-	}
+	shown := syncTableSelection(tc.list, rows, "")
 	tc.visible = tc.visible[:0]
 	for _, r := range shown {
 		tc.visible = append(tc.visible, byID[r.ID])
@@ -130,6 +123,13 @@ func (a *App) threadsScope(s core.State) string {
 	return a.activePortalProjectID(s)
 }
 
+func (tc *threadsController) selectVisibleThread(taskID string) (data.AgentThread, bool) {
+	if i, ok := selectTableRowID(tc.list, taskID); ok && i < len(tc.visible) {
+		return tc.visible[i], true
+	}
+	return data.AgentThread{}, false
+}
+
 // selectedThread is the currently open thread (in Show mode), the focused
 // Index card, or the rail's selected row.
 func (a *App) selectedThread(s core.State) (data.AgentThread, bool) {
@@ -137,9 +137,8 @@ func (a *App) selectedThread(s core.State) (data.AgentThread, bool) {
 	a.syncThreads(projectID)
 	tc := a.threads
 	if tc.openTaskID != "" {
-		if i := slices.IndexFunc(tc.visible, func(th data.AgentThread) bool { return th.TaskID == tc.openTaskID }); i >= 0 {
-			tc.list.SelectedIdx = i
-			return tc.visible[i], true
+		if th, ok := tc.selectVisibleThread(tc.openTaskID); ok {
+			return th, true
 		}
 		if a.Store != nil {
 			if th, ok, err := a.Store.AgentThreadByID(tc.openTaskID); err == nil && ok {
@@ -148,28 +147,24 @@ func (a *App) selectedThread(s core.State) (data.AgentThread, bool) {
 		}
 	}
 	if taskID, ok := strings.CutPrefix(s.ActiveFrame().FocusID, views.ThreadsItemPrefix); ok && taskID != "" {
-		if i := slices.IndexFunc(tc.visible, func(th data.AgentThread) bool { return th.TaskID == taskID }); i >= 0 {
-			tc.list.SelectedIdx = i
-			return tc.visible[i], true
+		if th, found := tc.selectVisibleThread(taskID); found {
+			return th, true
 		}
 	}
 	row, ok := tc.list.FocusedRow()
 	if !ok || row.ID == "" {
 		return data.AgentThread{}, false
 	}
-	i := slices.IndexFunc(tc.visible, func(th data.AgentThread) bool { return th.TaskID == row.ID })
-	if i < 0 {
-		return data.AgentThread{}, false
+	if i := slices.IndexFunc(tc.visible, func(th data.AgentThread) bool { return th.TaskID == row.ID }); i >= 0 {
+		return tc.visible[i], true
 	}
-	return tc.visible[i], true
+	return data.AgentThread{}, false
 }
 
 // selectThread moves the rail's selection to taskID when it is shown.
 func (a *App) selectThread(projectID, taskID string) {
 	a.syncThreads(projectID)
-	if i := slices.IndexFunc(a.threads.visible, func(th data.AgentThread) bool { return th.TaskID == taskID }); i >= 0 {
-		a.threads.list.SelectedIdx = i
-	}
+	selectTableRowID(a.threads.list, taskID)
 }
 
 // --- views ------------------------------------------------------------------------
@@ -187,13 +182,10 @@ func (a *App) threadsView(projectID, section string) ui.ViewNode {
 	tc := a.threads
 	indexShow := a.threadsIndexShowEnabled()
 
-	// Keep SelectedIdx synced with the focused Index card when browsing.
+	// Keep table selection synced with the focused Index card when browsing.
 	if indexShow && tc.openTaskID == "" {
-		if focusID := a.Focus(); strings.HasPrefix(focusID, views.ThreadsItemPrefix) {
-			taskID := strings.TrimPrefix(focusID, views.ThreadsItemPrefix)
-			if i := slices.IndexFunc(tc.visible, func(th data.AgentThread) bool { return th.TaskID == taskID }); i >= 0 {
-				tc.list.SelectedIdx = i
-			}
+		if taskID, ok := strings.CutPrefix(a.Focus(), views.ThreadsItemPrefix); ok && taskID != "" {
+			selectTableRowID(tc.list, taskID)
 		}
 	}
 
@@ -361,7 +353,7 @@ func (a *App) threadsReply(s core.State, _ core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	taskID := th.TaskID
-	st := a.threadComposer(s, "Reply · "+th.Title, fmt.Sprintf("Thread task:%s · append-only", taskID), "threads.reply:"+taskID, taskID, taskID,
+	st := a.threadComposer(s, "Reply · "+th.Title, threadReplySubtitle(taskID), "threads.reply:"+taskID, taskID, taskID,
 		func(text string, attachments []data.Attachment) error {
 			note, err := a.Store.AppendTaskNote(data.AppendTaskNoteInput{
 				TaskID: taskID, Body: text, AuthorKind: "owner", AuthorLabel: "owner", Attachments: attachments,

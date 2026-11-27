@@ -139,16 +139,7 @@ var parallelFilterCeilings = map[string]int{}
 
 // rawNounFormatCeilings ratchets raw colon-prefixed noun/composite-ID formatting
 // in app/ and views/.
-var rawNounFormatCeilings = map[string]int{
-	"app/about.go":              1,
-	"app/features_itemized.go":  1,
-	"app/features_page.go":      10,
-	"app/picker_picker.go":      1,
-	"app/project_home.go":       2,
-	"app/project_nav_unread.go": 1,
-	"app/threads_chat.go":       1,
-	"app/threads_page.go":       1,
-}
+var rawNounFormatCeilings = map[string]int{}
 
 // parallelModalChromeCeilings ratchets direct ui.KindOverlay construction in
 // app/ and views/ instead of ochazuke/widgets/modal.Frame.
@@ -198,10 +189,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/features_capture.go:(App).collectFeaturesSnapshot":                     18,
 	"app/features_capture.go:(App).featuresCaptureNode":                         13,
 	"app/features_capture.go:(App).probeMatomeruDir":                            15,
-	"app/features_note.go:(App).featuresTargetLabel":                            19,
-	"app/features_note.go:(App).saveFeaturesRawThought":                         21,
-	"app/features_page.go:(App).buildFeaturesDetailBody":                        39,
-	"app/features_page.go:(App).buildFeaturesNav":                               26,
+	"app/features_note.go:(App).saveFeaturesRawThought":                         17,
 	"app/focus_guard.go:(App).focusBeat":                                        18,
 	"app/focus_hints.go:applyFocusHintBadges":                                   18,
 	"app/focus_hints.go:buildFocusHintRootFrame":                                14,
@@ -304,7 +292,6 @@ var cyclomaticCeilings = map[string]int{
 	"app/project_nav_unread.go:(App).markProjectNavSectionRead":                 18,
 	"app/project_nav_unread.go:(App).markRecordRead":                            19,
 	"app/project_nav_unread.go:(App).markTaskNotesRead":                         14,
-	"app/project_nav_unread.go:(App).populateProjectWorkspaceActivity":          20,
 	"app/project_outline.go:(App).projectOutlineView":                           20,
 	"app/project_outline.go:(App).syncProjectTaskTree":                          31,
 	"app/project_portal.go:(App).buildProjectDefaultContext":                    19,
@@ -312,7 +299,6 @@ var cyclomaticCeilings = map[string]int{
 	"app/project_portal.go:(App).resolvePortalProjectRef":                       14,
 	"app/project_sections.go:(App).buildProjectNavItems":                        22,
 	"app/project_sections.go:(App).buildProjectSectionBody":                     19,
-	"app/project_sections.go:(App).collectProjectWorkspaceData":                 34,
 	"app/project_sections.go:(App).projectSectionPages":                         13,
 	"app/project_tabs.go:(App).sortedProjectsDirEntries":                        37,
 	"app/queue_page.go:(App).queueSnapshot":                                     22,

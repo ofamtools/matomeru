@@ -79,7 +79,7 @@ func (a *App) openPickerPicker(s core.State, _ core.Command) core.StepResult {
 		items = append(items, picker.Item{
 			ID:       sc.Kind,
 			Title:    sc.Title,
-			Subtitle: fmt.Sprintf("noun:%s · pick verb", sc.Kind),
+			Subtitle: fmt.Sprintf("Noun %s · pick verb", sc.Kind),
 			Badges:   []ui.Badge{{Text: sc.Kind, Tone: "info"}},
 		})
 	}

@@ -133,7 +133,6 @@ func (a *App) refreshBaseDirs() {
 }
 
 func (f *filesController) refreshRows() {
-	selected, _ := f.list.FocusedRow()
 	var rows []table.Row
 	add := func(path string) {
 		rows = append(rows, table.Row{ID: path, Cells: map[string]any{"path": path}})
@@ -152,13 +151,7 @@ func (f *filesController) refreshRows() {
 			add(entry.Path)
 		}
 	}
-	f.list.Rows = rows
-	visible := f.list.Filtered()
-	if i := slices.IndexFunc(visible, func(row table.Row) bool { return row.ID == selected.ID }); i >= 0 {
-		f.list.SelectedIdx = i
-	} else {
-		f.list.SelectedIdx = min(f.list.SelectedIdx, max(0, len(visible)-1))
-	}
+	syncTableSelection(f.list, rows, "")
 }
 
 // visibleFiles maps the shared widget model's filtered order back to the
@@ -281,7 +274,7 @@ func (a *App) registerFiles() {
 func (a *App) cycleFilesTabDir(s core.State, step int) core.StepResult {
 	f := a.files
 	f.tab, _ = traits.Cycle(filesTabs[:], f.tab, step, true)
-	f.list.SelectedIdx, f.list.Offset = 0, 0
+	resetTableSelection(f.list)
 	f.list.Rows = nil
 	f.refreshRows()
 	return core.Next(s)

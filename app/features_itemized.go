@@ -26,7 +26,7 @@ func (a *App) featuresConceptNav(records []data.Record, activeKey string, validK
 		counts[rec.Text(data.FieldConceptKind)]++
 	}
 	for _, kind := range field.Enum {
-		key := "concept:" + kind
+		key := featureConceptKey(kind).String()
 		validKeys[key] = true
 		group.Items = append(group.Items, views.FeaturesNavItem{
 			Key: key, Section: group.Key, Label: views.Label(kind), Icon: "◇", Count: counts[kind], Active: key == activeKey,
@@ -79,7 +79,7 @@ func (a *App) featuresGroupConcepts(records []data.Record, group data.Record) []
 		}
 	}
 	return a.featuresConceptItems(records, func(rec data.Record) bool {
-		return related[rec.ID] || featuresConceptTargets(rec, group.ID, "group:"+group.ID)
+		return related[rec.ID] || featuresConceptTargets(rec, group.ID, featureGroupKey(group.ID).String())
 	})
 }
 
@@ -102,7 +102,7 @@ func featuresPropRows(sc data.Schema, kind string, concepts []data.Record) []vie
 		})
 	}
 	for _, rec := range concepts {
-		if featuresPendingConcept(rec, data.ConceptKindProp, kind, "noun:"+kind) {
+		if featuresPendingConcept(rec, data.ConceptKindProp, kind, featureNounKey(kind).String()) {
 			rows = append(rows, views.FeaturesPropRow{Name: rec.Text("title"), Description: rec.Text("summary"), Suggested: true})
 		}
 	}
