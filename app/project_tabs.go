@@ -454,6 +454,7 @@ func (a *App) buildProjectsDirTable() *table.Model {
 			row.Facts["openTabSlot"] = slot
 			row.Badges = append(row.Badges, ui.Badge{Text: fmt.Sprintf("%d", slot), Tone: "accent"})
 		}
+		a.decoratePinnedProjectRow(row, e.rec.ID)
 		if a.openable(e.rec) {
 			row.Facts[factOpenable] = true
 		}

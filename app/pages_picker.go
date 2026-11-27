@@ -218,7 +218,8 @@ func (a *App) pagesPick(s core.State, _ core.Command) core.StepResult {
 		appendNoun(sc)
 	}
 
-	pm := picker.New("Pages", items)
+	items = a.scopePagesPickerItems(items)
+	pm := picker.New(a.scopePagesPickerTitle(), items)
 	pm.Placeholder = "search [app], [pane], and [noun] pages"
 	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:            "pages",

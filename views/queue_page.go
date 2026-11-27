@@ -76,6 +76,8 @@ type QueuePageSpec struct {
 	SelectedIdx int
 	// ProjectTitle is set when the page is scoped to one project.
 	ProjectTitle string
+	// ScopeLabel is set when a cross-project scope mode (such as Today) is active.
+	ScopeLabel string
 	// Section, when set, is the Project Portal section the page is embedded
 	// in; it is published as the "section" fact.
 	Section string
@@ -163,6 +165,7 @@ func queuePageFacts(spec QueuePageSpec, active string, filtering bool, rowCount 
 		"needsYouCount":    needsYouCount,
 		"hasNeedsYou":      hasNeedsYou,
 		"watcherCount":     len(spec.Watchers),
+		"scopeLabel":       strings.TrimSpace(spec.ScopeLabel),
 	}
 	if spec.Section != "" {
 		facts["section"] = spec.Section
@@ -463,6 +466,8 @@ func queueHeader(spec QueuePageSpec, active string) ui.ViewNode {
 	title := " Queues"
 	if p := strings.TrimSpace(spec.ProjectTitle); p != "" {
 		title += " · " + p
+	} else if sc := strings.TrimSpace(spec.ScopeLabel); sc != "" {
+		title += " · " + sc
 	}
 	line.write(title+" ", "accent")
 	for _, q := range spec.Queues {

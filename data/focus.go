@@ -49,6 +49,8 @@ const (
 type FocusConfig struct {
 	PriorityDate       string              `json:"priorityDate,omitempty"` // YYYY-MM-DD
 	PriorityProjects   []string            `json:"priorityProjects,omitempty"`
+	PinnedProjectID    string              `json:"pinnedProjectId,omitempty"`
+	ScopeMode          string              `json:"scopeMode,omitempty"` // global | today | project
 	CaptureBucketID    string              `json:"captureBucketId,omitempty"`
 	DefaultPomodoroMin int                 `json:"defaultPomodoroMin,omitempty"` // default 25
 	ActivePomodoro     *PomodoroSession    `json:"activePomodoro,omitempty"`

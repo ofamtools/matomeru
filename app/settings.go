@@ -275,6 +275,8 @@ const (
 	SetFinalViewDimAncestors           = "ui.finalViewDimAncestors"
 	SetOpenShowInTab                   = "ui.openShowInTab"
 	SetContextualUndo                  = "ui.contextualUndo"
+	SetScopeModeChrome                 = "ui.scopeModeChrome"
+	SetScopeModeDefault                = "ui.scopeModeDefault"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -490,6 +492,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetFinalViewDimAncestors, true, "dim non-matching ancestor rows kept as hierarchy scaffolding in hide-final and only-final views"),
 		flag(SetOpenShowInTab, true, "open full-page Show views in a new closable top-chrome tab (q closes back to previous page; off reuses 2 Work)"),
 		flag(SetContextualUndo, true, "scope undo (u) and redo (ctrl+r) to the current screen and region instead of undoing edits from pages you left"),
+		flag(SetScopeModeChrome, true, "show active scope mode and pinned project indicator chip in the top chrome bar"),
+		enum(SetScopeModeDefault, data.ScopeModeGlobal, "default scope mode on startup when no explicit scope mode is saved (global, today, or project)", data.ScopeModes...),
 	}
 }
 

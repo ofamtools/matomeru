@@ -714,6 +714,8 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 		}
 	}
 
+	a.applyScopeCreateDefaults(kind, schema, getField, setField)
+
 	defaults := objectArg(c.Args["defaults"])
 	for k, v := range defaults {
 		setField(k, v)

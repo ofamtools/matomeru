@@ -99,6 +99,9 @@ func (a *App) chromeStats(maxWidth int) string {
 
 func (a *App) chromeChips() string {
 	var parts []string
+	if scope := a.scopeModeChromeChip(); scope != "" {
+		parts = append(parts, scope)
+	}
 	if pinned := a.pinnedAgentChromeChip(); pinned != "" {
 		parts = append(parts, pinned)
 	}

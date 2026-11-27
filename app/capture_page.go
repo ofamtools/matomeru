@@ -141,7 +141,7 @@ func (a *App) queryCaptureRecords() []data.Record {
 		a.fail("load captures", err)
 		return nil
 	}
-	records := res.Items
+	records := a.scopeCaptureRecords(res.Items)
 	data.SortCapturesNewestFirst(records)
 	return records
 }
@@ -250,6 +250,7 @@ func (a *App) capturesSpace() ui.ViewNode {
 		FilterQuery:      cc.list.FilterQuery(),
 		PinnedAgentTitle: pinnedTitle,
 		PinnedCount:      pinnedCount,
+		ScopeLabel:       a.scopeModeBannerLabel(),
 		Now:              a.now(),
 	})
 }

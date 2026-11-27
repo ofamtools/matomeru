@@ -243,8 +243,11 @@ func (a *App) focusHidesOutlineRoots(kind string) bool {
 }
 
 // focusOutlineRoots keeps the top-level projects the outline shows in focus
-// mode.
+// or active scope mode.
 func (a *App) focusOutlineRoots(nodes []data.TreeNode, kind string) []data.TreeNode {
+	if scoped, ok := a.scopeOutlineRoots(nodes, kind); ok {
+		return scoped
+	}
 	if !a.focusHidesOutlineRoots(kind) {
 		return nodes
 	}
@@ -259,22 +262,25 @@ func (a *App) focusOutlineRoots(nodes []data.TreeNode, kind string) []data.TreeN
 }
 
 // focusOutlineKey is the part of an outline's cache key the priority filter
-// decides.
+// and active scope mode decide.
 func (a *App) focusOutlineKey(kind string) string {
+	key := a.scopeOutlineKey(kind)
 	if !a.focusHidesOutlineRoots(kind) {
-		return ""
+		return key
 	}
 	cfg := a.focus.cfg
-	return "|focus:" + cfg.PriorityDate + ":" + strings.Join(cfg.PriorityProjects, ",") + ":" + cfg.CaptureBucketID
+	return key + "|focus:" + cfg.PriorityDate + ":" + strings.Join(cfg.PriorityProjects, ",") + ":" + cfg.CaptureBucketID
 }
 
-// focusOutlineBadges mark an outline that hides the non-priority projects.
+// focusOutlineBadges mark an outline that hides non-priority projects or is
+// narrowed by the active scope mode.
 func (a *App) focusOutlineBadges(kind string) []ui.Badge {
+	out := a.scopeOutlineBadges(kind)
 	if !a.focusHidesOutlineRoots(kind) {
-		return nil
+		return out
 	}
 	n := len(data.TodaysPriorityProjects(a.focus.cfg, a.now()))
-	return []ui.Badge{{Text: fmt.Sprintf("%s focus: %d priority today · g Z", views.FocusPriorityMark, n), Tone: "accent"}}
+	return append(out, ui.Badge{Text: fmt.Sprintf("%s focus: %d priority today · g Z", views.FocusPriorityMark, n), Tone: "accent"})
 }
 
 // --- chrome ------------------------------------------------------------------------

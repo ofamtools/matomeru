@@ -122,7 +122,7 @@ func (a *App) queueSnapshot(projectID string) queueSnapshot {
 		return queueSnapshot{}
 	}
 	rev := a.storeRev()
-	key := fmt.Sprintf("%d|%d|%t", rev, a.telemetryViewSeq(), a.nav.showArchived)
+	key := fmt.Sprintf("%d|%d|%t%s", rev, a.telemetryViewSeq(), a.nav.showArchived, a.scopeQueueCacheSuffix())
 	if snap, ok := q.snapshots[projectID]; ok && snap.key == key {
 		return snap
 	}
@@ -240,7 +240,7 @@ func (a *App) loadQueueBoardInput(projectID string) data.QueueBoardInput {
 	for _, p := range d.livePanes {
 		panes = append(panes, a.buildQueuePane(paneSchema, p))
 	}
-	return data.QueueBoardInput{
+	in := data.QueueBoardInput{
 		ProjectID:         projectID,
 		Queues:            d.queues,
 		Items:             d.items,
@@ -249,6 +249,8 @@ func (a *App) loadQueueBoardInput(projectID string) data.QueueBoardInput {
 		Panes:             panes,
 		OpenQuestionPages: d.openQuestionPages,
 	}
+	a.scopeQueueBoardInput(&in, projectID)
+	return in
 }
 
 func (a *App) loadQueueLanes(projectID string, queues []data.Record) []data.Record {
@@ -370,18 +372,19 @@ func (a *App) syncQueue(projectID string) queueSnapshot {
 	return snap
 }
 
-// queueScope is the project the Queue Page is scoped to under s: every
-// project on the standalone page, and the open project in a Project Portal.
+// queueScope is the project the Queue Page is scoped to under s: the pinned
+// project when in project scope on the standalone page (else every project),
+// and the open project in a Project Portal.
 func (a *App) queueScope(s core.State) string {
 	if s.ActivePage == SpaceQueue {
-		return ""
+		return a.standaloneQueueProjectScope()
 	}
 	return a.activePortalProjectID(s)
 }
 
 // --- views ------------------------------------------------------------------------
 
-func (a *App) queueSpace() ui.ViewNode { return a.queueView("", "") }
+func (a *App) queueSpace() ui.ViewNode { return a.queueView(a.standaloneQueueProjectScope(), "") }
 
 // projectSectionQueues is the Project Portal's "queues" section: the same
 // page, scoped to the project.
@@ -402,6 +405,8 @@ func (a *App) queueView(projectID, section string) ui.ViewNode {
 	}
 	if projectID != "" {
 		spec.ProjectTitle = a.title(core.Ref{Kind: data.KindTask, ID: projectID})
+	} else if section == "" {
+		spec.ScopeLabel = a.scopeModeBannerLabel()
 	}
 	return views.QueuePageView(spec)
 }
