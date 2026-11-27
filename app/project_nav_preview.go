@@ -114,6 +114,7 @@ func (a *App) buildProjectInteractivePageNode(s core.State, page data.Record, pr
 		Kind:     ui.KindVStack,
 		Children: []ui.ViewNode{content},
 	}
+	a.hydratePageRefCards(&wrapper)
 	a.enhanceQuestionsSite(&wrapper, data.Record{}, nil)
 	a.enhanceCanvasSite(&wrapper, page.ID)
 	return wrapper.Children[0]

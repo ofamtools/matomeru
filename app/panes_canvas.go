@@ -337,9 +337,27 @@ func (a *App) enhanceCanvasSite(site *ui.ViewNode, pageID string) {
 	content.Facts["hasQuestions"] = hasQuestions
 }
 
-// firstCanvasWidgetID returns the first interactive table, markdown, or tree
-// widget ID inside site.content, or "" when the canvas only has static content
-// (or bottom-of-page question cards).
+func isInteractiveCanvasNode(n *ui.ViewNode) bool {
+	if n == nil || n.Facts == nil {
+		return false
+	}
+	return n.Facts["canvasTable"] == true ||
+		n.Facts["canvasMarkdown"] == true ||
+		n.Facts["canvasTree"] == true ||
+		n.Facts["canvasText"] == true ||
+		n.Facts["recordCard"] == true
+}
+
+func isStepCanvasBlock(n *ui.ViewNode) bool {
+	if n == nil || n.Facts == nil {
+		return false
+	}
+	return n.Facts["canvasText"] == true || n.Facts["recordCard"] == true
+}
+
+// firstCanvasWidgetID returns the first interactive table, markdown, tree, or
+// record ref card widget ID inside site.content, or "" when the canvas only has
+// static content (or bottom-of-page question cards).
 func (a *App) firstCanvasWidgetID(s core.State) string {
 	if !a.interactiveCanvasEnabled() {
 		return ""
@@ -355,11 +373,9 @@ func (a *App) firstCanvasWidgetID(s core.State) string {
 		if found != "" {
 			return
 		}
-		if n.Focusable && n.ID != "" && n.ID != views.PageScrollID {
-			if n.Facts["canvasTable"] == true || n.Facts["canvasMarkdown"] == true || n.Facts["canvasTree"] == true || n.Facts["canvasText"] == true {
-				found = n.ID
-				return
-			}
+		if n.Focusable && n.ID != "" && n.ID != views.PageScrollID && isInteractiveCanvasNode(n) {
+			found = n.ID
+			return
 		}
 		for i := range n.Children {
 			walk(&n.Children[i])
@@ -536,7 +552,7 @@ func (a *App) canvasMotion(s core.State, c core.Command) (core.StepResult, bool)
 		}
 		return core.Next(s), true
 
-	case node.Facts["canvasText"] == true:
+	case isStepCanvasBlock(node):
 		switch c.ID {
 		case "motion.down":
 			if nextID, ok := a.canvasAdjacentWidget(s, focusID, 1); ok {

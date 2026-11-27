@@ -169,6 +169,7 @@ func (a *App) buildPaneSiteNode(s core.State, pane data.Record, embedded bool) u
 		opts.Width = a.Shell.State.Layout.Rects["site"].W // 0 until the site was drawn once
 	}
 	site := views.PaneSiteViewWith(pane, res.Items, shownPageID, a.filterQuery("toc"), opts)
+	a.hydratePageRefCards(&site)
 	a.enhanceQuestionsSite(&site, pane, res.Items)
 	a.enhanceCanvasSite(&site, shownPageID)
 	if previewing && shownPageID != views.ScreenPageID {

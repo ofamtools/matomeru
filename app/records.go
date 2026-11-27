@@ -280,7 +280,7 @@ func (a *App) openFocused(s core.State, c core.Command) core.StepResult {
 			ref = r
 		}
 	}
-	return core.Next(a.show(s, ref))
+	return core.Next(a.openRecordTarget(s, ref))
 }
 
 func (a *App) edit(s core.State, c core.Command) core.StepResult {
