@@ -14,12 +14,13 @@ import (
 )
 
 type treeEditMeta struct {
-	kind, returnMode string
-	isWorkTree       bool
+	kind, returnMode, treeID string
+	isWorkTree               bool
 }
 type cleanSlateState struct {
-	active bool
-	roots  map[string]bool
+	active         bool
+	roots          map[string]bool
+	hiddenChildren map[string]map[string]bool
 }
 type cachedRecordTree struct {
 	rev          int64
@@ -55,6 +56,9 @@ type treeController struct {
 	nodeCache          map[string]cachedRecordTree
 	syncCache          map[*tree.Model]treeSyncEntry
 	syncBuilds         uint64
+	outlineViews       map[string]string
+	suggest            outlineSuggestState
+	featuresOutline    *featuresOutlineState
 }
 
 func newTreeController() *treeController {
@@ -143,6 +147,9 @@ func (tc *treeController) clearEdit() {
 				tm.CancelEdit()
 			}
 		}
+		if tc.featuresOutline != nil && tc.featuresOutline.model.Editing() {
+			tc.featuresOutline.model.CancelEdit()
+		}
 	}
 	tc.editMeta = nil
 }
@@ -153,6 +160,9 @@ func (tc *treeController) editing() bool {
 	}
 	if tc.editMeta.isWorkTree {
 		return tc.work[tc.editMeta.kind] != nil && tc.work[tc.editMeta.kind].Editing()
+	}
+	if tc.featuresOutline != nil && tc.featuresOutline.model.Editing() {
+		return true
 	}
 	if tm, _ := tc.editingProjectModel(); tm != nil {
 		return true
@@ -173,6 +183,9 @@ func (tc *treeController) activeEdit() *tree.EditState {
 			return tm.Edit()
 		}
 		return nil
+	}
+	if tc.featuresOutline != nil && tc.featuresOutline.model.Editing() {
+		return tc.featuresOutline.model.Edit()
 	}
 	if tm, _ := tc.editingProjectModel(); tm != nil {
 		return tm.Edit()
@@ -324,11 +337,15 @@ func (a *App) saveTreeFolded(kind, treeID string, tm *tree.Model) {
 	if a.trees == nil || tm == nil {
 		return
 	}
+	if treeID == featuresOutlineTree {
+		a.saveFeaturesOutlineFolded(tm)
+		return
+	}
 	projID := ""
 	if kind == data.KindTask {
 		projID = a.trees.projectIDForModel(tm)
 	}
-	if !a.isCleanSlateActive(kind, treeID) && projID == "" && treeID != projectOutlineTree && treeID != featuresCaptureTree {
+	if !a.isCleanSlateActive(kind, treeID) && projID == "" && !isScopedOutlineTreeID(treeID) {
 		a.trees.folded[kind] = tm.Folded
 		return
 	}
@@ -475,7 +492,7 @@ func (a *App) treeSyncKey(rev int64, kind, treeID string, cs *cleanSlateState) s
 	if cs != nil {
 		csFP = "1:" + sortedTrueKeys(cs.roots)
 	}
-	csFP += a.focusOutlineKey(kind)
+	csFP += a.focusOutlineKey(kind) + a.outlineViewSyncSuffix(treeID)
 	return fmt.Sprintf("%d|%s|%s|%v|%s|%s|%s|%v:%v:%v:%v:%v:%v", rev, kind, treeID, a.nav.showArchived, a.archiveAnimCacheKey(), expFP, csFP, st.RowSemanticStyling, st.StatusIcons, gap, guides, wrap, a.outlineStartCollapsed())
 }
 
@@ -510,7 +527,7 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 	}
 	a.initTreeFoldState(kind, allNodes)
 
-	nodes := a.visibleTreeRoots(allNodes, cs, kind)
+	nodes := a.applyOutlineViewMode(a.visibleTreeRoots(allNodes, cs, kind), kind, treeID)
 
 	builtNodes, opts := a.buildTreeNodes(schema, kind, nodes)
 	tm.DefaultFolded = false
@@ -556,6 +573,7 @@ func (a *App) workTreeView() ui.ViewNode {
 	a.syncWorkTreeSelectionIntoTable(kind, tbl, tm)
 
 	extra := append([]ui.Badge{{Text: "tree", Tone: "accent"}}, a.focusOutlineBadges(kind)...)
+	extra = append(extra, a.outlineViewBadges(workTable)...)
 	if csActive {
 		extra = append(extra, ui.Badge{Text: "clean slate", Tone: "accent"})
 	}
@@ -564,6 +582,8 @@ func (a *App) workTreeView() ui.ViewNode {
 	}
 	panel := views.TreeViewWith(schema, tm, SpaceWork, workTable, views.ScopeIndex, a.stickyTreeBreadcrumbsEnabled(), extra...)
 	panel.Facts["cleanSlate"] = csActive
+	a.applyOutlineViewFacts(&panel, workTable)
+	a.attachOutlineSuggestions(&panel, tm, kind, workTable)
 	return panel
 }
 
@@ -572,7 +592,7 @@ func (a *App) outlineTreeView() ui.ViewNode {
 	schema, _ := a.syncTreeModel(tm, data.KindTask, outlineTree)
 	a.registerTreeFilterable(outlineTree, tm)
 	csActive := a.isCleanSlateActive(data.KindTask, outlineTree)
-	extra := a.focusOutlineBadges(data.KindTask)
+	extra := append(a.focusOutlineBadges(data.KindTask), a.outlineViewBadges(outlineTree)...)
 	if csActive {
 		extra = append(extra, ui.Badge{Text: "clean slate", Tone: "accent"})
 	}
@@ -582,6 +602,8 @@ func (a *App) outlineTreeView() ui.ViewNode {
 	panel := views.TreeViewWith(schema, tm, "outline", outlineTree, views.ScopeOutline, a.stickyTreeBreadcrumbsEnabled(), extra...)
 	panel.Title = "Outline"
 	panel.Facts["cleanSlate"] = csActive
+	a.applyOutlineViewFacts(&panel, outlineTree)
+	a.attachOutlineSuggestions(&panel, tm, data.KindTask, outlineTree)
 	return panel
 }
 
@@ -605,6 +627,8 @@ func (a *App) activeTree(s core.State) (tm *tree.Model, kind, treeID string, isW
 	switch {
 	case a.Modal() == "outline":
 		return a.trees.outlineModel(), data.KindTask, outlineTree, false, true
+	case a.inFeaturesOutlineTree(&s):
+		return a.trees.featuresOutlineState().model, data.KindTask, featuresOutlineTree, false, true
 	case a.inFeaturesCaptureTree(&s):
 		if wid := a.featuresWishlistTaskID(); wid != "" {
 			return a.trees.projectModel(wid), data.KindTask, featuresCaptureTree, false, true
@@ -626,7 +650,9 @@ func (a *App) activeEditTree() (*tree.Model, *treeEditMeta, bool) {
 	}
 	meta := a.trees.editMeta
 	var tm *tree.Model
-	if meta.isWorkTree {
+	if meta.treeID == featuresOutlineTree {
+		tm = a.trees.featuresOutlineState().model
+	} else if meta.isWorkTree {
 		tm = a.trees.workModel(meta.kind)
 	} else if ptm, _ := a.trees.editingProjectModel(); ptm != nil {
 		tm = ptm

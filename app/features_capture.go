@@ -175,26 +175,27 @@ func featuresPageSpecs() []core.CommandSpec {
 		sh(CmdFeaturesCaptureFocus, "Focus the Quick Capture (Features Wishlist) outline pane"),
 		sh(CmdFeaturesCaptureToggle, "Toggle the Quick Capture pane between docked and expanded layout"),
 		sh(CmdFeaturesItemOpen, "Open the focused linked record in 2 Work"),
-	}, featuresNoteSpecs()...)
+	}, append(featuresNoteSpecs(), featuresOutlineSpecs()...)...)
 }
 
 func featuresPageBindings() []core.Binding {
 	n, active := ModeNormal, "facts.featuresPageActive"
+	legacyNote := active + " && !facts.featuresCaptureDocked && !facts.featuresOutline"
 	return append([]core.Binding{
 		when(bind(n, views.ScopeFeaturesNav, "enter", CmdFeaturesNavSelect, "open / toggle"), active),
 		when(bind(n, views.ScopeFeaturesNav, "space", CmdFeaturesNavGroupToggle, "toggle group"), active),
 		when(bind(n, views.ScopeFeaturesPage, "n", CmdFeaturesQuickCapture, "quick capture"), active+" && !facts.hasFilter"),
 		when(bind(n, views.ScopeFeaturesPage, "N", CmdFeaturesCaptureModal, "capture modal"), active+" && !facts.hasFilter"),
 		when(bind(n, views.ScopeFeaturesContent, "enter", CmdFeaturesNoteEdit, "type raw note"), active+" && facts.featuresThoughtBox"),
-		when(bind(n, views.ScopeFeaturesContent, "enter", CmdFeaturesItemOpen, "open item"), active+" && !facts.featuresThoughtBox"),
-		when(bind(n, views.ScopeFeaturesContent, "o", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
-		when(bind(n, views.ScopeFeaturesContent, "O", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
-		when(bind(n, views.ScopeFeaturesContent, "a", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
-		when(bind(n, views.ScopeFeaturesContent, "i", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
-		when(bind(n, views.ScopeFeaturesNav, "o", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
-		when(bind(n, views.ScopeFeaturesNav, "O", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
-		when(bind(n, views.ScopeFeaturesNav, "a", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
-		when(bind(n, views.ScopeFeaturesNav, "i", CmdFeaturesNoteEdit, "add raw note"), active+" && !facts.featuresCaptureDocked"),
+		when(bind(n, views.ScopeFeaturesContent, "enter", CmdFeaturesItemOpen, "open item"), active+" && !facts.featuresThoughtBox && !facts.isTree"),
+		when(bind(n, views.ScopeFeaturesContent, "o", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
+		when(bind(n, views.ScopeFeaturesContent, "O", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
+		when(bind(n, views.ScopeFeaturesContent, "a", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
+		when(bind(n, views.ScopeFeaturesContent, "i", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
+		when(bind(n, views.ScopeFeaturesNav, "o", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
+		when(bind(n, views.ScopeFeaturesNav, "O", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
+		when(bind(n, views.ScopeFeaturesNav, "a", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
+		when(bind(n, views.ScopeFeaturesNav, "i", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
 		when(bind(n, views.ScopeFeaturesNav, "o", CmdFeaturesQuickCapture, "quick capture"), active+" && facts.featuresCaptureDocked"),
 		when(bind(n, views.ScopeFeaturesNav, "a", CmdFeaturesQuickCapture, "quick capture"), active+" && facts.featuresCaptureDocked"),
 		when(bind(n, views.ScopeFeaturesNav, "i", CmdFeaturesQuickCapture, "quick capture"), active+" && facts.featuresCaptureDocked"),
@@ -207,8 +208,8 @@ func featuresPageBindings() []core.Binding {
 		when(bind(n, views.ScopeFeaturesNav, "c", CmdFeaturesCaptureFocus, "focus capture"), active),
 		when(bind(n, views.ScopeFeaturesContent, "c", CmdFeaturesCaptureFocus, "focus capture"), active),
 		when(bind(n, views.ScopeFeaturesCapture, "c", CmdStatusCycle, "cycle status"), active+" && facts.hasStatus"),
-		when(bind(n, views.ScopeFeaturesPage, "z", CmdFeaturesCaptureToggle, "expand capture"), active),
-	}, featuresNoteBindings()...)
+		when(bind(n, views.ScopeFeaturesPage, "z", CmdFeaturesCaptureToggle, "expand capture"), active+" && !facts.isTree"),
+	}, append(featuresNoteBindings(), featuresOutlineBindings()...)...)
 }
 
 func (a *App) registerFeaturesPageHandlers() {
@@ -222,6 +223,7 @@ func (a *App) registerFeaturesPageHandlers() {
 	a.handle(CmdFeaturesSuggestView, a.featuresSuggestView)
 	a.handle(CmdFeaturesSuggestConcept, a.featuresSuggestConcept)
 	a.registerFeaturesNoteHandlers()
+	a.registerFeaturesOutlineHandlers()
 }
 
 // --- Quick Capture Outline & Handlers -------------------------------------------
@@ -342,7 +344,7 @@ func (a *App) featuresCaptureNode(wishlistRoot *data.Record) ui.ViewNode {
 	a.registerTreeFilterable(featuresCaptureTree, tm)
 	csActive := a.isCleanSlateActive(data.KindTask, featuresCaptureTree)
 
-	var extra []ui.Badge
+	extra := a.outlineViewBadges(featuresCaptureTree)
 	if csActive {
 		extra = append(extra, ui.Badge{Text: "clean slate", Tone: "accent"})
 	}
@@ -351,6 +353,7 @@ func (a *App) featuresCaptureNode(wishlistRoot *data.Record) ui.ViewNode {
 	}
 	panel := views.TreeViewWith(schema, tm, featuresCapturePanel, featuresCaptureTree, views.ScopeIndex, a.stickyTreeBreadcrumbsEnabled(), extra...)
 	panel.Title = featuresCaptureTitle
+	a.applyOutlineViewFacts(&panel, featuresCaptureTree)
 
 	subHoisted := len(tm.HoistStack) > 1 || (tm.Hoisted() && tm.HoistID() != wid)
 	filtered := make([]ui.Badge, 0, len(panel.Badges))
@@ -375,6 +378,7 @@ func (a *App) featuresCaptureNode(wishlistRoot *data.Record) ui.ViewNode {
 	if len(panel.Children) > 0 {
 		applyFacts(&panel.Children[0])
 	}
+	a.attachOutlineSuggestions(&panel, tm, data.KindTask, featuresCaptureTree)
 	return panel
 }
 
@@ -452,6 +456,12 @@ func (a *App) featuresQuickCapture(s core.State, _ core.Command) core.StepResult
 
 func (a *App) featuresCaptureFocus(s core.State, _ core.Command) core.StepResult {
 	if !a.featuresCaptureDockedEnabled() {
+		if a.featuresOutlineEnabled() {
+			tm := a.resyncActiveFeaturesOutline()
+			tm.Select(featSecIdeas)
+			a.say("focused Raw Ideas outline · o adds inline · b clean slate · r comments")
+			return core.Next(withFocus(s, featuresOutlineTree))
+		}
 		a.say("focused raw note box · enter/o to type · n for bigger modal")
 		return core.Next(withFocus(s, views.FeaturesThoughtInputID))
 	}

@@ -303,6 +303,9 @@ func (a *App) toggleShowCompact(s core.State) core.StepResult {
 var formDensityCycle = []string{ui.DensityBalanced, ui.DensityCompact, ui.DensitySpacious}
 
 func (a *App) cycleModalView(s core.State, dir int) core.StepResult {
+	if a.activeOutline() != nil {
+		return a.cycleOutlineView(s, outlineTree, dir)
+	}
 	fm := a.topFormModal()
 	if fm == nil {
 		a.say("no view modes to cycle here")

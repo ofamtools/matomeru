@@ -526,8 +526,7 @@ func (a *App) motion(s core.State, c core.Command) core.StepResult {
 		a.syncVisualStatus(s)
 		return core.Next(s)
 	}
-	if a.inFeaturesCaptureTree(&s) && c.ID != "motion.left" && c.ID != "motion.right" {
-		a.featuresCaptureTreeMove(s, c)
+	if c.ID != "motion.left" && c.ID != "motion.right" && a.handleFeaturesTreeMotion(s, c) {
 		a.syncVisualStatus(s)
 		return core.Next(s)
 	}

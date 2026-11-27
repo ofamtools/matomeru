@@ -367,7 +367,7 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(n, data.KindTask, "g P", CmdTaskPriorityCycle, "cycle task priority")),
 		hidden(bind(n, data.KindTask, "r", CmdTaskNoteReply, "reply with note")),
 		hidden(bind(n, data.KindNote, "r", CmdTaskNoteReply, "reply with note")),
-		hidden(when(bind(n, views.ScopeIndex, "t", CmdTaskThreadToggle, "toggle note thread"), "facts.isTree")),
+		hidden(when(bind(n, views.ScopeIndex, "t", CmdTaskThreadToggle, "toggle note thread"), "facts.isTree && !facts.featuresOutline")),
 		hidden(when(bind(n, views.ScopeIndex, "D", CmdTaskQueueDispatch, "dispatch agent queue"), "facts.isTree")),
 		hidden(bind(n, SpaceWork, "g t", CmdWorkLayoutToggle, "toggle tree/table")),
 		bind(n, ScopeProjectContext, "enter", CmdProjectContextOpen, "open context item"),
@@ -908,6 +908,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, projectCycleBindings()...)
 	out = append(out, contentHintsBindings()...)
 	out = append(out, screenSearchBindings()...)
+	out = append(out, outlineSuggestBindings()...)
 	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeSearch, ModeCommandLine, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModePickerFilter} {
 		out = append(out, with(bind(mode, all, "alt+h", CmdPaneHints, "paste terminal hint"), map[string]any{"action": HintsActionInsert}))
 	}

@@ -708,6 +708,8 @@ func (a *App) register() {
 	a.handle(CmdOutlineCleanSlate, a.outlineCleanSlate)
 	a.handle(CmdOutlineCleanSlateExit, a.outlineCleanSlateExit)
 	a.handle(CmdOutlineTriage, a.outlineTriage)
+	a.registerOutlineSuggestHandlers()
+	a.registerOutlineViewHandlers()
 	a.initGenericPresets()
 	a.registerZeroFieldHandlers()
 	a.registerPickerPickerHandlers()

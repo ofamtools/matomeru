@@ -95,7 +95,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetShowTitleAttachmentChips: true, SetPanesKeepCompletedLaneBars: true,
 		SetFocusHideNonPriority: true, SetFocusEnforceLocks: true, SetFocusChromeCountdown: true,
 		SetDeclarativePresentations: true, SetContextExtractCodeBlocks: true,
-		SetInputReadlinePriority: true, SetInputFilterScrollMotions: true, SetSplitResize: true, SetProjectNavCompact: true, SetRepoAutoHarvestPanes: true, SetRichAddToQueue: true, SetTOCStyle: views.TOCStyleAuto, SetSearchHighlight: true}
+		SetInputReadlinePriority: true, SetInputFilterScrollMotions: true, SetSplitResize: true, SetProjectNavCompact: true, SetRepoAutoHarvestPanes: true, SetRichAddToQueue: true, SetTOCStyle: views.TOCStyleAuto, SetSearchHighlight: true,
+		SetOutlineAutoSuggest: true, SetFeaturesOutline: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
