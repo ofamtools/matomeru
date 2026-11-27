@@ -532,7 +532,7 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 		focusChanged := a.focusTick(out.State, c)
 		acked := false
 		if hasUnreadNav && isProjectNavAckCommand(c.ID) {
-			if a.markProjectNavTargetRead(unreadNavTarget) {
+			if a.autoMarkProjectNavTargetRead(unreadNavTarget) {
 				out.State = a.settleNavFocusAfterRead(out.State, unreadNavTarget)
 				acked = true
 			}

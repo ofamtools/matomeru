@@ -664,7 +664,7 @@ func (a *App) projectHomeItemOpen(s core.State, _ core.Command) core.StepResult 
 		return core.Next(s)
 	}
 
-	if target.Ref != nil && target.Unread && a.markRecordRead(*target.Ref) {
+	if a.autoMarkRecordRead(target.Ref, target.Unread) {
 		a.invalidateProjectUnreadCaches(projKey)
 	}
 

@@ -715,3 +715,68 @@ func TestProjectNavShowNewItemsToggleFromHome(t *testing.T) {
 		t.Fatal("z u again did not bring the new items back")
 	}
 }
+
+func TestOpeningPanePreservesUnreadPages(t *testing.T) {
+	f := setupNavUnreadFixture(t)
+	a, d := f.app, f.driver
+
+	// Open the project portal so both nav targets and home targets are built.
+	d.Keys("P")
+	if !isProjectTab(a.Space()) {
+		t.Fatalf("P did not open project portal: space=%q", a.Space())
+	}
+
+	assertUnread := func(stage string) {
+		t.Helper()
+		pg, err := f.store.Get(f.unreadPage.Ref())
+		if err != nil {
+			t.Fatalf("%s: load unreadPage: %v", stage, err)
+		}
+		if !pg.IsUnread() {
+			t.Fatalf("%s: unreadPage lost unread status (updatedAt=%v viewedAt=%q)", stage, pg.UpdatedAt, pg.Text("viewedAt"))
+		}
+	}
+	assertUnread("initial")
+
+	// 1. Opening the pane from Project Portal left nav must NOT clear unread pages.
+	paneNavID := projectNavNodePrefix + "panes." + f.mainPane.ID
+	if findNode(a, paneNavID) == nil {
+		a.Shell.State = withFocus(a.State(), projectNavPrefix+"panes")
+		d.Keys("space")
+	}
+	if findNode(a, paneNavID) == nil {
+		t.Fatalf("expected %q in project nav", paneNavID)
+	}
+	a.Shell.State = withFocus(a.State(), paneNavID)
+	d.Keys("enter")
+	assertUnread("after opening pane from project nav")
+
+	// 2. Return to normal mode and clear the Panes section (R): must NOT wipe unread pages.
+	d.Keys("ctrl+a", "d")
+	a.Shell.State = withMode(withFocus(a.State(), projectNavPrefix+"panes"), ModeNormal)
+	d.Keys("R")
+	assertUnread("after R on Panes section")
+
+	// 3. Opening the pane from Project Home must NOT wipe unread pages.
+	a.Shell.State = withMode(withFocus(a.State(), projectNavPrefix+"home"), ModeNormal)
+	_ = a.View(a.State())
+	paneHomeID := "project.home.pane." + f.mainPane.ID
+	if findNode(a, paneHomeID) != nil {
+		a.Shell.State = withFocus(a.State(), paneHomeID)
+		d.Keys("enter")
+		assertUnread("after opening pane from project home")
+	}
+
+	// 4. Opening the actual page itself DOES mark that page read.
+	d.Keys("ctrl+a", "d")
+	pageNavID := projectNavNodePrefix + "pages." + f.unreadPage.ID
+	a.Shell.State = withMode(withFocus(a.State(), pageNavID), ModeNormal)
+	d.Keys("enter")
+	pg, err := f.store.Get(f.unreadPage.Ref())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pg.IsUnread() {
+		t.Fatal("opening the unread page itself should mark it read")
+	}
+}
