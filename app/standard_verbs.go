@@ -124,6 +124,7 @@ func newStandardVerbRegistry() standardVerbRegistry {
 				standardTargetWorkPanel:      (*App).stdCycleWorkIndex,
 				projectContextTable:          (*App).stdCycleProjectContext,
 				standardTargetProjectContext: (*App).stdCycleProjectContext,
+				views.ProjectNavID:           (*App).stdCycleProjectNavMode,
 				standardTargetShow:           (*App).stdCycleShowCompact,
 				standardTargetWorkShow:       (*App).stdCycleShowCompact,
 				standardTargetSite:           (*App).stdToggleSiteTOC,
@@ -149,15 +150,16 @@ func newStandardVerbRegistry() standardVerbRegistry {
 				featuresOutlinePanel:         (*App).stdCycleOutlineView,
 			},
 			byScope: map[string]standardVerbHandler{
-				ScopeRail:           (*App).stdCycleRail,
-				ScopeProjectContext: (*App).stdCycleProjectContext,
-				views.ScopeShow:     (*App).stdCycleShowCompact,
-				views.ScopeSite:     (*App).stdToggleSiteTOC,
-				views.ScopeTOC:      (*App).stdCycleTOCStyle,
-				views.ScopeQueue:    (*App).stdCycleQueueTabs,
-				views.ScopeFiles:    (*App).stdCycleFilesTabs,
-				views.ScopeJobs:     (*App).stdCycleJobsTabs,
-				views.ScopeOutline:  (*App).stdCycleOutlineView,
+				ScopeRail:             (*App).stdCycleRail,
+				ScopeProjectContext:   (*App).stdCycleProjectContext,
+				views.ScopeProjectNav: (*App).stdCycleProjectNavMode,
+				views.ScopeShow:       (*App).stdCycleShowCompact,
+				views.ScopeSite:       (*App).stdToggleSiteTOC,
+				views.ScopeTOC:        (*App).stdCycleTOCStyle,
+				views.ScopeQueue:      (*App).stdCycleQueueTabs,
+				views.ScopeFiles:      (*App).stdCycleFilesTabs,
+				views.ScopeJobs:       (*App).stdCycleJobsTabs,
+				views.ScopeOutline:    (*App).stdCycleOutlineView,
 			},
 			byTrait: map[string]standardVerbHandler{
 				traits.TraitCycle: (*App).stdCycleTableNode,
@@ -424,6 +426,10 @@ func (a *App) stdCycleWorkIndex(ctx standardVerbContext, _ *ui.ViewNode) (core.S
 func (a *App) stdCycleProjectContext(ctx standardVerbContext, _ *ui.ViewNode) (core.StepResult, bool) {
 	a.cycleProjectContextView(ctx.dir)
 	return core.Next(ctx.state), true
+}
+
+func (a *App) stdCycleProjectNavMode(ctx standardVerbContext, _ *ui.ViewNode) (core.StepResult, bool) {
+	return a.cycleProjectNavMode(ctx.state, ctx.dir), true
 }
 
 func (a *App) stdCycleShowCompact(ctx standardVerbContext, _ *ui.ViewNode) (core.StepResult, bool) {

@@ -98,6 +98,7 @@ type cachedShowSnap struct {
 // open inline ui.page, and per-section table/tree models.
 type ProjectController struct {
 	sectionByProject     map[string]string
+	navModeByProject     map[string]string
 	openPageByProject    map[string]string
 	openPageReturnFocus  map[string]string
 	childPaneByProject   map[string]string
@@ -138,6 +139,7 @@ type ProjectController struct {
 func newProjectController() *ProjectController {
 	return &ProjectController{
 		sectionByProject:     map[string]string{},
+		navModeByProject:     map[string]string{},
 		openPageByProject:    map[string]string{},
 		openPageReturnFocus:  map[string]string{},
 		childPaneByProject:   map[string]string{},
@@ -392,9 +394,11 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 		activeKey = defs[0].Key
 		pc.setSection(projKey, activeKey)
 	}
+	a.syncByPaneFocusState(pc, projKey, focusID)
 
 	ws := a.collectProjectWorkspaceData(groupName, projRef)
-	navItems, navTitle := a.applyProjectNavFilter(projKey, navTitle, a.buildProjectNavItems(defs, ws, activeKey, focusID))
+	navMode := a.projectNavMode(projKey)
+	navItems, navTitle := a.applyProjectNavFilter(projKey, navTitle, a.buildProjectNav(defs, ws, activeKey, focusID))
 
 	badges := make([]ui.Badge, 0, 8)
 	if ws.projRec != nil {
@@ -460,14 +464,14 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 			}
 			activeBody = a.buildProjectNavItemBody(s, ws, resolved, false)
 		} else {
-			activeBody = a.buildProjectSectionBody(s, ws, activeKey)
+			activeBody = a.resolveProjectSectionOrByPaneBody(s, ws, activeKey, focusID)
 		}
 	}
 
 	dotOnly := a.projectNavUnreadDotOnlyEnabled()
 	return views.ProjectWorkspaceView(views.ProjectWorkspaceSpec{
 		ProjectID: ws.projectID, Title: groupName, Subtitle: strings.Join(subParts, " · "),
-		Ref: projRef, Badges: badges, NavRatio: navRatio, NavTitle: navTitle, HideHeader: hideHeader,
+		Ref: projRef, Badges: badges, NavRatio: navRatio, NavTitle: navTitle, NavMode: navMode, HideHeader: hideHeader,
 		UnreadDotOnly: &dotOnly,
 		NavOptions:    views.ProjectNavOptions{Compact: a.projectNavCompactEnabled()},
 		ActiveKey:     activeKey,
@@ -479,6 +483,7 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 			"projectUnread":   ws.unreadTotal > 0,
 			"unreadTotal":     ws.unreadTotal,
 			"inChildPaneView": inChildPane,
+			"navMode":         navMode,
 		},
 	})
 }
@@ -625,8 +630,8 @@ func (a *App) projectSectionSelect(s core.State, c core.Command) core.StepResult
 	sec := strings.TrimSpace(c.Arg("section"))
 	if sec == "" {
 		focus := s.ActiveFrame().FocusID
-		if strings.HasPrefix(focus, projectNavNodePrefix) {
-			return a.projectNavNodeOpen(s, focus)
+		if isProjectNavDirectOpenFocus(focus) {
+			return a.openProjectNavTarget(s, focus)
 		}
 		if k, ok := strings.CutPrefix(focus, projectNavPrefix); ok && k != "" {
 			sec = k

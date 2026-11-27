@@ -929,7 +929,7 @@ func (a *App) projectNavViewKey(s core.State) string {
 	}
 	pc := a.proj
 	var b strings.Builder
-	fmt.Fprintf(&b, "|pnt:%t:%t:%t:%t", a.projectNavTreeEnabled(), a.projectNavSurfaceUnreadEnabled(), a.projectNavShowNewItemsEnabled(), a.projectNavCompactEnabled())
+	fmt.Fprintf(&b, "|pnt:%t:%t:%t:%t:%s", a.projectNavTreeEnabled(), a.projectNavSurfaceUnreadEnabled(), a.projectNavShowNewItemsEnabled(), a.projectNavCompactEnabled(), a.projectNavMode(projKey))
 	if secs := pc.expandedSections[projKey]; len(secs) > 0 {
 		keys := make([]string, 0, len(secs))
 		for k, v := range secs {
