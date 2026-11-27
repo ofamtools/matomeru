@@ -2,6 +2,7 @@ package actions
 
 import (
 	"maps"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -261,19 +262,46 @@ func findPlaceholderEnd(s string, start int) int {
 
 func evalTemplateExpr(expr string, vars map[string]string) string {
 	parts := splitFallbackChain(expr)
-	for _, raw := range parts {
+	val := ""
+	for i, raw := range parts {
 		part := strings.TrimSpace(raw)
 		if part == "" {
 			continue
 		}
-		if lit, ok := unquoteLiteral(part); ok {
-			return lit
+		if i > 0 && val != "" {
+			if transformed, ok := applyTemplateFilter(part, val); ok {
+				val = transformed
+			}
+			continue
 		}
-		if val := lookupTemplateVar(part, vars); val != "" {
-			return val
+		if lit, ok := unquoteLiteral(part); ok {
+			val = lit
+			continue
+		}
+		if looked := lookupTemplateVar(part, vars); looked != "" {
+			val = looked
 		}
 	}
-	return ""
+	return val
+}
+
+func applyTemplateFilter(name, val string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "url", "urlencode":
+		return url.QueryEscape(val), true
+	case "urlpath":
+		return url.PathEscape(val), true
+	case "shell":
+		return "'" + strings.ReplaceAll(val, "'", `'\''`) + "'", true
+	case "trim":
+		return strings.TrimSpace(val), true
+	case "lower":
+		return strings.ToLower(val), true
+	case "upper":
+		return strings.ToUpper(val), true
+	default:
+		return val, false
+	}
 }
 
 func splitFallbackChain(expr string) []string {

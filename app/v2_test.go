@@ -99,7 +99,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetOutlineAutoSuggest: true, SetFeaturesOutline: true, SetProjectNavPriorityOrder: true, SetProjectNavMode: views.ProjectNavModeSections, SetProjectSectionPickerNested: true,
 		SetCaptureComposeEnabled: true, SetPinnedAgentChrome: true, SetFeaturesDomainNav: true, SetYankDefaultFormat: YankFormatRef, SetPasteContextual: true,
 		SetRemindersTopNavTab: true, SetReminderToasts: true, SetOutlineRescoping: true, SetShowLegacyPanesWorkPages: false,
-		SetProjectsHomeStarredGrid: true, SetProjectsHomeCardMaxHeight: defaultHomeCardMaxHeight, SetPageHydrateRefCards: true}
+		SetProjectsHomeStarredGrid: true, SetProjectsHomeCardMaxHeight: defaultHomeCardMaxHeight, SetPageHydrateRefCards: true, SetBuiltinCustomActions: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

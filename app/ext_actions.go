@@ -19,13 +19,14 @@ import (
 )
 
 // loadUserActions reads ~/.config/matomeru/actions.json and registers every
-// ActionDef as a first-class RecordActionSpec / core.CommandSpec so it works
-// in `;` Actions, `:` Palette, and bindings.json.
+// ActionDef as a first-class RecordActionSpec / core.CommandSpec (for `;`
+// Actions, `:` Palette, and bindings.json) and stores declarative parameterized
+// CustomActions for the `g a` Custom Actions picker.
 func (a *App) loadUserActions(dir string) {
 	if dir == "" {
 		return
 	}
-	defs, err := actions.LoadFile(filepath.Join(dir, actions.ActionsFile))
+	defs, customs, err := actions.LoadAllFile(filepath.Join(dir, actions.ActionsFile))
 	if err != nil {
 		a.warn("%s: %v", actions.ActionsFile, err)
 		return
@@ -33,6 +34,7 @@ func (a *App) loadUserActions(dir string) {
 	for _, def := range defs {
 		a.registerRecordAction(def.ToRecordActionSpec())
 	}
+	a.ext.customActions = customs
 }
 
 // registerRecordAction registers a declarative record action's CommandSpec and

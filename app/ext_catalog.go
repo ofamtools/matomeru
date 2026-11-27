@@ -24,6 +24,7 @@ type ExtensionController struct {
 	extCatalogs   map[string]string
 	extFetching   map[string]bool
 	recordActions map[string]actions.RecordActionSpec
+	customActions []actions.CustomAction
 }
 
 func newExtensionController() *ExtensionController {

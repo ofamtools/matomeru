@@ -242,6 +242,10 @@ func (a *App) reminderToastsEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetReminderToasts, true)
 }
 
+func (a *App) builtinCustomActionsEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetBuiltinCustomActions, true)
+}
+
 // ConfigExport is the configuration in effect: the defaults with the user's
 // files laid over them.
 type ConfigExport struct {

@@ -252,6 +252,7 @@ const (
 	SetSplitResize                     = "ui.splitResize"
 	SetProjectNavCompact               = "ui.projectNavCompact"
 	SetProjectNavPriorityOrder         = "ui.projectNavPriorityOrder"
+	SetBuiltinCustomActions            = "ui.builtinCustomActions"
 	SetRepoAutoHarvestPanes            = "repo.autoHarvestPanes"
 	SetRichAddToQueue                  = "ui.richAddToQueue"
 	SetTOCStyle                        = "panes.tocStyle"
@@ -482,6 +483,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetOutlineRescoping, true, "allow re-scoping outlines onto any subtask root, stepping up one level, and jumping back to root"),
 		flag(SetShowLegacyPanesWorkPages, false, "show legacy Panes and Work spaces in the top navigation bar (off hides them from default chrome; still reachable via commands/palette)"),
 		flag(SetPageHydrateRefCards, true, "hydrate noun/record reference cards inside ui.page views with live store data (off: render raw fallback cards)"),
+		flag(SetBuiltinCustomActions, true, "include built-in parameterized custom action recipes (Google Search, MTM Web Viewer, g U Upgrade Preview) in the Custom Actions picker (g a)"),
 	}
 }
 
