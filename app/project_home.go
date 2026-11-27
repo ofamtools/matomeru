@@ -59,18 +59,18 @@ type projectNavDef struct {
 
 var defaultProjectNavSections = []projectNavDef{
 	{Key: "home", Label: "Home", Icon: "⌂", Group: "Core"},
+	{Key: "panes", Label: "Panes", Icon: "▣", Group: "Core"},
 	{Key: "tasks", Label: "Tasks", Icon: "☐", Group: "Core"},
+	{Key: "lanes", Label: "Lanes", Icon: "⎇", Group: "Core"},
 	{Key: "pages", Label: "Pages", Icon: "◫", Group: "Core"},
-	{Key: "signals", Label: "Needs Attention", Icon: "!", Group: "Core"},
+	{Key: "documents", Label: "Documents", Icon: "▤", Group: "Core"},
 	{Key: "context", Label: "Context", Icon: "◈", Group: "Context", EntryFocus: projectContextTable},
 	{Key: "pinned", Label: "Pinned Links & Files", Icon: "★", Group: "Context"},
-	{Key: "panes", Label: "Panes", Icon: "▣", Group: "Workspace"},
-	{Key: "lanes", Label: "Lanes", Icon: "⎇", Group: "Workspace"},
 	{Key: projectQueueSection, Label: "Queues", Icon: "⇶", Group: "Workspace", EntryFocus: views.QueueListID, Leaf: true},
 	{Key: projectThreadsSection, Label: "Threads", Icon: "✉", Group: "Workspace", EntryFocus: views.ThreadsListID, Leaf: true},
 	{Key: "worktrees", Label: "Worktrees", Icon: "⌘", Group: "Workspace"},
 	{Key: "prs", Label: "PRs", Icon: "⇅", Group: "Workspace"},
-	{Key: "documents", Label: "Documents", Icon: "▤", Group: "Knowledge"},
+	{Key: "signals", Label: "Needs Attention", Icon: "!", Group: "Workspace"},
 	{Key: "notes", Label: "Notes", Icon: "✎", Group: "Knowledge"},
 	{Key: "questions", Label: "Questions & Decisions", Icon: "?", Group: "Knowledge"},
 	{Key: "commands", Label: "Commands", Icon: "$", Group: "Knowledge"},
@@ -229,15 +229,16 @@ func (a *App) projectOutlineAsPageEnabled() bool {
 }
 
 func (a *App) projectNavSectionDefs() []projectNavDef {
+	base := projectNavBaseSections(a.projectNavPriorityOrderEnabled())
 	raw := ""
 	if a.cfg != nil && a.cfg.Settings != nil {
 		raw = strings.TrimSpace(a.cfg.Settings.String(SetProjectNavSections, ""))
 	}
 	if raw == "" {
-		return slices.Clone(defaultProjectNavSections)
+		return slices.Clone(base)
 	}
-	byKey := make(map[string]projectNavDef, len(defaultProjectNavSections))
-	for _, d := range defaultProjectNavSections {
+	byKey := make(map[string]projectNavDef, len(base))
+	for _, d := range base {
 		byKey[d.Key] = d
 	}
 	var out []projectNavDef
@@ -250,7 +251,7 @@ func (a *App) projectNavSectionDefs() []projectNavDef {
 		}
 	}
 	if len(out) == 0 {
-		return slices.Clone(defaultProjectNavSections)
+		return slices.Clone(base)
 	}
 	return out
 }

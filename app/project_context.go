@@ -236,7 +236,15 @@ func (a *App) projectUnifiedContextItems(ws projectWorkspaceData, scope data.Pro
 		items = append(items, item)
 	}
 	sortCollectedContext(items)
+	sortReviewContextNewestFirst(review)
 	return items, review, records
+}
+
+func sortReviewContextNewestFirst(review []CollectedContextItem) {
+	slices.Reverse(review)
+	slices.SortStableFunc(review, func(x, y CollectedContextItem) int {
+		return y.SeenAt.Compare(x.SeenAt)
+	})
 }
 
 func mergeContextItem(harvested, persisted CollectedContextItem) CollectedContextItem {

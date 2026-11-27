@@ -247,6 +247,7 @@ const (
 	SetInputFilterScrollMotions        = "input.filterScrollMotions"
 	SetSplitResize                     = "ui.splitResize"
 	SetProjectNavCompact               = "ui.projectNavCompact"
+	SetProjectNavPriorityOrder         = "ui.projectNavPriorityOrder"
 	SetRepoAutoHarvestPanes            = "repo.autoHarvestPanes"
 	SetRichAddToQueue                  = "ui.richAddToQueue"
 	SetTOCStyle                        = "panes.tocStyle"
@@ -448,6 +449,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetSearchHighlight, true, "highlight matching spans inline during non-destructive in-page search (\\)"),
 		flag(SetOutlineAutoSuggest, true, "suggest existing outline items while typing new items (re-anchors clean-slate top-level items to existing projects)"),
 		flag(SetFeaturesOutline, true, "render the Features page content as a unified interactive clean-slate outline across Features, Concepts, Views, Props, and Raw Ideas"),
+		flag(SetProjectNavPriorityOrder, true, "order Project Portal left nav as Home, Panes, Tasks, Lanes, Pages, Documents first (off restores legacy section grouping order)"),
 	}
 }
 
@@ -629,6 +631,10 @@ func (a *App) splitResizeEnabled() bool {
 
 func (a *App) projectNavCompactEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectNavCompact, true)
+}
+
+func (a *App) projectNavPriorityOrderEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectNavPriorityOrder, true)
 }
 
 func (a *App) repoAutoHarvestPanesEnabled() bool {

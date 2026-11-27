@@ -438,6 +438,53 @@ func TestPaneSiteView(t *testing.T) {
 	}
 }
 
+func TestPaneSiteViewNewestFirstWithinTOCRank(t *testing.T) {
+	base := time.Date(2026, 11, 27, 10, 0, 0, 0, time.UTC)
+	pane := data.Record{Kind: data.KindPane, ID: "pane1", CreatedAt: base, UpdatedAt: base,
+		Fields: map[string]any{"title": "claude"}}
+	mkPage := func(id, title string, created, updated time.Time) data.Record {
+		return data.Record{
+			Kind: data.KindPage, ID: id, CreatedAt: created, UpdatedAt: updated,
+			ArchiveStatus: data.ArchiveActive, StarStatus: data.StarUnstarred,
+			Fields: map[string]any{
+				"title": title, "slug": id, "pageKind": "response",
+				"viewedAt": updated.Format(data.TimeFormat),
+			},
+		}
+	}
+	oldest := mkPage("p-old", "Oldest", base.Add(1*time.Minute), base.Add(1*time.Minute))
+	middle := mkPage("p-mid", "Middle", base.Add(2*time.Minute), base.Add(2*time.Minute))
+	newest := mkPage("p-new", "Newest", base.Add(3*time.Minute), base.Add(3*time.Minute))
+	updatedOld := mkPage("p-bumped", "Bumped Old", base, base.Add(4*time.Minute))
+
+	// Compact grouped TOC: Screen, then "Pages" group header, then older pages newest-first.
+	root := PaneSiteViewWith(pane, []data.Record{oldest, middle, newest, updatedOld}, ScreenPageID, "", SiteOptions{
+		CompactTOC: true,
+		TOCGrouped: true,
+	})
+	var gotCompact []string
+	var collect func(n *ui.ViewNode)
+	collect = func(n *ui.ViewNode) {
+		if strings.HasPrefix(n.ID, "site.toc.") && n.ID != "site.toc.scroll" && !strings.HasPrefix(n.ID, TOCGroupPrefix) {
+			gotCompact = append(gotCompact, n.ID)
+		}
+		for i := range n.Children {
+			collect(&n.Children[i])
+		}
+	}
+	collect(root.Find("site.toc"))
+	want := []string{"site.toc.screen", "site.toc.p-bumped", "site.toc.p-new", "site.toc.p-mid", "site.toc.p-old"}
+	if !reflect.DeepEqual(gotCompact, want) {
+		t.Fatalf("compact TOC pages newest-first = %v, want %v", gotCompact, want)
+	}
+
+	// Card (non-compact) TOC also sorts newest-first within rank.
+	cardRoot := PaneSiteView(pane, []data.Record{oldest, middle, newest, updatedOld}, ScreenPageID, "")
+	if gotCard := tocIDs(cardRoot); !reflect.DeepEqual(gotCard, want) {
+		t.Fatalf("card TOC pages newest-first = %v, want %v", gotCard, want)
+	}
+}
+
 func TestOutlineView(t *testing.T) {
 	w := build(t)
 	other, _, _ := w.store.Create(data.CreateInput{Kind: data.KindTask, ID: "proj2", Fields: map[string]any{"title": "Ochazuke v2"}}, owner)

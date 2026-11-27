@@ -169,8 +169,8 @@ func TestProjectNavTreeTaskExpansionCollapseAndToggle(t *testing.T) {
 		t.Fatalf("P did not open project nav: space=%q focus=%q", a.Space(), a.Focus())
 	}
 
-	// Move down to Tasks section.
-	d.Keys("j")
+	// Move down to Tasks section (Home -> Panes -> Tasks).
+	d.Keys("j", "j")
 	if a.Focus() != projectNavPrefix+"tasks" {
 		t.Fatalf("focus = %q, want %q", a.Focus(), projectNavPrefix+"tasks")
 	}
@@ -268,8 +268,8 @@ func TestProjectNavTreePagesLivePreviewAndFullModePageInteraction(t *testing.T) 
 		t.Fatalf("expected project tab %q, got %q", wantTab, a.Space())
 	}
 
-	// Move to Pages section (Home -> Tasks -> Pages) and expand with l.
-	d.Keys("j", "j")
+	// Move to Pages section (Home -> Panes -> Tasks -> Lanes -> Pages) and expand with l.
+	d.Keys("j", "j", "j", "j")
 	if a.Focus() != projectNavPrefix+"pages" {
 		t.Fatalf("focus = %q, want %q", a.Focus(), projectNavPrefix+"pages")
 	}

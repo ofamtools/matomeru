@@ -467,3 +467,182 @@ func TestProjectLaneMembershipInNavAndSection(t *testing.T) {
 		}
 	}
 }
+
+func TestProjectPortalNavPriorityOrderAndOptOut(t *testing.T) {
+	f := setupProjectWorkspaceFixture(t)
+	a, d := f.app, f.driver
+
+	d.Keys("P")
+	if !isProjectTab(a.Space()) {
+		t.Fatalf("expected project portal tab, got %q", a.Space())
+	}
+
+	navSectionKeys := func() []string {
+		root := a.View(a.State())
+		list := root.Find("project.nav.list")
+		if list == nil {
+			t.Fatal("missing project.nav.list")
+		}
+		var keys []string
+		for _, ch := range list.Children {
+			if ch.Facts != nil && ch.Facts["isNavSection"] == true {
+				if sec, ok := ch.Facts["section"].(string); ok {
+					keys = append(keys, sec)
+				}
+			}
+		}
+		return keys
+	}
+
+	// Default (ui.projectNavPriorityOrder=true): Home -> Panes -> Tasks -> Lanes -> Pages -> Documents first.
+	got := navSectionKeys()
+	wantTop := []string{"home", "panes", "tasks", "lanes", "pages", "documents"}
+	if len(got) < len(wantTop) || strings.Join(got[:len(wantTop)], ",") != strings.Join(wantTop, ",") {
+		t.Fatalf("priority nav top 6 = %v, want prefix %v", got, wantTop)
+	}
+	// Everything else appears cleanly below Documents.
+	rest := strings.Join(got[len(wantTop):], ",")
+	for _, other := range []string{"context", "pinned", projectQueueSection, projectThreadsSection, "worktrees", "prs", "signals", "notes", "questions", "commands"} {
+		if !strings.Contains(","+rest+",", ","+other+",") {
+			t.Fatalf("expected section %q below top 6, got tail %v", other, got[len(wantTop):])
+		}
+	}
+
+	// Opt-out (ui.projectNavPriorityOrder=false) restores legacy section order.
+	a.cfg.userSettings[SetProjectNavPriorityOrder] = false
+	a.reloadSettings()
+	a.applySettings()
+
+	gotLegacy := navSectionKeys()
+	wantLegacyPrefix := []string{"home", "tasks", "pages", "signals", "context", "pinned", "panes", "lanes"}
+	if len(gotLegacy) < len(wantLegacyPrefix) || strings.Join(gotLegacy[:len(wantLegacyPrefix)], ",") != strings.Join(wantLegacyPrefix, ",") {
+		t.Fatalf("legacy nav order = %v, want prefix %v", gotLegacy, wantLegacyPrefix)
+	}
+}
+
+func TestProjectPortalNewestFirstSorting(t *testing.T) {
+	store, err := data.Open(filepath.Join(t.TempDir(), "mtm.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	mk := func(kind string, fields map[string]any) data.Record {
+		t.Helper()
+		rec, _, err := store.Create(data.CreateInput{Kind: kind, Fields: fields}, User)
+		if err != nil {
+			t.Fatalf("create %s: %v", kind, err)
+		}
+		time.Sleep(2 * time.Millisecond)
+		return *rec
+	}
+
+	proj := mk(data.KindTask, map[string]any{"title": "Chrono", "workStatus": "active"})
+
+	// Pages: older pinned+unread page, middle page, newest read unpinned page -> strictly newest at top!
+	oldPinnedPage := mk(data.KindPage, map[string]any{
+		"title": "Old Pinned Page", "slug": "old-pinned", "pageKind": "plan", "pinned": true, "task": proj.Ref(),
+	})
+	midPage := mk(data.KindPage, map[string]any{
+		"title": "Mid Page", "slug": "mid-page", "pageKind": "report", "task": proj.Ref(),
+	})
+	newestPage := mk(data.KindPage, map[string]any{
+		"title": "Newest Page", "slug": "newest-page", "pageKind": "report", "task": proj.Ref(), "viewedAt": data.WriteTime{},
+	})
+
+	// Documents: oldest -> middle -> newest (then touch oldest so UpdatedAt bumps it to top!).
+	docOld := mk(data.KindDocument, map[string]any{"title": "Doc 1", "body": "v1", "task": proj.Ref()})
+	docMid := mk(data.KindDocument, map[string]any{"title": "Doc 2", "body": "v2", "task": proj.Ref()})
+	docNew := mk(data.KindDocument, map[string]any{"title": "Doc 3", "body": "v3", "task": proj.Ref()})
+
+	// Notes & Commands: created oldest -> newest.
+	noteOld := mk(data.KindNote, map[string]any{"title": "Note Old", "body": "old", "task": proj.Ref()})
+	noteNew := mk(data.KindNote, map[string]any{"title": "Note New", "body": "new", "task": proj.Ref()})
+	cmdOld := mk(data.KindCommand, map[string]any{"title": "Cmd Old", "command": "echo 1", "task": proj.Ref()})
+	cmdNew := mk(data.KindCommand, map[string]any{"title": "Cmd New", "command": "echo 2", "task": proj.Ref()})
+
+	a, err := New(store, Options{FS: smokeFS()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { a.Close() })
+	d := NewDriver(a, 160, 40)
+
+	a.ensureProjectTabOpen(proj.ID)
+	d.Keys("6")
+
+	navChildIDs := func(secKey string) []string {
+		a.projectCtrl().setNavSectionExpanded(proj.ID, secKey, true)
+		a.viewMemo.gen++
+		root := a.View(a.State())
+		list := root.Find("project.nav.list")
+		if list == nil {
+			t.Fatal("missing project.nav.list")
+		}
+		var ids []string
+		for _, ch := range list.Children {
+			if ch.Facts != nil && ch.Facts["navNode"] == true && ch.Facts["section"] == secKey {
+				if id, ok := ch.Facts["navNodeId"].(string); ok {
+					ids = append(ids, id)
+				}
+			}
+		}
+		return ids
+	}
+
+	// 1. Pages left-nav AND project.pages.table strictly newest-at-top (newestPage -> midPage -> oldPinnedPage).
+	wantPages := []string{newestPage.ID, midPage.ID, oldPinnedPage.ID}
+	if got := navChildIDs("pages"); strings.Join(got, ",") != strings.Join(wantPages, ",") {
+		t.Fatalf("pages nav children = %v, want newest-first %v", got, wantPages)
+	}
+	d.Send(core.CommandEvent{Command: core.Command{ID: CmdProjectSectionSelect, Args: map[string]any{"section": "pages"}, Actor: User}})
+	_ = d.Frame()
+	pTbl := a.nav.tables[projectPagesTable]
+	if pTbl == nil || len(pTbl.Rows) != 4 {
+		t.Fatalf("expected 4 rows in pages table (outline + 3 pages), got %+v", pTbl)
+	}
+	gotPageTable := []string{pTbl.Rows[1].Ref.ID, pTbl.Rows[2].Ref.ID, pTbl.Rows[3].Ref.ID}
+	if strings.Join(gotPageTable, ",") != strings.Join(wantPages, ",") {
+		t.Fatalf("project.pages.table order = %v, want newest-first %v", gotPageTable, wantPages)
+	}
+
+	// 2. Documents left-nav AND project.documents.table strictly newest-at-top (docNew -> docMid -> docOld).
+	wantDocs := []string{docNew.ID, docMid.ID, docOld.ID}
+	if got := navChildIDs("documents"); strings.Join(got, ",") != strings.Join(wantDocs, ",") {
+		t.Fatalf("documents nav children = %v, want newest-first %v", got, wantDocs)
+	}
+	d.Send(core.CommandEvent{Command: core.Command{ID: CmdProjectSectionSelect, Args: map[string]any{"section": "documents"}, Actor: User}})
+	_ = d.Frame()
+	dTbl := a.nav.tables[projectDocumentsTable]
+	if dTbl == nil || len(dTbl.Rows) != 3 {
+		t.Fatalf("expected 3 rows in documents table, got %+v", dTbl)
+	}
+	gotDocTable := []string{dTbl.Rows[0].Ref.ID, dTbl.Rows[1].Ref.ID, dTbl.Rows[2].Ref.ID}
+	if strings.Join(gotDocTable, ",") != strings.Join(wantDocs, ",") {
+		t.Fatalf("project.documents.table order = %v, want newest-first %v", gotDocTable, wantDocs)
+	}
+
+	// 3. Updating docOld bumps it to the top by UpdatedAt descending.
+	time.Sleep(2 * time.Millisecond)
+	if _, _, err := store.Patch(data.PatchInput{Ref: docOld.Ref(), Fields: map[string]any{"body": "v1-updated"}}, User); err != nil {
+		t.Fatal(err)
+	}
+	a.viewMemo.gen++
+	wantDocsAfterPatch := []string{docOld.ID, docNew.ID, docMid.ID}
+	if got := navChildIDs("documents"); strings.Join(got, ",") != strings.Join(wantDocsAfterPatch, ",") {
+		t.Fatalf("documents nav after update = %v, want %v", got, wantDocsAfterPatch)
+	}
+
+	// 4. Notes and Commands strictly newest-at-top in nav and tables.
+	if got := navChildIDs("notes"); strings.Join(got, ",") != noteNew.ID+","+noteOld.ID {
+		t.Fatalf("notes nav children = %v, want [%s, %s]", got, noteNew.ID, noteOld.ID)
+	}
+	if got := navChildIDs("commands"); strings.Join(got, ",") != cmdNew.ID+","+cmdOld.ID {
+		t.Fatalf("commands nav children = %v, want [%s, %s]", got, cmdNew.ID, cmdOld.ID)
+	}
+	d.Send(core.CommandEvent{Command: core.Command{ID: CmdProjectSectionSelect, Args: map[string]any{"section": "notes"}, Actor: User}})
+	_ = d.Frame()
+	if nTbl := a.nav.tables[projectNotesTable]; nTbl == nil || len(nTbl.Rows) != 2 || nTbl.Rows[0].Ref.ID != noteNew.ID {
+		t.Fatalf("project.notes.table not newest-first: %+v", nTbl)
+	}
+}
