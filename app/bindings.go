@@ -257,6 +257,8 @@ func Modes() []core.Mode {
 		{Name: ModeBindingsFilter},
 		{Name: ModeBindingsCapture},
 		{Name: ModeReader, Base: ModeGlobal},
+		{Name: ModeCodeView, Base: ModeGlobal},
+		{Name: ModeCodeViewSearch},
 		{Name: ModeInspect, Base: ModeGlobal},
 		{Name: ModeCommandLine},
 		{Name: ModeHints},
@@ -909,6 +911,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, contentHintsBindings()...)
 	out = append(out, screenSearchBindings()...)
 	out = append(out, outlineSuggestBindings()...)
+	out = append(out, codeViewerBindings()...)
 	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeSearch, ModeCommandLine, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModePickerFilter} {
 		out = append(out, with(bind(mode, all, "alt+h", CmdPaneHints, "paste terminal hint"), map[string]any{"action": HintsActionInsert}))
 	}
