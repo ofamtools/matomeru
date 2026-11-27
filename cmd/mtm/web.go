@@ -30,6 +30,7 @@ func mtmWebCommand() oden.Command {
 		{Name: "host", Type: "string", Default: "127.0.0.1", Description: "Bind host address"},
 		{Name: "port", Type: "int", Default: "4173", Description: "TCP port (0 picks an available port)"},
 		{Name: "open", Type: "bool", Description: "Open the rendered page in the default browser"},
+		{Name: "index", Type: "string", Description: "Persistent index JSON file path (default: ~/.local/share/matomeru/mdweb-index.json)"},
 	}
 	openParams := []oden.Parameter{
 		socketParam,
@@ -64,13 +65,13 @@ func mtmWebCommand() oden.Command {
 			if len(pos) == 1 {
 				target = pos[0]
 			}
-			return runWebServe(c.Context, target, p.String("host"), p.Int("port"), p.Bool("open"), c.Stdout)
+			return runWebServe(c.Context, target, p.String("host"), p.Int("port"), p.Bool("open"), p.String("index"), c.Stdout)
 		},
 		Children: []oden.Command{
 			{
 				Name:       "serve",
 				Summary:    "run a standalone interactive Markdown HTML server for a file or directory",
-				Usage:      "[PATH] [--port PORT] [--host ADDR] [--open]",
+				Usage:      "[PATH] [--port PORT] [--host ADDR] [--open] [--index PATH]",
 				Parameters: serveParams,
 				Handle: func(c *oden.Ctx) error {
 					p, err := c.Parse(serveParams)
@@ -79,13 +80,13 @@ func mtmWebCommand() oden.Command {
 					}
 					pos := p.Positional()
 					if len(pos) > 1 {
-						return errors.New("usage: mtm web serve [PATH] [--port PORT] [--host ADDR] [--open]")
+						return errors.New("usage: mtm web serve [PATH] [--port PORT] [--host ADDR] [--open] [--index PATH]")
 					}
 					target := "."
 					if len(pos) == 1 {
 						target = pos[0]
 					}
-					return runWebServe(c.Context, target, p.String("host"), p.Int("port"), p.Bool("open"), c.Stdout)
+					return runWebServe(c.Context, target, p.String("host"), p.Int("port"), p.Bool("open"), p.String("index"), c.Stdout)
 				},
 			},
 			{
@@ -172,7 +173,7 @@ func mtmWebCommand() oden.Command {
 	}
 }
 
-func runWebServe(ctx context.Context, target, host string, port int, openBrowser bool, stdout interface{ Write([]byte) (int, error) }) error {
+func runWebServe(ctx context.Context, target, host string, port int, openBrowser bool, indexPath string, stdout interface{ Write([]byte) (int, error) }) error {
 	absTarget, err := filepath.Abs(target)
 	if err != nil {
 		return fmt.Errorf("resolve path %q: %w", target, err)
@@ -181,7 +182,7 @@ func runWebServe(ctx context.Context, target, host string, port int, openBrowser
 	if err != nil {
 		return fmt.Errorf("stat %q: %w", absTarget, err)
 	}
-	cfg := mdweb.Config{RootDir: absTarget}
+	cfg := mdweb.Config{RootDir: absTarget, IndexPath: indexPath}
 	if !st.IsDir() {
 		cfg.RootDir = filepath.Dir(absTarget)
 		cfg.DefaultFile = filepath.Base(absTarget)

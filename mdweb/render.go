@@ -18,6 +18,7 @@ type PageRenderOptions struct {
 	RootLabel  string
 	BasePath   string
 	AssetQuery string
+	PairedHTML string
 }
 
 var (
@@ -452,6 +453,11 @@ func RenderFullPage(opts PageRenderOptions) string {
 	if ir.Stats.MermaidCount > 0 {
 		mermaidScript = fmt.Sprintf(`<script src="%s/static/beautiful-mermaid.js%s"></script>`+"\n", base, query)
 	}
+	pairedHTMLLink := ""
+	if opts.PairedHTML != "" {
+		htmlHref := base + "/html?file=" + url.QueryEscape(opts.PairedHTML)
+		pairedHTMLLink = fmt.Sprintf(`<a class="bar-btn html-pair-link" href="%s" title="Open paired HTML view">HTML</a>`, escapeHTML(htmlHref))
+	}
 
 	return fmt.Sprintf(`<!doctype html>
 <html lang="en">
@@ -466,6 +472,8 @@ func RenderFullPage(opts PageRenderOptions) string {
   <div class="topbar-inner">
     <div class="brand-group">
       <a class="brand-tag" href="%s/" title="Root: %s">md-live</a>
+      <a class="bar-btn index-nav-link" href="%s/index">Index</a>
+      %s
       <select class="file-picker" id="file-picker" aria-label="Select markdown file">%s</select>
       %s
     </div>
@@ -530,6 +538,7 @@ func RenderFullPage(opts PageRenderOptions) string {
 </body>
 </html>`,
 		escapeHTML(ir.Title), base, query, escapeHTML(base), escapeHTML(opts.RootLabel),
+		escapeHTML(base), pairedHTMLLink,
 		fileOpts.String(), renderStatChips(ir.Stats), escapeHTML(shortRevision(ir.Revision)),
 		shellClass, tocHTML, bodyHTML, escapeHTML(opts.Source),
 		bootstrap, mermaidScript, base, query)
@@ -537,53 +546,9 @@ func RenderFullPage(opts PageRenderOptions) string {
 
 // RenderIndexPage renders the landing page shown when no ?file= is active yet.
 func RenderIndexPage(basePath, rootLabel string, files []string) string {
-	base := normalizeBasePath(basePath)
-	var listHTML strings.Builder
-	if len(files) == 0 {
-		listHTML.WriteString(`<p class="index-empty">No files opened yet. Paste a local path above or run <code>mtm web open &lt;file&gt;</code>.</p>`)
-	} else {
-		listHTML.WriteString(`<ul class="index-list">`)
-		for _, f := range files {
-			href := base + "/view?file=" + url.QueryEscape(f)
-			fmt.Fprintf(&listHTML, `<li class="index-item"><a href="%s">%s</a></li>`, escapeHTML(href), escapeHTML(f))
-		}
-		listHTML.WriteString(`</ul>`)
-	}
-	bootstrap := safeBootstrapJSON(struct {
-		BasePath string `json:"basePath"`
-	}{base})
-
-	return fmt.Sprintf(`<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>md-live</title>
-<link rel="stylesheet" href="%s/static/app.css">
-</head>
-<body>
-<header class="topbar">
-  <div class="topbar-inner">
-    <div class="brand-group"><a class="brand-tag" href="%s/" title="Root: %s">md-live</a></div>
-    <div class="status-group"><button type="button" class="bar-btn" id="theme-toggle">Theme</button></div>
-  </div>
-</header>
-<main class="index-shell">
-  <section class="index-card">
-    <h1>Live Markdown &amp; Mermaid Viewer</h1>
-    <p class="index-lead">Open any local <code>.md</code>, <code>.markdown</code>, <code>.mmd</code>, or <code>.mermaid</code> document to interact with checklists, fields, and diagrams.</p>
-    <form class="index-form" method="get" action="%s/view">
-      <input class="index-input" type="text" name="file" placeholder="/path/to/document.md" aria-label="Markdown file path" required>
-      <button class="index-submit" type="submit">Open</button>
-    </form>
-    <div class="index-hint">CLI shortcut: <code>mtm web open &lt;file&gt;</code></div>
-    <h2 class="index-section-title">Recent &amp; available files</h2>
-    %s
-  </section>
-</main>
-<script>window.__MD_LIVE__ = %s;</script>
-<script src="%s/static/app.js"></script>
-</body>
-</html>`,
-		base, escapeHTML(base), escapeHTML(rootLabel), escapeHTML(base), listHTML.String(), bootstrap, base)
+	return RenderIndexView(IndexRenderOptions{
+		BasePath:    basePath,
+		RootLabel:   rootLabel,
+		RecentFiles: files,
+	})
 }
