@@ -475,8 +475,10 @@ func (a *App) projectTreePanel(panelID, treeID, kind, parentField, section, pane
 	schema := a.schema(kind)
 	tm := a.syncProjectSectionTree(treeID, ws, schema, recs, parentField)
 	a.registerTreeFilterable(treeID, tm)
-	panel := views.TreeViewWith(schema, tm, panelID, treeID, panelScope, a.stickyTreeBreadcrumbsEnabled(), extra...)
+	badges := append(slices.Clone(extra), a.outlineViewBadgesFor(treeID, tm)...)
+	panel := views.TreeViewWith(schema, tm, panelID, treeID, panelScope, a.stickyTreeBreadcrumbsEnabled(), badges...)
 	panel.Facts["section"] = section
+	a.applyOutlineViewFacts(&panel, treeID)
 	if len(panel.Children) > 0 {
 		if panel.Children[0].Props == nil {
 			panel.Children[0].Props = map[string]any{}
@@ -706,7 +708,7 @@ func (a *App) syncProjectSectionTree(treeID string, ws projectWorkspaceData, sch
 	if schema.Kind == data.KindPane {
 		telSeq = a.telemetryViewSeq()
 	}
-	cacheKey := fmt.Sprintf("tree|%s|%s|%s|%d|%d|%v|%s|%v:%v:%v|%d|%s", treeID, ws.projectKey, schema.Kind, ws.cacheRev, telSeq, a.nav.showArchived, ws.cacheRailKey, st.RowSemanticStyling, st.StatusIcons, guides, len(recs), a.archiveAnimCacheKey())
+	cacheKey := fmt.Sprintf("tree|%s|%s|%s|%d|%d|%v|%s|%v:%v:%v|%d|%s%s", treeID, ws.projectKey, schema.Kind, ws.cacheRev, telSeq, a.nav.showArchived, ws.cacheRailKey, st.RowSemanticStyling, st.StatusIcons, guides, len(recs), a.archiveAnimCacheKey(), a.outlineViewSyncSuffix(treeID))
 	if tm, ok := a.cachedProjectTree(treeID, cacheKey); ok {
 		return tm
 	}
@@ -740,7 +742,7 @@ func (a *App) syncProjectSectionTree(treeID string, ws projectWorkspaceData, sch
 			a.applyArchiveAnimToTreeNode(rec, nd)
 		},
 	}
-	built := views.TreeFromNodes(schema, nodes, opts)
+	built := a.buildProjectSectionFilteredTree(schema, treeID, nodes, opts)
 	tm.DefaultFolded, tm.GapTopLevel, tm.Guides, tm.ShowFoldCount = false, false, guides, true
 	tm.ScrollOff, tm.PageSize = a.scrollOff(), a.treeViewportHeight(treeID)
 	tm.SetNodes(built.Nodes)

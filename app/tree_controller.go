@@ -527,9 +527,7 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 	}
 	a.initTreeFoldState(kind, allNodes)
 
-	nodes := a.applyOutlineViewMode(a.visibleTreeRoots(allNodes, cs, kind), kind, treeID)
-
-	builtNodes, opts := a.buildTreeNodes(schema, kind, nodes)
+	nodes, builtNodes, opts := a.buildFilteredTreeNodes(schema, kind, treeID, a.visibleTreeRoots(allNodes, cs, kind))
 	tm.DefaultFolded = false
 	if cs != nil {
 		tm.Folded = maps.Clone(a.trees.folded[kind])
@@ -573,7 +571,7 @@ func (a *App) workTreeView() ui.ViewNode {
 	a.syncWorkTreeSelectionIntoTable(kind, tbl, tm)
 
 	extra := append([]ui.Badge{{Text: "tree", Tone: "accent"}}, a.focusOutlineBadges(kind)...)
-	extra = append(extra, a.outlineViewBadges(workTable)...)
+	extra = append(extra, a.outlineViewBadgesFor(workTable, tm)...)
 	if csActive {
 		extra = append(extra, ui.Badge{Text: "clean slate", Tone: "accent"})
 	}
@@ -592,7 +590,7 @@ func (a *App) outlineTreeView() ui.ViewNode {
 	schema, _ := a.syncTreeModel(tm, data.KindTask, outlineTree)
 	a.registerTreeFilterable(outlineTree, tm)
 	csActive := a.isCleanSlateActive(data.KindTask, outlineTree)
-	extra := append(a.focusOutlineBadges(data.KindTask), a.outlineViewBadges(outlineTree)...)
+	extra := append(a.focusOutlineBadges(data.KindTask), a.outlineViewBadgesFor(outlineTree, tm)...)
 	if csActive {
 		extra = append(extra, ui.Badge{Text: "clean slate", Tone: "accent"})
 	}
