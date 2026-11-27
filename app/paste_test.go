@@ -409,3 +409,60 @@ func TestPasteTerminalLeaderAndCaptureModalAndOptOut(t *testing.T) {
 		t.Fatalf("paste.contextual=false in capture modal = %q, want literal reg.Text %q", got, data.RefText(doc.Ref()))
 	}
 }
+
+func TestPasteUndoTakesBackCloneTextAndRelate(t *testing.T) {
+	a, d, store := newPasteTestApp(t)
+	a.cfg.userSettings[SetOutlineStartCollapsed] = false
+	a.reloadSettings()
+
+	proj, _, _ := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{"title": "Core"}}, User)
+	l1, _, _ := store.Create(data.CreateInput{Kind: data.KindLane, Fields: map[string]any{"title": "Lane One", "task": proj.Ref()}}, User)
+	l2, _, _ := store.Create(data.CreateInput{Kind: data.KindLane, Fields: map[string]any{"title": "Lane Two", "task": proj.Ref()}}, User)
+	_, _ = store.Tag(l1.Ref(), "backend", User)
+	laneCount := func() int {
+		res, _ := store.Query(data.Query{Kind: data.KindLane})
+		return len(res.Items)
+	}
+
+	d.Keys("2", "g", "n", "/")
+	d.Type("lanes")
+	d.Keys("enter")
+
+	// Clone paste: the tag copy must not take the owner's undo slot.
+	a.trees.workModel(data.KindLane).Reveal(l1.ID)
+	d.Keys("y", "y")
+	a.trees.workModel(data.KindLane).Reveal(l2.ID)
+	d.Keys("g", "p")
+	if laneCount() != 3 || !strings.Contains(a.Status(), "u undoes") {
+		t.Fatalf("clone paste: lanes=%d status=%q", laneCount(), a.Status())
+	}
+	d.Keys("u")
+	if laneCount() != 2 {
+		t.Fatalf("u after clone paste left %d lanes, want 2 (status=%q)", laneCount(), a.Status())
+	}
+
+	// Text paste.
+	a.yank("Lane from text", "text")
+	a.trees.workModel(data.KindLane).Reveal(l2.ID)
+	d.Keys("g", "p")
+	if laneCount() != 3 || !strings.Contains(a.Status(), "u undoes") {
+		t.Fatalf("text paste: lanes=%d status=%q", laneCount(), a.Status())
+	}
+	d.Keys("u")
+	if laneCount() != 2 {
+		t.Fatalf("u after text paste left %d lanes, want 2 (status=%q)", laneCount(), a.Status())
+	}
+
+	// Show relate.
+	a.yankRefValues([]core.Ref{l1.Ref()}, "index")
+	a.Shell.State = a.show(a.State(), proj.Ref())
+	a.viewMemo.gen++
+	d.Keys("p")
+	if rels, _ := store.Related(proj.Ref(), data.RelRelated, data.Outgoing); len(rels) != 1 || !strings.Contains(a.Status(), "u undoes") {
+		t.Fatalf("show paste: rels=%d status=%q", len(rels), a.Status())
+	}
+	d.Keys("u")
+	if rels, _ := store.Related(proj.Ref(), data.RelRelated, data.Outgoing); len(rels) != 0 {
+		t.Fatalf("u after show paste left %d relations, want 0 (status=%q)", len(rels), a.Status())
+	}
+}

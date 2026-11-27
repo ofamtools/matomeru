@@ -512,16 +512,20 @@ func (a *App) pasteCloneTreeRefs(
 	placement pastePlacement,
 ) core.StepResult {
 	var createdRefs []core.Ref
+	var lastCS *data.ChangeSet
 	for _, ref := range refs {
 		src, err := a.Store.Get(ref)
 		if err != nil || src == nil {
 			continue
 		}
 		fields := cloneTreeRecordFields(schema, *src, h, anchor)
-		created, _, err := a.Store.Create(data.CreateInput{Kind: tgt.kind, Fields: fields}, User)
+		created, cs, err := a.Store.Create(data.CreateInput{Kind: tgt.kind, Fields: fields}, User)
 		if err != nil {
 			a.fail("paste", err)
 			return core.Next(s)
+		}
+		if cs != nil {
+			lastCS = cs
 		}
 		a.copyRecordTags(src.Ref(), created.Ref())
 		createdRefs = append(createdRefs, created.Ref())
@@ -532,7 +536,7 @@ func (a *App) pasteCloneTreeRefs(
 	}
 	a.positionPastedTreeRecords(tgt.kind, h, anchor, createdRefs, placement)
 	a.finishTreePaste(tgt, createdRefs)
-	a.say("%s", formatTreePasteStatus("pasted", len(createdRefs), schema, anchor, placement))
+	a.wrote(formatTreePasteStatus("pasted", len(createdRefs), schema, anchor, placement), lastCS, nil)
 	return core.Next(s)
 }
 
@@ -542,7 +546,7 @@ func (a *App) copyRecordTags(from, to core.Ref) {
 		return
 	}
 	for _, rel := range rels {
-		_, _, _ = a.Store.Relate(data.RelateInput{From: to, Kind: data.RelTag, To: rel.To}, User)
+		_, _, _ = a.Store.Relate(data.RelateInput{From: to, Kind: data.RelTag, To: rel.To}, daemonSyncActor)
 	}
 }
 
@@ -563,6 +567,7 @@ func (a *App) pasteTextIntoTree(
 	sumField := summaryField(schema)
 	_, hasTaskField := schema.Field("task")
 	createdRefs := make([]core.Ref, 0, len(lines))
+	var lastCS *data.ChangeSet
 	for _, line := range lines {
 		fields := map[string]any{sumField: line}
 		if anchor.parentRef != nil {
@@ -571,16 +576,19 @@ func (a *App) pasteTextIntoTree(
 		if hasTaskField && anchor.inheritTask != nil {
 			fields["task"] = *anchor.inheritTask
 		}
-		created, _, err := a.Store.Create(data.CreateInput{Kind: tgt.kind, Fields: fields}, User)
+		created, cs, err := a.Store.Create(data.CreateInput{Kind: tgt.kind, Fields: fields}, User)
 		if err != nil {
 			a.fail("paste", err)
 			return core.Next(s)
+		}
+		if cs != nil {
+			lastCS = cs
 		}
 		createdRefs = append(createdRefs, created.Ref())
 	}
 	a.positionPastedTreeRecords(tgt.kind, h, anchor, createdRefs, placement)
 	a.finishTreePaste(tgt, createdRefs)
-	a.say("%s", formatTreePasteStatus("pasted", len(createdRefs), schema, anchor, placement))
+	a.wrote(formatTreePasteStatus("pasted", len(createdRefs), schema, anchor, placement), lastCS, nil)
 	return core.Next(s)
 }
 
@@ -700,12 +708,12 @@ func (a *App) pasteIntoShow(s core.State, c core.Command, reg core.RegisterValue
 		a.say("paste on Show requires yanked record ref(s) (y y)")
 		return core.Next(s)
 	}
-	added, skipped := a.relateRefsToTarget(target, reg.Refs)
+	added, skipped, lastCS := a.relateRefsToTarget(target, reg.Refs)
 	a.viewMemo.gen++
 	title := a.title(target)
 	switch {
 	case added > 0:
-		a.say("related %d %s to %q", added, a.yankPluralLabel(reg.Refs[:min(added, len(reg.Refs))]), title)
+		a.wrote(fmt.Sprintf("related %d %s to %q", added, a.yankPluralLabel(reg.Refs[:min(added, len(reg.Refs))]), title), lastCS, nil)
 	case skipped > 0:
 		a.say("already related to %q", title)
 	default:
@@ -714,7 +722,7 @@ func (a *App) pasteIntoShow(s core.State, c core.Command, reg core.RegisterValue
 	return core.Next(s)
 }
 
-func (a *App) relateRefsToTarget(target core.Ref, refs []core.Ref) (added, skipped int) {
+func (a *App) relateRefsToTarget(target core.Ref, refs []core.Ref) (added, skipped int, lastCS *data.ChangeSet) {
 	for _, ref := range refs {
 		if ref == target || ref.Kind == "" || ref.ID == "" {
 			continue
@@ -722,15 +730,16 @@ func (a *App) relateRefsToTarget(target core.Ref, refs []core.Ref) (added, skipp
 		_, cs, err := a.Store.Relate(data.RelateInput{From: target, Kind: data.RelRelated, To: ref}, User)
 		if err != nil {
 			a.fail("relate", err)
-			return added, skipped
+			return added, skipped, lastCS
 		}
 		if cs != nil {
 			added++
+			lastCS = cs
 		} else {
 			skipped++
 		}
 	}
-	return added, skipped
+	return added, skipped, lastCS
 }
 
 // --- Queue Page Paste (Enqueue) -------------------------------------------------
