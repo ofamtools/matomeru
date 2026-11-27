@@ -185,7 +185,7 @@ func sessionStatusCell(r data.SessionDeskRow, _ time.Time) (string, string) {
 // does not already say it; an unread session is marked and toned.
 func sessionNameCell(r data.SessionDeskRow, _ time.Time) (string, string) {
 	name := r.Title
-	if h := strings.TrimSpace(r.Harness); h != "" && !strings.Contains(strings.ToLower(name), strings.ToLower(h)) {
+	if h := strings.TrimSpace(r.Harness); h != "" && !containsFold(name, h) {
 		name += " (" + h + ")"
 	}
 	if r.Unread {

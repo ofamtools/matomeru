@@ -70,8 +70,8 @@ func TestUniversalFilterableAcrossProjectTasksOutlineWorkTreeNavAndBindings(t *t
 	}
 	d.Type("lanes")
 	d.Keys("enter")
-	if nf := (projectNavFilterable{a: a, projKey: proj.ID}); nf.FilterQuery() != "lanes" {
-		t.Fatalf("project.nav filter query = %q, want lanes", nf.FilterQuery())
+	if q := a.filterQuery(projectNavFilterID(proj.ID)); q != "lanes" {
+		t.Fatalf("project.nav filter query = %q, want lanes", q)
 	}
 	d.Keys("/", "esc")
 
@@ -217,12 +217,12 @@ func TestFilterBarBottomLeft(t *testing.T) {
 	}
 	d.Type("extra")
 	d.Keys("esc")
-	if nf := (projectNavFilterable{a: a, projKey: proj.ID}); nf.FilterQuery() != "lanes" {
-		t.Fatalf("esc should restore kept snapshot 'lanes', got %q", nf.FilterQuery())
+	if q := a.filterQuery(projectNavFilterID(proj.ID)); q != "lanes" {
+		t.Fatalf("esc should restore kept snapshot 'lanes', got %q", q)
 	}
 	d.Keys("/", "ctrl+x", "enter")
-	if nf := (projectNavFilterable{a: a, projKey: proj.ID}); nf.FilterQuery() != "" {
-		t.Fatalf("ctrl+x should clear filter query, got %q", nf.FilterQuery())
+	if q := a.filterQuery(projectNavFilterID(proj.ID)); q != "" {
+		t.Fatalf("ctrl+x should clear filter query, got %q", q)
 	}
 
 	// 2. Invalid regex in ModeFilter renders "invalid regex" inside the bottom-left bar.
@@ -298,9 +298,9 @@ func TestW1DataDrivenFilterModalInheritanceAndShowHints(t *testing.T) {
 	}
 	d.Keys("/", "ctrl+x", "enter")
 
-	// 3. Per-project match mode isolation in projectNavFilterable.
-	nfA := projectNavFilterable{a: a, projKey: "projA"}
-	nfB := projectNavFilterable{a: a, projKey: "projB"}
+	// 3. Per-project match mode isolation in queryFilter registry.
+	nfA := a.ensureQueryFilter(projectNavFilterID("projA"))
+	nfB := a.ensureQueryFilter(projectNavFilterID("projB"))
 	nfA.Filter("foo", "regex")
 	nfB.Filter("bar", "fuzzy")
 	if nfA.FilterMode() != "regex" || nfB.FilterMode() != "fuzzy" {

@@ -147,7 +147,7 @@ func (a *App) projectContextPanel(panelID, tableID, section, title string, ws pr
 		badges = append(badges, ui.Badge{Text: "/" + tbl.Query, Tone: "accent"})
 	}
 	panel := ui.ViewNode{
-		ID: panelID, Kind: ui.KindPanel, Scope: ScopeProjectContext, Title: title, Border: true,
+		ID: panelID, Kind: ui.KindPanel, Scope: ScopeProjectContext, Filter: &ui.FilterSpec{ID: tableID}, Title: title, Border: true,
 		Badges: badges, Facts: map[string]any{"section": section}, Children: []ui.ViewNode{node},
 	}
 	if a.livePointerChipsEnabled() && (a.Focus() == tableID || strings.HasPrefix(a.Focus(), panelID+".chips")) {

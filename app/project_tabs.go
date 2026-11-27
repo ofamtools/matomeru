@@ -380,6 +380,7 @@ func (a *App) buildProjectsDirTable() *table.Model {
 	}
 	a.pageSize(tbl, projectsDirTable)
 	a.nav.tables[projectsDirTable] = tbl
+	a.registerTableFilterable(projectsDirTable, tbl)
 	return tbl
 }
 
@@ -412,6 +413,7 @@ func (a *App) projectsSpace(_ core.State) ui.ViewNode {
 		ID:       "projects.dir",
 		Kind:     ui.KindPanel,
 		Scope:    views.ScopeProjectsDir,
+		Filter:   &ui.FilterSpec{ID: projectsDirTable},
 		Title:    "Projects",
 		Border:   true,
 		Badges:   badges,

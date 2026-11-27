@@ -381,7 +381,7 @@ func (a *App) projectSectionPages(s core.State, ws projectWorkspaceData) ui.View
 	}
 	badges = append(badges, ui.Badge{Text: "enter open", Tone: "muted"})
 	return ui.ViewNode{
-		ID: "project.pages", Kind: ui.KindPanel, Scope: scopeProjectPages, Title: "Pages", Border: true,
+		ID: "project.pages", Kind: ui.KindPanel, Scope: scopeProjectPages, Filter: &ui.FilterSpec{ID: projectPagesTable}, Title: "Pages", Border: true,
 		Badges: badges, Facts: map[string]any{"section": "pages"}, Children: []ui.ViewNode{node},
 	}
 }
@@ -405,6 +405,7 @@ func (a *App) projectSectionSignals() ui.ViewNode {
 func (a *App) projectTreePanel(panelID, treeID, kind, parentField, section, panelScope string, ws projectWorkspaceData, recs []data.Record, extra ...ui.Badge) ui.ViewNode {
 	schema := a.schema(kind)
 	tm := a.syncProjectSectionTree(treeID, ws, schema, recs, parentField)
+	a.registerTreeFilterable(treeID, tm)
 	panel := views.TreeViewWith(schema, tm, panelID, treeID, panelScope, a.stickyTreeBreadcrumbsEnabled(), extra...)
 	panel.Facts["section"] = section
 	if len(panel.Children) > 0 {
@@ -437,7 +438,7 @@ func (a *App) projectRecordPanel(panelID, tableID, kind, section, title, panelSc
 		node.Scope, node.Ref = kind, &core.Ref{Kind: kind}
 	}
 	return ui.ViewNode{
-		ID: panelID, Kind: ui.KindPanel, Scope: panelScope, Title: title, Border: true,
+		ID: panelID, Kind: ui.KindPanel, Scope: panelScope, Filter: &ui.FilterSpec{ID: tableID}, Title: title, Border: true,
 		Badges: badges, Facts: map[string]any{"section": section}, Children: []ui.ViewNode{node},
 	}
 }
@@ -468,7 +469,7 @@ func (a *App) projectSectionWorktrees(ws projectWorkspaceData) ui.ViewNode {
 	node := tbl.View(projectWorktreesTable)
 	node.Scope = scopeProjectWorktrees
 	panel := ui.ViewNode{
-		ID: "project.worktrees", Kind: ui.KindPanel, Scope: scopeProjectWorktrees, Title: "Worktrees", Border: true,
+		ID: "project.worktrees", Kind: ui.KindPanel, Scope: scopeProjectWorktrees, Filter: &ui.FilterSpec{ID: projectWorktreesTable}, Title: "Worktrees", Border: true,
 		Badges: []ui.Badge{{Text: fmt.Sprintf("%d paths", len(ws.worktrees))}},
 		Facts:  map[string]any{"section": "worktrees"}, Children: []ui.ViewNode{node},
 	}
@@ -523,7 +524,7 @@ func (a *App) projectSectionNotes(ws projectWorkspaceData) ui.ViewNode {
 		node.Scope, node.Ref = data.KindNote, &core.Ref{Kind: data.KindNote}
 	}
 	return ui.ViewNode{
-		ID: "project.notes", Kind: ui.KindPanel, Scope: views.ScopeProjectContent, Title: "Notes", Border: true,
+		ID: "project.notes", Kind: ui.KindPanel, Scope: views.ScopeProjectContent, Filter: &ui.FilterSpec{ID: projectNotesTable}, Title: "Notes", Border: true,
 		Badges: []ui.Badge{{Text: fmt.Sprintf("%d notes", len(ws.notes))}},
 		Facts:  map[string]any{"section": "notes"}, Children: []ui.ViewNode{node},
 	}
@@ -544,6 +545,7 @@ func (a *App) keepProjectTable(id string, fresh *table.Model) *table.Model {
 	}
 	a.pageSize(tbl, id)
 	a.nav.tables[id], pc.tables[id] = tbl, tbl
+	a.registerTableFilterable(id, tbl)
 	return tbl
 }
 

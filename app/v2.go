@@ -195,7 +195,7 @@ func (a *App) fieldPick(what string) func(core.State, core.Command) core.StepRes
 }
 
 func (a *App) openClassicFieldPick(s core.State, what string) core.StepResult {
-	tbl, id := a.filterTable(s)
+	tbl, id := a.activeListTable(s)
 	if a.Modal() != "" || tbl == nil {
 		return core.Next(s) // no list on the page: nothing to pick for
 	}

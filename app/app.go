@@ -251,6 +251,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		a.loadConfig(dir)
 		a.loadDrafts(dir)
 	}
+	a.initFilters()
 	a.initFiles()
 	a.initQueue()
 	a.initThreads()

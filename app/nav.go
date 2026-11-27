@@ -52,10 +52,7 @@ type NavController struct {
 	indexFocus            string
 	lastFocus             map[string]string
 	focusRegion           string
-	tocFilter             string
-	tocMatchMode          traits.MatchMode
-	projectNavFilters     map[string]string
-	projectNavMatchModes  map[string]traits.MatchMode
+	dynamicFilterIDs      map[string]bool
 	filters               *traits.FilterRegistry
 	filterModes           traits.ModeStack
 	filterTarget          string
@@ -70,15 +67,15 @@ type NavController struct {
 
 func newNavController() *NavController {
 	return &NavController{
-		tables:               map[string]*table.Model{},
-		recCacheKeys:         map[string]string{},
-		activePreset:         map[string]string{},
-		lastFocus:            map[string]string{},
-		projectNavMatchModes: map[string]traits.MatchMode{},
-		filters:              traits.NewFilterRegistry(),
-		histPos:              -1,
-		jumpPos:              -1,
-		indexFocus:           workTable,
+		tables:           map[string]*table.Model{},
+		recCacheKeys:     map[string]string{},
+		activePreset:     map[string]string{},
+		lastFocus:        map[string]string{},
+		dynamicFilterIDs: map[string]bool{},
+		filters:          traits.NewFilterRegistry(),
+		histPos:          -1,
+		jumpPos:          -1,
+		indexFocus:       workTable,
 	}
 }
 
@@ -199,9 +196,118 @@ func (a *App) step(s core.State, delta int) core.State {
 	return withFocus(s, nodes[to].id)
 }
 
+func nodeHasFact(n *ui.ViewNode, key string) bool {
+	return n != nil && n.Facts != nil && n.Facts[key] == true
+}
+
+func hasNodeWithScope(n ui.ViewNode, scope string) bool {
+	if n.Scope == scope {
+		return true
+	}
+	for _, ch := range n.Children {
+		if hasNodeWithScope(ch, scope) {
+			return true
+		}
+	}
+	return false
+}
+
+func recordChildPaneReturnFocus(pc *ProjectController, projKey, curID string, overwrite bool) {
+	if pc.childPaneReturnFocus == nil {
+		pc.childPaneReturnFocus = map[string]string{}
+	}
+	if overwrite || pc.childPaneReturnFocus[projKey] == "" {
+		pc.childPaneReturnFocus[projKey] = curID
+	}
+}
+
+// commitProjectNavColumnStep commits any live-previewed pane node as the open
+// child pane when stepping right from Project Nav into a pane site, and records
+// the originating nav node so stepping back left returns cleanly.
+func (a *App) commitProjectNavColumnStep(s core.State, curID string) bool {
+	if !a.projectChildPaneViewEnabled() {
+		return false
+	}
+	projKey := a.activeProjectWorkspaceKey(s)
+	if projKey == "" {
+		return false
+	}
+	pc := a.projectCtrl()
+	if strings.HasPrefix(curID, projectNavNodePrefix) {
+		target, ok := pc.navTarget(projKey, curID)
+		if !ok || target.Section != "panes" || target.Ref == nil || target.Ref.ID == "" {
+			return false
+		}
+		if pc.childPaneByProject == nil {
+			pc.childPaneByProject = map[string]string{}
+		}
+		pc.childPaneByProject[projKey] = target.Ref.ID
+		recordChildPaneReturnFocus(pc, projKey, curID, true)
+		pc.setActiveNavItem(projKey, nil)
+		a.viewMemo.gen++
+		return true
+	}
+	if pc.childPaneByProject[projKey] != "" {
+		recordChildPaneReturnFocus(pc, projKey, curID, false)
+	}
+	return false
+}
+
+func previewableTOCPageID(curID string) (string, bool) {
+	pageID, ok := strings.CutPrefix(curID, tocPrefix)
+	if !ok || pageID == "" {
+		return "", false
+	}
+	if strings.HasPrefix(curID, views.TOCGroupPrefix) || strings.HasPrefix(curID, views.LaneTOCPrefix) {
+		return "", false
+	}
+	return pageID, true
+}
+
+// commitTOCColumnStep commits a live-previewed TOC canvas when stepping right
+// into pane content, or enters live terminal mode when Screen is focused.
+func (a *App) commitTOCColumnStep(s core.State, curID string) (core.State, bool, bool) {
+	pane, hasPane := a.activePane(s)
+	if !hasPane || pane == nil {
+		return s, false, false
+	}
+	if curID == tocPrefix+views.ScreenPageID {
+		a.panes.activePage[pane.ID] = views.ScreenPageID
+		return a.enterScreen(withFocus(s, siteScreen), *pane), true, false
+	}
+	if a.cfg != nil && a.cfg.Settings != nil && !a.cfg.Settings.Bool(SetTOCLivePreview, true) {
+		return s, false, false
+	}
+	if pageID, ok := previewableTOCPageID(curID); ok {
+		a.panes.activePage[pane.ID] = pageID
+		a.viewMemo.gen++
+		return s, false, true
+	}
+	return s, false, false
+}
+
+func (a *App) pickColumnTarget(nodes []fnode, targetRegion string) (string, bool) {
+	target := a.nav.lastFocus[targetRegion]
+	if slices.ContainsFunc(nodes, func(n fnode) bool { return n.id == target && n.region == targetRegion }) {
+		return target, true
+	}
+	idx := slices.IndexFunc(nodes, func(n fnode) bool {
+		return n.region == targetRegion && n.id != views.PageScrollID
+	})
+	if idx < 0 {
+		idx = slices.IndexFunc(nodes, func(n fnode) bool { return n.region == targetRegion })
+	}
+	if idx < 0 {
+		return "", false
+	}
+	return nodes[idx].id, true
+}
+
 // column moves the focus to the next or previous region.
 func (a *App) column(s core.State, delta int) core.State {
-	nodes := a.focusables(s)
+	root := a.View(s)
+	var nodes []fnode
+	collectFocus(&root, "", &nodes)
 	cur := slices.IndexFunc(nodes, func(n fnode) bool { return n.id == s.ActiveFrame().FocusID })
 	var regions []string
 	for _, n := range nodes {
@@ -221,57 +327,33 @@ func (a *App) column(s core.State, delta int) core.State {
 	if to == at {
 		return s
 	}
-	// When stepping right from a live-previewed Project Nav pane node into the
-	// previewed child pane's TOC or Screen, commit it as the open child pane so
-	// focus stays anchored and enter/i attach cleanly.
-	if nodes[cur].region == "project.nav" && (regions[to] == "site.toc" || regions[to] == "site.content") &&
-		strings.HasPrefix(nodes[cur].id, projectNavNodePrefix) && a.projectChildPaneViewEnabled() {
-		if projKey := a.activeProjectWorkspaceKey(s); projKey != "" {
-			pc := a.projectCtrl()
-			if target, ok := pc.navTarget(projKey, nodes[cur].id); ok && target.Section == "panes" && target.Ref != nil && target.Ref.Kind == data.KindPane {
-				if pc.childPaneByProject == nil {
-					pc.childPaneByProject = map[string]string{}
-				}
-				pc.childPaneByProject[projKey] = target.Ref.ID
-				if pc.childPaneReturnFocus == nil {
-					pc.childPaneReturnFocus = map[string]string{}
-				}
-				pc.childPaneReturnFocus[projKey] = nodes[cur].id
-				pc.setActiveNavItem(projKey, nil)
-				a.viewMemo.gen++
-			}
-		}
+	curNode := nodes[cur]
+	targetRegion := regions[to]
+	fromRoot := root.ByID(curNode.region)
+	toRoot := root.ByID(targetRegion)
+	committed := false
+	if fromRoot != nil && fromRoot.Scope == views.ScopeProjectNav && (nodeHasFact(toRoot, "siteTOC") || nodeHasFact(toRoot, "siteContent")) {
+		committed = a.commitProjectNavColumnStep(s, curNode.id)
 	}
-	// When stepping right from a live-previewed middle-rail canvas into site.content,
-	// commit the previewed canvas as the pane's active page (and when Screen is
-	// focused in the TOC, enter live terminal mode smoothly).
-	if nodes[cur].region == "site.toc" && regions[to] == "site.content" {
-		curID := nodes[cur].id
-		if curID == tocPrefix+views.ScreenPageID {
-			if pane, hasPane := a.activePane(s); hasPane && pane != nil {
-				a.panes.activePage[pane.ID] = views.ScreenPageID
-				return a.enterScreen(withFocus(s, siteScreen), *pane)
-			}
+	if fromRoot != nil && fromRoot.Scope == views.ScopeTOC && nodeHasFact(toRoot, "siteContent") {
+		next, returned, didCommit := a.commitTOCColumnStep(s, curNode.id)
+		if returned {
+			return next
 		}
-		if a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetTOCLivePreview, true) {
-			if pageID, ok := strings.CutPrefix(curID, tocPrefix); ok && pageID != "" &&
-				!strings.HasPrefix(curID, views.TOCGroupPrefix) && !strings.HasPrefix(curID, views.LaneTOCPrefix) {
-				if pane, hasPane := a.activePane(s); hasPane && pane != nil {
-					a.panes.activePage[pane.ID] = pageID
-				}
-			}
-		}
+		committed = committed || didCommit
 	}
-	target := a.nav.lastFocus[regions[to]]
-	if !slices.ContainsFunc(nodes, func(n fnode) bool { return n.id == target && n.region == regions[to] }) {
-		idx := slices.IndexFunc(nodes, func(n fnode) bool {
-			return n.region == regions[to] && (regions[to] != "site.content" || n.id != views.PageScrollID)
-		})
-		if idx < 0 {
-			idx = slices.IndexFunc(nodes, func(n fnode) bool { return n.region == regions[to] })
-		}
-		target = nodes[idx].id
+	if committed {
+		// Re-collect post-commit focusables from the rendered post-commit tree
+		// (using targetRegion as probe focus so renderProjectWorkspace keeps
+		// the freshly committed child pane rather than treating focus as still
+		// hovering on a project.nav.node.* preview).
+		nodes = a.focusables(withFocus(s, targetRegion))
 	}
+	target, ok := a.pickColumnTarget(nodes, targetRegion)
+	if !ok {
+		return s
+	}
+	a.nav.focusRegion, a.nav.lastFocus[targetRegion] = targetRegion, target
 	return withFocus(s, target)
 }
 

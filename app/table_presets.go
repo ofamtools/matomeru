@@ -70,7 +70,7 @@ func (a *App) applyDefaultPreset(tbl *table.Model, tableID string) bool {
 
 // focusedTableForPreset resolves the target table and its table ID for a preset
 // verb: explicit "table" arg, the open preset picker's table, then the table
-// the list verbs act on (filterTable: the filtered or focused one, else the
+// the list verbs act on (activeListTable: the filtered or focused one, else the
 // first one drawn on the page), then the active space's table (when not on a
 // Work Show page). It returns nil when there is none; the verbs then do
 // nothing and g v is hidden by facts.listTarget.
@@ -89,7 +89,7 @@ func (a *App) focusedTableForPreset(s core.State, c core.Command) (*table.Model,
 			}
 		}
 	}
-	if tbl, id := a.filterTable(s); tbl != nil {
+	if tbl, id := a.activeListTable(s); tbl != nil {
 		return tbl, id
 	}
 	if s.ActivePage == SpaceWork && a.nav.histPos >= 0 {

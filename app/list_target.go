@@ -64,6 +64,21 @@ func pageListTableID(root ui.ViewNode, tables map[string]*table.Model) string {
 	return firstDrawnID(root, func(n ui.ViewNode) bool { return n.Kind == ui.KindTable && tables[n.ID] != nil })
 }
 
+// activeListTable returns the table the list verbs (sort, group, presets,
+// zero-field) act on: the focused list table, or (when focus is on something
+// that is not a table, such as a nav rail or a tree) the first table drawn on
+// the page. It returns nil only when the page draws no table.
+func (a *App) activeListTable(s core.State) (*table.Model, string) {
+	if tbl, id := a.focusedListTable(s); tbl != nil {
+		return tbl, id
+	}
+	a.View(s) // keeps viewMemo.PageListID current for this state
+	if id := a.viewMemo.PageListID; id != "" && a.nav.tables[id] != nil {
+		return a.nav.tables[id], id
+	}
+	return nil, a.focusedListID(s)
+}
+
 // listTargetFact reports the factListTarget value without building the
 // view (it runs while the view is built, for the footer hints).
 func (a *App) listTargetFact(s core.State) bool {

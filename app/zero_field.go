@@ -100,7 +100,7 @@ func (a *App) registerZeroFieldHandlers() {
 }
 
 func (a *App) openZeroFieldModal(s core.State, startMode string) core.StepResult {
-	tbl, tableID := a.filterTable(s)
+	tbl, tableID := a.activeListTable(s)
 	if tbl == nil {
 		return core.Next(s) // no list on the page: nothing to query
 	}
@@ -456,7 +456,7 @@ func (a *App) saveGenericPreset(s core.State, name, kind, scope string) core.Ste
 		a.initGenericPresets()
 	}
 	vals := map[string]any{}
-	if tbl, id := a.filterTable(s); tbl != nil {
+	if tbl, id := a.activeListTable(s); tbl != nil {
 		if scope == "" {
 			scope = a.kindOfTable(id)
 		}
@@ -507,7 +507,7 @@ func (a *App) presetListCmd(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) applyGenericPresetToFocused(s core.State, p data.Preset) {
-	tbl, id := a.filterTable(s)
+	tbl, id := a.activeListTable(s)
 	if tbl == nil {
 		a.say("preset %q ready (%s)", p.Name, p.Kind)
 		return

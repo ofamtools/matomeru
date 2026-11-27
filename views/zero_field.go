@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/modal"
 )
 
 // Scope and node IDs of the unified Zero-Field Filter/Group/Sort overlay.
@@ -111,17 +111,16 @@ func ZeroFieldModalView(spec ZeroFieldViewSpec) ui.ViewNode {
 		Facts:     zeroFieldFacts(spec),
 		Props:     map[string]any{"runs": w.trimmed()},
 	}
-	return ui.ViewNode{
-		ID:       ZeroFieldModalID,
-		Kind:     ui.KindOverlay,
-		Scope:    ScopeZeroField,
-		Title:    nonEmptyStr(spec.Title, "Query · Filter / Group / Sort"),
-		Tone:     spec.ModeTone,
-		Badges:   zeroFieldBadges(spec),
-		Facts:    zeroFieldFacts(spec),
-		Box:      layout.Constraints{FixedW: overlayW},
-		Children: []ui.ViewNode{stage},
-	}
+	ov := modal.FitHeightOverlay(modal.Frame{
+		ID:     strings.TrimPrefix(ZeroFieldModalID, "modal."),
+		Scope:  ScopeZeroField,
+		Title:  nonEmptyStr(spec.Title, "Query · Filter / Group / Sort"),
+		Tone:   spec.ModeTone,
+		Badges: zeroFieldBadges(spec),
+		Facts:  zeroFieldFacts(spec),
+	}, stage, 0, 0)
+	ov.Box.FixedW = overlayW
+	return ov
 }
 
 func zeroFieldFacts(spec ZeroFieldViewSpec) map[string]any {

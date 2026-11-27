@@ -88,7 +88,7 @@ func (a *App) jumpToPane(s core.State, paneID string, enterLive bool) core.State
 	}
 	s = a.dropModals(s)
 	s.ActivePage = SpacePanes
-	a.nav.tocFilter = ""
+	a.clearFilter("toc")
 	a.panes.activePage[paneID] = views.ScreenPageID
 	if enterLive {
 		return a.enterScreen(withPage(s, SpacePanes, siteScreen, ModeNormal), *pane)
@@ -116,7 +116,7 @@ func (a *App) jumpToPage(s core.State, pageID string) core.State {
 	}
 	s = a.dropModals(s)
 	s.ActivePage = SpacePanes
-	a.nav.tocFilter = ""
+	a.clearFilter("toc")
 	return a.openPage(withPage(s, SpacePanes, tocPrefix+pageID, ModeNormal), pane.ID, *page)
 }
 

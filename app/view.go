@@ -183,11 +183,20 @@ func (a *App) tabsMemoKey(s core.State) string {
 	if a.nav != nil && (a.nav.showRelatedOff != nil || a.nav.showPropsOff != nil) {
 		fmt.Fprintf(&b, "|ss:%s:%s:%s", data.RefText(a.nav.showScrollRef), showScrollOffsetText(a.nav.showRelatedOff), showScrollOffsetText(a.nav.showPropsOff))
 	}
+	b.WriteString(a.filterMemoKey(s))
+	return b.String()
+}
+
+func (a *App) filterMemoKey(s core.State) string {
+	var b strings.Builder
 	if f, fid := a.activeFilterableNoBuild(s); f != nil && (f.IsFiltered() || a.Engine.Mode(s) == ModeFilter) {
 		fmt.Fprintf(&b, "|flt:%s:%q:%s", fid, f.FilterQuery(), f.FilterMode())
 		if a.Engine.Mode(s) == ModeFilter {
 			fmt.Fprintf(&b, ":%d:%t", a.nav.filterLine.Cursor, a.filterBarBottomLeftEnabled())
 		}
+	}
+	if dk := a.dynamicFiltersMemoKey(); dk != "" {
+		b.WriteString(dk)
 	}
 	return b.String()
 }
@@ -256,6 +265,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 			a.viewMemo.tabsKey, a.viewMemo.tabs = a.tabsMemoKey(s), tabs
 		}
 	}
+	a.applyDynamicViewFilters(&tabs)
 	root := ui.ViewNode{
 		ID:       "root",
 		Kind:     ui.KindVStack,
@@ -652,7 +662,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 	if tbl.Query != "" {
 		badges = append(badges, ui.Badge{Text: "/" + tbl.Query, Tone: "accent"})
 	}
-	rail := ui.ViewNode{ID: "panes.rail", Kind: ui.KindPanel, Scope: ScopeRail, Title: "Panes", Border: true, Badges: badges,
+	rail := ui.ViewNode{ID: "panes.rail", Kind: ui.KindPanel, Scope: ScopeRail, Filter: &ui.FilterSpec{ID: railTable}, Title: "Panes", Border: true, Badges: badges,
 		Facts:    map[string]any{"railEnterLive": railEnterLive, "onPane": onPane},
 		Children: []ui.ViewNode{node}}
 

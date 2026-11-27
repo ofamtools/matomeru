@@ -98,7 +98,7 @@ var policies = map[string]policy{
 	mod + "/views": {
 		allow: []string{
 			mod + "/data", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/traits",
-			ochazuke + "/widgets/table", ochazuke + "/widgets/tree", ochazuke + "/widgets/form", ochazuke + "/widgets/picker",
+			ochazuke + "/widgets/table", ochazuke + "/widgets/tree", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/modal",
 		},
 		forbidDeps: noTea,
 	},

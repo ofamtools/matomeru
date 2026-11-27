@@ -19,11 +19,22 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/picker"
 	"ofam.dev/ochazuke/widgets/table"
 )
+
+// containsFold reports whether haystack contains needle case-insensitively
+// using Ochazuke's shared traits substring matcher.
+func containsFold(haystack, needle string) bool {
+	if needle == "" {
+		return true
+	}
+	m, _ := traits.CompileFilter(needle, traits.MatchSubstring, traits.FilterConfig{})
+	return m.Match(haystack)
+}
 
 // Commands named by the views' action hints. A host binds and runs them.
 const (

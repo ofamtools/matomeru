@@ -467,6 +467,8 @@ func DefaultBindings() []core.Binding {
 		// carry / or M in the context chain or footer hints.
 		bind(n, traits.TraitScope(traits.TraitFilter), "/", CmdFilterStart, "filter"),
 		bind(n, traits.TraitScope(traits.TraitFilter), "M", CmdFilterMode, "match mode"),
+		bind(ModePage, traits.TraitScope(traits.TraitFilter), "/", CmdFilterStart, "filter"),
+		bind(ModePage, traits.TraitScope(traits.TraitFilter), "M", CmdFilterMode, "match mode"),
 
 		// Lists: guarded on facts.listTarget so a page with no table hides
 		// these keys (they fall through) instead of refusing.
