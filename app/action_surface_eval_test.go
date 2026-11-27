@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -520,9 +522,14 @@ func TestActionSurfaceConsistencyEvals(t *testing.T) {
 // active bindings across default views AND every registered command spec with
 // required parameters.
 func TestActionSurfaceConsistencyMatrix(t *testing.T) {
-	// Skip process-level / external-binary commands in automated matrix execution.
+	// Skip process-level / external-binary / host-PATH-probing commands in
+	// automated matrix execution (each has its own dedicated unit test).
 	skipMatrixCmd := map[string]bool{
 		core.CmdAppQuit:       true,
+		CmdAppAbout:           true,
+		CmdBindingsOpen:       true,
+		CmdPaneCompose:        true,
+		CmdGitHubActions:      true,
 		CmdDaemonReset:        true,
 		CmdDaemonUpgrade:      true,
 		CmdAppReload:          true,
@@ -538,99 +545,195 @@ func TestActionSurfaceConsistencyMatrix(t *testing.T) {
 		CmdOpenWith:           true,
 	}
 
+	// Build ONE shared demo app + project tab fixture and switch contexts in-place
+	// instead of opening/migrating a fresh SQLite DB for every context.
+	sharedApp, sharedDriver := demo(t)
+	sharedApp.cfg.userSettings[SetSearchPanesIncludeTranscripts] = false
+	sharedApp.reloadSettings()
+	proj, _, err := sharedApp.Store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{"title": "Matrix Eval Project"}}, User)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sharedApp.Store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{"title": "Matrix Eval Child", "parent": proj.Ref()}}, User); err != nil {
+		t.Fatal(err)
+	}
+	pc := sharedApp.projectCtrl()
+	pc.openTabs = append(pc.openTabs, proj.ID)
+
+	enterProjectNav := func(a *App, d *Driver, section string) {
+		a.projectCtrl().setSection(proj.ID, section)
+		a.Shell.State = a.openSpace(a.State(), projectTabID(proj.ID))
+		a.Shell.State = withFocus(a.State(), projectNavPrefix+section)
+		a.viewMemo.gen++
+		_ = d.Frame()
+	}
+
 	type surfaceCtx struct {
-		name  string
-		setup func(t *testing.T) (*App, *Driver)
+		name     string
+		activate func(a *App, d *Driver)
 	}
 	contexts := []surfaceCtx{
 		{
 			name: "1 Panes",
-			setup: func(t *testing.T) (*App, *Driver) {
-				a, d := demo(t)
-				d.Keys("1")
+			activate: func(a *App, d *Driver) {
+				a.Shell.State = a.openSpace(a.State(), SpacePanes)
+				a.Shell.State = withFocus(a.State(), railTable)
+				a.viewMemo.gen++
 				_ = d.Frame()
-				return a, d
 			},
 		},
 		{
 			name: "2 Work (tree)",
-			setup: func(t *testing.T) (*App, *Driver) {
-				a, d := demo(t)
-				d.Keys("2")
+			activate: func(a *App, d *Driver) {
+				if a.trees != nil {
+					delete(a.trees.layoutOverride, data.KindTask)
+				}
+				a.Shell.State = a.openSpace(a.State(), SpaceWork)
+				a.Shell.State = withFocus(a.State(), workTable)
+				a.viewMemo.gen++
 				_ = d.Frame()
-				return a, d
 			},
 		},
 		{
 			name: "2 Work (table)",
-			setup: func(t *testing.T) (*App, *Driver) {
-				a, d := demo(t)
-				d.Keys("2", "g", "t")
+			activate: func(a *App, d *Driver) {
+				a.Shell.State = a.openSpace(a.State(), SpaceWork)
+				a.Shell.State = withFocus(a.State(), workTable)
+				if a.inWorkTree(a.State()) {
+					_, _ = a.Shell.Update(core.CommandEvent{Command: core.Command{ID: CmdWorkLayoutToggle, Actor: User}})
+				}
+				a.viewMemo.gen++
 				_ = d.Frame()
-				return a, d
 			},
 		},
 		{
 			name: "5 Projects",
-			setup: func(t *testing.T) (*App, *Driver) {
-				a, d := demo(t)
-				d.Keys("5")
+			activate: func(a *App, d *Driver) {
+				a.Shell.State = a.openSpace(a.State(), SpaceProjects)
+				a.Shell.State = withFocus(a.State(), projectsDirTable)
+				a.viewMemo.gen++
 				_ = d.Frame()
-				return a, d
 			},
 		},
 		{
-			name: "Project Portal (home)",
-			setup: func(t *testing.T) (*App, *Driver) {
-				return openProjectTabOnNav(t, "home")
-			},
+			name:     "Project Portal (home)",
+			activate: func(a *App, d *Driver) { enterProjectNav(a, d, "home") },
 		},
 		{
-			name: "Project Portal (tasks)",
-			setup: func(t *testing.T) (*App, *Driver) {
-				return openProjectTabOnNav(t, "tasks")
-			},
+			name:     "Project Portal (tasks)",
+			activate: func(a *App, d *Driver) { enterProjectNav(a, d, "tasks") },
 		},
 		{
-			name: "Project Portal (pages)",
-			setup: func(t *testing.T) (*App, *Driver) {
-				return openProjectTabOnNav(t, "pages")
-			},
+			name:     "Project Portal (pages)",
+			activate: func(a *App, d *Driver) { enterProjectNav(a, d, "pages") },
 		},
+	}
+
+	cloneState := func(s core.State) core.State {
+		s.Pages = maps.Clone(s.Pages)
+		s.Modals = slices.Clone(s.Modals)
+		return s
+	}
+	resetUI := func(a *App, baseState core.State) {
+		if a.Modal() != "" {
+			a.Shell.State = a.dropModals(a.State())
+		}
+		a.nav.filterTarget = ""
+		a.nav.filterSpec = nil
+		a.nav.histPos = -1
+		a.nav.Macros.Stop()
+		if a.panes != nil {
+			a.panes.hints = nil
+		}
+		a.Shell.State = cloneState(baseState)
+		a.viewMemo.gen++
 	}
 
 	// 1. Every active normal-mode binding in every default context must execute
 	// cleanly without raw status-line errors.
+	// Context-specific bindings (scoped, record/list/filter/tree/query verbs) run
+	// in every context where active; context-independent global overlays/nav run once.
+	contextDependent := func(b activeBinding) bool {
+		if b.scope != "" {
+			return true
+		}
+		for _, prefix := range []string{"record.", "table.", "filter.", "query.", "preset.", "tree.", "select.", "outline.", "task.", "pane.", "project.", "view."} {
+			if strings.HasPrefix(b.rawCommand, prefix) {
+				return true
+			}
+		}
+		return false
+	}
+	ranGlobal := map[string]bool{}
+
+	bindingDedupKey := func(b activeBinding) string {
+		if b.rawCommand == CmdMacroRecord || b.rawCommand == CmdMacroReplay {
+			return b.rawCommand
+		}
+		if len(b.args) == 0 {
+			return b.rawCommand
+		}
+		keys := slices.Sorted(maps.Keys(b.args))
+		var sb strings.Builder
+		sb.WriteString(b.rawCommand)
+		for _, k := range keys {
+			sb.WriteByte('|')
+			sb.WriteString(k)
+			sb.WriteByte('=')
+			sb.WriteString(fmt.Sprint(b.args[k]))
+		}
+		return sb.String()
+	}
+
+	execSync := func(a *App, cmd core.Command) {
+		a.status = ""
+		_, _ = a.Shell.Update(core.CommandEvent{Command: cmd})
+	}
+
 	for _, sc := range contexts {
 		t.Run("active_bindings/"+sc.name, func(t *testing.T) {
-			a, d := sc.setup(t)
+			a, d := sharedApp, sharedDriver
+			sc.activate(a, d)
 			active := a.activeKeyBindings(a.State())
 			if len(active) == 0 {
 				t.Fatalf("%s reported 0 active bindings", sc.name)
 			}
-			baseState := a.State()
+			baseState := cloneState(a.State())
 			baseRev, _ := a.Store.LatestChangeSetNumber()
+			seenCmd := map[string]bool{}
 			for _, b := range active {
 				if b.rawCommand == "" || skipMatrixCmd[b.rawCommand] {
 					continue
 				}
-				a.status = ""
-				d.Send(core.CommandEvent{Command: core.Command{
+				dk := bindingDedupKey(b)
+				if seenCmd[dk] {
+					continue
+				}
+				seenCmd[dk] = true
+				if !contextDependent(b) {
+					if ranGlobal[dk] {
+						continue
+					}
+					ranGlobal[dk] = true
+				}
+
+				execSync(a, core.Command{
 					ID:     b.rawCommand,
 					Args:   b.args,
 					Source: "binding",
 					Actor:  User,
-				}})
+				})
 				assertNoForbiddenStatus(t, sc.name+" binding ["+b.keys+" -> "+b.rawCommand+"]", a.Status())
 				curRev, _ := a.Store.LatestChangeSetNumber()
-				if curRev != baseRev || a.Space() != baseState.ActivePage || a.Mode() != ModeNormal {
-					a, d = sc.setup(t)
-					baseState = a.State()
+				if curRev != baseRev {
+					for i := 0; i < 4; i++ {
+						if _, err := a.Store.UndoLast(User); err != nil {
+							break
+						}
+					}
 					baseRev, _ = a.Store.LatestChangeSetNumber()
-				} else if a.Modal() != "" {
-					a.Shell.State = a.dropModals(a.State())
-					a.Shell.State = withFocus(a.State(), baseState.ActiveFrame().FocusID)
 				}
+				resetUI(a, baseState)
 			}
 		})
 	}
@@ -639,9 +742,11 @@ func TestActionSurfaceConsistencyMatrix(t *testing.T) {
 	// MUST open an auto-form (or inline palette form) when invoked with empty args
 	// from palette and help — never emitting a raw status-line error.
 	t.Run("required_param_specs_open_autoform", func(t *testing.T) {
-		probe, _ := demo(t)
+		a, d := sharedApp, sharedDriver
+		contexts[2].activate(a, d) // 2 Work (table)
+		baseState := cloneState(a.State())
 		reg := core.DefaultRegistry()
-		reg.Register(probe.bind.specs...)
+		reg.Register(a.bind.specs...)
 		checked := 0
 		for _, sp := range reg.List() {
 			if internal(sp) || len(missingRequiredParams(sp.Params, nil)) == 0 {
@@ -649,16 +754,12 @@ func TestActionSurfaceConsistencyMatrix(t *testing.T) {
 			}
 			checked++
 			for _, source := range []string{"palette", "help"} {
-				a, d := demo(t)
-				d.Keys("2", "g", "t")
-				_ = d.Frame()
-				a.status = ""
-				d.Send(core.CommandEvent{Command: core.Command{
+				execSync(a, core.Command{
 					ID:     sp.ID,
 					Args:   map[string]any{},
 					Source: source,
 					Actor:  User,
-				}})
+				})
 				assertNoForbiddenStatus(t, source+" "+sp.ID+" empty args", a.Status())
 				if a.Modal() == "" {
 					t.Errorf("[%s] command %q declares required params %+v but opened no form/picker modal (status=%q)", source, sp.ID, sp.Params, a.Status())
@@ -670,6 +771,7 @@ func TestActionSurfaceConsistencyMatrix(t *testing.T) {
 					}
 					_ = modal.CloseCancel
 				}
+				resetUI(a, baseState)
 			}
 		}
 		if checked < 4 {
