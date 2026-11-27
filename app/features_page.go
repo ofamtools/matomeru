@@ -49,6 +49,9 @@ type FeaturesController struct {
 	detectRepoPath   string
 	detectActive     bool
 	detectResolved   string
+	domainScanCached bool
+	domainScanRepo   string
+	domainScanItems  []views.DomainOccurrence
 }
 
 func newFeaturesController() *FeaturesController {
@@ -71,6 +74,9 @@ func (fc *FeaturesController) invalidateDetection() {
 	fc.detectRepoPath = ""
 	fc.detectActive = false
 	fc.detectResolved = ""
+	fc.domainScanCached = false
+	fc.domainScanRepo = ""
+	fc.domainScanItems = nil
 }
 
 func (fc *FeaturesController) activeItemKey() string {
@@ -96,9 +102,9 @@ func (a *App) featuresViewKey(s core.State) string {
 		}
 	}
 	slices.Sort(collapsed)
-	return fmt.Sprintf("1:%s:%s:%t:%t:%t:%t:%t:%d:%s:%s:%q:%s",
+	return fmt.Sprintf("1:%s:%s:%t:%t:%t:%t:%t:%t:%d:%s:%s:%q:%s",
 		repoPath, fc.activeItemKey(), fc.captureExpanded,
-		a.featuresCaptureDockedEnabled(), a.featuresOutlineEnabled(), fc.noteEditing,
+		a.featuresCaptureDockedEnabled(), a.featuresOutlineEnabled(), a.featuresDomainNavEnabled(), fc.noteEditing,
 		a.isCleanSlateActive(data.KindTask, featuresCaptureTree),
 		fc.noteGen,
 		a.featuresOutlineViewKeySuffix(),
@@ -282,12 +288,23 @@ func (a *App) buildFeaturesGroupNavItems(snap featuresSnapshot, activeKey string
 func (a *App) buildFeaturesNav(snap featuresSnapshot, activeKey string) ([]views.FeaturesNavGroup, map[string]bool) {
 	fc := a.featuresCtrl()
 	validKeys := map[string]bool{}
-	return []views.FeaturesNavGroup{
+	groups := []views.FeaturesNavGroup{
 		{Key: "pages", Title: "By Page", Collapsed: fc.collapsedGroups["pages"], Items: a.buildFeaturesPageNavItems(snap, activeKey, validKeys)},
 		{Key: "nouns", Title: "By Noun", Collapsed: fc.collapsedGroups["nouns"], Items: a.buildFeaturesNounNavItems(snap, activeKey, validKeys)},
-		{Key: "groups", Title: "Organized Groups", Collapsed: fc.collapsedGroups["groups"], Items: a.buildFeaturesGroupNavItems(snap, activeKey, validKeys)},
+	}
+	if a.featuresDomainNavEnabled() {
+		groups = append(groups, views.FeaturesNavGroup{
+			Key:       featuresDomainNavGroup,
+			Title:     "Domain",
+			Collapsed: fc.collapsedGroups[featuresDomainNavGroup],
+			Items:     a.buildFeaturesDomainNavItems(snap, activeKey, validKeys),
+		})
+	}
+	groups = append(groups,
+		views.FeaturesNavGroup{Key: "groups", Title: "Organized Groups", Collapsed: fc.collapsedGroups["groups"], Items: a.buildFeaturesGroupNavItems(snap, activeKey, validKeys)},
 		a.featuresConceptNav(snap.concepts, activeKey, validKeys),
-	}, validKeys
+	)
+	return groups, validKeys
 }
 
 func (a *App) buildFeaturesDetail(snap featuresSnapshot, activeKey string) views.FeaturesDetailSpec {
@@ -333,6 +350,9 @@ func (a *App) buildFeaturesPageDetail(snap featuresSnapshot, fk featureKey, item
 	if itemized {
 		detail.Views = featuresViewsWithSuggestions(featuresPageViews(pk, detail), snap.concepts, pk, activeKey)
 	}
+	if a.featuresDomainNavEnabled() {
+		detail.DomainGroups = relatedDomainGroupsForTarget(snap.domainGroups, pk, nounKinds...)
+	}
 	return detail
 }
 
@@ -349,11 +369,16 @@ func (a *App) buildFeaturesComponentDetail(snap featuresSnapshot, fk featureKey,
 			thoughts = append(thoughts, a.linkedItemFromRecord(rt))
 		}
 	}
+	var domainGroups []views.DomainGroup
+	if a.featuresDomainNavEnabled() {
+		domainGroups = relatedDomainGroupsForTarget(snap.domainGroups, "", key)
+	}
 	return views.FeaturesDetailSpec{
 		Kind: string(featureKeyComponent), Key: activeKey, Title: component.View.Name, Subtitle: "Component · " + page.Title,
 		RawThoughts:   thoughts,
 		ItemizedNouns: a.featuresItemizedNouns(component.Nouns, snap.concepts),
 		Views:         featuresViewsWithSuggestions([]views.FeaturesViewRow{component.View}, snap.concepts, key, activeKey),
+		DomainGroups:  domainGroups,
 		Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
 			return featuresConceptTargets(rec, key, activeKey)
 		}),
@@ -422,6 +447,10 @@ func (a *App) buildFeaturesNounDetail(snap featuresSnapshot, fk featureKey, item
 	if itemized {
 		props = featuresPropRows(sc, kind, snap.concepts)
 	}
+	var domainGroups []views.DomainGroup
+	if a.featuresDomainNavEnabled() {
+		domainGroups = relatedDomainGroupsForTarget(snap.domainGroups, "", kind)
+	}
 	return views.FeaturesDetailSpec{
 		Kind:             string(featureKeyNoun),
 		Key:              activeKey,
@@ -435,6 +464,7 @@ func (a *App) buildFeaturesNounDetail(snap featuresSnapshot, fk featureKey, item
 		LinkedGroups:     linkedGroups,
 		RawThoughts:      thoughts,
 		Props:            props,
+		DomainGroups:     domainGroups,
 		Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
 			return featuresConceptTargets(rec, kind, activeKey)
 		}),
@@ -503,6 +533,8 @@ func (a *App) buildFeaturesDetailBody(snap featuresSnapshot, activeKey string) v
 			}
 		case featureKeyNoun:
 			return a.buildFeaturesNounDetail(snap, fk, itemized)
+		case featureKeyDomain:
+			return a.buildFeaturesDomainDetail(snap, fk)
 		case featureKeyGroup:
 			if detail, found := a.buildFeaturesGroupDetail(snap, fk); found {
 				return detail
@@ -564,7 +596,7 @@ func (a *App) featuresSuggestConcept(s core.State, _ core.Command) core.StepResu
 			case featureKeyComponent:
 				defaults[data.FieldConceptKind] = data.ConceptKindView
 				defaults[data.FieldConceptTargetKind] = fk.Name
-			case featureKeyGroup:
+			case featureKeyGroup, featureKeyDomain:
 				defaults[data.FieldConceptTargetKind] = fk.Name
 			case featureKeyConcept:
 				defaults[data.FieldConceptKind] = fk.Name

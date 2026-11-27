@@ -190,6 +190,8 @@ func (a *App) featuresTargetLabel(activeKey string) string {
 		return fk.Name
 	case featureKeyConcept:
 		return views.Label(fk.Name) + " concepts"
+	case featureKeyDomain:
+		return domainTargetLabel(fk.Name)
 	case featureKeyGroup:
 		return a.featuresGroupTargetLabel(fk.Name)
 	default:
@@ -215,6 +217,12 @@ func splitThoughtTitleAndBody(raw string) (title, body string) {
 		body = strings.TrimSpace(strings.Join(lines[titleIdx+1:], "\n"))
 	}
 	return title, body
+}
+
+func applyFeatureDomainTarget(fields map[string]any, fk featureKey) {
+	if fk.Kind == featureKeyDomain && fk.Name != "" {
+		fields["targetDomains"] = []string{fk.Name}
+	}
 }
 
 // saveFeaturesRawThought creates a raw feature thought task under Features Wishlist,
@@ -255,6 +263,8 @@ func (a *App) saveFeaturesRawThought(activeKey, text string, attachments []data.
 		fields["targetComponents"] = []string{fk.Name}
 	case featureKeyConcept:
 		fields["targetConcepts"] = []string{fk.Name}
+	default:
+		applyFeatureDomainTarget(fields, fk)
 	}
 
 	rec, _, err := a.Store.Create(data.CreateInput{

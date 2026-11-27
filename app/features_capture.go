@@ -175,6 +175,17 @@ func featuresPageSpecs() []core.CommandSpec {
 		sh(CmdFeaturesCaptureFocus, "Focus the Quick Capture (Features Wishlist) outline pane"),
 		sh(CmdFeaturesCaptureToggle, "Toggle the Quick Capture pane between docked and expanded layout"),
 		sh(CmdFeaturesItemOpen, "Open the focused linked record in 2 Work"),
+		{
+			ID:          CmdFeaturesViewInCode,
+			Description: "Open the focused Features domain occurrence in the read-only Vim code viewer",
+			Params: []core.ParamSpec{
+				{Name: "file", Type: core.ParamString, Description: "optional file path override"},
+				{Name: "startLine", Type: core.ParamInt, Description: "optional 1-based start line"},
+				{Name: "endLine", Type: core.ParamInt, Description: "optional 1-based end line"},
+				{Name: "title", Type: core.ParamString, Description: "optional display title"},
+			},
+			Meta: map[string]any{"selfHosted": true},
+		},
 	}, append(featuresNoteSpecs(), featuresOutlineSpecs()...)...)
 }
 
@@ -187,7 +198,9 @@ func featuresPageBindings() []core.Binding {
 		when(bind(n, views.ScopeFeaturesPage, "n", CmdFeaturesQuickCapture, "quick capture"), active+" && !facts.hasFilter"),
 		when(bind(n, views.ScopeFeaturesPage, "N", CmdFeaturesCaptureModal, "capture modal"), active+" && !facts.hasFilter"),
 		when(bind(n, views.ScopeFeaturesContent, "enter", CmdFeaturesNoteEdit, "type raw note"), active+" && facts.featuresThoughtBox"),
-		when(bind(n, views.ScopeFeaturesContent, "enter", CmdFeaturesItemOpen, "open item"), active+" && !facts.featuresThoughtBox && !facts.isTree"),
+		when(bind(n, views.ScopeFeaturesContent, "enter", CmdFeaturesViewInCode, "view in code"), active+" && facts.hasCodeLocation"),
+		when(bind(n, views.ScopeFeaturesContent, "C", CmdFeaturesViewInCode, "view in code"), active+" && facts.hasCodeLocation"),
+		when(bind(n, views.ScopeFeaturesContent, "enter", CmdFeaturesItemOpen, "open item"), active+" && !facts.featuresThoughtBox && !facts.isTree && !facts.hasCodeLocation"),
 		when(bind(n, views.ScopeFeaturesContent, "o", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
 		when(bind(n, views.ScopeFeaturesContent, "O", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
 		when(bind(n, views.ScopeFeaturesContent, "a", CmdFeaturesNoteEdit, "add raw note"), legacyNote),
@@ -219,6 +232,7 @@ func (a *App) registerFeaturesPageHandlers() {
 	a.handle(CmdFeaturesCaptureFocus, a.featuresCaptureFocus)
 	a.handle(CmdFeaturesCaptureToggle, a.featuresCaptureToggle)
 	a.handle(CmdFeaturesItemOpen, a.featuresItemOpen)
+	a.handle(CmdFeaturesViewInCode, a.featuresViewInCodeCmd)
 	a.handle(CmdFeaturesSuggestProp, a.featuresSuggestProp)
 	a.handle(CmdFeaturesSuggestView, a.featuresSuggestView)
 	a.handle(CmdFeaturesSuggestConcept, a.featuresSuggestConcept)
@@ -503,6 +517,7 @@ type featuresSnapshot struct {
 	concepts      []data.Record
 	specs         []core.CommandSpec
 	keysByID      map[string]string
+	domainGroups  []views.DomainGroup
 }
 
 func (a *App) actionKeysMap() map[string]string {
@@ -549,7 +564,11 @@ func collectDescendants(nodes []data.TreeNode) []data.Record {
 }
 
 func (a *App) collectFeaturesSnapshot() featuresSnapshot {
-	snap := featuresSnapshot{specs: CommandSpecs(), keysByID: a.actionKeysMap()}
+	snap := featuresSnapshot{
+		specs:        CommandSpecs(),
+		keysByID:     a.actionKeysMap(),
+		domainGroups: a.snapshotDomainGroups(),
+	}
 	if a.Store == nil {
 		return snap
 	}
