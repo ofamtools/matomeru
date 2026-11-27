@@ -816,7 +816,7 @@ func (a *App) outlineRename(s core.State, _ core.Command) core.StepResult {
 		a.fail("rename", err)
 		return core.Next(s)
 	}
-	fm := views.FormForRecordWith(schema, rec, a.editOptions())
+	fm := views.FormForRecordWith(schema, rec, a.editOptionsFor(schema, rec))
 	if a.cfg != nil && a.cfg.Settings != nil {
 		fm.ShowAllFields = !a.cfg.Settings.Bool(SetFormReactiveFields, true)
 	}

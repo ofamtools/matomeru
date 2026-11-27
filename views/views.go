@@ -440,6 +440,9 @@ type EditOptions struct {
 	// ShowExtraFields adds the fields the record holds that its schema does
 	// not declare, in alphabetical order.
 	ShowExtraFields bool
+	// InitialRelations pre-populates declarative InForm relation fields on
+	// edit forms, keyed by RelationSpec.Kind.
+	InitialRelations map[string][]core.Ref
 }
 
 // DefaultEditOptions offers every field.
@@ -488,13 +491,57 @@ func inferType(v any) core.ParamSpec {
 	return core.ParamSpec{Type: core.ParamString}
 }
 
-// EditFields lists the specs of a record's Edit form: every schema field,
-// then the universal fields, then the record's undeclared fields.
+func formRelationSpecs(schema data.Schema, has func(string) bool) []core.ParamSpec {
+	var out []core.ParamSpec
+	for _, rel := range schema.FormRelations() {
+		if has(rel.FormField) {
+			continue
+		}
+		out = append(out, core.ParamSpec{
+			Name:        rel.FormField,
+			Type:        core.ParamRef,
+			RefKinds:    slices.Clone(rel.TargetKinds),
+			Repeatable:  true,
+			AddLabel:    rel.FormAddLabel,
+			Description: rel.FormDescription,
+		})
+	}
+	return out
+}
+
+func seedInitialRelations(initial map[string]any, schema data.Schema, rels map[string][]core.Ref) {
+	for _, rel := range schema.FormRelations() {
+		refs := rels[rel.Kind]
+		if len(refs) == 0 {
+			continue
+		}
+		vals := make([]string, 0, len(refs))
+		for _, r := range refs {
+			if r.Kind != "" && r.ID != "" {
+				vals = append(vals, data.RefText(r))
+			}
+		}
+		if len(vals) > 0 {
+			initial[rel.FormField] = vals
+		}
+	}
+}
+
+// EditFields lists the specs of a record's Edit form: every visible schema
+// field, then declarative InForm relation fields, then the universal fields,
+// then the record's undeclared fields.
 func EditFields(schema data.Schema, rec *data.Record, opts EditOptions) []core.ParamSpec {
-	specs := schema.ParamSpecs()
+	specs := make([]core.ParamSpec, 0, len(schema.Fields))
+	for _, f := range schema.Fields {
+		if f.FormHidden {
+			continue
+		}
+		specs = append(specs, f.ParamSpec())
+	}
 	has := func(name string) bool {
 		return slices.ContainsFunc(specs, func(p core.ParamSpec) bool { return p.Name == name })
 	}
+	specs = append(specs, formRelationSpecs(schema, has)...)
 	if opts.ShowUniversalFields {
 		for _, f := range UniversalFields() {
 			if !has(f.Name) {
@@ -505,7 +552,7 @@ func EditFields(schema data.Schema, rec *data.Record, opts EditOptions) []core.P
 	if opts.ShowExtraFields && rec != nil {
 		merged := rec.MergedFields()
 		for _, name := range slices.Sorted(maps.Keys(merged)) {
-			if has(name) || IsUniversalField(name) {
+			if _, declared := schema.Field(name); declared || has(name) || IsUniversalField(name) {
 				continue
 			}
 			spec := inferType(merged[name])
@@ -525,13 +572,16 @@ func FormForRecord(schema data.Schema, rec *data.Record) *form.Model {
 }
 
 // FormForRecordWith is FormForRecord with options: after the schema's fields
-// come the universal fields (star, archive, snooze) and the fields the record
-// holds that the schema does not declare.
+// come declarative InForm relations, the universal fields (star, archive,
+// snooze) and the fields the record holds that the schema does not declare.
 func FormForRecordWith(schema data.Schema, rec *data.Record, opts EditOptions) *form.Model {
 	title, initial := "New "+strings.ToLower(schema.Title), map[string]any{}
 	if rec != nil {
 		title = "Edit " + Title(schema, *rec)
 		for name, v := range rec.MergedFields() {
+			if f, declared := schema.Field(name); declared && f.FormHidden {
+				continue
+			}
 			if ref, ok := data.AsRef(v); ok {
 				v = ref // shown as kind:id, read back as a reference
 			}
@@ -543,6 +593,7 @@ func FormForRecordWith(schema data.Schema, rec *data.Record, opts EditOptions) *
 			initial[data.ColSnoozedUntil] = rec.SnoozedUntil.UTC().Format(time.RFC3339)
 		}
 	}
+	seedInitialRelations(initial, schema, opts.InitialRelations)
 	fm := form.New(title, EditFields(schema, rec, opts), initial)
 	fm.SubmitLabel = "Save"
 	return fm

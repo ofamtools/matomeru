@@ -295,7 +295,8 @@ func (a *App) edit(s core.State, c core.Command) core.StepResult {
 		a.fail("edit", err)
 		return core.Next(s)
 	}
-	rf := a.newRecordFormModal(ref.Kind, &ref, nil, views.FormForRecordWith(a.schema(ref.Kind), rec, a.editOptions()))
+	schema := a.schema(ref.Kind)
+	rf := a.newRecordFormModal(ref.Kind, &ref, nil, views.FormForRecordWith(schema, rec, a.editOptionsFor(schema, rec)))
 	a.say("ctrl+s saves · esc closes (saves draft)")
 	return core.Next(a.pushModal(s, rf))
 }
@@ -586,7 +587,9 @@ func (a *App) createRecordFromValues(kind string, about *core.Ref, values map[st
 	if fields == nil {
 		fields = map[string]any{}
 	}
-	maps.DeleteFunc(fields, func(k string, _ any) bool { return views.IsUniversalField(k) })
+	maps.DeleteFunc(fields, func(k string, _ any) bool {
+		return views.IsUniversalField(k) || data.IsRelationFormField(schema, k)
+	})
 
 	rec, cs, err := a.Store.Create(data.CreateInput{Kind: kind, Fields: fields}, User)
 	if err != nil {
@@ -596,6 +599,8 @@ func (a *App) createRecordFromValues(kind string, about *core.Ref, values map[st
 	ref := rec.Ref()
 	a.markOwnerCreated(ref)
 	a.syncManagedFile(rec)
+	sub := data.FormSubmission{Schema: schema, Submitted: values, ResolveRef: a.resolveFormRef}
+	_, _ = a.applyRelationDiff(ref, sub.RelationDiff())
 	if about != nil {
 		if _, _, err := a.Store.Relate(data.RelateInput{From: ref, Kind: data.RelAbout, To: *about}, User); err != nil {
 			a.fail("attach note", err)
@@ -775,6 +780,7 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 			return core.Next(s)
 		}
 		if rec.Kind == data.KindPane {
+			a.maybeHarvestPaneRepo(rec.Text("cwd"))
 			a.viewMemo.gen++
 			if isProjectTab(s.ActivePage) && a.projectChildPaneViewEnabled() {
 				s = a.openProjectChildPane(s, projectIDFromTab(s.ActivePage), rec.ID, true)
@@ -853,7 +859,7 @@ func (a *App) reloadForm() {
 	activeField := fm.ActiveFieldName()
 	onSubmit := fm.OnSubmitRow()
 	schema := a.schema(rf.kind)
-	fresh := views.FormForRecordWith(schema, rec, a.editOptions())
+	fresh := views.FormForRecordWith(schema, rec, a.editOptionsFor(schema, rec))
 	fresh.SubmitRow = true
 	fresh.SubmitLabel = "Save " + strings.ToLower(schema.Title)
 	a.applyHarnessChoicesToForm(rf.kind, rf.ref, fresh)

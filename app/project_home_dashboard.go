@@ -134,7 +134,7 @@ func (a *App) buildProjectHomeSectionUncached(ws projectWorkspaceData, interacti
 		paneTitles[p.ID] = views.Title(paneSchema, p)
 	}
 
-	desc, meta := projectHomeMetaLines(ws)
+	desc, meta := a.projectHomeMetaLines(ws)
 	groups := []views.ProjectHomeGroup{
 		a.homeDecisionsGroup(ws, paneTitles, now, interactive),
 		a.homeNewGroup(ws, now, interactive),
@@ -185,14 +185,14 @@ func (a *App) buildProjectHomeSectionUncached(ws projectWorkspaceData, interacti
 	})
 }
 
-func projectHomeMetaLines(ws projectWorkspaceData) (desc, meta string) {
+func (a *App) projectHomeMetaLines(ws projectWorkspaceData) (desc, meta string) {
 	if ws.projRec == nil {
 		return "", "Panes not assigned to any project task (L associates a pane)"
 	}
 	desc = strings.TrimSpace(ws.projRec.Text("description"))
 	var parts []string
-	if repo := strings.TrimSpace(ws.projRec.Text("repo")); repo != "" {
-		parts = append(parts, "repo: "+repo)
+	if _, repoLabels := data.RecordRepos(a.Store, *ws.projRec); len(repoLabels) > 0 {
+		parts = append(parts, "repo: "+strings.Join(repoLabels, ", "))
 	}
 	if dir := strings.TrimSpace(ws.projRec.Text("defaultDir")); dir != "" {
 		parts = append(parts, "dir: "+dir)
@@ -802,7 +802,7 @@ func (a *App) settleHomeFocusAfterRead(s core.State, prevFocus string) core.Stat
 
 func (a *App) projectSectionHomeLegacy(ws projectWorkspaceData, interactive bool) ui.ViewNode {
 	var rows []ui.ViewNode
-	desc, meta := projectHomeMetaLines(ws)
+	desc, meta := a.projectHomeMetaLines(ws)
 	if desc != "" {
 		rows = append(rows, line("project.home.desc", " "+desc, ""))
 	}

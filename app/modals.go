@@ -284,23 +284,6 @@ func (a *App) formPickPath(getForm func() *modal.FormModal) func(form.PathReques
 	}
 }
 
-func (a *App) formPickRef(getForm func() *modal.FormModal) func(form.RefRequest) modal.Result {
-	return func(req form.RefRequest) modal.Result {
-		field := req.Field
-		return modal.Result{
-			Handled: true,
-			Push: a.newRefPickerModal(req, func(r core.Ref) {
-				if fm := getForm(); fm != nil {
-					fm.SetValue(field, r)
-					if fm.Model().ActiveFieldName() != field {
-						fm.FocusField(field)
-					}
-				}
-			}),
-		}
-	}
-}
-
 func (a *App) formDraftDiscard(draftKey string) func(int) modal.Result {
 	return func(idx int) modal.Result {
 		if draftKey != "" && a.cfg.drafts != nil {
@@ -475,47 +458,6 @@ func (a *App) pickerCreateHook(kind string, onCreated func(rec data.Record) moda
 			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
 		},
 	}
-}
-
-func (a *App) newRefPickerModal(req form.RefRequest, onPick func(core.Ref)) *modal.PickerModal {
-	kinds := req.RefKinds
-	if len(kinds) == 0 {
-		for _, sc := range a.Store.Registry().List() {
-			kinds = append(kinds, sc.Kind)
-		}
-	}
-	var recs []data.Record
-	for _, kind := range kinds {
-		res, err := a.Store.Query(data.Query{Kind: kind})
-		if err != nil {
-			a.fail("read "+kind, err)
-			continue
-		}
-		recs = append(recs, res.Items...)
-	}
-	pm := views.PickerFromRecordsWith(a.Store.Registry(), "Pick "+views.Label(req.Field), recs, a.styleOptions())
-	var createHook *modal.PickerCreateHook
-	if len(kinds) == 1 {
-		if _, known := a.Store.Registry().Get(kinds[0]); known {
-			createHook = a.pickerCreateHook(kinds[0], func(rec data.Record) modal.Result {
-				if onPick != nil {
-					onPick(rec.Ref())
-				}
-				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
-			})
-		}
-	}
-	return a.newPickerModal(pm, modal.PickerOptions{
-		ID:       "ref",
-		PageSize: 10,
-		Create:   createHook,
-		OnConfirm: func(picked picker.Item) modal.Result {
-			if picked.Ref != nil && onPick != nil {
-				onPick(*picked.Ref)
-			}
-			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
-		},
-	})
 }
 
 // --- confirmation modal ---------------------------------------------------------

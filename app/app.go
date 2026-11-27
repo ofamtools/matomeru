@@ -724,7 +724,7 @@ func (a *App) register() {
 	a.handle(CmdPathOpen, a.pathOpen)
 	a.handle(CmdModalCancel, a.modalCancel)
 
-	for _, id := range []string{CmdPickerInsert, CmdPickerBack, picker.CmdConfirm, picker.CmdModeCycle,
+	for _, id := range []string{CmdPickerInsert, CmdPickerBack, picker.CmdConfirm, picker.CmdMarkToggle, picker.CmdModeCycle,
 		picker.CmdFilterStart, picker.CmdFilterStop, picker.CmdFilterClear} {
 		a.handle(id, a.handleModal)
 	}
@@ -846,6 +846,7 @@ func (a *App) register() {
 	a.registerClipboardAttachHandlers()
 	a.registerChipHandlers()
 	a.registerGitHubHandlers()
+	a.handle(CmdRepoSync, a.repoSyncCmd)
 	for _, id := range []string{tree.CmdFoldToggle, tree.CmdFoldOpen, tree.CmdFoldClose, tree.CmdFoldOpenAll, tree.CmdFoldCloseAll} {
 		a.handle(id, a.treeFoldCommand(id))
 	}

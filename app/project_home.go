@@ -418,8 +418,8 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 
 	var subParts []string
 	if ws.projRec != nil {
-		if repo := strings.TrimSpace(ws.projRec.Text("repo")); repo != "" {
-			subParts = append(subParts, "repo: "+repo)
+		if _, repoLabels := data.RecordRepos(a.Store, *ws.projRec); len(repoLabels) > 0 {
+			subParts = append(subParts, "repo: "+strings.Join(repoLabels, ", "))
 		}
 		if dir := strings.TrimSpace(ws.projRec.Text("defaultDir")); dir != "" {
 			subParts = append(subParts, "dir: "+dir)

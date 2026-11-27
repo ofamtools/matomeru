@@ -37,6 +37,7 @@ const (
 	RelDirectory = "directory"
 	RelContext   = "context"
 	RelPage      = "page"
+	RelRepo      = "repo"
 	// Lane relations: the panes working a lane, its plan, what it made and ran.
 	RelClaim   = "claim"
 	RelPlan    = "plan"
@@ -79,6 +80,8 @@ const (
 	// KindQueue is a named line of agent work that tasks and lanes join and
 	// agent panes watch.
 	KindQueue = "queue"
+	// KindRepo is a tracked git repository linked to tasks and lanes via RelRepo.
+	KindRepo = "repo"
 )
 
 // Pane roles. A pane with no role is a normal one.
@@ -147,6 +150,7 @@ type FieldSpec struct {
 	VisibleWhen         string         `json:"visibleWhen,omitempty"`
 	Repeatable          bool           `json:"repeatable,omitempty"`
 	AddLabel            string         `json:"addLabel,omitempty"`
+	FormHidden          bool           `json:"formHidden,omitempty"`
 }
 
 // EffectiveRole returns the field's declared role, falling back cleanly from
@@ -261,10 +265,14 @@ func (c StatusColumn) Names() []string {
 
 // RelationSpec declares a relation kind a noun shows a section for.
 type RelationSpec struct {
-	Kind        string   `json:"kind"`
-	Title       string   `json:"title,omitempty"`
-	TargetKinds []string `json:"targetKinds,omitempty"`
-	Direction   string   `json:"direction,omitempty"` // outgoing (default), incoming, both
+	Kind            string   `json:"kind"`
+	Title           string   `json:"title,omitempty"`
+	TargetKinds     []string `json:"targetKinds,omitempty"`
+	Direction       string   `json:"direction,omitempty"` // outgoing (default), incoming, both
+	InForm          bool     `json:"inForm,omitempty"`
+	FormField       string   `json:"formField,omitempty"`
+	FormAddLabel    string   `json:"formAddLabel,omitempty"`
+	FormDescription string   `json:"formDescription,omitempty"`
 }
 
 // Schema declares one noun.
@@ -317,6 +325,21 @@ func (s Schema) ParamSpecs() []core.ParamSpec {
 	out := make([]core.ParamSpec, len(s.Fields))
 	for i, f := range s.Fields {
 		out[i] = f.ParamSpec()
+	}
+	return out
+}
+
+// FormRelations returns the outgoing relations declared for inclusion in record forms.
+func (s Schema) FormRelations() []RelationSpec {
+	var out []RelationSpec
+	for _, rel := range s.Relations {
+		if !rel.InForm || rel.FormField == "" {
+			continue
+		}
+		if rel.Direction != "" && rel.Direction != DirectionOutgoing && rel.Direction != DirectionBoth {
+			continue
+		}
+		out = append(out, rel)
 	}
 	return out
 }
@@ -552,7 +575,7 @@ func DefaultSchemas() *Registry {
 				{Name: "priority", Type: core.ParamString, Enum: []string{"P0", "P1", "P2", "P3", "P5"}, Description: "priority"},
 				refTo("parent", KindTask, "parent task; empty for a root task, which displays as a project"),
 				{Name: "defaultDir", Type: core.ParamPath, Description: "default directory; empty uses the parent's"},
-				str("repo", "repository; empty uses the parent's"),
+				{Name: "repo", Type: core.ParamString, FormHidden: true, Description: "repository; empty uses the parent's"},
 				str("defaultHarness", "default agent harness; empty uses the parent's"),
 				str("projectTheme", "optional theme override for this project portal"),
 				{Name: "defaultContextMd", Type: core.ParamString, Role: FieldRoleBody, ShowFormat: ShowFormatMarkdown, Description: "editable default context Markdown prose auto-injected into agent panes for this project"},
@@ -572,6 +595,7 @@ func DefaultSchemas() *Registry {
 			StatusColumns:  []StatusColumn{work, agentStatus},
 			DefaultColumns: []string{"title", "workStatus", "priority", "parent"},
 			Relations: universalRelations(
+				RelationSpec{Kind: RelRepo, Title: "Repos", TargetKinds: []string{KindRepo}, Direction: DirectionOutgoing, InForm: true, FormField: "repos", FormAddLabel: "repo", FormDescription: "linked repositories"},
 				RelationSpec{Kind: RelDirectory, Title: "Directories", Direction: DirectionOutgoing},
 				RelationSpec{Kind: RelDerivedFrom, Title: "Rewrites", TargetKinds: []string{KindTask}, Direction: DirectionBoth},
 				RelationSpec{Kind: RelSplitFrom, Title: "Splits", TargetKinds: []string{KindTask}, Direction: DirectionBoth},
@@ -610,7 +634,7 @@ func DefaultSchemas() *Registry {
 				strFmt("summary", "what happened so far", ShowFormatMarkdown),
 				refTo("task", KindTask, "task the lane works on"),
 				refTo("parentLane", KindLane, "lane this is a part of; empty for a root lane"),
-				str("repo", "repository"),
+				{Name: "repo", Type: core.ParamString, FormHidden: true, Description: "repository"},
 				str("branch", "branch the work is on"),
 				{Name: "worktree", Type: core.ParamPath, Description: "worktree directory"},
 				str("baseCommit", "commit the work started from"),
@@ -623,6 +647,7 @@ func DefaultSchemas() *Registry {
 			StatusColumns:  []StatusColumn{laneStatus},
 			DefaultColumns: []string{"title", "laneStatus", "branch", "task", "parentLane"},
 			Relations: universalRelations(
+				RelationSpec{Kind: RelRepo, Title: "Repos", TargetKinds: []string{KindRepo}, Direction: DirectionOutgoing, InForm: true, FormField: "repos", FormAddLabel: "repo", FormDescription: "linked repositories"},
 				RelationSpec{Kind: RelClaim, Title: "Claimed by", TargetKinds: []string{KindPane}, Direction: DirectionOutgoing},
 				RelationSpec{Kind: RelPlan, Title: "Plan", TargetKinds: []string{KindDocument}, Direction: DirectionOutgoing},
 				RelationSpec{Kind: RelCreated, Title: "Created", TargetKinds: []string{KindDocument, KindPage, KindQuestion, KindCommand, KindContext}, Direction: DirectionOutgoing},
@@ -896,6 +921,7 @@ func DefaultSchemas() *Registry {
 		},
 		conceptSchema(),
 		queueSchema(),
+		repoSchema(),
 	)
 	return r
 }

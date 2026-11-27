@@ -38,6 +38,8 @@ type RuntimeController struct {
 	wantReload        bool
 	uxNoteSessionPath string
 	uxNoteCount       int
+	seenRepoMu        sync.Mutex
+	seenRepoDirs      map[string]bool
 }
 
 func newRuntimeController() *RuntimeController {
@@ -121,12 +123,13 @@ func (a *App) reconcileDaemonPanes() {
 	seen := make(map[string]bool, len(res.Items))
 	for _, rec := range res.Items {
 		seen[rec.ID] = true
-		if _, alive := liveByID[rec.ID]; alive {
+		if info, alive := liveByID[rec.ID]; alive {
 			if a.panes.Host != nil {
 				if f, ok := a.panes.Host.Snapshot(rec.ID); ok {
 					a.rt.live.frames[rec.ID] = f
 				}
 			}
+			a.maybeHarvestPaneRepo(firstNonEmpty(info.Cwd, rec.Text("cwd")))
 			continue
 		}
 		staleLive := len(liveByID) == 0 ||
@@ -180,6 +183,7 @@ func (a *App) reconcileDaemonPanes() {
 			fields["pid"] = info.PID
 		}
 		_, _, _ = a.Store.Create(data.CreateInput{Kind: data.KindPane, ID: info.ID, Fields: fields}, daemonSyncActor)
+		a.maybeHarvestPaneRepo(info.Cwd)
 		if a.panes.Host != nil {
 			if f, ok := a.panes.Host.Snapshot(info.ID); ok {
 				a.rt.live.frames[info.ID] = f
