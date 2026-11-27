@@ -209,10 +209,10 @@ func (a *App) populateDurableScopeRecords(snap *projectDurableSnapshot, scope da
 	if snap.projectID != "" && a.Store != nil {
 		snap.worktrees = a.Store.ProjectScopeWorktrees(scope, snap.allLanes)
 	}
-	snap.documents = a.projectRecords(scope, data.KindDocument)
-	snap.notes = a.projectRecords(scope, data.KindNote)
+	snap.documents = sortRecordsNewestFirst(a.projectRecords(scope, data.KindDocument))
+	snap.notes = sortRecordsNewestFirst(a.projectRecords(scope, data.KindNote))
 	snap.questions, snap.openQuestions = projectQuestionsList(a.projectRecords(scope, data.KindQuestion))
-	snap.commands = a.projectRecords(scope, data.KindCommand)
+	snap.commands = sortRecordsNewestFirst(a.projectRecords(scope, data.KindCommand))
 }
 
 func (a *App) populateDurableContext(snap *projectDurableSnapshot, scope data.ProjectScope) {

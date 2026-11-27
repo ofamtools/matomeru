@@ -52,7 +52,7 @@ func pageRoot(page data.Record) (ui.ViewNode, error) {
 }
 
 // tocRank orders the table of contents: Screen, Questions, other pinned
-// pages, then response and custom pages in the order they were made.
+// pages, then response and custom pages (newest first within each rank).
 func tocRank(page data.Record) int {
 	switch {
 	case isScreen(page):
@@ -63,6 +63,23 @@ func tocRank(page data.Record) int {
 		return 2
 	}
 	return 3
+}
+
+func compareTOCPages(a, b data.Record) int {
+	if c := tocRank(a) - tocRank(b); c != 0 {
+		return c
+	}
+	at, bt := a.UpdatedAt, b.UpdatedAt
+	if at.IsZero() {
+		at = a.CreatedAt
+	}
+	if bt.IsZero() {
+		bt = b.CreatedAt
+	}
+	if c := bt.Compare(at); c != 0 {
+		return c
+	}
+	return b.CreatedAt.Compare(a.CreatedAt)
 }
 
 // PaneSiteView renders a pane's interactive site: a table of contents on the
@@ -273,7 +290,8 @@ func resolveTOCStyle(opts SiteOptions) (string, bool) {
 
 func sortSitePages(pane data.Record, pages []data.Record, activePageID string) ([]data.Record, data.Record) {
 	sorted := slices.Clone(pages)
-	slices.SortStableFunc(sorted, func(a, b data.Record) int { return tocRank(a) - tocRank(b) })
+	slices.Reverse(sorted)
+	slices.SortStableFunc(sorted, compareTOCPages)
 	if !slices.ContainsFunc(sorted, isScreen) {
 		screen := data.Record{Kind: data.KindPage, ID: ScreenPageID, CreatedAt: pane.CreatedAt, UpdatedAt: pane.CreatedAt,
 			ArchiveStatus: data.ArchiveActive, StarStatus: data.StarUnstarred,

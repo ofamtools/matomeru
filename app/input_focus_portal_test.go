@@ -340,8 +340,8 @@ func TestProjectNavSpaceTogglesFoldWithoutLeakingMark(t *testing.T) {
 		}
 	}
 
-	// 2. Pressing space on expandable Tasks section expands & collapses it.
-	d.Keys("j")
+	// 2. Pressing space on expandable Tasks section expands & collapses it (Home -> Panes -> Tasks).
+	d.Keys("j", "j")
 	if a.Focus() != projectNavPrefix+"tasks" {
 		t.Fatalf("expected focus on project.nav.tasks, got %q", a.Focus())
 	}

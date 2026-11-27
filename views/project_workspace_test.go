@@ -363,3 +363,60 @@ func TestProjectNavCompactAndDimmedCompletedNodeRendering(t *testing.T) {
 		t.Fatalf("read dimmed lane should not show ● dot, got %q", rTxt)
 	}
 }
+
+func TestProjectWorkspacePriorityOrderDeclarative(t *testing.T) {
+	legacyItems := []ProjectNavSection{
+		{Key: "home", Label: "Home", Icon: "⌂", Group: "Core"},
+		{Key: "tasks", Label: "Tasks", Icon: "☐", Group: "Core"},
+		{Key: "pages", Label: "Pages", Icon: "◫", Group: "Core"},
+		{Key: "signals", Label: "Needs Attention", Icon: "!", Group: "Core"},
+		{Key: "context", Label: "Context", Icon: "◈", Group: "Context"},
+		{Key: "panes", Label: "Panes", Icon: "▣", Group: "Workspace"},
+		{Key: "lanes", Label: "Lanes", Icon: "⎇", Group: "Workspace"},
+		{Key: "documents", Label: "Documents", Icon: "▤", Group: "Knowledge"},
+		{Key: "notes", Label: "Notes", Icon: "✎", Group: "Knowledge"},
+	}
+
+	extractKeys := func(root ui.ViewNode) []string {
+		list := root.Find("project.nav.list")
+		if list == nil {
+			t.Fatal("missing project.nav.list")
+		}
+		var out []string
+		for _, ch := range list.Children {
+			if ch.Facts != nil && ch.Facts["isNavSection"] == true {
+				if sec, ok := ch.Facts["section"].(string); ok {
+					out = append(out, sec)
+				}
+			}
+		}
+		return out
+	}
+
+	// PriorityOrder promotes Home -> Panes -> Tasks -> Lanes -> Pages -> Documents first.
+	prioritized := ProjectWorkspaceView(ProjectWorkspaceSpec{
+		ProjectID:  "proj-order",
+		Title:      "Order",
+		ActiveKey:  "home",
+		NavItems:   legacyItems,
+		NavOptions: ProjectNavOptions{Compact: true, PriorityOrder: ProjectNavPriorityKeys},
+	})
+	got := strings.Join(extractKeys(prioritized), ",")
+	want := "home,panes,tasks,lanes,pages,documents,signals,context,notes"
+	if got != want {
+		t.Fatalf("priority nav order = %q, want %q", got, want)
+	}
+
+	// Nil PriorityOrder keeps caller's legacy order untouched.
+	legacy := ProjectWorkspaceView(ProjectWorkspaceSpec{
+		ProjectID: "proj-order",
+		Title:     "Order",
+		ActiveKey: "home",
+		NavItems:  legacyItems,
+	})
+	gotLegacy := strings.Join(extractKeys(legacy), ",")
+	wantLegacy := "home,tasks,pages,signals,context,panes,lanes,documents,notes"
+	if gotLegacy != wantLegacy {
+		t.Fatalf("legacy nav order = %q, want %q", gotLegacy, wantLegacy)
+	}
+}

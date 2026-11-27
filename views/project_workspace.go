@@ -63,9 +63,55 @@ type ProjectNavSection struct {
 	Children    []ProjectNavNode
 }
 
-// ProjectNavOptions declaratively controls Project Page left-nav density and spacing.
+// ProjectNavPriorityKeys is the default priority order for top-level Project
+// Portal left-nav sections: Home, Panes, Tasks, Lanes, Pages, Documents, with
+// all other sections pushed cleanly below.
+var ProjectNavPriorityKeys = []string{
+	"home",
+	"panes",
+	"tasks",
+	"lanes",
+	"pages",
+	"documents",
+}
+
+// ProjectNavOptions declaratively controls Project Page left-nav density,
+// spacing, and optional priority section ordering.
 type ProjectNavOptions struct {
-	Compact bool // true: omit zero-only badges and add breathing room between section groups
+	Compact       bool     // true: omit zero-only badges and add breathing room between section groups
+	PriorityOrder []string // optional section keys promoted to the top ("Core") group; nil keeps caller order
+}
+
+// OrderProjectNavSections returns items ordered with any section matching
+// priorityKeys promoted to the top in the "Core" group (in priorityKeys order),
+// followed by all remaining sections in their original relative order.
+func OrderProjectNavSections(items []ProjectNavSection, priorityKeys []string) []ProjectNavSection {
+	if len(priorityKeys) == 0 || len(items) == 0 {
+		return items
+	}
+	byKey := make(map[string]ProjectNavSection, len(items))
+	for _, it := range items {
+		byKey[it.Key] = it
+	}
+	out := make([]ProjectNavSection, 0, len(items))
+	promoted := make(map[string]bool, len(priorityKeys))
+	for _, k := range priorityKeys {
+		if it, ok := byKey[k]; ok && !promoted[k] {
+			it.Group = "Core"
+			out = append(out, it)
+			promoted[k] = true
+		}
+	}
+	for _, it := range items {
+		if promoted[it.Key] {
+			continue
+		}
+		if it.Group == "Core" {
+			it.Group = "Workspace"
+		}
+		out = append(out, it)
+	}
+	return out
 }
 
 // ProjectWorkspaceSpec is the pure data contract for ProjectWorkspaceView.
@@ -123,9 +169,10 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 
 	unreadDotOnly := spec.UnreadDotOnly == nil || *spec.UnreadDotOnly
 
-	navRows := make([]ui.ViewNode, 0, len(spec.NavItems)+8)
+	navItems := OrderProjectNavSections(spec.NavItems, spec.NavOptions.PriorityOrder)
+	navRows := make([]ui.ViewNode, 0, len(navItems)+8)
 	lastGroup := ""
-	for _, item := range spec.NavItems {
+	for _, item := range navItems {
 		if item.Group != "" && item.Group != lastGroup {
 			navRows = appendProjectNavGroupHeader(navRows, item.Group, lastGroup != "", spec.NavOptions)
 			lastGroup = item.Group

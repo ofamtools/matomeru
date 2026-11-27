@@ -17,7 +17,7 @@ func TestProjectNavTaskHoverPreselectsInFullTasksView(t *testing.T) {
 		}
 		parentFocus := projectNavNodePrefix + "tasks." + f.parentTask.ID
 		subFocus := projectNavNodePrefix + "tasks." + f.subTask.ID
-		d.Keys("P", "j", "l", "j", "l", "j") // Tasks, expand, Epic Alpha, expand, Subtask Beta
+		d.Keys("P", "j", "j", "l", "j", "l", "j") // Panes, Tasks, expand, Epic Alpha, expand, Subtask Beta
 		if a.Focus() != subFocus {
 			t.Fatalf("preselect=%v: focus = %q, want the subtask nav node %q", preselect, a.Focus(), subFocus)
 		}

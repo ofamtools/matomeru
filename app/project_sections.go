@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
@@ -14,6 +15,45 @@ import (
 )
 
 const projectNavCompactPeekLimit = 4
+
+var legacyProjectNavSections = []projectNavDef{
+	{Key: "home", Label: "Home", Icon: "⌂", Group: "Core"},
+	{Key: "tasks", Label: "Tasks", Icon: "☐", Group: "Core"},
+	{Key: "pages", Label: "Pages", Icon: "◫", Group: "Core"},
+	{Key: "signals", Label: "Needs Attention", Icon: "!", Group: "Core"},
+	{Key: "context", Label: "Context", Icon: "◈", Group: "Context", EntryFocus: projectContextTable},
+	{Key: "pinned", Label: "Pinned Links & Files", Icon: "★", Group: "Context"},
+	{Key: "panes", Label: "Panes", Icon: "▣", Group: "Workspace"},
+	{Key: "lanes", Label: "Lanes", Icon: "⎇", Group: "Workspace"},
+	{Key: projectQueueSection, Label: "Queues", Icon: "⇶", Group: "Workspace", EntryFocus: views.QueueListID, Leaf: true},
+	{Key: projectThreadsSection, Label: "Threads", Icon: "✉", Group: "Workspace", EntryFocus: views.ThreadsListID, Leaf: true},
+	{Key: "worktrees", Label: "Worktrees", Icon: "⌘", Group: "Workspace"},
+	{Key: "prs", Label: "PRs", Icon: "⇅", Group: "Workspace"},
+	{Key: "documents", Label: "Documents", Icon: "▤", Group: "Knowledge"},
+	{Key: "notes", Label: "Notes", Icon: "✎", Group: "Knowledge"},
+	{Key: "questions", Label: "Questions & Decisions", Icon: "?", Group: "Knowledge"},
+	{Key: "commands", Label: "Commands", Icon: "$", Group: "Knowledge"},
+}
+
+func projectNavBaseSections(priorityOrder bool) []projectNavDef {
+	if priorityOrder {
+		return defaultProjectNavSections
+	}
+	return legacyProjectNavSections
+}
+
+func projectNavDefsCacheKey(defs []projectNavDef) string {
+	var b strings.Builder
+	for i, d := range defs {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(d.Key)
+		b.WriteByte(':')
+		b.WriteString(d.Group)
+	}
+	return b.String()
+}
 
 func countVisibleNavNodes(nodes []views.ProjectNavNode) int {
 	total := 0
@@ -110,10 +150,11 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 		lockedFocus = locked.FocusID
 	}
 	openPage := pc.openPageID(ws.projectKey)
-	navKey := fmt.Sprintf("%d|%d|%d|%t|%t|%t|%t|%t|%t|%t|%s|%s|%d|%s",
+	navKey := fmt.Sprintf("%d|%d|%d|%t|%t|%t|%t|%t|%t|%t|%s|%s|%s|%d|%s",
 		ws.cacheRev, ws.cacheCtxGen, a.telemetryViewSeq(),
 		a.nav.showArchived, treeEnabled, allowPeek, compact,
 		a.projectNavSurfaceContextUnreadEnabled(), a.projectNavUnreadDotOnlyEnabled(), a.projectNavLaneProgressBarEnabled(),
+		projectNavDefsCacheKey(defs),
 		sortedTrueKeys(pc.expandedSections[ws.projectKey]),
 		sortedTrueKeys(pc.expandedNodes[ws.projectKey]),
 		a.navUnreadCutoff.UnixNano(),
@@ -603,6 +644,27 @@ func (a *App) projectActiveRecords(scope data.ProjectScope, kind string) []data.
 	return a.activeRecords(kind, all)
 }
 
+func recordRecencyTime(r data.Record) time.Time {
+	if !r.UpdatedAt.IsZero() {
+		return r.UpdatedAt
+	}
+	return r.CreatedAt
+}
+
+func compareRecordsNewestFirst(x, y data.Record) int {
+	if c := recordRecencyTime(y).Compare(recordRecencyTime(x)); c != 0 {
+		return c
+	}
+	return y.CreatedAt.Compare(x.CreatedAt)
+}
+
+func sortRecordsNewestFirst(recs []data.Record) []data.Record {
+	out := slices.Clone(recs)
+	slices.Reverse(out)
+	slices.SortStableFunc(out, compareRecordsNewestFirst)
+	return out
+}
+
 func projectPagesList(raw []data.Record) ([]data.Record, int) {
 	var out []data.Record
 	unread := 0
@@ -615,31 +677,20 @@ func projectPagesList(raw []data.Record) ([]data.Record, int) {
 		}
 		out = append(out, p)
 	}
-	slices.SortStableFunc(out, func(x, y data.Record) int {
-		if x.Bool("pinned") != y.Bool("pinned") {
-			if x.Bool("pinned") {
-				return -1
-			}
-			return 1
-		}
-		if x.IsUnread() != y.IsUnread() {
-			if x.IsUnread() {
-				return -1
-			}
-			return 1
-		}
-		return y.UpdatedAt.Compare(x.UpdatedAt)
-	})
+	slices.Reverse(out)
+	slices.SortStableFunc(out, compareRecordsNewestFirst)
 	return out, unread
 }
 
-func projectQuestionsList(out []data.Record) ([]data.Record, int) {
+func projectQuestionsList(raw []data.Record) ([]data.Record, int) {
+	out := slices.Clone(raw)
 	openCount := 0
 	for _, q := range out {
 		if q.Text("status") == "open" {
 			openCount++
 		}
 	}
+	slices.Reverse(out)
 	slices.SortStableFunc(out, func(x, y data.Record) int {
 		xo, yo := x.Text("status") == "open", y.Text("status") == "open"
 		if xo != yo {
@@ -648,7 +699,7 @@ func projectQuestionsList(out []data.Record) ([]data.Record, int) {
 			}
 			return 1
 		}
-		return y.UpdatedAt.Compare(x.UpdatedAt)
+		return compareRecordsNewestFirst(x, y)
 	})
 	return out, openCount
 }
