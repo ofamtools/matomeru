@@ -254,7 +254,7 @@ func (m *noteDeckModal) Handle(c core.Command) modal.Result {
 		m.a.yank(compiled, fmt.Sprintf("%d note(s)", count))
 		// Deliver to an active project agent pane, or spawn one with project default context.
 		if pane, ok := m.a.findProjectAgentPane(m.projID); ok && pane != nil {
-			m.a.deliverComposerPrompt(*pane, compiled, ComposerModeQueue)
+			m.a.deliverDispatchedPrompt(*pane, compiled)
 			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit, Status: fmt.Sprintf("dispatched %d note(s) to %s", count, pane.ID), SetStatus: true}
 		}
 		if m.projID != "" {

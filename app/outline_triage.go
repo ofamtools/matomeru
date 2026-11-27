@@ -274,7 +274,7 @@ func (a *App) resolveOutlineTriagePane(kind string, ancestorIDs []string, explic
 
 func (a *App) sendOutlineTriage(schema data.Schema, root data.TreeNode, pane data.Record) {
 	prompt := buildOutlineTriagePrompt(schema, root, pane)
-	a.deliverComposerPrompt(pane, prompt, ComposerModeQueue)
+	a.deliverDispatchedPrompt(pane, prompt)
 	paneTitle := views.Title(a.schema(data.KindPane), pane)
 	outlineTitle := views.Title(schema, root.Record)
 	msg := fmt.Sprintf("Sent %q to %s for read-only triage", outlineTitle, paneTitle)

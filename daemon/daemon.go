@@ -325,6 +325,10 @@ func (s *Server) Start(ctx context.Context) error {
 			box.Panes.ResolveLaunch = func(harnessID, mcpURL, paneID, customCmd string) (string, map[string]string, error) {
 				return ResolveHarnessLaunch(DefaultConfigDir(), harnessID, mcpURL, paneID, customCmd)
 			}
+			box.Panes.ResolveLaunchWithPrompt = func(harnessID, mcpURL, paneID, customCmd, prompt string) (mcpui.PaneLaunchSpec, error) {
+				cmd, env, delivered, err := ResolveHarnessLaunchWithPrompt(DefaultConfigDir(), harnessID, mcpURL, paneID, customCmd, prompt)
+				return mcpui.PaneLaunchSpec{Cmd: cmd, Env: env, PromptDeliveredInCmd: delivered}, err
+			}
 			box.Panes.MCPURL = func(paneID string) string {
 				if base := s.MCPURL(); base != "" {
 					return base + "/mcp/" + url.PathEscape(paneID)

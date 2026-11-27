@@ -204,3 +204,273 @@ func TestDispatchExistingPaneReusesItForTheWholeQueue(t *testing.T) {
 		t.Fatalf("second D: modal %q status %q", a.Modal(), a.Status())
 	}
 }
+
+type dispatchCaptureHost struct {
+	*wave3FakeHost
+	openedCmds map[string]string
+	openedEnv  map[string]map[string]string
+}
+
+func newDispatchCaptureHost() *dispatchCaptureHost {
+	return &dispatchCaptureHost{
+		wave3FakeHost: newWave3FakeHost(),
+		openedCmds:    map[string]string{},
+		openedEnv:     map[string]map[string]string{},
+	}
+}
+
+func (h *dispatchCaptureHost) Open(id, cmd, cwd string, cols, rows int) error {
+	return h.OpenWithEnv(id, cmd, cwd, cols, rows, nil)
+}
+
+func (h *dispatchCaptureHost) OpenWithEnv(id, cmd, cwd string, cols, rows int, env map[string]string) error {
+	h.mu.Lock()
+	h.openedCmds[id] = cmd
+	cp := map[string]string{}
+	for k, v := range env {
+		cp[k] = v
+	}
+	h.openedEnv[id] = cp
+	h.mu.Unlock()
+	return h.wave3FakeHost.Open(id, cmd, cwd, cols, rows)
+}
+
+func TestDispatchQueueAndTaskPromptDeliveryAllHarnesses(t *testing.T) {
+	for _, tc := range []struct {
+		harness    string
+		wantPrefix string
+		wantInCmd  bool
+	}{
+		{harness: "claude", wantPrefix: "claude ", wantInCmd: true},
+		{harness: "codex", wantPrefix: "codex ", wantInCmd: true},
+		{harness: "agy", wantPrefix: "agy -i ", wantInCmd: true},
+		{harness: "omp", wantPrefix: "omp ", wantInCmd: true},
+		{harness: "zsh", wantPrefix: "zsh", wantInCmd: false},
+	} {
+		t.Run("queue_"+tc.harness, func(t *testing.T) {
+			store, err := data.Open(":memory:")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { store.Close() })
+			host := newDispatchCaptureHost()
+			now := time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)
+			a, err := New(store, Options{Host: host, Now: func() time.Time { return now }, DataDir: t.TempDir()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { a.Close() })
+			d := NewDriver(a, 140, 40)
+
+			proj, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{
+				"title": "Prompt Lab", "defaultDir": t.TempDir(), "defaultHarness": tc.harness,
+			}}, User)
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{
+				"title": "test", "parent": proj.Ref(),
+			}}, User)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.AddTaskToQueue(task.ID, "", nil, User); err != nil {
+				t.Fatal(err)
+			}
+
+			// Open Queue Page, press enter -> New Agent -> set harness -> ctrl+s!
+			d.Keys("g", "q", "enter", "enter")
+			fm := a.activeForm(dispatchTargetFormID)
+			if fm == nil {
+				t.Fatalf("expected New Agent form, modal=%q", a.Modal())
+			}
+			fm.SetValue("harness", tc.harness)
+			d.Keys("ctrl+s")
+			a.WaitBackground()
+
+			gotTask, err := store.Get(task.Ref())
+			if err != nil {
+				t.Fatal(err)
+			}
+			paneRef, ok := gotTask.RefField("agentDispatchedPane")
+			if !ok || paneRef.ID == "" {
+				t.Fatalf("task not dispatched to pane: %+v", gotTask.Fields)
+			}
+			if qn := a.queuedPromptCount(paneRef.ID); qn != 0 {
+				t.Fatalf("%s left %d prompt(s) stuck in queuedPrompts", tc.harness, qn)
+			}
+
+			host.mu.Lock()
+			launchedCmd := host.openedCmds[paneRef.ID]
+			host.mu.Unlock()
+			if !strings.HasPrefix(launchedCmd, tc.wantPrefix) {
+				t.Fatalf("%s launched cmd = %q, want prefix %q", tc.harness, launchedCmd, tc.wantPrefix)
+			}
+			if tc.wantInCmd {
+				if !strings.Contains(launchedCmd, "test") || !strings.Contains(launchedCmd, "task:"+task.ID) {
+					t.Fatalf("%s launch cmd missing dispatched prompt:\n%s", tc.harness, launchedCmd)
+				}
+			} else {
+				written := host.joinedWrites(paneRef.ID)
+				if !strings.Contains(written, "test") || !strings.Contains(written, "task:"+task.ID) {
+					t.Fatalf("%s stdin delivery missing dispatched prompt:\n%q", tc.harness, written)
+				}
+			}
+		})
+	}
+}
+
+func TestTaskPageDispatchSpawnsWithPromptAndDeliversToLivePane(t *testing.T) {
+	// 1. Task page `D` with ZERO existing live panes opens New-Agent target picker
+	//    and delivers the queued task prompt directly into the launched CLI command.
+	for _, tc := range []struct {
+		harness    string
+		wantPrefix string
+	}{
+		{harness: "claude", wantPrefix: "claude "},
+		{harness: "codex", wantPrefix: "codex "},
+		{harness: "agy", wantPrefix: "agy -i "},
+		{harness: "omp", wantPrefix: "omp "},
+	} {
+		t.Run("task_D_spawn_"+tc.harness, func(t *testing.T) {
+			store, err := data.Open(":memory:")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { store.Close() })
+			host := newDispatchCaptureHost()
+			a, err := New(store, Options{Host: host, FS: smokeFS(), DataDir: t.TempDir()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { a.Close() })
+			d := NewDriver(a, 120, 36)
+
+			task, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{
+				"title":          "test",
+				"workStatus":     "todo",
+				"defaultDir":     t.TempDir(),
+				"defaultHarness": tc.harness,
+				"forAgent":       true,
+				"agentStatus":    data.AgentStatusQueued,
+				"order":          int64(1),
+			}}, User)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			d.Keys("2", "D")
+			if a.activePicker(dispatchTargetPickerID) == nil {
+				t.Fatalf("D with 0 live panes did not open target picker: modal=%q status=%q", a.Modal(), a.Status())
+			}
+			d.Keys("enter") // New Agent
+			fm := a.activeForm(dispatchTargetFormID)
+			if fm == nil {
+				t.Fatalf("New Agent did not open form: modal=%q", a.Modal())
+			}
+			fm.SetValue("harness", tc.harness)
+			d.Keys("ctrl+s")
+
+			got, _ := store.Get(task.Ref())
+			paneRef, ok := got.RefField("agentDispatchedPane")
+			if !ok || paneRef.ID == "" {
+				t.Fatalf("D did not stamp agentDispatchedPane: %+v", got.Fields)
+			}
+			host.mu.Lock()
+			cmd := host.openedCmds[paneRef.ID]
+			host.mu.Unlock()
+			if !strings.HasPrefix(cmd, tc.wantPrefix) || !strings.Contains(cmd, "test") || !strings.Contains(cmd, task.ID) {
+				t.Fatalf("%s task D launch cmd = %q, want prefix %q with task prompt", tc.harness, cmd, tc.wantPrefix)
+			}
+			if qn := a.queuedPromptCount(paneRef.ID); qn != 0 {
+				t.Fatalf("%s left %d prompt(s) stuck in queuedPrompts", tc.harness, qn)
+			}
+		})
+	}
+
+	// 2. Task page `D` with an existing live pane that has no hook telemetry yet (pt == nil)
+	//    writes the prompt immediately via bracketed paste instead of trapping it in RAM.
+	t.Run("task_D_existing_live_pane_no_telemetry", func(t *testing.T) {
+		store, err := data.Open(":memory:")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { store.Close() })
+		host := newDispatchCaptureHost()
+		a, err := New(store, Options{Host: host, FS: smokeFS(), DataDir: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { a.Close() })
+		d := NewDriver(a, 120, 36)
+
+		task, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{
+			"title":       "test",
+			"workStatus":  "todo",
+			"forAgent":    true,
+			"agentStatus": data.AgentStatusQueued,
+			"order":       int64(1),
+		}}, User)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pane, _, err := store.Create(data.CreateInput{Kind: data.KindPane, Fields: map[string]any{
+			"title":     "agy: worker",
+			"harness":   "agy",
+			"runStatus": "running",
+			"task":      task.Ref(),
+		}}, User)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := a.attach(*pane); err != nil {
+			t.Fatal(err)
+		}
+
+		d.Keys("2", "D")
+		if qn := a.queuedPromptCount(pane.ID); qn != 0 {
+			t.Fatalf("live pane with no busy telemetry trapped %d prompt(s) in queue", qn)
+		}
+		written := host.joinedWrites(pane.ID)
+		if !strings.Contains(written, "\x1b[200~") || !strings.Contains(written, "test") || !strings.Contains(written, task.ID) {
+			t.Fatalf("D did not write prompt to live pane PTY: %q", written)
+		}
+	})
+
+	// 3. Project Portal spawnProjectAgentPane passes prompt into the launched CLI command.
+	t.Run("project_portal_spawn_with_prompt", func(t *testing.T) {
+		store, err := data.Open(":memory:")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { store.Close() })
+		host := newDispatchCaptureHost()
+		a, err := New(store, Options{Host: host, FS: smokeFS(), DataDir: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { a.Close() })
+
+		proj, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{
+			"title":          "Portal Test",
+			"defaultDir":     t.TempDir(),
+			"defaultHarness": "agy",
+		}}, User)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, pane, err := a.spawnProjectAgentPane(a.State(), proj.ID, "agy", "test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		host.mu.Lock()
+		cmd := host.openedCmds[pane.ID]
+		host.mu.Unlock()
+		if !strings.HasPrefix(cmd, "agy -i ") || !strings.Contains(cmd, "test") {
+			t.Fatalf("spawnProjectAgentPane launch cmd = %q, want agy -i with prompt", cmd)
+		}
+		if qn := a.queuedPromptCount(pane.ID); qn != 0 {
+			t.Fatalf("spawnProjectAgentPane trapped %d prompt(s) in queuedPrompts", qn)
+		}
+	})
+}

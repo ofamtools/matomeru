@@ -16,7 +16,6 @@ import (
 	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
-	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/ptyhost"
 	"ofam.dev/matomeru/runs"
 	"ofam.dev/matomeru/views"
@@ -552,42 +551,8 @@ func (a *App) attach(pane data.Record) error {
 
 // attachSized is attach for a session shown somewhere other than the Screen.
 func (a *App) attachSized(pane data.Record, cols, rows int) error {
-	if a.panes.Host == nil {
-		return nil
-	}
-	if f, ok := a.panes.Host.Snapshot(pane.ID); ok {
-		if !f.Exited {
-			a.rt.live.frames[pane.ID] = f
-			a.rt.live.shown = pane.ID
-			return nil
-		}
-		_ = a.panes.Host.Close(pane.ID)
-		a.panes.Term.Forget(pane.ID)
-		delete(a.rt.live.frames, pane.ID)
-	}
-	cmd, env := a.buildPaneLaunch(pane)
-	cwd := expandHome(pane.Text("cwd"))
-	a.maybeHarvestPaneRepo(cwd)
-	var err error
-	if host, ok := a.panes.Host.(ptyhost.EnvOpener); ok {
-		// The program learns which pane it is in and which task it works on:
-		// the MCP tools read both as their defaults.
-		env[mcpui.EnvPaneID] = pane.ID
-		if task, has := pane.RefField("task"); has {
-			env[mcpui.EnvTaskID] = task.ID
-		}
-		err = host.OpenWithEnv(pane.ID, cmd, cwd, cols, rows, env)
-	} else {
-		err = a.panes.Host.Open(pane.ID, cmd, cwd, cols, rows)
-	}
-	if err != nil {
-		return err
-	}
-	if f, ok := a.panes.Host.Snapshot(pane.ID); ok {
-		a.rt.live.frames[pane.ID] = f
-	}
-	a.rt.live.shown = pane.ID
-	return nil
+	_, err := a.attachSizedWithPrompt(pane, cols, rows, "")
+	return err
 }
 
 type paneExit struct {

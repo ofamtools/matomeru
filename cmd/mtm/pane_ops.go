@@ -26,6 +26,10 @@ func newCLIToolbox(g globalOpts, store *data.Store) *mcpui.Toolbox {
 		box.Panes.ResolveLaunch = func(harnessID, mcpURL, paneID, customCmd string) (string, map[string]string, error) {
 			return daemon.ResolveHarnessLaunch(configDir(), harnessID, mcpURL, paneID, customCmd)
 		}
+		box.Panes.ResolveLaunchWithPrompt = func(harnessID, mcpURL, paneID, customCmd, prompt string) (mcpui.PaneLaunchSpec, error) {
+			cmd, env, delivered, err := daemon.ResolveHarnessLaunchWithPrompt(configDir(), harnessID, mcpURL, paneID, customCmd, prompt)
+			return mcpui.PaneLaunchSpec{Cmd: cmd, Env: env, PromptDeliveredInCmd: delivered}, err
+		}
 		box.Panes.MCPURL = func(paneID string) string {
 			if base := strings.TrimSpace(os.Getenv(daemon.EnvMCPURL)); base != "" {
 				if idx := strings.Index(base, "/mcp/"); idx > 0 {

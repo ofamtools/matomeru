@@ -11,8 +11,9 @@ import (
 	"time"
 
 	"ofam.dev/matomeru/data"
-	"ofam.dev/matomeru/handlers"
 	"ofam.dev/matomeru/harness"
+	"ofam.dev/matomeru/mcpui"
+	"ofam.dev/matomeru/ptyhost"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/widgets/form"
 )
@@ -286,18 +287,17 @@ func (a *App) startHarnessDiscovery() {
 }
 
 func shellJoin(argv []string) string {
-	if len(argv) == 0 {
-		return ""
+	return harness.ShellJoin(argv)
+}
+
+func (a *App) resolveHarnessForLaunch(name string) (harness.Entry, bool) {
+	if entry, ok := a.lookupHarness(name); ok {
+		return entry, true
 	}
-	parts := make([]string, len(argv))
-	for i, arg := range argv {
-		if arg == "" || strings.ContainsAny(arg, " \t\n\r'\"$`\\;&|<>()*?[]{}~#!") {
-			parts[i] = handlers.Quote(arg)
-		} else {
-			parts[i] = arg
-		}
-	}
-	return strings.Join(parts, " ")
+	a.rt.harnessMu.RLock()
+	cfg := a.rt.harnessCfg
+	a.rt.harnessMu.RUnlock()
+	return harness.ResolveEntry(name, cfg)
 }
 
 // buildPaneLaunch resolves the command and extra environment variables for
@@ -305,14 +305,126 @@ func shellJoin(argv []string) string {
 // supplies the launch command (when pane.command is empty) and entry.Env is
 // merged into the returned env map.
 func (a *App) buildPaneLaunch(pane data.Record) (string, map[string]string) {
+	cmd, env, _, _ := a.buildPaneLaunchWithPrompt(pane, "")
+	return cmd, env
+}
+
+// buildPaneLaunchWithPrompt resolves the command and extra environment
+// variables for launching pane with an optional initial prompt.
+func (a *App) buildPaneLaunchWithPrompt(pane data.Record, prompt string) (string, map[string]string, bool, bool) {
 	cmd := pane.Text("command")
 	env := map[string]string{}
-	if entry, ok := a.lookupHarness(pane.Text("harness")); ok {
-		argv, hEnv := harness.BuildLaunchCommand(entry, a.paneMCPURL(pane.ID), pane.ID)
+	entry, ok := a.resolveHarnessForLaunch(pane.Text("harness"))
+	if !ok {
+		return cmd, env, false, false
+	}
+	if cmd != "" {
+		_, hEnv := harness.BuildLaunchCommand(entry, a.paneMCPURL(pane.ID), pane.ID)
 		maps.Copy(env, hEnv)
-		if cmd == "" && len(argv) > 0 {
-			cmd = shellJoin(argv)
+		return cmd, env, false, entry.Shell
+	}
+	argv, hEnv, delivered := harness.BuildLaunchCommandWithPrompt(entry, a.paneMCPURL(pane.ID), pane.ID, prompt)
+	maps.Copy(env, hEnv)
+	if len(argv) > 0 {
+		cmd = harness.ShellJoin(argv)
+	}
+	return cmd, env, delivered, entry.Shell
+}
+
+// attachWithPrompt opens pane's live PTY session (reopening it if exited),
+// passing prompt directly in the CLI launch command for harnesses that support
+// positional/flag prompts and falling back to readiness-aware PTY stdin write
+// for stdin-only harnesses (such as shells).
+func (a *App) attachWithPrompt(pane data.Record, prompt string) (bool, error) {
+	cols, rows := a.screenSize()
+	return a.attachSizedWithPrompt(pane, cols, rows, prompt)
+}
+
+func (a *App) attachSizedWithPrompt(pane data.Record, cols, rows int, prompt string) (bool, error) {
+	if a.panes.Host == nil {
+		return false, nil
+	}
+	if f, ok := a.panes.Host.Snapshot(pane.ID); ok {
+		if !f.Exited {
+			a.rt.live.frames[pane.ID] = f
+			a.rt.live.shown = pane.ID
+			return false, nil
+		}
+		_ = a.panes.Host.Close(pane.ID)
+		a.panes.Term.Forget(pane.ID)
+		delete(a.rt.live.frames, pane.ID)
+	}
+	cmd, env, deliveredInArgv, isShell := a.buildPaneLaunchWithPrompt(pane, prompt)
+	cwd := expandHome(pane.Text("cwd"))
+	a.maybeHarvestPaneRepo(cwd)
+	if err := a.openPaneHostSession(pane, cmd, cwd, cols, rows, env); err != nil {
+		return false, err
+	}
+	if f, ok := a.panes.Host.Snapshot(pane.ID); ok {
+		a.rt.live.frames[pane.ID] = f
+	}
+	a.rt.live.shown = pane.ID
+	if strings.TrimSpace(prompt) == "" {
+		return false, nil
+	}
+	if !deliveredInArgv {
+		a.deliverStartupStdinPrompt(pane, prompt, isShell)
+	}
+	a.recordLaunchedPrompt(pane, prompt)
+	return true, nil
+}
+
+func (a *App) openPaneHostSession(pane data.Record, cmd, cwd string, cols, rows int, env map[string]string) error {
+	if host, ok := a.panes.Host.(ptyhost.EnvOpener); ok {
+		// The program learns which pane it is in and which task it works on:
+		// the MCP tools read both as their defaults.
+		env[mcpui.EnvPaneID] = pane.ID
+		if task, has := pane.RefField("task"); has {
+			env[mcpui.EnvTaskID] = task.ID
+		}
+		return host.OpenWithEnv(pane.ID, cmd, cwd, cols, rows, env)
+	}
+	return a.panes.Host.Open(pane.ID, cmd, cwd, cols, rows)
+}
+
+func (a *App) recordLaunchedPrompt(pane data.Record, prompt string) {
+	if a.Store != nil {
+		if _, _, err := a.Store.RecordPaneInput(pane.Ref(), prompter); err != nil {
+			a.fail("record prompt", err)
 		}
 	}
-	return cmd, env
+	a.harvestPrompt(pane, prompt)
+}
+
+func (a *App) deliverStartupStdinPrompt(pane data.Record, prompt string, isShell bool) {
+	payload := bracketedPasteBytes(prompt)
+	if isShell {
+		payload = []byte(prompt + "\r")
+	}
+	host := a.panes.Host
+	a.background(func(ctx context.Context) func(core.State) core.State {
+		const (
+			pollEvery = 25 * time.Millisecond
+			maxWait   = 500 * time.Millisecond
+		)
+		deadline := time.Now().Add(maxWait)
+		for {
+			if f, ok := host.Snapshot(pane.ID); ok && f.Revision > 0 {
+				break
+			}
+			remaining := time.Until(deadline)
+			if remaining <= 0 {
+				break
+			}
+			timer := time.NewTimer(min(pollEvery, remaining))
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil
+			case <-timer.C:
+			}
+		}
+		_ = host.Write(pane.ID, payload)
+		return nil
+	})
 }

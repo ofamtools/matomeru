@@ -307,27 +307,8 @@ func (a *App) spawnProjectAgentPane(s core.State, projID, harness, extraPrompt s
 	if err != nil || projRec == nil {
 		return s, nil, err
 	}
-	if strings.TrimSpace(harness) == "" {
-		harness = strings.TrimSpace(projRec.Text("defaultHarness"))
-	}
-	if harness == "" {
-		harness = "claude"
-	}
-	cwd := strings.TrimSpace(projRec.Text("defaultDir"))
-	title := fmt.Sprintf("%s: %s", harness, views.Title(a.schema(data.KindTask), *projRec))
 	defaultCtx := a.buildProjectDefaultContext(projID)
-	fields := map[string]any{
-		"title":     title,
-		"harness":   harness,
-		"task":      projRef,
-		"runStatus": "running",
-	}
-	if cwd != "" {
-		fields["cwd"] = cwd
-	}
-	if defaultCtx != "" {
-		fields["defaultContext"] = defaultCtx
-	}
+	fields := a.projectAgentPaneFields(*projRec, harness, defaultCtx)
 	created, _, err := a.Store.Create(data.CreateInput{Kind: data.KindPane, Fields: fields}, User)
 	if err != nil {
 		return s, nil, err
@@ -339,16 +320,43 @@ func (a *App) spawnProjectAgentPane(s core.State, projID, harness, extraPrompt s
 	}
 	pc.childPaneByProject[projID] = created.ID
 	pc.setSection(projID, "panes")
-	tabID := projectTabID(projID)
-	s = a.openSpace(s, tabID)
-	s = a.enterScreen(withFocus(s, siteScreen), *created)
-
+	s = a.openSpace(s, projectTabID(projID))
 	payload := strings.TrimSpace(strings.Join([]string{defaultCtx, strings.TrimSpace(extraPrompt)}, "\n\n"))
-	if payload != "" {
+	delivered, err := a.attachWithPrompt(*created, payload)
+	if err != nil {
+		a.fail("open "+created.Text("title"), err)
+	} else {
+		a.say("typing goes to the pane · ctrl+a d leaves")
+		s = withMode(withFocus(s, siteScreen), ModeTerminal)
+	}
+	if payload != "" && !delivered {
 		a.deliverComposerPrompt(*created, payload, ComposerModeQueue)
 	}
 	a.viewMemo.gen++
 	return s, created, nil
+}
+
+func (a *App) projectAgentPaneFields(projRec data.Record, harnessName, defaultCtx string) map[string]any {
+	harnessName = strings.TrimSpace(harnessName)
+	if harnessName == "" {
+		harnessName = strings.TrimSpace(projRec.Text("defaultHarness"))
+	}
+	if harnessName == "" {
+		harnessName = "claude"
+	}
+	fields := map[string]any{
+		"title":     fmt.Sprintf("%s: %s", harnessName, views.Title(a.schema(data.KindTask), projRec)),
+		"harness":   harnessName,
+		"task":      projRec.Ref(),
+		"runStatus": "running",
+	}
+	if cwd := strings.TrimSpace(projRec.Text("defaultDir")); cwd != "" {
+		fields["cwd"] = cwd
+	}
+	if defaultCtx != "" {
+		fields["defaultContext"] = defaultCtx
+	}
+	return fields
 }
 
 func (a *App) projectSpawnAgent(s core.State, c core.Command) core.StepResult {

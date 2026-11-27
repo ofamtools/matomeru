@@ -432,7 +432,7 @@ func (a *App) sendThreadMessage(s core.State, taskID, noteID, text string) core.
 	th = th.WithoutMessage(noteID)
 	if th.PaneID != "" {
 		if pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: th.PaneID}); err == nil && a.isLiveAgentPane(*pane) {
-			a.deliverThread(th, text, false, *pane)
+			a.deliverThread(th, text, false, *pane, false)
 			return s
 		}
 	}
@@ -449,18 +449,16 @@ func (a *App) openThreadTargetPicker(s core.State, th data.AgentThread, text, ti
 	return a.openDispatchTargetPicker(s, dispatchTargetRequest{
 		Title: title, ProjectID: projectID, TaskID: th.TaskID,
 		Defaults: data.DispatchTargetSpec{NewAgent: true, IncludeProjectContext: a.autoInjectProjectContextEnabled()},
-		OnTarget: func(spec data.DispatchTargetSpec, pane data.Record) {
-			a.deliverThread(th, text, spec.IncludeProjectContext, pane)
+		BuildPrompt: func(spec data.DispatchTargetSpec, pane data.Record) (string, bool) {
+			return a.buildThreadDispatchPrompt(th, text, spec.IncludeProjectContext, pane), true
+		},
+		OnTarget: func(spec data.DispatchTargetSpec, pane data.Record, promptDelivered bool) {
+			a.deliverThread(th, text, spec.IncludeProjectContext, pane, promptDelivered)
 		},
 	})
 }
 
-// deliverThread links the thread and the pane to each other and delivers
-// the thread handoff prompt (IDs, recent messages, the owner's message).
-func (a *App) deliverThread(th data.AgentThread, text string, includeProjectContext bool, pane data.Record) {
-	if err := a.Store.LinkThreadPane(th.TaskID, pane.Ref(), a.now(), User); err != nil {
-		a.fail("link thread pane", err)
-	}
+func (a *App) buildThreadDispatchPrompt(th data.AgentThread, text string, includeProjectContext bool, pane data.Record) string {
 	paneTitle := views.Title(a.schema(data.KindPane), pane)
 	th.PaneID, th.PaneTitle, th.Harness = pane.ID, paneTitle, strings.TrimSpace(pane.Text("harness"))
 	var projectCtx []data.Record
@@ -472,7 +470,19 @@ func (a *App) deliverThread(th data.AgentThread, text string, includeProjectCont
 		}
 		projectCtx = ctx
 	}
-	a.deliverComposerPrompt(pane, data.BuildThreadDispatchPrompt(th, text, includeProjectContext, projectCtx), ComposerModeQueue)
+	return data.BuildThreadDispatchPrompt(th, text, includeProjectContext, projectCtx)
+}
+
+// deliverThread links the thread and the pane to each other and delivers
+// the thread handoff prompt (IDs, recent messages, the owner's message).
+func (a *App) deliverThread(th data.AgentThread, text string, includeProjectContext bool, pane data.Record, promptDelivered bool) {
+	if err := a.Store.LinkThreadPane(th.TaskID, pane.Ref(), a.now(), User); err != nil {
+		a.fail("link thread pane", err)
+	}
+	paneTitle := views.Title(a.schema(data.KindPane), pane)
+	if !promptDelivered {
+		a.deliverDispatchedPrompt(pane, a.buildThreadDispatchPrompt(th, text, includeProjectContext, pane))
+	}
 	msg := fmt.Sprintf("Sent thread %q to %s", th.Title, paneTitle)
 	a.say("%s", msg)
 	a.pushToast(msg, toast.Ok)

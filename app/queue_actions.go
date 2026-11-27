@@ -473,10 +473,44 @@ func (a *App) openQueueDispatchWithPreset(s core.State, queueName, projectID str
 	}
 	return a.openDispatchTargetPicker(s, dispatchTargetRequest{
 		Title: title, ProjectID: projectID, TaskID: taskIDs[0], Defaults: defaults,
-		OnTarget: func(spec data.DispatchTargetSpec, pane data.Record) {
-			a.dispatchQueueItems(queueName, taskIDs, spec, pane)
+		BuildPrompt: func(spec data.DispatchTargetSpec, _ data.Record) (string, bool) {
+			in, ok := a.prepareQueueDispatch(queueName, taskIDs, spec)
+			if !ok {
+				return "", false
+			}
+			return data.BuildQueueDispatchPrompt(in), true
+		},
+		OnTarget: func(spec data.DispatchTargetSpec, pane data.Record, promptDelivered bool) {
+			a.dispatchQueueItems(queueName, taskIDs, spec, pane, promptDelivered)
 		},
 	})
+}
+
+func (a *App) prepareQueueDispatch(queueName string, taskIDs []string, spec data.DispatchTargetSpec) (data.QueueDispatchPromptInput, bool) {
+	include := spec.IncludeProjectContext
+	all, err := a.Store.QueryNamedQueueFiltered(queueName, data.AgentQueueFilter{
+		Status: "open", IncludeSubtree: true, IncludeNotes: true, IncludeContext: true, IncludeProjectContext: &include,
+	})
+	if err != nil {
+		a.fail("dispatch queue", err)
+		return data.QueueDispatchPromptInput{}, false
+	}
+	items := make([]data.AgentQueueItem, 0, len(taskIDs))
+	for _, id := range taskIDs {
+		if i := slices.IndexFunc(all, func(it data.AgentQueueItem) bool { return it.Task.ID == id }); i >= 0 {
+			items = append(items, all[i])
+		}
+	}
+	if len(items) == 0 {
+		a.say("the queued item is no longer in %q", queueName)
+		return data.QueueDispatchPromptInput{}, false
+	}
+	in, err := a.Store.QueueDispatchInput(queueName, items, spec, "")
+	if err != nil {
+		a.fail("dispatch queue", err)
+		return data.QueueDispatchPromptInput{}, false
+	}
+	return in, true
 }
 
 func (a *App) queueDispatchDefaults(queueName, projectID, preset string, orchestrator bool) data.DispatchTargetSpec {
@@ -507,33 +541,16 @@ func (a *App) queueDispatchDefaults(queueName, projectID, preset string, orchest
 
 // dispatchQueueItems delivers the items to pane with the full ID handoff,
 // stamps them dispatched, and links pane, tasks, lanes and queue.
-func (a *App) dispatchQueueItems(queueName string, taskIDs []string, spec data.DispatchTargetSpec, pane data.Record) {
-	include := spec.IncludeProjectContext
-	all, err := a.Store.QueryNamedQueueFiltered(queueName, data.AgentQueueFilter{
-		Status: "open", IncludeSubtree: true, IncludeNotes: true, IncludeContext: true, IncludeProjectContext: &include,
-	})
-	if err != nil {
-		a.fail("dispatch queue", err)
+func (a *App) dispatchQueueItems(queueName string, taskIDs []string, spec data.DispatchTargetSpec, pane data.Record, promptDelivered bool) {
+	in, ok := a.prepareQueueDispatch(queueName, taskIDs, spec)
+	if !ok {
 		return
 	}
-	items := make([]data.AgentQueueItem, 0, len(taskIDs))
-	for _, id := range taskIDs {
-		if i := slices.IndexFunc(all, func(it data.AgentQueueItem) bool { return it.Task.ID == id }); i >= 0 {
-			items = append(items, all[i])
-		}
+	if !promptDelivered {
+		a.deliverDispatchedPrompt(pane, data.BuildQueueDispatchPrompt(in))
 	}
-	if len(items) == 0 {
-		a.say("the queued item is no longer in %q", queueName)
-		return
-	}
-	in, err := a.Store.QueueDispatchInput(queueName, items, spec, "")
-	if err != nil {
-		a.fail("dispatch queue", err)
-		return
-	}
-	a.deliverComposerPrompt(pane, data.BuildQueueDispatchPrompt(in), ComposerModeQueue)
-	ids := make([]string, 0, len(items))
-	for _, it := range items {
+	ids := make([]string, 0, len(in.Items))
+	for _, it := range in.Items {
 		ids = append(ids, it.Task.ID)
 	}
 	if _, err := a.Store.MarkTasksDispatched(ids, pane.ID, a.now(), User); err != nil {
@@ -543,7 +560,7 @@ func (a *App) dispatchQueueItems(queueName string, taskIDs []string, spec data.D
 		a.fail("link dispatched pane", err)
 	}
 	a.invalidateQueueViews()
-	msg := fmt.Sprintf("Dispatched %d queued task(s) from %q to %s", len(items), queueName, views.Title(a.schema(data.KindPane), pane))
+	msg := fmt.Sprintf("Dispatched %d queued task(s) from %q to %s", len(in.Items), queueName, views.Title(a.schema(data.KindPane), pane))
 	a.say("%s", msg)
 	a.pushToast(msg, toast.Ok)
 }

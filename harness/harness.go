@@ -24,6 +24,15 @@ const (
 	SourceShell     = "shell"
 )
 
+// Prompt delivery modes configured declaratively on HarnessConfig / Entry.
+const (
+	PromptModePositional = "positional"
+	PromptModeFlag       = "flag"
+	PromptModeStdin      = "stdin"
+
+	maxArgvPromptBytes = 64 * 1024
+)
+
 // HarnessConfig is a data-driven harness entry stored in harnesses.json.
 type HarnessConfig struct {
 	Name       string            `json:"name"`
@@ -33,6 +42,8 @@ type HarnessConfig struct {
 	HookConfig map[string]any    `json:"hookConfig,omitempty"`
 	HookArgs   []string          `json:"hookArgs,omitempty"`
 	MCPFlag    []string          `json:"mcpFlag,omitempty"`
+	PromptMode string            `json:"promptMode,omitempty"`
+	PromptFlag string            `json:"promptFlag,omitempty"`
 	Shell      bool              `json:"shell,omitempty"`
 	Disabled   bool              `json:"disabled,omitempty"`
 }
@@ -63,6 +74,8 @@ type Entry struct {
 	HookConfig map[string]any    `json:"hookConfig,omitempty"`
 	HookArgs   []string          `json:"hookArgs,omitempty"`
 	MCPFlag    []string          `json:"mcpFlag,omitempty"`
+	PromptMode string            `json:"promptMode,omitempty"`
+	PromptFlag string            `json:"promptFlag,omitempty"`
 	Executable string            `json:"executable,omitempty"`
 	Installed  bool              `json:"installed"`
 	Configured bool              `json:"configured"`
@@ -85,14 +98,15 @@ func DefaultConfigPath() string {
 }
 
 // DefaultConfigs returns the minimal built-in harness defaults for omp, claude,
-// codex, gemini, antigravity, and zsh. Users can override any field in
-// harnesses.json.
+// codex, gemini, agy/antigravity, opencode, pi, and zsh. Users can override
+// any field in harnesses.json.
 func DefaultConfigs() map[string]HarnessConfig {
 	return map[string]HarnessConfig{
 		"omp": {
-			Name:    "omp",
-			Label:   "OMP",
-			Command: []string{"omp"},
+			Name:       "omp",
+			Label:      "OMP",
+			Command:    []string{"omp"},
+			PromptMode: PromptModePositional,
 			HookConfig: map[string]any{
 				"command": "mtm-hook omp",
 				"events": []string{
@@ -110,9 +124,10 @@ func DefaultConfigs() map[string]HarnessConfig {
 			},
 		},
 		"claude": {
-			Name:    "claude",
-			Label:   "Claude Code",
-			Command: []string{"claude"},
+			Name:       "claude",
+			Label:      "Claude Code",
+			Command:    []string{"claude"},
+			PromptMode: PromptModePositional,
 			HookConfig: map[string]any{
 				"hooks": map[string]any{
 					"UserPromptSubmit":   []map[string]any{{"hooks": []map[string]any{{"type": "command", "command": "mtm-hook claude"}}}},
@@ -130,9 +145,10 @@ func DefaultConfigs() map[string]HarnessConfig {
 			},
 		},
 		"codex": {
-			Name:    "codex",
-			Label:   "Codex",
-			Command: []string{"codex"},
+			Name:       "codex",
+			Label:      "Codex",
+			Command:    []string{"codex"},
+			PromptMode: PromptModePositional,
 			HookConfig: map[string]any{
 				"command": "mtm-hook codex",
 				"events": []string{
@@ -150,9 +166,11 @@ func DefaultConfigs() map[string]HarnessConfig {
 			},
 		},
 		"gemini": {
-			Name:    "gemini",
-			Label:   "Gemini CLI",
-			Command: []string{"gemini"},
+			Name:       "gemini",
+			Label:      "Gemini CLI",
+			Command:    []string{"gemini"},
+			PromptMode: PromptModeFlag,
+			PromptFlag: "-i",
 			HookConfig: map[string]any{
 				"command": "mtm-hook gemini",
 				"events": []string{
@@ -167,9 +185,11 @@ func DefaultConfigs() map[string]HarnessConfig {
 			},
 		},
 		"agy": {
-			Name:    "agy",
-			Label:   "Antigravity",
-			Command: []string{"agy"},
+			Name:       "agy",
+			Label:      "Antigravity",
+			Command:    []string{"agy"},
+			PromptMode: PromptModeFlag,
+			PromptFlag: "-i",
 			HookConfig: map[string]any{
 				"command": "mtm-hook antigravity",
 				"events": []string{
@@ -183,9 +203,11 @@ func DefaultConfigs() map[string]HarnessConfig {
 			},
 		},
 		"antigravity": {
-			Name:    "antigravity",
-			Label:   "Antigravity",
-			Command: []string{"agy"},
+			Name:       "antigravity",
+			Label:      "Antigravity",
+			Command:    []string{"agy"},
+			PromptMode: PromptModeFlag,
+			PromptFlag: "-i",
 			HookConfig: map[string]any{
 				"command": "mtm-hook antigravity",
 				"events": []string{
@@ -198,11 +220,25 @@ func DefaultConfigs() map[string]HarnessConfig {
 				},
 			},
 		},
+		"opencode": {
+			Name:       "opencode",
+			Label:      "OpenCode",
+			Command:    []string{"opencode"},
+			PromptMode: PromptModeFlag,
+			PromptFlag: "--prompt",
+		},
+		"pi": {
+			Name:       "pi",
+			Label:      "Pi",
+			Command:    []string{"pi"},
+			PromptMode: PromptModePositional,
+		},
 		"zsh": {
-			Name:    "zsh",
-			Label:   "Shell (zsh)",
-			Command: []string{"zsh"},
-			Shell:   true,
+			Name:       "zsh",
+			Label:      "Shell (zsh)",
+			Command:    []string{"zsh"},
+			PromptMode: PromptModeStdin,
+			Shell:      true,
 		},
 	}
 }
@@ -604,6 +640,128 @@ func BuildLaunchCommand(entry Entry, mcpURL, paneID string) ([]string, map[strin
 	return argv, env
 }
 
+// EffectivePromptMode returns the declarative prompt delivery mode for entry:
+// "positional", "flag", or "stdin".
+func EffectivePromptMode(entry Entry) string {
+	if mode := strings.ToLower(strings.TrimSpace(entry.PromptMode)); mode != "" {
+		return mode
+	}
+	if strings.TrimSpace(entry.PromptFlag) != "" {
+		return PromptModeFlag
+	}
+	return PromptModeStdin
+}
+
+// BuildLaunchCommandWithPrompt constructs the launch argv and env for entry,
+// embedding prompt according to entry's declarative PromptMode/PromptFlag when
+// non-empty and within OS argv bounds. deliveredInArgv reports whether prompt
+// was embedded in argv (false means the caller should deliver via PTY stdin).
+func BuildLaunchCommandWithPrompt(entry Entry, mcpURL, paneID, prompt string) ([]string, map[string]string, bool) {
+	argv, env := BuildLaunchCommand(entry, mcpURL, paneID)
+	if len(argv) == 0 || strings.TrimSpace(prompt) == "" || len(prompt) > maxArgvPromptBytes {
+		return argv, env, false
+	}
+	switch EffectivePromptMode(entry) {
+	case PromptModePositional:
+		if strings.HasPrefix(prompt, "-") {
+			argv = append(argv, "--", prompt)
+		} else {
+			argv = append(argv, prompt)
+		}
+		return argv, env, true
+	case PromptModeFlag:
+		flag := strings.TrimSpace(entry.PromptFlag)
+		if flag == "" {
+			return argv, env, false
+		}
+		if strings.HasPrefix(prompt, "-") {
+			argv = append(argv, flag+"="+prompt)
+		} else {
+			argv = append(argv, flag, prompt)
+		}
+		return argv, env, true
+	default:
+		return argv, env, false
+	}
+}
+
+// ResolveEntry resolves a single harness ID (including aliases such as
+// "antigravity" <-> "agy") against built-in defaults overlaid with cfg.
+func ResolveEntry(harnessID string, cfg FileConfig) (Entry, bool) {
+	id := normalizeID(harnessID)
+	if id == "" {
+		return Entry{}, false
+	}
+	defaults := DefaultConfigs()
+	userCfg := normalizedUserConfig(cfg)
+	alias := aliasID(id)
+
+	base, hasBase := defaults[id]
+	if !hasBase && alias != "" {
+		base, hasBase = defaults[alias]
+	}
+	u, hasUser := userCfg[id]
+	au, hasAliasUser := userCfg[alias]
+	if !hasBase && !hasUser && !hasAliasUser {
+		return Entry{}, false
+	}
+	merged := base
+	if hasAliasUser {
+		merged = overlayConfig(merged, au, id)
+	}
+	if hasUser {
+		merged = overlayConfig(merged, u, id)
+	} else {
+		merged = overlayConfig(merged, HarnessConfig{}, id)
+	}
+	if len(merged.Command) == 0 {
+		merged.Command = []string{id}
+	}
+	source := SourceInstalled
+	custom := !hasBase
+	if merged.Shell {
+		source = SourceShell
+		custom = false
+	} else if custom {
+		source = SourceCustom
+	}
+	return entryFromConfig(merged, InstalledHarness{ID: id, Installed: hasBase}, custom, source), true
+}
+
+func normalizedUserConfig(cfg FileConfig) map[string]HarnessConfig {
+	out := make(map[string]HarnessConfig, len(cfg.Harnesses))
+	for k, h := range cfg.Harnesses {
+		id := normalizeID(h.Name)
+		if id == "" {
+			id = normalizeID(k)
+		}
+		if id == "" {
+			continue
+		}
+		h.Name = id
+		out[id] = h
+	}
+	return out
+}
+
+// ShellJoin formats argv into a POSIX /bin/sh-safe command string using single
+// quotes for any argument containing shell metacharacters, whitespace, or
+// newlines.
+func ShellJoin(argv []string) string {
+	if len(argv) == 0 {
+		return ""
+	}
+	parts := make([]string, len(argv))
+	for i, arg := range argv {
+		if arg == "" || strings.ContainsAny(arg, " \t\n\r'\"\\$`!&|;()<>*?[]{}~#") {
+			parts[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+		} else {
+			parts[i] = arg
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
 func overlayConfig(base, override HarnessConfig, id string) HarnessConfig {
 	out := HarnessConfig{
 		Name:       id,
@@ -611,6 +769,8 @@ func overlayConfig(base, override HarnessConfig, id string) HarnessConfig {
 		Command:    slices.Clone(base.Command),
 		HookArgs:   slices.Clone(base.HookArgs),
 		MCPFlag:    slices.Clone(base.MCPFlag),
+		PromptMode: base.PromptMode,
+		PromptFlag: base.PromptFlag,
 		Shell:      base.Shell,
 		Disabled:   base.Disabled,
 		HookConfig: cloneMap(base.HookConfig),
@@ -641,6 +801,12 @@ func overlayConfig(base, override HarnessConfig, id string) HarnessConfig {
 	if len(override.MCPFlag) > 0 {
 		out.MCPFlag = slices.Clone(override.MCPFlag)
 	}
+	if override.PromptMode != "" {
+		out.PromptMode = override.PromptMode
+	}
+	if override.PromptFlag != "" {
+		out.PromptFlag = override.PromptFlag
+	}
 	if override.Shell {
 		out.Shell = true
 	}
@@ -663,6 +829,8 @@ func entryFromConfig(c HarnessConfig, inv InstalledHarness, custom bool, source 
 		HookConfig: cloneMap(c.HookConfig),
 		HookArgs:   slices.Clone(c.HookArgs),
 		MCPFlag:    slices.Clone(c.MCPFlag),
+		PromptMode: c.PromptMode,
+		PromptFlag: c.PromptFlag,
 		Executable: inv.Executable,
 		Installed:  inv.Installed,
 		Configured: inv.Configured,

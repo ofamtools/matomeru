@@ -87,13 +87,22 @@ type PaneCallbackRuntime interface {
 	RegisterOnDone(ctx context.Context, paneID string, onDone PaneOnDone) error
 }
 
+// PaneLaunchSpec is the resolved shell command, environment, and prompt
+// delivery flag returned by PaneTools.ResolveLaunchWithPrompt.
+type PaneLaunchSpec struct {
+	Cmd                  string
+	Env                  map[string]string
+	PromptDeliveredInCmd bool
+}
+
 // PaneTools serves pane.spawn, pane.snapshot, pane.send, pane.status, and
 // pane.close over a data.Store and optional live PaneRuntime.
 type PaneTools struct {
-	store         *data.Store
-	Runtime       PaneRuntime
-	ResolveLaunch func(harnessID, mcpURL, paneID, customCmd string) (string, map[string]string, error)
-	MCPURL        func(paneID string) string
+	store                   *data.Store
+	Runtime                 PaneRuntime
+	ResolveLaunch           func(harnessID, mcpURL, paneID, customCmd string) (string, map[string]string, error)
+	ResolveLaunchWithPrompt func(harnessID, mcpURL, paneID, customCmd, prompt string) (PaneLaunchSpec, error)
+	MCPURL                  func(paneID string) string
 }
 
 // NewPaneTools returns pane orchestration tools over store.
@@ -443,19 +452,9 @@ func (p *PaneTools) Spawn(ctx context.Context, actor core.Actor, args PaneSpawnA
 	if p.MCPURL != nil {
 		mcpURL = p.MCPURL(rec.ID)
 	}
-	cmdStr := strings.TrimSpace(args.Cmd)
-	launchEnv := map[string]string{}
-	if p.ResolveLaunch != nil {
-		resolvedCmd, hEnv, err := p.ResolveLaunch(harnessID, mcpURL, rec.ID, cmdStr)
-		if err != nil {
-			return res, fmt.Errorf("pane.spawn: resolve harness %q: %w", harnessID, err)
-		}
-		if resolvedCmd != "" {
-			cmdStr = resolvedCmd
-		}
-		for k, v := range hEnv {
-			launchEnv[k] = v
-		}
+	cmdStr, launchEnv, promptDeliveredInCmd, err := p.resolveSpawnLaunch(harnessID, mcpURL, rec.ID, strings.TrimSpace(args.Cmd), args.Prompt)
+	if err != nil {
+		return res, fmt.Errorf("pane.spawn: resolve harness %q: %w", harnessID, err)
 	}
 	for k, v := range args.Env {
 		launchEnv[k] = v
@@ -503,16 +502,81 @@ func (p *PaneTools) Spawn(ctx context.Context, actor core.Actor, args PaneSpawnA
 		}
 	}
 
-	if args.Prompt != "" {
-		// Brief yield so shell/harness PTY attaches stdin before writing prompt.
-		select {
-		case <-time.After(150 * time.Millisecond):
-		case <-ctx.Done():
-			return res, ctx.Err()
+	if strings.TrimSpace(args.Prompt) != "" && !promptDeliveredInCmd {
+		if err := p.deliverInitialStdinPrompt(ctx, rec.ID, args.Prompt); err != nil {
+			return res, err
 		}
-		_ = p.Runtime.Write(ctx, rec.ID, []byte(args.Prompt+"\r"))
 	}
 	return res, nil
+}
+
+func (p *PaneTools) resolveSpawnLaunch(harnessID, mcpURL, paneID, customCmd, prompt string) (string, map[string]string, bool, error) {
+	launchEnv := map[string]string{}
+	if p.ResolveLaunchWithPrompt != nil {
+		spec, err := p.ResolveLaunchWithPrompt(harnessID, mcpURL, paneID, customCmd, prompt)
+		if err != nil {
+			return "", nil, false, err
+		}
+		cmdStr := customCmd
+		if spec.Cmd != "" {
+			cmdStr = spec.Cmd
+		}
+		for k, v := range spec.Env {
+			launchEnv[k] = v
+		}
+		return cmdStr, launchEnv, spec.PromptDeliveredInCmd, nil
+	}
+	if p.ResolveLaunch != nil {
+		resolvedCmd, hEnv, err := p.ResolveLaunch(harnessID, mcpURL, paneID, customCmd)
+		if err != nil {
+			return "", nil, false, err
+		}
+		cmdStr := customCmd
+		if resolvedCmd != "" {
+			cmdStr = resolvedCmd
+		}
+		for k, v := range hEnv {
+			launchEnv[k] = v
+		}
+		return cmdStr, launchEnv, false, nil
+	}
+	return customCmd, launchEnv, false, nil
+}
+
+func (p *PaneTools) deliverInitialStdinPrompt(ctx context.Context, paneID, prompt string) error {
+	// Wait briefly until the PTY shows initial output (shell/prompt ready) or
+	// the bounded startup window elapses, then write the prompt.
+	const (
+		pollEvery = 25 * time.Millisecond
+		maxWait   = 150 * time.Millisecond
+	)
+	deadline := time.Now().Add(maxWait)
+	for {
+		if snap, found, err := p.Runtime.Snapshot(ctx, paneID); err == nil && found && hasNonBlankLine(snap.Plain) {
+			break
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
+		}
+		wait := min(pollEvery, remaining)
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	_ = p.Runtime.Write(ctx, paneID, []byte(prompt+"\r"))
+	return nil
+}
+
+func hasNonBlankLine(lines []string) bool {
+	for _, ln := range lines {
+		if strings.TrimSpace(ln) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *PaneTools) resolveProjectCwd(taskID string) string {
