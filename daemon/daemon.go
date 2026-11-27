@@ -72,6 +72,9 @@ type Config struct {
 	// on every agent.done event. Empty disables file rules; in-memory rules
 	// registered over RPC still fire.
 	HooksPath string
+	// WebIndexPath optionally overrides the persistent JSON index file for the
+	// daemon's /md web viewer. Default: mdweb-index.json alongside SocketPath.
+	WebIndexPath string
 }
 
 type paneMeta struct {
@@ -330,9 +333,14 @@ func (s *Server) Start(ctx context.Context) error {
 			}
 		}
 		mcpHandler := mcpui.NewHTTPHandlerWithToolbox(box)
+		webIndexPath := s.cfg.WebIndexPath
+		if webIndexPath == "" && s.socketPath != "" {
+			webIndexPath = filepath.Join(filepath.Dir(s.socketPath), "mdweb-index.json")
+		}
 		mdHandler := mdweb.NewHandler(mdweb.Config{
 			BasePath:          "/md",
 			AllowAnyLocalFile: true,
+			IndexPath:         webIndexPath,
 		})
 		mux := http.NewServeMux()
 		mux.Handle("/md", http.RedirectHandler("/md/", http.StatusMovedPermanently))

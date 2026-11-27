@@ -20,6 +20,7 @@ type Config struct {
 	DefaultFile       string
 	BasePath          string
 	AllowAnyLocalFile bool
+	IndexPath         string
 }
 
 type httpError struct {
@@ -54,6 +55,7 @@ type Handler struct {
 	rootDir   string
 	evalRoot  string
 	basePath  string
+	index     *IndexStore
 	done      chan struct{}
 	closeOnce sync.Once
 	wg        sync.WaitGroup
@@ -105,6 +107,7 @@ func NewHandler(cfg Config) *Handler {
 		rootDir:    absRoot,
 		evalRoot:   evalRoot,
 		basePath:   normalizeBasePath(cfg.BasePath),
+		index:      NewIndexStore(cfg.IndexPath, absRoot),
 		done:       make(chan struct{}),
 		fileLocks:  make(map[string]*sync.Mutex),
 		docSubs:    make(map[string]map[chan string]struct{}),
@@ -112,6 +115,9 @@ func NewHandler(cfg Config) *Handler {
 		actionSubs: make(map[*actionSubscriber]struct{}),
 	}
 }
+
+// Index returns the persistent index store managed by this handler.
+func (h *Handler) Index() *IndexStore { return h.index }
 
 // Close shuts down all SSE streams and background pollers.
 func (h *Handler) Close() {
@@ -131,6 +137,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.NotFound(w, r)
+		return
+	}
+	if h.handleIndexRoute(w, r, path) {
 		return
 	}
 	switch path {
@@ -252,6 +261,9 @@ func (h *Handler) resolveDocPath(fileParam string) (string, string, error) {
 		return "", "", &httpError{http.StatusBadRequest, "invalid file path"}
 	}
 	if !h.cfg.AllowAnyLocalFile {
+		if abs, display, ok := h.resolveIndexedDocPath(fileParam); ok {
+			return abs, display, nil
+		}
 		return h.resolveJailedPath(fileParam)
 	}
 	if fileParam == "" {
@@ -298,7 +310,7 @@ func (h *Handler) resolveRelativeAsset(docAbsPath, src string, mermaidOnly bool)
 	}
 	target := filepath.Clean(filepath.Join(baseDir, filepath.FromSlash(src)))
 	if !h.cfg.AllowAnyLocalFile {
-		if err := h.checkJailed(target); err != nil {
+		if err := h.checkAssetBoundary(docAbsPath, target); err != nil {
 			return "", err
 		}
 		return target, nil
@@ -521,14 +533,12 @@ func (h *Handler) handleView(w http.ResponseWriter, r *http.Request) {
 	if fileParam == "" {
 		fileParam = h.pickDefaultFile()
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
 	if fileParam == "" {
-		if r.Method != http.MethodHead {
-			_, _ = io.WriteString(w, RenderIndexPage(h.basePath, h.rootLabel(), h.recentFilesSnapshot()))
-		}
+		h.renderIndexResponse(w, r)
 		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	doc, err := h.loadDocument(fileParam)
 	if err != nil {
 		writeHTTPError(w, err)
@@ -540,6 +550,7 @@ func (h *Handler) handleView(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, RenderFullPage(PageRenderOptions{
 		IR: doc.ir, Source: doc.source, Files: h.filesForDocument(doc),
 		RootLabel: h.rootLabel(), BasePath: h.basePath,
+		PairedHTML: h.pairedHTMLForDoc(doc.absPath),
 	}))
 }
 

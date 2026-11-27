@@ -13,6 +13,9 @@ var AppCSS []byte
 //go:embed assets/app.js
 var AppJS []byte
 
+//go:embed assets/index.js
+var IndexJS []byte
+
 //go:embed assets/beautiful-mermaid.js
 var BeautifulMermaidJS []byte
 
@@ -37,6 +40,12 @@ func init() {
 			data:         AppJS,
 			contentType:  "application/javascript; charset=utf-8",
 			etag:         computeETag(AppJS),
+			cacheControl: "public, max-age=300, must-revalidate",
+		},
+		"index.js": {
+			data:         IndexJS,
+			contentType:  "application/javascript; charset=utf-8",
+			etag:         computeETag(IndexJS),
 			cacheControl: "public, max-age=300, must-revalidate",
 		},
 		"beautiful-mermaid.js": {
