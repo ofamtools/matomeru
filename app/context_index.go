@@ -262,7 +262,7 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 	if a.Store == nil || len(toPersist) == 0 {
 		return
 	}
-	beforeRev, _ := a.Store.LatestChangeSetNumber()
+	beforeRev := a.storeRev()
 	persistedN := 0
 	for _, item := range toPersist {
 		title := strings.TrimSpace(item.Label)
@@ -302,7 +302,7 @@ func (a *App) indexContextItems(pane *data.Record, projID, projTitle string, ext
 		}
 	}
 	if persistedN > 0 {
-		afterRev, _ := a.Store.LatestChangeSetNumber()
+		afterRev := a.storeRev()
 		idx.mu.Lock()
 		if idx.loadedStored && idx.storedRev == beforeRev && afterRev == beforeRev+int64(persistedN) {
 			idx.storedRev = afterRev
@@ -449,7 +449,7 @@ func (a *App) syncContextItems() {
 	idx := a.ensureContextIndex()
 	a.loadPersistedContextIndex(idx)
 
-	rev, _ := a.Store.LatestChangeSetNumber()
+	rev := a.storeRev()
 	idx.mu.RLock()
 	synced := idx.syncedStored && idx.syncRev == rev && idx.syncShowArch == a.nav.showArchived
 	idx.mu.RUnlock()
@@ -526,7 +526,7 @@ func (a *App) syncContextItems() {
 				idx.mu.Unlock()
 			}
 		}
-		postRev, _ := a.Store.LatestChangeSetNumber()
+		postRev := a.storeRev()
 		idx.mu.Lock()
 		idx.syncRev, idx.syncShowArch, idx.syncedStored = postRev, a.nav.showArchived, true
 		idx.mu.Unlock()

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"maps"
 	"strings"
 
 	"ofam.dev/matomeru/daemon"
@@ -23,13 +24,14 @@ type projectDurableKey struct {
 
 // projectDurableSnapshot holds only store-backed, durable project data
 // (records, relations, tasks, lanes, documents, notes, context items,
-// questions, pages, commands, worktrees, and store-derived unread indices).
-// It is cached across live daemon ticks whenever storeRevision and its durable
-// inputs have not changed.
+// questions, pages, commands, worktrees, repo labels, and store-derived unread
+// indices). It is cached across live daemon ticks whenever storeRevision and
+// its durable inputs have not changed.
 type projectDurableSnapshot struct {
 	groupName, projectKey, projectID string
 	projRef                          *core.Ref
 	projRec                          *data.Record
+	projRepoLabels                   []string
 	taskIDs, paneIDs                 map[string]bool
 	taskTree                         []data.TreeNode
 	tasks, panes, pages              []data.Record
@@ -47,6 +49,7 @@ type projectDurableSnapshot struct {
 	openQuestions                    int
 	baseUnreadTotal                  int
 	cacheRev                         int64
+	contextRev                       int64
 	cacheCtxGen                      uint64
 	cacheRailKey                     string
 }
@@ -64,8 +67,9 @@ type projectLiveOverlay struct {
 }
 
 type cachedProjectDurable struct {
-	key  projectDurableKey
-	snap projectDurableSnapshot
+	key   projectDurableKey
+	snap  projectDurableSnapshot
+	scope data.ProjectScope
 }
 
 type cachedProjectLive struct {
@@ -102,6 +106,7 @@ func (pc *ProjectController) clearWorkspaceCaches(projKey string) {
 		delete(pc.durableCache, projKey)
 		delete(pc.liveCache, projKey)
 		delete(pc.navCache, projKey)
+		delete(pc.tabUnreadCache, projKey)
 		delete(pc.homeCache, projKey+"|true")
 		delete(pc.homeCache, projKey+"|false")
 		return
@@ -109,6 +114,7 @@ func (pc *ProjectController) clearWorkspaceCaches(projKey string) {
 	clear(pc.durableCache)
 	clear(pc.liveCache)
 	clear(pc.navCache)
+	clear(pc.tabUnreadCache)
 	clear(pc.homeCache)
 	clear(pc.showSnapCache)
 }
@@ -118,12 +124,8 @@ func (a *App) makeProjectDurableKey(groupName string, projRef *core.Ref) (string
 	if projRef != nil {
 		projID = projRef.ID
 	}
-	var rev int64
-	if a.Store != nil {
-		rev, _ = a.Store.LatestChangeSetNumber()
-	}
 	return projKey, projectDurableKey{
-		storeRevision: rev,
+		storeRevision: a.storeRev(),
 		showArchived:  a.nav.showArchived,
 		ctxGen:        a.contextIndexGen(),
 		groupName:     groupName,
@@ -136,24 +138,160 @@ func (a *App) makeProjectDurableKey(groupName string, projRef *core.Ref) (string
 func (a *App) projectDurableSnapshotFor(groupName string, projRef *core.Ref) (projectDurableSnapshot, projectDurableKey) {
 	projKey, reqKey := a.makeProjectDurableKey(groupName, projRef)
 	pc := a.projectCtrl()
+	var prev cachedProjectDurable
+	var hadPrev bool
 	if a.Store != nil && pc.durableCache != nil {
-		if cached, ok := pc.durableCache[projKey]; ok && cached.key == reqKey {
-			return cached.snap, cached.key
+		if cached, ok := pc.durableCache[projKey]; ok {
+			if cached.key == reqKey {
+				return cached.snap, cached.key
+			}
+			prev, hadPrev = cached, true
 		}
 	}
-	snap, finalKey := a.buildProjectDurableSnapshot(projKey, groupName, projRef, reqKey)
+	snap, finalKey, scope := a.resolveProjectDurableBuild(projKey, groupName, projRef, reqKey, prev, hadPrev)
 	if a.Store != nil {
 		if pc.durableCache == nil {
 			pc.durableCache = map[string]cachedProjectDurable{}
 		}
-		pc.durableCache[projKey] = cachedProjectDurable{key: finalKey, snap: snap}
+		pc.durableCache[projKey] = cachedProjectDurable{key: finalKey, snap: snap, scope: scope}
 		delete(pc.liveCache, projKey)
 		pc.durableBuilds++
 	}
 	return snap, finalKey
 }
 
-func (a *App) buildProjectDurableSnapshot(projKey, groupName string, projRef *core.Ref, reqKey projectDurableKey) (projectDurableSnapshot, projectDurableKey) {
+func (a *App) resolveProjectDurableBuild(projKey, groupName string, projRef *core.Ref, reqKey projectDurableKey, prev cachedProjectDurable, hadPrev bool) (projectDurableSnapshot, projectDurableKey, data.ProjectScope) {
+	if hadPrev && a.canDeltaRefreshDurable(prev.key, reqKey) {
+		if snap, key, scope, ok := a.refreshProjectDurableDelta(prev, projRef, reqKey); ok {
+			a.projectCtrl().durableDeltaRefreshes++
+			return snap, key, scope
+		}
+	}
+	return a.buildProjectDurableSnapshot(projKey, groupName, projRef, reqKey)
+}
+
+func (a *App) canDeltaRefreshDurable(prevKey, reqKey projectDurableKey) bool {
+	return a.Store != nil &&
+		reqKey.storeRevision >= prevKey.storeRevision &&
+		prevKey.showArchived == reqKey.showArchived &&
+		prevKey.groupName == reqKey.groupName &&
+		prevKey.projID == reqKey.projID &&
+		prevKey.railPanesKey == reqKey.railPanesKey &&
+		prevKey.animKey == reqKey.animKey
+}
+
+func (a *App) refreshProjectDurableDelta(prev cachedProjectDurable, projRef *core.Ref, reqKey projectDurableKey) (projectDurableSnapshot, projectDurableKey, data.ProjectScope, bool) {
+	delta, err := a.Store.ChangedKindsSince(prev.key.storeRevision)
+	if err != nil || delta.FullRebuild {
+		return projectDurableSnapshot{}, projectDurableKey{}, data.ProjectScope{}, false
+	}
+	snap := prev.snap
+	scope := prev.scope
+	anchorsChanged := false
+	if delta.Kinds[data.KindTask] || delta.Kinds[data.KindPane] || delta.HasRelation {
+		paneSeeds := a.projectRailPaneSeeds(reqKey.groupName)
+		scope, _ = a.Store.ProjectScope(reqKey.projID, paneSeeds, a.nav.showArchived)
+		anchorsChanged = !maps.Equal(prev.scope.TaskIDs, scope.TaskIDs) || !maps.Equal(prev.scope.PaneIDs, scope.PaneIDs)
+		applyScopeAnchors(&snap, scope, paneSeeds)
+	}
+	a.refreshDurableScopeSlices(&snap, prev.scope, scope, projRef, delta, anchorsChanged)
+	needCtx := shouldRefreshDurableContext(prev.scope, scope, delta, anchorsChanged, reqKey.ctxGen != prev.key.ctxGen)
+	if needCtx {
+		a.populateDurableContext(&snap, scope)
+	}
+	a.populateProjectDurableActivity(&snap)
+	finalKey := a.finalizeDurableSnapshot(&snap, reqKey, needCtx)
+	return snap, finalKey, scope, true
+}
+
+func shouldRefreshDurableContext(prevScope, scope data.ProjectScope, delta data.ChangeDelta, anchorsChanged, ctxGenChanged bool) bool {
+	if anchorsChanged || ctxGenChanged || delta.Kinds[data.KindContext] || delta.Kinds[data.KindPane] {
+		return true
+	}
+	return delta.HasRelation && !maps.Equal(prevScope.RelatedIDs(data.KindContext), scope.RelatedIDs(data.KindContext))
+}
+
+func kindScopeChanged(prevScope, scope data.ProjectScope, delta data.ChangeDelta, kind string, anchorsChanged bool) bool {
+	if anchorsChanged || delta.Kinds[kind] {
+		return true
+	}
+	return delta.HasRelation && !maps.Equal(prevScope.RelatedIDs(kind), scope.RelatedIDs(kind))
+}
+
+func anyKindChanged(delta data.ChangeDelta, kinds ...string) bool {
+	for _, k := range kinds {
+		if delta.Kinds[k] {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) refreshDurableScopeSlices(snap *projectDurableSnapshot, prevScope, scope data.ProjectScope, projRef *core.Ref, delta data.ChangeDelta, anchorsChanged bool) {
+	if anchorsChanged || delta.Kinds[data.KindTask] {
+		a.populateDurableTasks(snap, scope, projRef)
+	}
+	if anchorsChanged || delta.HasRelation || anyKindChanged(delta, data.KindTask, data.KindRepo) {
+		a.populateDurableProjectRepos(snap)
+	}
+	if kindScopeChanged(prevScope, scope, delta, data.KindPage, anchorsChanged) {
+		snap.pages, snap.unreadPages = projectPagesList(a.projectRecords(scope, data.KindPage))
+	}
+	if kindScopeChanged(prevScope, scope, delta, data.KindLane, anchorsChanged) {
+		a.populateDurableLanes(snap, scope)
+	}
+	if anchorsChanged || delta.HasRelation || anyKindChanged(delta, data.KindTask, data.KindLane, data.KindRepo) {
+		a.populateDurableWorktrees(snap, scope)
+	}
+	a.refreshDurableLeafRecordSlices(snap, prevScope, scope, delta, anchorsChanged)
+}
+
+func (a *App) refreshDurableLeafRecordSlices(snap *projectDurableSnapshot, prevScope, scope data.ProjectScope, delta data.ChangeDelta, anchorsChanged bool) {
+	if kindScopeChanged(prevScope, scope, delta, data.KindDocument, anchorsChanged) {
+		snap.documents = sortRecordsNewestFirst(a.projectRecords(scope, data.KindDocument))
+	}
+	if kindScopeChanged(prevScope, scope, delta, data.KindNote, anchorsChanged) {
+		snap.notes = sortRecordsNewestFirst(a.projectRecords(scope, data.KindNote))
+	}
+	if kindScopeChanged(prevScope, scope, delta, data.KindQuestion, anchorsChanged) {
+		snap.questions, snap.openQuestions = projectQuestionsList(a.projectRecords(scope, data.KindQuestion))
+	}
+	if kindScopeChanged(prevScope, scope, delta, data.KindCommand, anchorsChanged) {
+		snap.commands = sortRecordsNewestFirst(a.projectRecords(scope, data.KindCommand))
+	}
+}
+
+func (a *App) projectRailPaneSeeds(groupName string) []data.Record {
+	if a.panes == nil {
+		return nil
+	}
+	return a.panes.railGroupPanes[groupName]
+}
+
+func applyScopeAnchors(snap *projectDurableSnapshot, scope data.ProjectScope, paneSeeds []data.Record) {
+	snap.taskIDs, snap.paneIDs = scope.TaskIDs, scope.PaneIDs
+	snap.panes, snap.relations = scope.Panes, scope.Relations
+	if snap.panes == nil {
+		snap.panes = paneSeeds
+	}
+}
+
+func (a *App) finalizeDurableSnapshot(snap *projectDurableSnapshot, reqKey projectDurableKey, contextRebuilt bool) projectDurableKey {
+	snap.cacheCtxGen = a.contextIndexGen()
+	finalKey := reqKey
+	finalKey.ctxGen = snap.cacheCtxGen
+	if a.Store != nil {
+		postRev := a.storeRev()
+		snap.cacheRev = postRev
+		finalKey.storeRevision = postRev
+		if contextRebuilt {
+			snap.contextRev = postRev
+		}
+	}
+	return finalKey
+}
+
+func (a *App) buildProjectDurableSnapshot(projKey, groupName string, projRef *core.Ref, reqKey projectDurableKey) (projectDurableSnapshot, projectDurableKey, data.ProjectScope) {
 	snap := projectDurableSnapshot{
 		groupName:    groupName,
 		projectKey:   projKey,
@@ -163,34 +301,21 @@ func (a *App) buildProjectDurableSnapshot(projKey, groupName string, projRef *co
 		paneIDs:      map[string]bool{},
 		cacheRailKey: reqKey.railPanesKey,
 	}
-	var paneSeeds []data.Record
-	if a.panes != nil {
-		paneSeeds = a.panes.railGroupPanes[groupName]
-	}
+	paneSeeds := a.projectRailPaneSeeds(groupName)
 	var scope data.ProjectScope
 	if a.Store != nil {
 		scope, _ = a.Store.ProjectScope(reqKey.projID, paneSeeds, a.nav.showArchived)
 	}
-	snap.taskIDs, snap.paneIDs = scope.TaskIDs, scope.PaneIDs
-	snap.panes, snap.relations = scope.Panes, scope.Relations
-	if snap.panes == nil {
-		snap.panes = paneSeeds
-	}
+	applyScopeAnchors(&snap, scope, paneSeeds)
 	a.populateDurableScopeRecords(&snap, scope, projRef)
 	a.populateDurableContext(&snap, scope)
 	a.populateProjectDurableActivity(&snap)
-	snap.cacheCtxGen = a.contextIndexGen()
-	finalKey := reqKey
-	finalKey.ctxGen = snap.cacheCtxGen
-	if a.Store != nil {
-		postRev, _ := a.Store.LatestChangeSetNumber()
-		snap.cacheRev = postRev
-		finalKey.storeRevision = postRev
-	}
-	return snap, finalKey
+	finalKey := a.finalizeDurableSnapshot(&snap, reqKey, true)
+	return snap, finalKey, scope
 }
 
-func (a *App) populateDurableScopeRecords(snap *projectDurableSnapshot, scope data.ProjectScope, projRef *core.Ref) {
+func (a *App) populateDurableTasks(snap *projectDurableSnapshot, scope data.ProjectScope, projRef *core.Ref) {
+	snap.projRec, snap.tasks, snap.taskTree = nil, nil, nil
 	allTaskTree := data.BuildTree(scope.Tasks, "parent", "order", a.nav.showArchived)
 	if projNode, ok := findProjectTreeNode(allTaskTree, snap.projectID); ok {
 		snap.projRec = &projNode.Record
@@ -199,16 +324,38 @@ func (a *App) populateDurableScopeRecords(snap *projectDurableSnapshot, scope da
 	} else if projRef != nil && a.Store != nil {
 		snap.projRec, _ = a.Store.Get(*projRef)
 	}
-	snap.pages, snap.unreadPages = projectPagesList(a.projectRecords(scope, data.KindPage))
+}
+
+func (a *App) populateDurableProjectRepos(snap *projectDurableSnapshot) {
+	snap.projRepoLabels = nil
+	if snap.projRec != nil && a.Store != nil {
+		_, snap.projRepoLabels = data.RecordRepos(a.Store, *snap.projRec)
+	}
+}
+
+func (a *App) populateDurableLanes(snap *projectDurableSnapshot, scope data.ProjectScope) {
 	snap.allLanes = a.projectActiveRecords(scope, data.KindLane)
+	snap.activeLanes = nil
 	for _, lane := range snap.allLanes {
 		if !lane.IsArchived() && data.LaneProgressOf(lane).IsOpen() {
 			snap.activeLanes = append(snap.activeLanes, lane)
 		}
 	}
+}
+
+func (a *App) populateDurableWorktrees(snap *projectDurableSnapshot, scope data.ProjectScope) {
+	snap.worktrees = nil
 	if snap.projectID != "" && a.Store != nil {
 		snap.worktrees = a.Store.ProjectScopeWorktrees(scope, snap.allLanes)
 	}
+}
+
+func (a *App) populateDurableScopeRecords(snap *projectDurableSnapshot, scope data.ProjectScope, projRef *core.Ref) {
+	a.populateDurableTasks(snap, scope, projRef)
+	a.populateDurableProjectRepos(snap)
+	snap.pages, snap.unreadPages = projectPagesList(a.projectRecords(scope, data.KindPage))
+	a.populateDurableLanes(snap, scope)
+	a.populateDurableWorktrees(snap, scope)
 	snap.documents = sortRecordsNewestFirst(a.projectRecords(scope, data.KindDocument))
 	snap.notes = sortRecordsNewestFirst(a.projectRecords(scope, data.KindNote))
 	snap.questions, snap.openQuestions = projectQuestionsList(a.projectRecords(scope, data.KindQuestion))
@@ -216,6 +363,8 @@ func (a *App) populateDurableScopeRecords(snap *projectDurableSnapshot, scope da
 }
 
 func (a *App) populateDurableContext(snap *projectDurableSnapshot, scope data.ProjectScope) {
+	snap.officialCount = 0
+	snap.officialItems, snap.pinnedItems, snap.prItems = nil, nil, nil
 	paneSchema := a.schema(data.KindPane)
 	paneTitles := make(map[string]string, len(snap.panes))
 	for _, p := range snap.panes {
@@ -235,6 +384,7 @@ func (a *App) populateDurableContext(snap *projectDurableSnapshot, scope data.Pr
 			snap.prItems = append(snap.prItems, it)
 		}
 	}
+	a.projectCtrl().contextBuilds++
 }
 
 func (a *App) effectivePaneLiveStatus(p data.Record) (status string, running, needsYou bool) {

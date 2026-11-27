@@ -274,7 +274,7 @@ func (a *App) taskNoteThreads() (map[string][]data.Record, error) {
 	if a.Store == nil {
 		return nil, nil
 	}
-	rev, _ := a.Store.LatestChangeSetNumber()
+	rev := a.storeRev()
 	if a.trees != nil && a.trees.threadsCache != nil && a.trees.threadsRev == rev {
 		return a.trees.threadsCache, nil
 	}
@@ -297,7 +297,7 @@ func (a *App) recordTreeNodes(kind string) ([]data.TreeNode, error) {
 	if a.Store == nil {
 		return nil, nil
 	}
-	rev, _ := a.Store.LatestChangeSetNumber()
+	rev := a.storeRev()
 	animKey := a.archiveAnimCacheKey()
 	if a.trees != nil {
 		if c, ok := a.trees.nodeCache[kind]; ok && c.rev == rev && c.showArchived == a.nav.showArchived && c.animKey == animKey {
@@ -509,7 +509,7 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 	cs := a.activeCleanSlate(kind, treeID)
 	syncKey := ""
 	if !a.isExternalKind(kind) && a.Store != nil && a.trees != nil {
-		rev, _ := a.Store.LatestChangeSetNumber()
+		rev := a.storeRev()
 		syncKey = a.treeSyncKey(rev, kind, treeID, cs)
 		if entry, ok := a.trees.syncCache[tm]; ok && entry.key == syncKey && (a.trees.foldInitialized[kind] || len(entry.nodes) == 0) {
 			if cs != nil {

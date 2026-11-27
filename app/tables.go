@@ -60,20 +60,19 @@ func (a *App) pageSize(tbl *table.Model, id string) {
 func (a *App) records(id, kind string) *table.Model {
 	styleOpts := a.styleOptions()
 	if _, isExt := a.ext.extCatalogs[kind]; !isExt && a.Store != nil {
-		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
-			key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t|%s|%t|%s", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog(), a.archiveAnimCacheKey(), styleOpts.FlagsOnLeft, styleOpts.ColorByRecency)
-			if a.nav.recCacheKeys != nil && a.nav.recCacheKeys[id] == key && a.nav.tables[id] != nil {
-				a.pageSize(a.nav.tables[id], id)
-				a.registerTableFilterable(id, a.nav.tables[id])
-				return a.nav.tables[id]
-			}
-			defer func() {
-				if a.nav.recCacheKeys == nil {
-					a.nav.recCacheKeys = map[string]string{}
-				}
-				a.nav.recCacheKeys[id] = key
-			}()
+		rev := a.storeRev()
+		key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t|%s|%t|%s", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog(), a.archiveAnimCacheKey(), styleOpts.FlagsOnLeft, styleOpts.ColorByRecency)
+		if a.nav.recCacheKeys != nil && a.nav.recCacheKeys[id] == key && a.nav.tables[id] != nil {
+			a.pageSize(a.nav.tables[id], id)
+			a.registerTableFilterable(id, a.nav.tables[id])
+			return a.nav.tables[id]
 		}
+		defer func() {
+			if a.nav.recCacheKeys == nil {
+				a.nav.recCacheKeys = map[string]string{}
+			}
+			a.nav.recCacheKeys[id] = key
+		}()
 	}
 	schema := a.schema(kind)
 	items := a.tableQuery(id, schema).Filter(a.tableCandidates(kind))
@@ -185,27 +184,26 @@ func (a *App) attention(pane string) bool {
 // changed.
 func (a *App) rail() *table.Model {
 	if a.Store != nil {
-		if rev, err := a.Store.LatestChangeSetNumber(); err == nil {
-			key := fmt.Sprintf("%d|%d|%t|%s|%t|%s|%t|%t|%s",
-				rev,
-				a.telemetryViewSeq(),
-				a.nav.showArchived,
-				a.panesGroupMode(),
-				a.panes.railGroupSet,
-				a.panes.railCustomGroup,
-				a.cfg.Settings.Bool(SetFlagsColumn, true),
-				a.cfg.Settings.Bool(SetRailStateColumn, false),
-				a.archiveAnimCacheKey(),
-			)
-			if key == a.panes.railCacheKey && a.nav.tables[railTable] != nil {
-				a.pageSize(a.nav.tables[railTable], railTable)
-				a.registerTableFilterable(railTable, a.nav.tables[railTable])
-				return a.nav.tables[railTable]
-			}
-			tbl := a.buildRail()
-			a.panes.railCacheKey = key
-			return tbl
+		rev := a.storeRev()
+		key := fmt.Sprintf("%d|%d|%t|%s|%t|%s|%t|%t|%s",
+			rev,
+			a.telemetryViewSeq(),
+			a.nav.showArchived,
+			a.panesGroupMode(),
+			a.panes.railGroupSet,
+			a.panes.railCustomGroup,
+			a.cfg.Settings.Bool(SetFlagsColumn, true),
+			a.cfg.Settings.Bool(SetRailStateColumn, false),
+			a.archiveAnimCacheKey(),
+		)
+		if key == a.panes.railCacheKey && a.nav.tables[railTable] != nil {
+			a.pageSize(a.nav.tables[railTable], railTable)
+			a.registerTableFilterable(railTable, a.nav.tables[railTable])
+			return a.nav.tables[railTable]
 		}
+		tbl := a.buildRail()
+		a.panes.railCacheKey = key
+		return tbl
 	}
 	return a.buildRail()
 }
@@ -289,6 +287,18 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 	return core.Next(s)
 }
 
+func (a *App) finishFilterEdit(s core.State, id string) core.StepResult {
+	if id != "" && !(s.ActiveFrame().FocusID == id && a.isSelfContainedFilterWidget(id)) {
+		a.viewMemo.gen++
+		prev := s.ActiveFrame().FocusID
+		s = a.repairFilterFocus(s, id)
+		if s.ActiveFrame().FocusID == prev {
+			a.viewMemo.skipNextGen = true
+		}
+	}
+	return core.Next(s)
+}
+
 func (a *App) filterEdit(s core.State, c core.Command) core.StepResult {
 	f, _, id := a.activeFilterTarget(s, nil)
 	switch c.ID {
@@ -300,21 +310,16 @@ func (a *App) filterEdit(s core.State, c core.Command) core.StepResult {
 		a.nav.filterTarget = ""
 		a.nav.filterSpec = nil
 		a.say("")
-		a.viewMemo.gen++
-		s = withMode(s, retMode)
-		s = a.repairFilterFocus(s, id)
-		return core.Next(s)
+		return a.finishFilterEdit(withMode(s, retMode), id)
 	case CmdFilterClear:
 		a.filterRegistry().ClearFilter(id)
 		a.nav.filterLine.Set("")
-		a.viewMemo.gen++
 		if a.Engine.Mode(s) != ModeFilter {
 			a.nav.filterTarget = ""
 			a.nav.filterSpec = nil
 			a.say("filter cleared")
 		}
-		s = a.repairFilterFocus(s, id)
-		return core.Next(s)
+		return a.finishFilterEdit(s, id)
 	case CmdFilterAccept:
 		if f != nil {
 			if q := f.FilterQuery(); q != "" {
@@ -328,10 +333,7 @@ func (a *App) filterEdit(s core.State, c core.Command) core.StepResult {
 		a.nav.filterTarget = ""
 		a.nav.filterSpec = nil
 		a.say("")
-		a.viewMemo.gen++
-		s = withMode(s, retMode)
-		s = a.repairFilterFocus(s, id)
-		return core.Next(s)
+		return a.finishFilterEdit(withMode(s, retMode), id)
 	}
 
 	if f != nil {
@@ -345,8 +347,7 @@ func (a *App) filterEdit(s core.State, c core.Command) core.StepResult {
 			a.nav.filterLine.HandleCommand(c)
 		}
 		f.Filter(a.nav.filterLine.Value(), f.FilterMode())
-		a.viewMemo.gen++
-		s = a.repairFilterFocus(s, id)
+		return a.finishFilterEdit(s, id)
 	}
 	return core.Next(s)
 }

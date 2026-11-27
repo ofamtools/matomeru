@@ -77,9 +77,10 @@ var defaultProjectNavSections = []projectNavDef{
 }
 
 type cachedProjectNav struct {
-	key      string
-	sections []views.ProjectNavSection
-	targets  map[string]projectNavTarget
+	key       string
+	paneTelFP string
+	sections  []views.ProjectNavSection
+	targets   map[string]projectNavTarget
 }
 
 type cachedProjectHome struct {
@@ -97,43 +98,46 @@ type cachedShowSnap struct {
 // nav section, expandable nav tree state, locked/previewed right-pane target,
 // open inline ui.page, and per-section table/tree models.
 type ProjectController struct {
-	sectionByProject     map[string]string
-	navModeByProject     map[string]string
-	openPageByProject    map[string]string
-	openPageReturnFocus  map[string]string
-	childPaneByProject   map[string]string
-	childPaneReturnFocus map[string]string
-	expandedSections     map[string]map[string]bool
-	expandedNodes        map[string]map[string]bool
-	activeItemByProject  map[string]*projectNavTarget
-	navTargets           map[string]map[string]projectNavTarget
-	homeTargets          map[string]map[string]projectHomeTarget
-	ownerCreated         map[core.Ref]bool
-	openTabs             []string
-	topTabsCache         []topTabDef
-	topTabsCacheKey      string
-	lastUsedAt           map[string]time.Time
-	lastUsedGen          uint64
-	tables               map[string]*table.Model
-	trees                map[string]*tree.Model
-	durableCache         map[string]cachedProjectDurable
-	liveCache            map[string]cachedProjectLive
-	durableBuilds        uint64
-	liveBuilds           uint64
-	navCache             map[string]cachedProjectNav
-	navBuilds            uint64
-	homeCache            map[string]cachedProjectHome
-	homeBuilds           uint64
-	showSnapCache        map[core.Ref]cachedShowSnap
-	dirCache             []projectDirEntry
-	dirCacheRev          int64
-	dirCacheArch         bool
-	dirCacheGen          uint64
-	dirCacheValid        bool
-	activeProjectKey     string
-	activeProjectID      string
-	activeGroupName      string
-	activeProjectRef     *core.Ref
+	sectionByProject      map[string]string
+	navModeByProject      map[string]string
+	openPageByProject     map[string]string
+	openPageReturnFocus   map[string]string
+	childPaneByProject    map[string]string
+	childPaneReturnFocus  map[string]string
+	expandedSections      map[string]map[string]bool
+	expandedNodes         map[string]map[string]bool
+	activeItemByProject   map[string]*projectNavTarget
+	navTargets            map[string]map[string]projectNavTarget
+	homeTargets           map[string]map[string]projectHomeTarget
+	ownerCreated          map[core.Ref]bool
+	openTabs              []string
+	topTabsCache          []topTabDef
+	topTabsCacheKey       string
+	lastUsedAt            map[string]time.Time
+	lastUsedGen           uint64
+	tables                map[string]*table.Model
+	trees                 map[string]*tree.Model
+	durableCache          map[string]cachedProjectDurable
+	liveCache             map[string]cachedProjectLive
+	tabUnreadCache        map[string]cachedProjectTabUnread
+	durableBuilds         uint64
+	durableDeltaRefreshes uint64
+	contextBuilds         uint64
+	liveBuilds            uint64
+	navCache              map[string]cachedProjectNav
+	navBuilds             uint64
+	homeCache             map[string]cachedProjectHome
+	homeBuilds            uint64
+	showSnapCache         map[core.Ref]cachedShowSnap
+	dirCache              []projectDirEntry
+	dirCacheRev           int64
+	dirCacheArch          bool
+	dirCacheGen           uint64
+	dirCacheValid         bool
+	activeProjectKey      string
+	activeProjectID       string
+	activeGroupName       string
+	activeProjectRef      *core.Ref
 }
 
 func newProjectController() *ProjectController {
@@ -431,8 +435,8 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 
 	var subParts []string
 	if ws.projRec != nil {
-		if _, repoLabels := data.RecordRepos(a.Store, *ws.projRec); len(repoLabels) > 0 {
-			subParts = append(subParts, "repo: "+strings.Join(repoLabels, ", "))
+		if len(ws.projRepoLabels) > 0 {
+			subParts = append(subParts, "repo: "+strings.Join(ws.projRepoLabels, ", "))
 		}
 		if dir := strings.TrimSpace(ws.projRec.Text("defaultDir")); dir != "" {
 			subParts = append(subParts, "dir: "+dir)
@@ -640,6 +644,43 @@ func (a *App) syncProjectNavFocus(focusID string) {
 	a.nav.lastFocus["project.nav"] = focusID
 }
 
+func (pc *ProjectController) projectSectionBodyWillChange(projKey, sec string) bool {
+	if pc.activeSection(projKey) != sec || pc.activeNavItem(projKey) != nil {
+		return true
+	}
+	return pc.childPaneByProject != nil && pc.childPaneByProject[projKey] != ""
+}
+
+func (a *App) applyProjectSectionSelection(pc *ProjectController, projKey, sec string) {
+	bodyChanged := pc.projectSectionBodyWillChange(projKey, sec)
+	if pc.activeSection(projKey) != sec {
+		pc.setOpenPageID(projKey, "")
+	}
+	pc.setActiveNavItem(projKey, nil)
+	if pc.childPaneByProject != nil {
+		delete(pc.childPaneByProject, projKey)
+	}
+	pc.setSection(projKey, sec)
+	a.syncProjectNavPointer(sec)
+	if bodyChanged {
+		a.viewMemo.gen++
+	}
+}
+
+func projectSectionEntryFocus(sec string, nodes []fnode) string {
+	for _, def := range defaultProjectNavSections {
+		if def.Key == sec && def.EntryFocus != "" && slices.Contains(nodes, fnode{def.EntryFocus, "project.content"}) {
+			return def.EntryFocus
+		}
+	}
+	for _, n := range nodes {
+		if n.region == "project.content" {
+			return n.id
+		}
+	}
+	return ""
+}
+
 func (a *App) projectSectionSelect(s core.State, c core.Command) core.StepResult {
 	pc := a.projectCtrl()
 	sec := strings.TrimSpace(c.Arg("section"))
@@ -659,27 +700,10 @@ func (a *App) projectSectionSelect(s core.State, c core.Command) core.StepResult
 	if projKey == "" {
 		projKey = pc.activeProjectKey
 	}
-	if pc.activeSection(projKey) != sec {
-		pc.setOpenPageID(projKey, "")
-	}
-	pc.setActiveNavItem(projKey, nil)
-	if pc.childPaneByProject != nil {
-		delete(pc.childPaneByProject, projKey)
-	}
-	pc.setSection(projKey, sec)
-	a.syncProjectNavPointer(sec)
+	a.applyProjectSectionSelection(pc, projKey, sec)
 	s = withMode(withFocus(s, projectNavPrefix+sec), ModeNormal)
-	a.viewMemo.gen++
-	nodes := a.focusables(s)
-	for _, def := range defaultProjectNavSections {
-		if def.Key == sec && def.EntryFocus != "" && slices.Contains(nodes, fnode{def.EntryFocus, "project.content"}) {
-			return core.Next(withFocus(s, def.EntryFocus))
-		}
-	}
-	for _, n := range nodes {
-		if n.region == "project.content" {
-			return core.Next(withFocus(s, n.id))
-		}
+	if target := projectSectionEntryFocus(sec, a.focusables(s)); target != "" {
+		return core.Next(withFocus(s, target))
 	}
 	return core.Next(a.column(s, 1))
 }

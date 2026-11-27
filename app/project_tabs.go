@@ -76,10 +76,7 @@ func (a *App) projectChildPaneViewEnabled() bool {
 }
 
 func (a *App) topTabsCacheKey() string {
-	var rev int64
-	if a.Store != nil {
-		rev, _ = a.Store.LatestChangeSetNumber()
-	}
+	rev := a.storeRev()
 	pc := a.projectCtrl()
 	return fmt.Sprintf("%d|%t|%t|%t|%t|%s",
 		rev, a.Store != nil, a.projectsTopNavTabEnabled(), a.projectsDynamicTabsEnabled(),
@@ -248,7 +245,7 @@ func (a *App) sortedProjectsDirEntries() []projectDirEntry {
 	if a.Store == nil {
 		return nil
 	}
-	rev, _ := a.Store.LatestChangeSetNumber()
+	rev := a.storeRev()
 	pc := a.projectCtrl()
 	if pc.dirCacheValid && pc.dirCacheRev == rev && pc.dirCacheArch == a.nav.showArchived && pc.dirCacheGen == pc.lastUsedGen {
 		return pc.dirCache
@@ -437,7 +434,7 @@ func (a *App) projectsSpace(_ core.State) ui.ViewNode {
 	}
 	listView.Facts["projectsDir"] = true
 
-	badges := []ui.Badge{{Text: fmt.Sprint(len(tbl.Filtered()))}}
+	badges := []ui.Badge{{Text: fmt.Sprint(tableFilteredCount(listView, tbl))}}
 	if tbl.Query != "" {
 		badges = append(badges, ui.Badge{Text: "/" + tbl.Query, Tone: "accent"})
 	}

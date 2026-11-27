@@ -234,12 +234,7 @@ func (a *App) populateProjectDurableActivity(snap *projectDurableSnapshot) {
 }
 
 func (a *App) projectTabHasUnread(projectID, title string) bool {
-	if a == nil || a.Store == nil || projectID == "" {
-		return false
-	}
-	ref := core.Ref{Kind: data.KindTask, ID: projectID}
-	ws := a.collectProjectWorkspaceData(title, &ref)
-	return ws.unreadTotal > 0 || ws.needsYouPanes > 0
+	return a.projectTabHasUnreadFast(projectID, title)
 }
 
 // --- Auto-ack & explicit mark-read verbs ----------------------------------------

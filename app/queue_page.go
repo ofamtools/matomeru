@@ -57,6 +57,17 @@ type queueSnapshot struct {
 	watchers []views.QueueWatcherRow
 }
 
+type cachedQueueDurable struct {
+	rev               int64
+	showArchived      bool
+	queues            []data.Record
+	items             []data.AgentQueueItem
+	lanes             []data.Record
+	questions         []data.Record
+	livePanes         []data.Record
+	openQuestionPages map[string]string
+}
+
 // queueController owns the Queue Page's view state: the active named queue,
 // the grouping, and the filterable list model.
 type queueController struct {
@@ -66,21 +77,32 @@ type queueController struct {
 	projectID string // scope of the page last shown ("" is every project)
 	visible   []views.QueueItemRow
 	snapshots map[string]queueSnapshot
+	durables  map[string]cachedQueueDurable
 }
 
 func (a *App) initQueue() {
 	list := table.New(nil, nil)
 	list.MatchMode = a.matchMode()
 	list.FilterField = queueFilterField
-	a.queue = &queueController{list: list, active: data.DefaultQueueName, snapshots: map[string]queueSnapshot{}}
+	a.queue = &queueController{
+		list:      list,
+		active:    data.DefaultQueueName,
+		snapshots: map[string]queueSnapshot{},
+		durables:  map[string]cachedQueueDurable{},
+	}
 	a.registerFilterable(views.QueueListID, list)
 }
 
 // invalidateQueueViews drops cached queue snapshots and project home progress
 // strips so queue mutations appear immediately across every surface.
 func (a *App) invalidateQueueViews() {
-	if a.queue != nil && a.queue.snapshots != nil {
-		clear(a.queue.snapshots)
+	if a.queue != nil {
+		if a.queue.snapshots != nil {
+			clear(a.queue.snapshots)
+		}
+		if a.queue.durables != nil {
+			clear(a.queue.durables)
+		}
 	}
 	if a.proj != nil {
 		clear(a.proj.homeCache)
@@ -99,7 +121,7 @@ func (a *App) queueSnapshot(projectID string) queueSnapshot {
 	if a.Store == nil {
 		return queueSnapshot{}
 	}
-	rev, _ := a.Store.LatestChangeSetNumber()
+	rev := a.storeRev()
 	key := fmt.Sprintf("%d|%d|%t", rev, a.telemetryViewSeq(), a.nav.showArchived)
 	if snap, ok := q.snapshots[projectID]; ok && snap.key == key {
 		return snap
@@ -110,21 +132,123 @@ func (a *App) queueSnapshot(projectID string) queueSnapshot {
 	return snap
 }
 
-func (a *App) loadQueueBoardInput(projectID string) data.QueueBoardInput {
-	in := data.QueueBoardInput{ProjectID: projectID}
-	var err error
-	if in.Queues, err = a.Store.NamedQueues(projectID); err != nil {
+func (a *App) loadQueueDurable(projectID string) cachedQueueDurable {
+	rev := a.storeRev()
+	arch := a.nav.showArchived
+	if a.queue.durables != nil {
+		if cached, ok := a.queue.durables[projectID]; ok && cached.showArchived == arch {
+			if cached.rev == rev {
+				return cached
+			}
+			if rev > cached.rev {
+				if next, ok := a.refreshQueueDurableDelta(projectID, cached, rev); ok {
+					a.queue.durables[projectID] = next
+					return next
+				}
+			}
+		}
+	}
+	d := a.buildQueueDurable(projectID, rev, arch)
+	if a.queue.durables == nil {
+		a.queue.durables = map[string]cachedQueueDurable{}
+	}
+	a.queue.durables[projectID] = d
+	return d
+}
+
+func (a *App) refreshQueueDurableDelta(projectID string, prev cachedQueueDurable, rev int64) (cachedQueueDurable, bool) {
+	delta, err := a.Store.ChangedKindsSince(prev.rev)
+	if err != nil || delta.FullRebuild {
+		return cachedQueueDurable{}, false
+	}
+	d := prev
+	d.rev = rev
+	a.refreshQueueDurableCore(projectID, &d, delta)
+	a.refreshQueueDurablePanes(&d, delta)
+	return d, true
+}
+
+func (a *App) refreshQueueDurableCore(projectID string, d *cachedQueueDurable, delta data.ChangeDelta) {
+	if delta.Kinds[data.KindQueue] {
+		if q, err := a.Store.NamedQueues(projectID); err != nil {
+			a.fail("load queues", err)
+		} else {
+			d.queues = q
+		}
+	}
+	if delta.HasRelation || anyKindChanged(delta, data.KindTask, data.KindQueue) {
+		if items, err := a.Store.QueryAgentQueue(data.AgentQueueFilter{ProjectID: projectID, Status: "all", IncludeSubtree: true}); err != nil {
+			a.fail("load queue items", err)
+		} else {
+			d.items = items
+		}
+	}
+	if delta.HasRelation || anyKindChanged(delta, data.KindLane, data.KindTask, data.KindQueue) {
+		d.lanes = a.loadQueueLanes(projectID, d.queues)
+	}
+	if delta.Kinds[data.KindQuestion] {
+		if res, err := a.Store.Query(data.Query{Kind: data.KindQuestion}); err == nil {
+			d.questions = res.Items
+		}
+	}
+}
+
+func (a *App) refreshQueueDurablePanes(d *cachedQueueDurable, delta data.ChangeDelta) {
+	if delta.Kinds[data.KindPane] {
+		d.livePanes = a.liveAgentPanes()
+	}
+	if anyKindChanged(delta, data.KindPage, data.KindPane) {
+		d.openQuestionPages = a.loadQueueOpenQuestionPages(d.livePanes)
+	}
+}
+
+func (a *App) loadQueueOpenQuestionPages(livePanes []data.Record) map[string]string {
+	out := map[string]string{}
+	for _, p := range livePanes {
+		if pageID, asked := a.openQuestion(p.ID); asked {
+			out[p.ID] = pageID
+		}
+	}
+	return out
+}
+
+func (a *App) buildQueueDurable(projectID string, rev int64, arch bool) cachedQueueDurable {
+	var (
+		d   cachedQueueDurable
+		err error
+	)
+	d.rev, d.showArchived = rev, arch
+	if d.queues, err = a.Store.NamedQueues(projectID); err != nil {
 		a.fail("load queues", err)
 	}
-	if in.Items, err = a.Store.QueryAgentQueue(data.AgentQueueFilter{ProjectID: projectID, Status: "all", IncludeSubtree: true}); err != nil {
+	if d.items, err = a.Store.QueryAgentQueue(data.AgentQueueFilter{ProjectID: projectID, Status: "all", IncludeSubtree: true}); err != nil {
 		a.fail("load queue items", err)
 	}
-	in.Lanes = a.loadQueueLanes(projectID, in.Queues)
+	d.lanes = a.loadQueueLanes(projectID, d.queues)
 	if res, err := a.Store.Query(data.Query{Kind: data.KindQuestion}); err == nil {
-		in.Questions = res.Items
+		d.questions = res.Items
 	}
-	in.Panes, in.OpenQuestionPages = a.loadQueuePanes()
-	return in
+	d.livePanes = a.liveAgentPanes()
+	d.openQuestionPages = a.loadQueueOpenQuestionPages(d.livePanes)
+	return d
+}
+
+func (a *App) loadQueueBoardInput(projectID string) data.QueueBoardInput {
+	d := a.loadQueueDurable(projectID)
+	paneSchema := a.schema(data.KindPane)
+	panes := make([]data.QueuePane, 0, len(d.livePanes))
+	for _, p := range d.livePanes {
+		panes = append(panes, a.buildQueuePane(paneSchema, p))
+	}
+	return data.QueueBoardInput{
+		ProjectID:         projectID,
+		Queues:            d.queues,
+		Items:             d.items,
+		Lanes:             d.lanes,
+		Questions:         d.questions,
+		Panes:             panes,
+		OpenQuestionPages: d.openQuestionPages,
+	}
 }
 
 func (a *App) loadQueueLanes(projectID string, queues []data.Record) []data.Record {
@@ -138,21 +262,6 @@ func (a *App) loadQueueLanes(projectID string, queues []data.Record) []data.Reco
 	}
 	ids, _ := a.Store.ProjectTaskIDs(projectID, a.nav.showArchived)
 	return data.LanesInProject(lanes, ids, data.QueueTitlesByID(queues))
-}
-
-func (a *App) loadQueuePanes() ([]data.QueuePane, map[string]string) {
-	paneSchema := a.schema(data.KindPane)
-	live := a.liveAgentPanes()
-	panes := make([]data.QueuePane, 0, len(live))
-	openPages := map[string]string{}
-	for _, p := range live {
-		qp := a.buildQueuePane(paneSchema, p)
-		panes = append(panes, qp)
-		if pageID, asked := a.openQuestion(p.ID); asked {
-			openPages[p.ID] = pageID
-		}
-	}
-	return panes, openPages
 }
 
 func (a *App) buildQueuePane(paneSchema data.Schema, p data.Record) data.QueuePane {

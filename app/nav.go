@@ -66,6 +66,10 @@ type NavController struct {
 	Registers             core.Registers
 	Macros                core.MacroRecorder
 	replaying             int
+	syncPathRef           core.Ref
+	syncPathRev           int64
+	syncPathVal           string
+	syncPathValid         bool
 }
 
 func newNavController() *NavController {

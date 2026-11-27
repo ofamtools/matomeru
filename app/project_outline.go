@@ -114,7 +114,7 @@ func (a *App) syncProjectTaskTree(tm *tree.Model, projectID, treeID string) (dat
 	cs := a.activeCleanSlate(data.KindTask, treeID)
 	syncKey := ""
 	if a.Store != nil && a.trees != nil {
-		rev, _ := a.Store.LatestChangeSetNumber()
+		rev := a.storeRev()
 		syncKey = a.treeSyncKey(rev, data.KindTask, treeID, cs) + "|proj:" + projectID
 		if entry, ok := a.trees.syncCache[tm]; ok && entry.key == syncKey && (a.trees.foldInitialized[data.KindTask] || len(entry.nodes) == 0) {
 			tm.Folded = maps.Clone(a.trees.folded[data.KindTask])

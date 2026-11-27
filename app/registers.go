@@ -75,21 +75,59 @@ func (a *App) Register(reg rune) string {
 	return v.Text
 }
 
+func (a *App) kindHasFilePathField(kind string) bool {
+	if a.Store == nil || kind == "" {
+		return false
+	}
+	schema, ok := a.Store.Registry().Get(kind)
+	if !ok {
+		return false
+	}
+	_, has := schema.Field("filePath")
+	return has
+}
+
+func (a *App) focusedSubjectWithFactPath(s core.State) (core.Ref, string, bool) {
+	for _, f := range ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, nil) {
+		if f.Subject != nil && f.Subject.ID != "" {
+			fp, _ := f.Facts["filePath"].(string)
+			return *f.Subject, fp, true
+		}
+	}
+	return core.Ref{}, "", false
+}
+
+func (a *App) resolveRecordFilePath(ref core.Ref) string {
+	path := data.RefText(ref)
+	if !a.kindHasFilePathField(ref.Kind) {
+		return path
+	}
+	rev := a.storeRev()
+	if a.nav.syncPathValid && a.nav.syncPathRef == ref && a.nav.syncPathRev == rev {
+		return a.nav.syncPathVal
+	}
+	if rec, err := a.Store.Get(ref); err == nil {
+		if file := rec.Text("filePath"); file != "" {
+			path = file
+		}
+	}
+	a.nav.syncPathRef, a.nav.syncPathRev, a.nav.syncPathVal, a.nav.syncPathValid = ref, rev, path, true
+	return path
+}
+
 // syncPath keeps "% on the focused record: its file when it has one,
 // otherwise its reference.
 func (a *App) syncPath(s core.State) {
 	if len(s.Modals) > 0 {
 		return // an overlay's focus is not what the owner is on
 	}
-	ref, ok := a.subject(s, core.Command{})
+	ref, factPath, ok := a.focusedSubjectWithFactPath(s)
 	if !ok {
 		return
 	}
-	path := data.RefText(ref)
-	if rec, err := a.Store.Get(ref); err == nil {
-		if file := rec.Text("filePath"); file != "" {
-			path = file
-		}
+	path := factPath
+	if path == "" {
+		path = a.resolveRecordFilePath(ref)
 	}
 	if a.Register(core.RegPath) != path {
 		a.nav.Registers.SetSpecial(core.RegPath, path)

@@ -519,8 +519,12 @@ func projectNavSectionDisplayTitle(secKey string) string {
 	}
 }
 
+func skipCollapsedContextNav(ws projectWorkspaceData, expanded bool) bool {
+	return !expanded && (len(ws.contextRecords) == 0 || len(ws.reviewContext) == 0)
+}
+
 func (a *App) projectContextNavNodes(ws projectWorkspaceData, secKey string, items []CollectedContextItem, focusID, lockedFocus string, expanded, allowPeek bool) ([]views.ProjectNavNode, int) {
-	if !expanded && len(ws.contextRecords) == 0 {
+	if skipCollapsedContextNav(ws, expanded) {
 		return nil, 0
 	}
 	pc := a.projectCtrl()

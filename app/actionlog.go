@@ -78,7 +78,8 @@ func (a *App) actionLogEnabled() bool {
 }
 
 func noisyAction(id string) bool {
-	return id == "" || id == CmdTermInput || input.IsReadlineCommand(id) ||
+	return id == "" || id == CmdTermInput || id == CmdProjectNavToggle || id == CmdProjectSectionSelect ||
+		input.IsReadlineCommand(id) ||
 		strings.HasPrefix(id, "motion.") || strings.HasPrefix(id, "focus.") ||
 		strings.HasSuffix(id, ".insert") || strings.HasSuffix(id, ".backspace")
 }

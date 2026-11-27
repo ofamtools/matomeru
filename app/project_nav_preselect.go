@@ -26,10 +26,22 @@ func (a *App) projectNavPreselectsTask(target projectNavTarget) bool {
 // the nav-focused task selected, like a deep link into the Tasks section.
 // Enter and E on the nav node still open the task's Show page.
 func (a *App) projectNavTaskPreselectBody(s core.State, ws projectWorkspaceData, target projectNavTarget) ui.ViewNode {
-	body := a.buildProjectSectionBody(s, ws, "tasks")
-	if a.selectProjectTask(ws, target.Ref.ID) {
-		// The selection moved: draw the list again around it.
+	var body ui.ViewNode
+	if a.projectOutlineAsPageEnabled() && ws.projectID != "" && a.trees != nil {
+		tm := a.trees.projectModel(ws.projectID)
+		a.syncProjectTaskTree(tm, ws.projectID, projectOutlineTree)
+		a.selectProjectTask(ws, target.Ref.ID)
 		body = a.buildProjectSectionBody(s, ws, "tasks")
+	} else {
+		if a.projectCtrl().tables[projectTasksFlatTable] != nil {
+			a.selectProjectTask(ws, target.Ref.ID)
+			body = a.buildProjectSectionBody(s, ws, "tasks")
+		} else {
+			body = a.buildProjectSectionBody(s, ws, "tasks")
+			if a.selectProjectTask(ws, target.Ref.ID) {
+				body = a.buildProjectSectionBody(s, ws, "tasks")
+			}
+		}
 	}
 	if body.Facts == nil {
 		body.Facts = map[string]any{}
