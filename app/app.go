@@ -848,6 +848,7 @@ func (a *App) register() {
 	a.registerScreenSearchHandlers()
 	a.registerNoteDeckHandlers()
 	a.initNoteDeck()
+	a.registerCodeViewerHandlers()
 	a.registerProjectTabsHandlers()
 	a.registerFeaturesPageHandlers()
 	a.registerComposerContextHandlers()

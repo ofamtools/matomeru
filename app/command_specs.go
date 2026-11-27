@@ -75,6 +75,7 @@ func CommandSpecs() []core.CommandSpec {
 	base = append(base, projectCycleSpecs()...)
 	base = append(base, contentHintsSpecs()...)
 	base = append(base, screenSearchSpecs()...)
+	base = append(base, codeViewerSpecs()...)
 	return append(append(base, []core.CommandSpec{
 		recordSpec(views.CmdOpen, "Open the focused record's Show page", nil, ""),
 		recordSpec(views.CmdEdit, "Edit the focused record", nil, "", "editing"),
