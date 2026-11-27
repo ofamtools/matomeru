@@ -309,44 +309,60 @@ func (a *App) invalidateProjectUnreadCaches(projKey string) {
 }
 
 func (a *App) markRecordRead(ref core.Ref) bool {
+	return a.markRecordReadMode(ref, true)
+}
+
+func (a *App) markRecordReadMode(ref core.Ref, cascadePanePages bool) bool {
 	if a == nil || a.Store == nil || ref.ID == "" {
 		return false
 	}
 	switch ref.Kind {
 	case data.KindPage:
-		page, err := a.Store.Get(ref)
-		if err != nil || page == nil || !page.IsUnread() {
-			return false
-		}
-		_, _, err = a.Store.Patch(data.PatchInput{Ref: ref, Fields: map[string]any{"viewedAt": data.WriteTime{}}}, viewer)
-		return err == nil
+		return a.markPageRead(ref)
 	case data.KindPane:
-		return a.markPanePagesRead(ref.ID)
+		return cascadePanePages && a.markPanePagesRead(ref.ID)
 	case data.KindTask:
-		notesMarked := a.markTaskNotesRead(ref.ID)
-		rec, err := a.Store.Get(ref)
-		recMarked := false
-		if err == nil && rec != nil && a.isGenericNavRecordUnread(*rec) {
-			if _, _, perr := a.Store.Patch(data.PatchInput{Ref: ref, Fields: map[string]any{"readAt": data.WriteTime{}}}, viewer); perr == nil {
-				recMarked = true
-			}
-		}
-		return notesMarked || recMarked
+		return a.markTaskRead(ref)
 	default:
-		rec, err := a.Store.Get(ref)
-		if err != nil || rec == nil {
-			return false
-		}
-		unread := a.isNavRecordUnread(ref.Kind, *rec, nil)
-		if ref.Kind == data.KindContext {
-			unread = a.isProjectContextUnread(*rec)
-		}
-		if !unread {
-			return false
-		}
-		_, _, err = a.Store.Patch(data.PatchInput{Ref: ref, Fields: map[string]any{"readAt": data.WriteTime{}}}, viewer)
-		return err == nil
+		return a.markGenericRecordRead(ref)
 	}
+}
+
+func (a *App) markPageRead(ref core.Ref) bool {
+	page, err := a.Store.Get(ref)
+	if err != nil || page == nil || !page.IsUnread() {
+		return false
+	}
+	_, _, err = a.Store.Patch(data.PatchInput{Ref: ref, Fields: map[string]any{"viewedAt": data.WriteTime{}}}, viewer)
+	return err == nil
+}
+
+func (a *App) markTaskRead(ref core.Ref) bool {
+	notesMarked := a.markTaskNotesRead(ref.ID)
+	rec, err := a.Store.Get(ref)
+	recMarked := false
+	if err == nil && rec != nil && a.isGenericNavRecordUnread(*rec) {
+		if _, _, perr := a.Store.Patch(data.PatchInput{Ref: ref, Fields: map[string]any{"readAt": data.WriteTime{}}}, viewer); perr == nil {
+			recMarked = true
+		}
+	}
+	return notesMarked || recMarked
+}
+
+func (a *App) markGenericRecordRead(ref core.Ref) bool {
+	rec, err := a.Store.Get(ref)
+	if err != nil || rec == nil {
+		return false
+	}
+	unread := a.isNavRecordUnread(ref.Kind, *rec, nil)
+	if ref.Kind == data.KindContext {
+		unread = a.isProjectContextUnread(*rec)
+	}
+	if !unread {
+		return false
+	}
+	_, _, err = a.Store.Patch(data.PatchInput{Ref: ref, Fields: map[string]any{"readAt": data.WriteTime{}}}, viewer)
+	return err == nil
 }
 
 func (a *App) markPanePagesRead(paneID string) bool {
@@ -408,24 +424,28 @@ func (a *App) markTaskNotesRead(taskID string) bool {
 }
 
 func (a *App) autoMarkRecordRead(ref *core.Ref, unread bool) bool {
-	if !unread || ref == nil || ref.ID == "" || ref.Kind == data.KindPane {
+	if !unread || ref == nil || ref.ID == "" {
 		return false
 	}
-	return a.markRecordRead(*ref)
+	return a.markRecordReadMode(*ref, false)
 }
 
 func (a *App) autoMarkProjectNavTargetRead(target projectNavTarget) bool {
-	if !target.Unread || (target.Ref != nil && target.Ref.Kind == data.KindPane) {
+	if !target.Unread {
 		return false
 	}
-	return a.markProjectNavTargetRead(target)
+	return a.markProjectNavTargetReadMode(target, false)
 }
 
 func (a *App) markProjectNavTargetRead(target projectNavTarget) bool {
+	return a.markProjectNavTargetReadMode(target, true)
+}
+
+func (a *App) markProjectNavTargetReadMode(target projectNavTarget, cascadePanePages bool) bool {
 	if target.Ref == nil || target.Ref.ID == "" {
 		return false
 	}
-	if !a.markRecordRead(*target.Ref) {
+	if !a.markRecordReadMode(*target.Ref, cascadePanePages) {
 		return false
 	}
 	a.invalidateProjectUnreadCaches("")

@@ -288,7 +288,6 @@ var cyclomaticCeilings = map[string]int{
 	"app/project_nav_tree.go:(App).projectTreeNavNodes":                         23,
 	"app/project_nav_unread.go:(App).isNavRecordUnread":                         25,
 	"app/project_nav_unread.go:(App).markProjectNavSectionRead":                 18,
-	"app/project_nav_unread.go:(App).markRecordRead":                            19,
 	"app/project_nav_unread.go:(App).markTaskNotesRead":                         14,
 	"app/project_outline.go:(App).projectOutlineView":                           20,
 	"app/project_outline.go:(App).syncProjectTaskTree":                          31,
