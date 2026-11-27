@@ -792,7 +792,7 @@ func (a *App) focusHints(s core.State, _ core.Command) core.StepResult {
 	if a.focusHintsDrilldown() {
 		frame = buildFocusHintRootFrame(tree, solved, len(s.Modals) == 0)
 	} else {
-		frame = focusHintFrame{session: hints.NewSession(focusTargetsFromView(tree, solved))}
+		frame = buildFocusHintFlatFrame(tree, solved, len(s.Modals) == 0)
 	}
 	if frame.session == nil || !frame.session.Active() {
 		a.say("no focusable regions on screen")

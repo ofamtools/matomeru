@@ -269,7 +269,7 @@ func projectHomeBindings() []core.Binding {
 	n := ModeNormal
 	return append([]core.Binding{
 		bind(n, views.ScopeProjectNav, "enter", CmdProjectSectionSelect, "open section"),
-		when(bind(n, views.ScopeProjectNav, "space", CmdProjectNavToggle, "expand / collapse"), "facts.navExpandable"),
+		bind(n, views.ScopeProjectNav, "space", CmdProjectNavToggle, "expand / collapse"),
 		when(bind(n, views.ScopeProjectNav, "r", CmdProjectNavMarkRead, "mark read"), "facts.unread || facts.sectionUnread"),
 		when(bind(n, views.ScopeProjectNav, "R", CmdProjectNavMarkSectionRead, "mark section read"), "facts.unread || facts.sectionUnread || (facts.section == \"home\" && facts.projectUnread)"),
 		when(bind(n, views.ScopeProjectNav, "z u", CmdProjectNavNewItemsToggle, "new items on/off"), "facts.section == \"home\""),
@@ -592,6 +592,16 @@ func (a *App) findRailGroupForProject(projectID string) string {
 	return ""
 }
 
+func (a *App) syncProjectNavPointer(sec string) {
+	if sec == "" || a.nav == nil {
+		return
+	}
+	if a.nav.lastFocus == nil {
+		a.nav.lastFocus = map[string]string{}
+	}
+	a.nav.lastFocus["project.nav"] = projectNavPrefix + sec
+}
+
 func (a *App) projectSectionSelect(s core.State, c core.Command) core.StepResult {
 	pc := a.projectCtrl()
 	sec := strings.TrimSpace(c.Arg("section"))
@@ -619,6 +629,7 @@ func (a *App) projectSectionSelect(s core.State, c core.Command) core.StepResult
 		delete(pc.childPaneByProject, projKey)
 	}
 	pc.setSection(projKey, sec)
+	a.syncProjectNavPointer(sec)
 	s = withFocus(s, projectNavPrefix+sec)
 	a.viewMemo.gen++
 	nodes := a.focusables(s)
@@ -693,6 +704,7 @@ func (a *App) projectContentOpen(s core.State, c core.Command) core.StepResult {
 		if row.ID == projectPagesOutlineRowID {
 			pc.setOpenPageID(pc.activeProjectKey, "")
 			pc.setSection(pc.activeProjectKey, "tasks")
+			a.syncProjectNavPointer("tasks")
 			a.viewMemo.gen++
 			for _, n := range a.focusables(s) {
 				if n.region == "project.content" {

@@ -51,6 +51,7 @@ type NavController struct {
 	jumping               bool
 	indexFocus            string
 	lastFocus             map[string]string
+	splitRatios           map[string]float64
 	focusRegion           string
 	dynamicFilterIDs      map[string]bool
 	filters               *traits.FilterRegistry
@@ -71,6 +72,7 @@ func newNavController() *NavController {
 		recCacheKeys:     map[string]string{},
 		activePreset:     map[string]string{},
 		lastFocus:        map[string]string{},
+		splitRatios:      map[string]float64{},
 		dynamicFilterIDs: map[string]bool{},
 		filters:          traits.NewFilterRegistry(),
 		histPos:          -1,

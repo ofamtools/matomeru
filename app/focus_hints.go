@@ -45,9 +45,9 @@ func (a *App) focusHintsStyle() string {
 
 func (a *App) focusHintsDrilldown() bool {
 	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
-		return true
+		return false
 	}
-	return a.cfg.Settings.Bool(SetFocusHintsDrilldown, true)
+	return a.cfg.Settings.Bool(SetFocusHintsDrilldown, false)
 }
 
 func isTitledContainer(n *ui.ViewNode) bool {
@@ -163,49 +163,135 @@ func outermostTitledPanel(path []*ui.ViewNode) *ui.ViewNode {
 	return nil
 }
 
+func isLayoutContainerKind(kind string) bool {
+	switch kind {
+	case ui.KindScroll, ui.KindVStack, ui.KindHStack, ui.KindSplit, ui.KindPanel:
+		return true
+	}
+	return false
+}
+
+func hasFocusableDescendant(n *ui.ViewNode, focusSet map[string]bool) bool {
+	if n == nil {
+		return false
+	}
+	for i := range n.Children {
+		ch := &n.Children[i]
+		if ch.Kind == ui.KindOverlay {
+			continue
+		}
+		if focusSet[ch.ID] || hasFocusableDescendant(ch, focusSet) {
+			return true
+		}
+	}
+	return false
+}
+
+func isRedundantFocusContainer(node *ui.ViewNode, focusSet map[string]bool) bool {
+	return node != nil && isLayoutContainerKind(node.Kind) && hasFocusableDescendant(node, focusSet)
+}
+
+func assignFocusTargetName(t *hints.Target, node, anc *ui.ViewNode) {
+	own := nodeOwnFocusLabel(node)
+	parentTitle := ""
+	if anc != nil {
+		parentTitle = strings.TrimSpace(anc.Title)
+	}
+	switch {
+	case own == "" && parentTitle != "":
+		t.Kind, t.Value = "", parentTitle
+	case own != "" && parentTitle != "":
+		if strings.EqualFold(own, parentTitle) {
+			t.Kind, t.Value = "", own
+		} else {
+			t.Kind, t.Value = parentTitle, own
+		}
+	case own != "":
+		t.Kind, t.Value = "", own
+	default:
+		t.Kind, t.Value = "", t.ID
+	}
+}
+
 // focusTargetsFromView enriches hints.TargetsFromFocusOrder(solved) with real
 // rendered names derived generically from tree (panel titles, card titles, and
-// cleaned KindText rows) rather than raw internal node IDs.
+// cleaned KindText rows) rather than raw internal node IDs. Redundant focusable
+// layout containers that already have focusable descendants are skipped so hints
+// land directly on interactive content components.
 func focusTargetsFromView(tree ui.ViewNode, solved layout.Solved) []hints.Target {
-	targets := hints.TargetsFromFocusOrder(solved)
-	if len(targets) == 0 {
+	raw := hints.TargetsFromFocusOrder(solved)
+	if len(raw) == 0 {
 		return nil
 	}
-	for i := range targets {
-		path := findTargetPath(&tree, targets[i].ID)
+	focusSet := make(map[string]bool, len(raw))
+	for _, t := range raw {
+		focusSet[t.ID] = true
+	}
+	out := make([]hints.Target, 0, len(raw))
+	for _, t := range raw {
+		path := findTargetPath(&tree, t.ID)
 		if len(path) == 0 {
-			targets[i].Kind = ""
-			targets[i].Value = targets[i].ID
+			t.Kind, t.Value = "", t.ID
+			out = append(out, t)
 			continue
 		}
 		node := path[len(path)-1]
-		anc := nearestTitledAncestor(path)
-		own := nodeOwnFocusLabel(node)
-		parentTitle := ""
-		if anc != nil {
-			parentTitle = strings.TrimSpace(anc.Title)
+		if isRedundantFocusContainer(node, focusSet) {
+			continue
 		}
-		switch {
-		case own == "" && parentTitle != "":
-			targets[i].Kind = ""
-			targets[i].Value = parentTitle
-		case own != "" && parentTitle != "":
-			if strings.EqualFold(own, parentTitle) {
-				targets[i].Kind = ""
-				targets[i].Value = own
-			} else {
-				targets[i].Kind = parentTitle
-				targets[i].Value = own
+		assignFocusTargetName(&t, node, nearestTitledAncestor(path))
+		out = append(out, t)
+	}
+	return out
+}
+
+func collectFocusHintTabs(root *ui.ViewNode, solved layout.Solved, tabSpaceByID map[string]string) []hints.Target {
+	var out []hints.Target
+	var walk func(n *ui.ViewNode)
+	walk = func(n *ui.ViewNode) {
+		if n.Kind == ui.KindOverlay {
+			return
+		}
+		if n.Kind == ui.KindTabs {
+			for i := range n.Children {
+				tab := &n.Children[i]
+				title := strings.TrimSpace(tab.Title)
+				if tab.ID == "" || tab.Scope == "" || title == "" {
+					continue
+				}
+				out = append(out, hints.Target{
+					ID:    tab.ID,
+					Rect:  solved.Rects[tab.ID],
+					Value: title,
+				})
+				tabSpaceByID[tab.ID] = tab.Scope
 			}
-		case own != "":
-			targets[i].Kind = ""
-			targets[i].Value = own
-		default:
-			targets[i].Kind = ""
-			targets[i].Value = targets[i].ID
+			return
+		}
+		for i := range n.Children {
+			walk(&n.Children[i])
 		}
 	}
-	return targets
+	walk(root)
+	return out
+}
+
+// buildFocusHintFlatFrame builds a single-step focus-hints frame covering space
+// tabs (when no modal is open) and every focusable content node on screen.
+func buildFocusHintFlatFrame(tree ui.ViewNode, solved layout.Solved, includeTabs bool) focusHintFrame {
+	frame := focusHintFrame{
+		tabSpaceByID: map[string]string{},
+	}
+	var targets []hints.Target
+	if includeTabs {
+		targets = append(targets, collectFocusHintTabs(&tree, solved, frame.tabSpaceByID)...)
+	}
+	targets = append(targets, focusTargetsFromView(tree, solved)...)
+	for i := range targets {
+		targets[i].Label = ""
+	}
+	frame.session = hints.NewSession(targets)
+	return frame
 }
 
 // buildFocusHintRootFrame builds Level 1 of outside-in hierarchical focus
@@ -217,35 +303,8 @@ func buildFocusHintRootFrame(tree ui.ViewNode, solved layout.Solved, includeTabs
 		tabSpaceByID:    map[string]string{},
 	}
 	var level1 []hints.Target
-
 	if includeTabs {
-		var collectTabs func(n *ui.ViewNode)
-		collectTabs = func(n *ui.ViewNode) {
-			if n.Kind == ui.KindOverlay {
-				return
-			}
-			if n.Kind == ui.KindTabs {
-				for i := range n.Children {
-					tab := &n.Children[i]
-					title := strings.TrimSpace(tab.Title)
-					if tab.ID == "" || tab.Scope == "" || title == "" {
-						continue
-					}
-					level1 = append(level1, hints.Target{
-						ID:    tab.ID,
-						Rect:  solved.Rects[tab.ID],
-						Kind:  "",
-						Value: title,
-					})
-					frame.tabSpaceByID[tab.ID] = tab.Scope
-				}
-				return
-			}
-			for i := range n.Children {
-				collectTabs(&n.Children[i])
-			}
-		}
-		collectTabs(&tree)
+		level1 = append(level1, collectFocusHintTabs(&tree, solved, frame.tabSpaceByID)...)
 	}
 
 	flat := focusTargetsFromView(tree, solved)
@@ -259,18 +318,15 @@ func buildFocusHintRootFrame(tree ui.ViewNode, solved layout.Solved, includeTabs
 				level1 = append(level1, hints.Target{
 					ID:    panel.ID,
 					Rect:  solved.Rects[panel.ID],
-					Kind:  "",
 					Value: strings.TrimSpace(panel.Title),
 				})
 			}
 			frame.childrenByPanel[panel.ID] = append(frame.childrenByPanel[panel.ID], t)
 			continue
 		}
-		// Top-level focusable node outside any titled KindPanel (e.g. Show header card).
 		level1 = append(level1, t)
 	}
 
-	// Clear inherited labels so Level 1 gets fresh home-row labels from 'a'.
 	for i := range level1 {
 		level1[i].Label = ""
 	}

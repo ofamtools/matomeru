@@ -538,6 +538,16 @@ func DefaultBindings() []core.Binding {
 		bind(ModeFilter, all, "ctrl+x", CmdFilterClear, "clear"),
 		bind(ModeFilter, all, "tab", CmdFilterMode, "match mode"),
 		bind(ModeFilter, all, "ctrl+t", CmdFilterField, "filter field"),
+		bind(ModeFilter, all, "down", "motion.down", "down"),
+		bind(ModeFilter, all, "up", "motion.up", "up"),
+		hidden(bind(ModeFilter, all, "ctrl+n", "motion.down", "down")),
+		hidden(bind(ModeFilter, all, "ctrl+p", "motion.up", "up")),
+		hidden(bind(ModeFilter, all, "ctrl+j", "motion.down", "down")),
+		hidden(bind(ModeFilter, all, "ctrl+k", "motion.up", "up")),
+		when(bind(ModeFilter, all, "ctrl+d", "motion.half.down", "half page down"), "facts.filterScrollMotions"),
+		when(bind(ModeFilter, all, "ctrl+u", "motion.half.up", "half page up"), "facts.filterScrollMotions"),
+		when(bind(ModeFilter, all, "ctrl+f", "motion.page.down", "page down"), "facts.filterScrollMotions"),
+		when(bind(ModeFilter, all, "ctrl+b", "motion.page.up", "page up"), "facts.filterScrollMotions"),
 
 		// Pickers: Normal Mode (j/k navigate, / or i enters filter mode).
 		bind(ModePicker, all, "j", "motion.down", "down"),
@@ -602,6 +612,10 @@ func DefaultBindings() []core.Binding {
 		hidden(bind(ModePickerFilter, all, "ctrl+p", "motion.up", "up")),
 		hidden(bind(ModePickerFilter, all, "ctrl+j", "motion.down", "down")),
 		hidden(bind(ModePickerFilter, all, "ctrl+k", "motion.up", "up")),
+		when(bind(ModePickerFilter, all, "ctrl+d", "motion.half.down", "half page down"), "facts.filterScrollMotions"),
+		when(bind(ModePickerFilter, all, "ctrl+u", "motion.half.up", "half page up"), "facts.filterScrollMotions"),
+		when(bind(ModePickerFilter, all, "ctrl+f", "motion.page.down", "page down"), "facts.filterScrollMotions"),
+		when(bind(ModePickerFilter, all, "ctrl+b", "motion.page.up", "page up"), "facts.filterScrollMotions"),
 		bind(ModePickerFilter, "path", "tab", pathpicker.CmdSelect, "choose this path"),
 		bind(ModePickerFilter, "path", "ctrl+t", pathpicker.CmdHiddenToggle, "hidden files"),
 		when(bind(ModePickerFilter, "path", "left", pathpicker.CmdParent, "parent directory"), "facts.query == \"\""),
@@ -674,6 +688,16 @@ func DefaultBindings() []core.Binding {
 		bind(ModeBindingsFilter, all, "enter", CmdBindingsFilterDone, "keep"),
 		bind(ModeBindingsFilter, all, "esc", CmdBindingsFilterClear, "clear"),
 		bind(ModeBindingsFilter, all, "tab", CmdBindingsMatchMode, "match mode"),
+		bind(ModeBindingsFilter, all, "down", "motion.down", "down"),
+		bind(ModeBindingsFilter, all, "up", "motion.up", "up"),
+		hidden(bind(ModeBindingsFilter, all, "ctrl+n", "motion.down", "down")),
+		hidden(bind(ModeBindingsFilter, all, "ctrl+p", "motion.up", "up")),
+		hidden(bind(ModeBindingsFilter, all, "ctrl+j", "motion.down", "down")),
+		hidden(bind(ModeBindingsFilter, all, "ctrl+k", "motion.up", "up")),
+		when(bind(ModeBindingsFilter, all, "ctrl+d", "motion.half.down", "half page down"), "facts.filterScrollMotions"),
+		when(bind(ModeBindingsFilter, all, "ctrl+u", "motion.half.up", "half page up"), "facts.filterScrollMotions"),
+		when(bind(ModeBindingsFilter, all, "ctrl+f", "motion.page.down", "page down"), "facts.filterScrollMotions"),
+		when(bind(ModeBindingsFilter, all, "ctrl+b", "motion.page.up", "page up"), "facts.filterScrollMotions"),
 		{Mode: ModeBindingsCapture, Class: core.ClassAny, Command: CmdBindingsCaptureKey, Args: map[string]any{"key": "$key"}, Hidden: true},
 		bind(ModeBindingsCapture, all, "enter", CmdBindingsCaptureDone, "set these keys"),
 		bind(ModeBindingsCapture, all, "esc", CmdBindingsCaptureCancel, "cancel"),
@@ -821,7 +845,8 @@ func DefaultBindings() []core.Binding {
 		bind(ModeComposer, all, "ctrl+p", CmdComposerDraftPrev, "previous draft / completion"),
 		bind(ModeComposer, all, "ctrl+n", CmdComposerDraftNext, "next draft / completion"),
 		bind(ModeComposer, all, "ctrl+v", CmdComposerAttachClipboard, "paste or attach clipboard"),
-		bind(ModeComposer, all, "ctrl+f", CmdComposerAttachFile, "attach file"),
+		bind(ModeComposer, all, "alt+i", CmdComposerAttachFile, "attach file"),
+		when(bind(ModeComposer, all, "ctrl+f", CmdComposerAttachFile, "attach file"), "!facts.readlinePriority"),
 		bind(ModeComposer, all, "ctrl+x", CmdComposerAttachRemove, "remove last attachment"),
 		bind(ModeComposer, all, "backspace", CmdComposerBackspace, "erase"),
 		hidden(bind(ModeComposer, all, "shift+backspace", CmdComposerBackspace, "erase")),
@@ -876,6 +901,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, gitHubBindings()...)
 	out = append(out, zeroFieldBindings()...)
 	out = append(out, pickerPickerBindings()...)
+	out = append(out, splitResizeBindings()...)
 	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeCommandLine, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModePickerFilter} {
 		out = append(out, with(bind(mode, all, "alt+h", CmdPaneHints, "paste terminal hint"), map[string]any{"action": HintsActionInsert}))
 	}
@@ -893,23 +919,43 @@ func DefaultBindings() []core.Binding {
 }
 
 // appendReadlineBindings appends Ochazuke's default Readline bindings for
-// mode/scope, skipping keys already unconditionally bound in that mode so
-// mode-specific keys (such as ctrl+n/ctrl+p/ctrl+k/ctrl+d/ctrl+u in pickers)
-// remain conflict-free.
+// mode/scope, skipping keys already unconditionally bound in that mode and
+// applying complementary When guards when a key has an opt-out conditional row.
 func appendReadlineBindings(out []core.Binding, mode, scope string) []core.Binding {
-	taken := map[string]bool{}
-	for _, b := range out {
-		if b.Mode == mode && b.Scope == scope && b.When == "" && len(b.Keys) > 0 {
-			taken[strings.Join(b.Keys, " ")] = true
-		}
-	}
+	added := map[string]bool{}
 	for _, rb := range input.ReadlineBindings(mode, scope) {
 		k := strings.Join(rb.Keys, " ")
-		if taken[k] {
+		if added[k] {
 			continue
 		}
-		taken[k] = true
+		skip, guard := readlineGuardForKey(out, mode, scope, k)
+		if skip {
+			continue
+		}
+		if guard != "" {
+			rb.When = guard
+		}
+		added[k] = true
 		out = append(out, rb)
 	}
 	return out
+}
+
+func readlineGuardForKey(existing []core.Binding, mode, scope, key string) (bool, string) {
+	guard := ""
+	for _, b := range existing {
+		if b.Mode != mode || b.Scope != scope || strings.Join(b.Keys, " ") != key {
+			continue
+		}
+		if b.When == "" {
+			return true, ""
+		}
+		switch b.When {
+		case "!facts.readlinePriority":
+			guard = "facts.readlinePriority"
+		case "facts.filterScrollMotions":
+			guard = "!facts.filterScrollMotions"
+		}
+	}
+	return false, guard
 }

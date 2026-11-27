@@ -243,6 +243,9 @@ const (
 	SetFocusEnforceLocks               = "focus.enforceLocks"
 	SetFocusChromeCountdown            = "focus.chromeCountdown"
 	SetDeclarativePresentations        = "ui.declarativePresentations"
+	SetInputReadlinePriority           = "input.readlinePriority"
+	SetInputFilterScrollMotions        = "input.filterScrollMotions"
+	SetSplitResize                     = "ui.splitResize"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -360,7 +363,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetExtensionsShowCatalog, true, "show uninstalled OFAM catalog tools as available in 4 Extensions"),
 		{Name: SetExtensionsGoPrivate, Type: core.ParamString, Default: "ofam.dev", Description: "GOPRIVATE value used when installing OFAM extensions via go install"},
 		enum(SetFocusHintsStyle, FocusHintsInline, "how focus jump hints (g f) display labels: inline on screen, overlay picker, or both", FocusHintsInline, FocusHintsOverlay, FocusHintsBoth),
-		flag(SetFocusHintsDrilldown, true, "drill into focus hints from outside in (tabs & rails first, then items inside a chosen rail)"),
+		flag(SetFocusHintsDrilldown, false, "drill into focus hints from outside in (tabs & rails first, then items inside a chosen rail)"),
 		flag(SetComposerCompact, true, "use a compact, focused modal size for the prompt composer (false uses the large modal)"),
 		flag(SetComposerWrap, true, "soft-wrap long lines inside the prompt composer input"),
 		flag(SetArchiveAnimation, true, "animate archived rows with a color-fade dissolve before removing them from lists"),
@@ -428,6 +431,9 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetFocusChromeCountdown, true, "show a short Pomodoro countdown chip in the chrome while a Pomodoro runs"),
 		flag(SetDeclarativePresentations, true, "draw references from each noun's declared presentation forms (chip, inline, row, card, detail; presentations.json) instead of raw kind:id text"),
 		flag(SetContextExtractCodeBlocks, true, "extract fenced code blocks and inline code spans as code context items"),
+		flag(SetInputReadlinePriority, true, "keep readline keys (ctrl+f/b/d/u/l) for editing and motions in text inputs instead of opening picker modals (use alt+p/alt+i/alt+o)"),
+		flag(SetInputFilterScrollMotions, true, "use ctrl+f/b/d/u as page and half-page list motions while typing in filter fields (off: readline editing)"),
+		flag(SetSplitResize, true, "allow resizing UI splits interactively with ctrl+w >/< / +/- / ="),
 	}
 }
 
@@ -593,6 +599,18 @@ func (a *App) stickyTreeBreadcrumbsEnabled() bool {
 
 func (a *App) extractCodeBlocksEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetContextExtractCodeBlocks, true)
+}
+
+func (a *App) inputReadlinePriorityEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetInputReadlinePriority, true)
+}
+
+func (a *App) inputFilterScrollMotionsEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetInputFilterScrollMotions, true)
+}
+
+func (a *App) splitResizeEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetSplitResize, true)
 }
 
 func (a *App) detachFocusTarget() string {

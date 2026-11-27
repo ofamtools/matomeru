@@ -35,6 +35,7 @@ func TestFocusHintsInlineAndDrilldown(t *testing.T) {
 		t.Run(modeName, func(t *testing.T) {
 			a, d := demo(t)
 			a.cfg.userSettings[SetCompactTOC] = compactTOC
+			a.cfg.userSettings[SetFocusHintsDrilldown] = true
 			a.reloadSettings()
 			a.applySettings()
 			d.Keys("1")
@@ -213,18 +214,21 @@ func TestFocusHintsInlineAndDrilldown(t *testing.T) {
 }
 
 func TestFocusHintsFlatOptOutAndStyleSettings(t *testing.T) {
-	t.Run("hints.focusDrilldown=false shows flat leaf hints directly", func(t *testing.T) {
+	t.Run("default hints.focusDrilldown=false shows direct leaf hints and tabs in one step", func(t *testing.T) {
 		a, d := demo(t)
-		a.cfg.userSettings[SetFocusHintsDrilldown] = false
-		a.reloadSettings()
-		a.applySettings()
+		if a.focusHintsDrilldown() {
+			t.Fatal("expected SetFocusHintsDrilldown to default to false")
+		}
 		d.Keys("1")
 
 		d.Keys("g", "f")
 		if !a.focusHintsActive() {
-			t.Fatal("g f did not activate flat focus hints")
+			t.Fatal("g f did not activate direct focus hints")
 		}
 		targets := a.panes.hints.session.Targets()
+		if tabWork, ok := findFocusTargetByID(targets, "space.work"); !ok || tabWork.Value != "Work" {
+			t.Fatalf("direct hints missing space.work tab target: %+v", targets)
+		}
 		railTgt, ok := findFocusTargetByID(targets, railTable)
 		if !ok || railTgt.Value != "Panes" || railTgt.Kind != "" {
 			t.Fatalf("flat rail target = %+v (ok=%v), want Value=Panes Kind=''", railTgt, ok)

@@ -37,7 +37,8 @@ func composerContextSpecs() []core.CommandSpec {
 func composerContextBindings() []core.Binding {
 	return []core.Binding{
 		bind(ModeComposer, "", "ctrl+g", CmdComposerContextToggle, "toggle project context"),
-		bind(ModeComposer, "", "ctrl+o", CmdComposerContextPick, "pick project context"),
+		bind(ModeComposer, "", "alt+o", CmdComposerContextPick, "pick project context"),
+		when(bind(ModeComposer, "", "ctrl+o", CmdComposerContextPick, "pick project context"), "!facts.readlinePriority"),
 		bind(ModePicker, composerContextPickerID, "space", picker.CmdConfirm, "toggle context item"),
 	}
 }
@@ -201,19 +202,19 @@ func (c *composerProjectContext) bannerNode() *ui.ViewNode {
 			summary = fmt.Sprintf("%s · +%d more", strings.Join(titles[:3], " · "), len(titles)-3)
 		}
 		if c.isDefaultOfficialSelection() {
-			text = fmt.Sprintf(" ★ Project Context (%d/%d official): %s  [%sctrl+g off · ctrl+o pick]",
+			text = fmt.Sprintf(" ★ Project Context (%d/%d official): %s  [%sctrl+g off · alt+o pick]",
 				len(selected), len(c.officialIDs), summary, firstHint)
 		} else {
-			text = fmt.Sprintf(" ★ Project Context (%d selected): %s  [%sctrl+g off · ctrl+o pick]",
+			text = fmt.Sprintf(" ★ Project Context (%d selected): %s  [%sctrl+g off · alt+o pick]",
 				len(selected), summary, firstHint)
 		}
 		tone = "accent"
 	} else {
 		if len(c.officialIDs) > 0 {
-			text = fmt.Sprintf(" ○ Project Context: off (%d official available)  [%sctrl+g on · ctrl+o pick]",
+			text = fmt.Sprintf(" ○ Project Context: off (%d official available)  [%sctrl+g on · alt+o pick]",
 				len(c.officialIDs), firstHint)
 		} else {
-			text = fmt.Sprintf(" ○ Project Context: off (%d project items)  [%sctrl+o pick]",
+			text = fmt.Sprintf(" ○ Project Context: off (%d project items)  [%salt+o pick]",
 				len(c.allProjectCtx), firstHint)
 		}
 		tone = "muted"
@@ -233,7 +234,7 @@ func (m *richComposerModal) handleContextToggle() modal.Result {
 		return modal.Result{Handled: true, Status: msg, SetStatus: true}
 	}
 	if len(m.projCtx.officialIDs) == 0 && len(m.projCtx.selectedIDs) == 0 {
-		return modal.Result{Handled: true, Status: "no official project context · press ctrl+o to pick", SetStatus: true}
+		return modal.Result{Handled: true, Status: "no official project context · press alt+o to pick", SetStatus: true}
 	}
 	return modal.Result{Handled: true, Status: "project context off for this prompt", SetStatus: true}
 }
