@@ -246,6 +246,7 @@ const (
 	SetInputReadlinePriority           = "input.readlinePriority"
 	SetInputFilterScrollMotions        = "input.filterScrollMotions"
 	SetSplitResize                     = "ui.splitResize"
+	SetProjectNavCompact               = "ui.projectNavCompact"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -434,6 +435,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetInputReadlinePriority, true, "keep readline keys (ctrl+f/b/d/u/l) for editing and motions in text inputs instead of opening picker modals (use alt+p/alt+i/alt+o)"),
 		flag(SetInputFilterScrollMotions, true, "use ctrl+f/b/d/u as page and half-page list motions while typing in filter fields (off: readline editing)"),
 		flag(SetSplitResize, true, "allow resizing UI splits interactively with ctrl+w >/< / +/- / ="),
+		flag(SetProjectNavCompact, true, "use a less dense Project Portal left nav: hide zero-count badges, cap auto-expanded unread previews, and add group spacing"),
 	}
 }
 
@@ -611,6 +613,10 @@ func (a *App) inputFilterScrollMotionsEnabled() bool {
 
 func (a *App) splitResizeEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetSplitResize, true)
+}
+
+func (a *App) projectNavCompactEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectNavCompact, true)
 }
 
 func (a *App) detachFocusTarget() string {

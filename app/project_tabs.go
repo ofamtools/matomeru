@@ -35,8 +35,16 @@ const (
 type topTabDef struct {
 	id        string
 	title     string
+	fullTitle string
 	projectID string
 	dynamic   bool
+}
+
+func (tb topTabDef) projectTitle() string {
+	if tb.fullTitle != "" {
+		return tb.fullTitle
+	}
+	return tb.title
 }
 
 func isProjectTab(pageID string) bool {
@@ -67,26 +75,26 @@ func (a *App) projectChildPaneViewEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectsChildPaneView, true)
 }
 
-// topTabs returns the ordered top-bar tabs: 1 Panes, 2 Work, 3 Runs, 4 Extensions,
-// optional 5 Projects, and any open dynamic 6+ Project Tabs (auto-pruning deleted tasks).
-func (a *App) topTabs() []topTabDef {
-	out := make([]topTabDef, 0, len(spaces)+1+len(a.projectCtrl().openTabs))
-	for _, sp := range spaces {
-		out = append(out, topTabDef{id: sp.id, title: sp.title})
-	}
-	if a.projectsTopNavTabEnabled() {
-		out = append(out, topTabDef{id: SpaceProjects, title: "Projects"})
-	}
-	if a.featuresPageActive() {
-		out = append(out, topTabDef{id: SpaceFeatures, title: "Features"})
-	}
-	if !a.projectsDynamicTabsEnabled() || a.Store == nil {
-		return out
+func (a *App) topTabsCacheKey() string {
+	var rev int64
+	if a.Store != nil {
+		rev, _ = a.Store.LatestChangeSetNumber()
 	}
 	pc := a.projectCtrl()
+	return fmt.Sprintf("%d|%t|%t|%t|%t|%s",
+		rev, a.Store != nil, a.projectsTopNavTabEnabled(), a.projectsDynamicTabsEnabled(),
+		a.featuresPageActive(), strings.Join(pc.openTabs, ","),
+	)
+}
+
+func (a *App) buildDynamicProjectTabs(pc *ProjectController) []topTabDef {
+	if !a.projectsDynamicTabsEnabled() || a.Store == nil {
+		return nil
+	}
 	taskSchema := a.schema(data.KindTask)
 	kept := make([]string, 0, len(pc.openTabs))
 	seen := make(map[string]bool, len(pc.openTabs))
+	out := make([]topTabDef, 0, len(pc.openTabs))
 	for _, pid := range pc.openTabs {
 		pid = strings.TrimSpace(pid)
 		if pid == "" || seen[pid] {
@@ -106,12 +114,36 @@ func (a *App) topTabs() []topTabDef {
 		out = append(out, topTabDef{
 			id:        projectTabID(pid),
 			title:     clip(title, 24),
+			fullTitle: title,
 			projectID: pid,
 			dynamic:   true,
 		})
 	}
 	pc.openTabs = kept
 	return out
+}
+
+// topTabs returns the ordered top-bar tabs: 1 Panes, 2 Work, 3 Runs, 4 Extensions,
+// optional 5 Projects, and any open dynamic 6+ Project Tabs (auto-pruning deleted tasks).
+func (a *App) topTabs() []topTabDef {
+	pc := a.projectCtrl()
+	cacheKey := a.topTabsCacheKey()
+	if pc.topTabsCacheKey == cacheKey && pc.topTabsCache != nil {
+		return slices.Clone(pc.topTabsCache)
+	}
+	out := make([]topTabDef, 0, len(spaces)+1+len(pc.openTabs))
+	for _, sp := range spaces {
+		out = append(out, topTabDef{id: sp.id, title: sp.title})
+	}
+	if a.projectsTopNavTabEnabled() {
+		out = append(out, topTabDef{id: SpaceProjects, title: "Projects"})
+	}
+	if a.featuresPageActive() {
+		out = append(out, topTabDef{id: SpaceFeatures, title: "Features"})
+	}
+	out = append(out, a.buildDynamicProjectTabs(pc)...)
+	pc.topTabsCache, pc.topTabsCacheKey = out, a.topTabsCacheKey()
+	return slices.Clone(out)
 }
 
 func (a *App) isValidTopTab(id string) bool {
@@ -463,6 +495,14 @@ func (a *App) projectsSpace(_ core.State) ui.ViewNode {
 }
 
 // --- Dynamic 6+ Project Tab Space -----------------------------------------------
+
+func (a *App) projectTabSpaceWithTitle(s core.State, projectID, projectTitle string) ui.ViewNode {
+	projRef := core.Ref{Kind: data.KindTask, ID: projectID}
+	if strings.TrimSpace(projectTitle) == "" {
+		return a.projectTabSpace(s, projectID)
+	}
+	return a.renderProjectWorkspace(s, projectTitle, &projRef, 0.20, projectTitle, true)
+}
 
 func (a *App) projectTabSpace(s core.State, projectID string) ui.ViewNode {
 	projRef := core.Ref{Kind: data.KindTask, ID: projectID}

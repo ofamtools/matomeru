@@ -13,23 +13,110 @@ import (
 	"ofam.dev/ochazuke/widgets/tree"
 )
 
+const projectNavCompactPeekLimit = 4
+
+func countVisibleNavNodes(nodes []views.ProjectNavNode) int {
+	total := 0
+	for _, n := range nodes {
+		total += 1 + countVisibleNavNodes(n.Children)
+	}
+	return total
+}
+
+func trimNavNodesToBudget(nodes []views.ProjectNavNode, budget *int) []views.ProjectNavNode {
+	if *budget <= 0 || len(nodes) == 0 {
+		return nil
+	}
+	out := make([]views.ProjectNavNode, 0, min(len(nodes), *budget))
+	for _, n := range nodes {
+		if *budget <= 0 {
+			break
+		}
+		*budget--
+		if len(n.Children) > 0 {
+			n.Children = trimNavNodesToBudget(n.Children, budget)
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+func capPeekedNavChildren(pc *ProjectController, projKey, secKey string, children []views.ProjectNavNode, limit int) []views.ProjectNavNode {
+	total := countVisibleNavNodes(children)
+	if limit <= 0 || total <= limit {
+		return children
+	}
+	budget := limit
+	trimmed := trimNavNodesToBudget(children, &budget)
+	hidden := total - countVisibleNavNodes(trimmed)
+	if hidden <= 0 {
+		return trimmed
+	}
+	moreFocusID := projectNavNodePrefix + secKey + "." + projectNavOverflowNodeID
+	label := fmt.Sprintf("+%d more", hidden)
+	trimmed = append(trimmed, views.ProjectNavNode{
+		ID:      projectNavOverflowNodeID,
+		Section: secKey,
+		Label:   label,
+		Tone:    "muted",
+		Peeked:  true,
+		Facts: map[string]any{
+			"navOverflow":   true,
+			"overflowCount": hidden,
+		},
+	})
+	pc.registerNavTarget(projKey, projectNavTarget{
+		FocusID:       moreFocusID,
+		Section:       secKey,
+		NodeID:        projectNavOverflowNodeID,
+		ParentFocusID: projectNavPrefix + secKey,
+		Label:         label,
+	})
+	return trimmed
+}
+
+func maybeCapPeekedNavChildren(pc *ProjectController, projKey, secKey string, children []views.ProjectNavNode, compact, expanded, allowPeek bool) []views.ProjectNavNode {
+	if !compact || expanded || !allowPeek || len(children) == 0 {
+		return children
+	}
+	return capPeekedNavChildren(pc, projKey, secKey, children, projectNavCompactPeekLimit)
+}
+
+func projectNavSectionBadge(secKey string, count, officialCount, ctxLen int, compact bool) string {
+	switch secKey {
+	case "signals":
+		if !compact {
+			return "0"
+		}
+		return ""
+	case "context":
+		if officialCount > 0 {
+			return fmt.Sprintf("★%d·%d", officialCount, ctxLen)
+		}
+	}
+	if !compact && secKey != "home" && count == 0 {
+		return "0"
+	}
+	return ""
+}
+
 func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData, activeKey, focusID string) []views.ProjectNavSection {
 	pc := a.projectCtrl()
 	treeEnabled := a.projectNavTreeEnabled()
 	allowPeek := a.projectNavPeeksUnread()
+	compact := a.projectNavCompactEnabled()
 	lockedFocus := ""
 	if locked := pc.activeNavItem(ws.projectKey); locked != nil {
 		lockedFocus = locked.FocusID
 	}
-	navKey := fmt.Sprintf("%d|%d|%d|%t|%t|%t|%t|%t|%t|%s|%s|%s|%d|%s|%s",
+	openPage := pc.openPageID(ws.projectKey)
+	navKey := fmt.Sprintf("%d|%d|%d|%t|%t|%t|%t|%t|%t|%t|%s|%s|%d|%s",
 		ws.cacheRev, ws.cacheCtxGen, a.telemetryViewSeq(),
-		a.nav.showArchived, treeEnabled, allowPeek,
+		a.nav.showArchived, treeEnabled, allowPeek, compact,
 		a.projectNavSurfaceContextUnreadEnabled(), a.projectNavUnreadDotOnlyEnabled(), a.projectNavLaneProgressBarEnabled(),
-		activeKey,
 		sortedTrueKeys(pc.expandedSections[ws.projectKey]),
 		sortedTrueKeys(pc.expandedNodes[ws.projectKey]),
 		a.navUnreadCutoff.UnixNano(),
-		lockedFocus,
 		a.archiveAnimCacheKey(),
 	)
 	if pc.navCache != nil {
@@ -38,7 +125,7 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 				pc.navTargets = map[string]map[string]projectNavTarget{}
 			}
 			pc.navTargets[ws.projectKey] = cached.targets
-			return cloneNavSectionsWithFocus(cached.sections, focusID, lockedFocus)
+			return cloneNavSectionsWithFocus(cached.sections, activeKey, focusID, lockedFocus, openPage)
 		}
 	}
 
@@ -58,19 +145,14 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 		expanded := expandable && pc.isNavSectionExpanded(ws.projectKey, d.Key)
 		sec := views.ProjectNavSection{
 			Key: d.Key, Label: d.Label, Icon: d.Icon, Group: d.Group,
-			Count: counts[d.Key], Active: d.Key == activeKey,
+			Badge:      projectNavSectionBadge(d.Key, counts[d.Key], ws.officialCount, len(ws.contextItems), compact),
+			Count:      counts[d.Key],
+			Active:     d.Key == activeKey,
 			Expandable: expandable, Expanded: expanded,
-		}
-		switch d.Key {
-		case "signals":
-			sec.Badge = "0"
-		case "context":
-			if ws.officialCount > 0 {
-				sec.Badge = fmt.Sprintf("★%d·%d", ws.officialCount, len(ws.contextItems))
-			}
 		}
 		if !d.Leaf && d.Key != "home" && d.Key != "signals" && counts[d.Key] > 0 {
 			children, unreadCount := a.buildProjectNavChildren(ws, d.Key, focusID, expanded, allowPeek)
+			children = maybeCapPeekedNavChildren(pc, ws.projectKey, d.Key, children, compact, expanded, allowPeek)
 			sec.UnreadCount = unreadCount
 			sec.Unread = unreadCount > 0
 			if treeEnabled && len(children) > 0 {
@@ -88,27 +170,28 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 		sections: out,
 		targets:  pc.navTargets[ws.projectKey],
 	}
-	return cloneNavSectionsWithFocus(out, focusID, lockedFocus)
+	return cloneNavSectionsWithFocus(out, activeKey, focusID, lockedFocus, openPage)
 }
 
-func cloneNavSectionsWithFocus(src []views.ProjectNavSection, focusID, lockedFocus string) []views.ProjectNavSection {
+func cloneNavSectionsWithFocus(src []views.ProjectNavSection, activeKey, focusID, lockedFocus, openPage string) []views.ProjectNavSection {
 	out := make([]views.ProjectNavSection, len(src))
 	for i, s := range src {
+		s.Active = s.Key == activeKey
 		if len(s.Children) > 0 {
-			s.Children = cloneNavNodesWithFocus(s.Children, focusID, lockedFocus)
+			s.Children = cloneNavNodesWithFocus(s.Children, focusID, lockedFocus, openPage)
 		}
 		out[i] = s
 	}
 	return out
 }
 
-func cloneNavNodesWithFocus(src []views.ProjectNavNode, focusID, lockedFocus string) []views.ProjectNavNode {
+func cloneNavNodesWithFocus(src []views.ProjectNavNode, focusID, lockedFocus, openPage string) []views.ProjectNavNode {
 	out := make([]views.ProjectNavNode, len(src))
 	for i, n := range src {
 		nfid := projectNavNodePrefix + n.Section + "." + n.ID
-		n.Active = focusID == nfid || lockedFocus == nfid
+		n.Active = focusID == nfid || lockedFocus == nfid || (n.Section == "pages" && openPage != "" && n.ID == openPage)
 		if len(n.Children) > 0 {
-			n.Children = cloneNavNodesWithFocus(n.Children, focusID, lockedFocus)
+			n.Children = cloneNavNodesWithFocus(n.Children, focusID, lockedFocus, openPage)
 		}
 		out[i] = n
 	}

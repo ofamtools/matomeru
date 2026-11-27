@@ -137,17 +137,55 @@ func (a *App) buildProjectInteractivePageNode(s core.State, page data.Record, pr
 	return wrapper.Children[0]
 }
 
+func findWorkspaceRecord(recs []data.Record, id string) (*data.Record, bool) {
+	for i := range recs {
+		if recs[i].ID == id {
+			return &recs[i], true
+		}
+	}
+	return nil, false
+}
+
+func (a *App) workspaceOrStoredRecord(recs []data.Record, ref core.Ref) (*data.Record, bool) {
+	if rec, ok := findWorkspaceRecord(recs, ref.ID); ok {
+		return rec, true
+	}
+	if a.Store == nil {
+		return nil, false
+	}
+	rec, err := a.Store.Get(ref)
+	return rec, err == nil && rec != nil
+}
+
+func (a *App) cachedShowSnapshot(ref core.Ref, rev int64) (data.ShowSnapshot, error) {
+	pc := a.projectCtrl()
+	if pc.showSnapCache != nil {
+		if cached, ok := pc.showSnapCache[ref]; ok && cached.rev == rev {
+			return cached.snap, nil
+		}
+	}
+	snap, err := a.Store.LoadShowSnapshot(ref)
+	if err != nil {
+		return data.ShowSnapshot{}, err
+	}
+	if pc.showSnapCache == nil {
+		pc.showSnapCache = map[core.Ref]cachedShowSnap{}
+	}
+	pc.showSnapCache[ref] = cachedShowSnap{rev: rev, snap: snap}
+	return snap, nil
+}
+
 func (a *App) buildProjectNavItemBody(s core.State, ws projectWorkspaceData, target projectNavTarget, preview bool) ui.ViewNode {
 	// 1. ui.page
 	if target.Section == "pages" && target.Ref != nil && target.Ref.Kind == data.KindPage {
-		if page, err := a.Store.Get(*target.Ref); err == nil && page != nil {
+		if page, ok := a.workspaceOrStoredRecord(ws.pages, *target.Ref); ok {
 			return a.buildProjectInteractivePageNode(s, *page, preview)
 		}
 	}
 
 	// 2. Pane preview
 	if target.Section == "panes" && target.Ref != nil && target.Ref.Kind == data.KindPane {
-		if pane, err := a.Store.Get(*target.Ref); err == nil && pane != nil {
+		if pane, ok := a.workspaceOrStoredRecord(ws.panes, *target.Ref); ok {
 			site := a.buildPaneSiteNode(s, *pane, true)
 			if preview {
 				if content := site.Find("site.content"); content != nil {
@@ -164,8 +202,12 @@ func (a *App) buildProjectNavItemBody(s core.State, ws projectWorkspaceData, tar
 
 	// 3. Document / Note with Markdown body or readable .md file
 	if target.Ref != nil && (target.Ref.Kind == data.KindDocument || target.Ref.Kind == data.KindNote) {
-		if rec, err := a.Store.Get(*target.Ref); err == nil && rec != nil {
-			if md, ok := a.recordMarkdownBody(*rec); ok && md != "" {
+		pool := ws.documents
+		if target.Section == "notes" {
+			pool = ws.notes
+		}
+		if rec, ok := a.workspaceOrStoredRecord(pool, *target.Ref); ok {
+			if md, hasMD := a.recordMarkdownBody(*rec); hasMD && md != "" {
 				return a.buildProjectMarkdownPreviewNode(s, *rec, target.Section, md, preview)
 			}
 		}
@@ -179,7 +221,7 @@ func (a *App) buildProjectNavItemBody(s core.State, ws projectWorkspaceData, tar
 		} else {
 			opts.ExtraBadges = append(opts.ExtraBadges, ui.Badge{Text: "esc back to nav", Tone: "muted"})
 		}
-		if snap, err := a.Store.LoadShowSnapshot(*target.Ref); err == nil {
+		if snap, err := a.cachedShowSnapshot(*target.Ref, ws.cacheRev); err == nil {
 			node := views.ShowViewWith(snap, s.ActiveFrame().FocusID, opts)
 			if node.Facts == nil {
 				node.Facts = map[string]any{}

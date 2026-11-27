@@ -305,3 +305,61 @@ func TestProjectNavUnreadDotOnlyGreenDoneCheckAndLaneProgressBar(t *testing.T) {
 		t.Fatalf("UnreadDotOnly=false should restore whole-row warning tone: %+v", nd)
 	}
 }
+
+func TestProjectNavCompactAndDimmedCompletedNodeRendering(t *testing.T) {
+	spec := ProjectWorkspaceSpec{
+		ProjectID:  "proj-compact",
+		Title:      "Compact",
+		ActiveKey:  "lanes",
+		NavOptions: ProjectNavOptions{Compact: true},
+		NavItems: []ProjectNavSection{
+			{Key: "home", Label: "Home", Icon: "⌂", Group: "Core"},
+			{Key: "signals", Label: "Needs Attention", Icon: "!", Group: "Core", Badge: "0"},
+			{
+				Key: "lanes", Label: "Lanes", Icon: "⎇", Group: "Workspace", Count: 2, Expandable: true, Expanded: true,
+				Children: []ProjectNavNode{
+					{ID: "l-done-unread", Section: "lanes", Label: "Done unread", Icon: "✓", Dim: true, ProgressBar: CompactLaneBarRuns(1, 0, 0, 4), Unread: true},
+					{ID: "l-done-read", Section: "lanes", Label: "Done read", Icon: "✓", Dim: true, ProgressBar: CompactLaneBarRuns(1, 0, 0, 4), Unread: false},
+				},
+			},
+		},
+	}
+
+	root := ProjectWorkspaceView(spec)
+
+	// Compact mode hides zero-only badge and inserts group spacer between Core and Workspace.
+	if sig := root.Find(ProjectNavPrefix + "signals"); sig == nil {
+		t.Fatal("missing signals section")
+	} else if txt, _ := sig.Props["text"].(string); strings.HasSuffix(strings.TrimSpace(txt), "0") {
+		t.Fatalf("compact mode should hide zero badge on signals, got %q", txt)
+	}
+	if root.Find("project.nav.gap.workspace") == nil {
+		t.Fatal("compact mode should emit spacer row before second group")
+	}
+
+	// Dimmed unread node keeps bright warning ● dot while dimming icon, bar, and label.
+	unreadDone := root.Find(ProjectNavNodePrefix + "lanes.l-done-unread")
+	if unreadDone == nil || unreadDone.Tone != "muted" || unreadDone.Facts["dim"] != true {
+		t.Fatalf("dimmed unread lane wrong: %+v", unreadDone)
+	}
+	spans, _ := unreadDone.Props["spans"].([]ui.ToneSpan)
+	txt, _ := unreadDone.Props["text"].(string)
+	rs := []rune(txt)
+	if len(spans) == 0 || spans[0].From != 0 || string(rs[spans[0].From:spans[0].To]) != "●" || spans[0].Tone != "warning" {
+		t.Fatalf("expected orange warning ● dot at col 0 on dimmed unread lane, got spans=%+v text=%q", spans, txt)
+	}
+	for _, sp := range spans[1:] {
+		if sp.Tone != "muted" {
+			t.Fatalf("expected non-dot spans on dimmed node to be muted, got %+v (%q)", sp, string(rs[sp.From:sp.To]))
+		}
+	}
+
+	// Dimmed read node drops ● dot while staying muted.
+	readDone := root.Find(ProjectNavNodePrefix + "lanes.l-done-read")
+	if readDone == nil || readDone.Unread || readDone.Tone != "muted" || readDone.Facts["dim"] != true {
+		t.Fatalf("dimmed read lane wrong: %+v", readDone)
+	}
+	if rTxt, _ := readDone.Props["text"].(string); strings.HasPrefix(rTxt, "●") {
+		t.Fatalf("read dimmed lane should not show ● dot, got %q", rTxt)
+	}
+}

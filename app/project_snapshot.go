@@ -101,10 +101,16 @@ func (pc *ProjectController) clearWorkspaceCaches(projKey string) {
 	if projKey != "" {
 		delete(pc.durableCache, projKey)
 		delete(pc.liveCache, projKey)
+		delete(pc.navCache, projKey)
+		delete(pc.homeCache, projKey+"|true")
+		delete(pc.homeCache, projKey+"|false")
 		return
 	}
 	clear(pc.durableCache)
 	clear(pc.liveCache)
+	clear(pc.navCache)
+	clear(pc.homeCache)
+	clear(pc.showSnapCache)
 }
 
 func (a *App) makeProjectDurableKey(groupName string, projRef *core.Ref) (string, projectDurableKey) {
