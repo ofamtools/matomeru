@@ -228,3 +228,155 @@ func TestAntigravityAgyAliasRecognitionAndLaunch(t *testing.T) {
 		t.Fatalf("BuildLaunchCommand(agy) = (%v, %v)", argv, env)
 	}
 }
+
+func TestBuildLaunchCommandWithPromptAllHarnesses(t *testing.T) {
+	cases := []struct {
+		id            string
+		prompt        string
+		wantArgv      []string
+		wantDelivered bool
+		wantShellCmd  string
+	}{
+		{
+			id:            "claude",
+			prompt:        "test",
+			wantArgv:      []string{"claude", "test"},
+			wantDelivered: true,
+			wantShellCmd:  "claude test",
+		},
+		{
+			id:            "codex",
+			prompt:        "test",
+			wantArgv:      []string{"codex", "test"},
+			wantDelivered: true,
+			wantShellCmd:  "codex test",
+		},
+		{
+			id:            "agy",
+			prompt:        "test",
+			wantArgv:      []string{"agy", "-i", "test"},
+			wantDelivered: true,
+			wantShellCmd:  "agy -i test",
+		},
+		{
+			id:            "antigravity",
+			prompt:        "test",
+			wantArgv:      []string{"agy", "-i", "test"},
+			wantDelivered: true,
+			wantShellCmd:  "agy -i test",
+		},
+		{
+			id:            "omp",
+			prompt:        "test",
+			wantArgv:      []string{"omp", "test"},
+			wantDelivered: true,
+			wantShellCmd:  "omp test",
+		},
+		{
+			id:            "gemini",
+			prompt:        "test",
+			wantArgv:      []string{"gemini", "-i", "test"},
+			wantDelivered: true,
+			wantShellCmd:  "gemini -i test",
+		},
+		{
+			id:            "opencode",
+			prompt:        "test",
+			wantArgv:      []string{"opencode", "--prompt", "test"},
+			wantDelivered: true,
+			wantShellCmd:  "opencode --prompt test",
+		},
+		{
+			id:            "pi",
+			prompt:        "test",
+			wantArgv:      []string{"pi", "test"},
+			wantDelivered: true,
+			wantShellCmd:  "pi test",
+		},
+		{
+			id:            "zsh",
+			prompt:        "test",
+			wantArgv:      []string{"zsh"},
+			wantDelivered: false,
+			wantShellCmd:  "zsh",
+		},
+		{
+			id:            "claude",
+			prompt:        "",
+			wantArgv:      []string{"claude"},
+			wantDelivered: false,
+			wantShellCmd:  "claude",
+		},
+		{
+			id:            "claude",
+			prompt:        "- fix bug",
+			wantArgv:      []string{"claude", "--", "- fix bug"},
+			wantDelivered: true,
+			wantShellCmd:  "claude -- '- fix bug'",
+		},
+		{
+			id:            "agy",
+			prompt:        "- fix bug",
+			wantArgv:      []string{"agy", "-i=- fix bug"},
+			wantDelivered: true,
+			wantShellCmd:  "agy '-i=- fix bug'",
+		},
+		{
+			id:            "codex",
+			prompt:        "Fix 'quoted' $VAR\nline 2 && $(echo nope)",
+			wantArgv:      []string{"codex", "Fix 'quoted' $VAR\nline 2 && $(echo nope)"},
+			wantDelivered: true,
+			wantShellCmd:  "codex 'Fix '\\''quoted'\\'' $VAR\nline 2 && $(echo nope)'",
+		},
+	}
+
+	for _, tc := range cases {
+		entry, ok := harness.ResolveEntry(tc.id, harness.FileConfig{})
+		if !ok {
+			t.Fatalf("ResolveEntry(%q) = false, want true", tc.id)
+		}
+		argv, _, delivered := harness.BuildLaunchCommandWithPrompt(entry, "", "p-1", tc.prompt)
+		if delivered != tc.wantDelivered {
+			t.Errorf("%s prompt=%q: delivered=%v, want %v", tc.id, tc.prompt, delivered, tc.wantDelivered)
+		}
+		if !slices.Equal(argv, tc.wantArgv) {
+			t.Errorf("%s prompt=%q: argv=%q, want %q", tc.id, tc.prompt, argv, tc.wantArgv)
+		}
+		if gotCmd := harness.ShellJoin(argv); gotCmd != tc.wantShellCmd {
+			t.Errorf("%s prompt=%q: ShellJoin=%q, want %q", tc.id, tc.prompt, gotCmd, tc.wantShellCmd)
+		}
+	}
+
+	// Custom harnesses.json promptMode/promptFlag overrides work declaratively.
+	cfg, err := harness.ParseConfig([]byte(`{
+		"harnesses": {
+			"my-cli": {
+				"command": ["my-cli", "--chat"],
+				"promptMode": "flag",
+				"promptFlag": "--initial"
+			},
+			"claude": {
+				"promptMode": "stdin"
+			}
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+	custom, ok := harness.ResolveEntry("my-cli", cfg)
+	if !ok {
+		t.Fatal("ResolveEntry(my-cli) = false")
+	}
+	argv, _, delivered := harness.BuildLaunchCommandWithPrompt(custom, "", "p-1", "test")
+	if !delivered || !slices.Equal(argv, []string{"my-cli", "--chat", "--initial", "test"}) {
+		t.Fatalf("custom flag harness = (%v, delivered=%v)", argv, delivered)
+	}
+	claudeOverride, ok := harness.ResolveEntry("claude", cfg)
+	if !ok {
+		t.Fatal("ResolveEntry(claude override) = false")
+	}
+	argv, _, delivered = harness.BuildLaunchCommandWithPrompt(claudeOverride, "", "p-1", "test")
+	if delivered || !slices.Equal(argv, []string{"claude"}) {
+		t.Fatalf("claude stdin override = (%v, delivered=%v)", argv, delivered)
+	}
+}

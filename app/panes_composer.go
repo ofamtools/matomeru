@@ -111,6 +111,23 @@ func (a *App) paneCompose(s core.State, c core.Command) core.StepResult {
 
 // --- Delivery modes: send, queue, interrupt ------------------------------------
 
+func (a *App) deliverDispatchedPrompt(pane data.Record, prompt string) {
+	if strings.TrimSpace(prompt) == "" {
+		return
+	}
+	if a.panes.Host != nil && !a.hasSession(pane.ID) {
+		delivered, err := a.attachWithPrompt(pane, prompt)
+		if err != nil {
+			a.fail("start pane", err)
+			return
+		}
+		if delivered {
+			return
+		}
+	}
+	a.deliverComposerPrompt(pane, prompt, ComposerModeQueue)
+}
+
 func (a *App) deliverComposerPrompt(pane data.Record, text, mode string) {
 	switch mode {
 	case ComposerModeQueue:
@@ -163,10 +180,10 @@ func (a *App) isPaneReadyForQueue(paneID string) bool {
 		return false
 	}
 	pt := a.paneTelemetry(paneID)
-	if pt == nil {
-		return false
+	if pt != nil {
+		return pt.State == daemon.StateIdle || pt.State == daemon.StateDone
 	}
-	return pt.State == daemon.StateIdle || pt.State == daemon.StateDone
+	return a.panes.Host != nil && a.hasSession(paneID)
 }
 
 func (a *App) flushQueuedPrompts(paneID string) int {

@@ -202,3 +202,54 @@ func TestPaneSpawnRegistersOnDoneCallback(t *testing.T) {
 		t.Fatalf("runtime without callbacks: err = %v", err)
 	}
 }
+
+func TestPaneSpawnPromptDeliveryViaResolveLaunchWithPrompt(t *testing.T) {
+	store, err := data.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	actor := core.Actor{Kind: "agent", ID: "coord"}
+
+	cases := []struct {
+		harness     string
+		cmd         string
+		inCmd       bool
+		wantWritten string
+	}{
+		{harness: "claude", cmd: "claude test", inCmd: true, wantWritten: ""},
+		{harness: "codex", cmd: "codex test", inCmd: true, wantWritten: ""},
+		{harness: "agy", cmd: "agy -i test", inCmd: true, wantWritten: ""},
+		{harness: "omp", cmd: "omp test", inCmd: true, wantWritten: ""},
+		{harness: "zsh", cmd: "zsh", inCmd: false, wantWritten: "test\r"},
+	}
+
+	for _, tc := range cases {
+		rt := &fakePaneRuntime{lines: map[string][]string{}}
+		box := NewToolbox(store, nil)
+		box.Panes.Runtime = rt
+		box.Panes.ResolveLaunchWithPrompt = func(harnessID, mcpURL, paneID, customCmd, prompt string) (PaneLaunchSpec, error) {
+			if harnessID != tc.harness || prompt != "test" {
+				t.Errorf("unexpected resolver args: harness=%q prompt=%q", harnessID, prompt)
+			}
+			return PaneLaunchSpec{Cmd: tc.cmd, PromptDeliveredInCmd: tc.inCmd}, nil
+		}
+
+		raw, _ := json.Marshal(map[string]any{
+			"harness": tc.harness,
+			"cwd":     "/tmp",
+			"prompt":  "test",
+		})
+		out, err := box.Call(context.Background(), actor, ToolPaneSpawn, raw)
+		if err != nil {
+			t.Fatalf("pane.spawn(%s): %v", tc.harness, err)
+		}
+		res := out.(PaneSpawnResult)
+		if len(rt.opened) != 1 || rt.opened[0].Cmd != tc.cmd || res.Command != tc.cmd {
+			t.Fatalf("%s opened cmd = %q (res=%q), want %q", tc.harness, rt.opened[0].Cmd, res.Command, tc.cmd)
+		}
+		if got := string(rt.written[res.Pane.ID]); got != tc.wantWritten {
+			t.Fatalf("%s stdin writes = %q, want %q", tc.harness, got, tc.wantWritten)
+		}
+	}
+}

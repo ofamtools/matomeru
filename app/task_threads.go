@@ -633,8 +633,14 @@ func (a *App) taskNoteReply(s core.State, c core.Command) core.StepResult {
 }
 
 func (a *App) sendTaskQueueDispatch(items []data.AgentQueueItem, pane data.Record) {
-	prompt := data.FormatAgentQueuePrompt(items, "")
-	a.deliverComposerPrompt(pane, prompt, ComposerModeQueue)
+	a.finishTaskQueueDispatch(items, pane, false)
+}
+
+func (a *App) finishTaskQueueDispatch(items []data.AgentQueueItem, pane data.Record, promptDelivered bool) {
+	if !promptDelivered {
+		prompt := data.FormatAgentQueuePrompt(items, "")
+		a.deliverDispatchedPrompt(pane, prompt)
+	}
 	if a.Store != nil && len(items) > 0 {
 		ids := make([]string, 0, len(items))
 		for _, it := range items {
@@ -648,6 +654,34 @@ func (a *App) sendTaskQueueDispatch(items []data.AgentQueueItem, pane data.Recor
 	msg := fmt.Sprintf("Dispatched %d queued task(s) to %s", len(items), paneTitle)
 	a.say("%s", msg)
 	a.pushToast(msg, toast.Ok)
+}
+
+func (a *App) handleTaskQueueNoTarget(s core.State, explicitPane, projectID, taskID string, items []data.AgentQueueItem, errMsg string) core.State {
+	if strings.TrimSpace(explicitPane) != "" || len(a.liveAgentPanes()) > 0 {
+		a.say("%s", errMsg)
+		a.pushToast(errMsg, toast.Warn)
+		return s
+	}
+	if projectID == "" && len(items) > 0 {
+		projectID = a.Store.RootTaskID(items[0].Task.ID)
+	}
+	if taskID == "" && len(items) > 0 {
+		taskID = items[0].Task.ID
+	}
+	title := fmt.Sprintf("Dispatch %d queued task(s) to", len(items))
+	if len(items) == 1 {
+		title = fmt.Sprintf("Dispatch %q to", views.Title(a.schema(data.KindTask), items[0].Task))
+	}
+	return a.openDispatchTargetPicker(s, dispatchTargetRequest{
+		Title: title, ProjectID: projectID, TaskID: taskID,
+		Defaults: data.DispatchTargetSpec{NewAgent: true, IncludeProjectContext: a.autoInjectProjectContextEnabled()},
+		BuildPrompt: func(_ data.DispatchTargetSpec, _ data.Record) (string, bool) {
+			return data.FormatAgentQueuePrompt(items, ""), true
+		},
+		OnTarget: func(_ data.DispatchTargetSpec, pane data.Record, promptDelivered bool) {
+			a.finishTaskQueueDispatch(items, pane, promptDelivered)
+		},
+	})
 }
 
 func (a *App) taskQueueDispatch(s core.State, c core.Command) core.StepResult {
@@ -747,9 +781,7 @@ func (a *App) taskQueueDispatch(s core.State, c core.Command) core.StepResult {
 
 	target, candidates, errMsg := a.resolveOutlineTriagePane(data.KindTask, ancestors, c.Arg("pane"))
 	if errMsg != "" {
-		a.say("%s", errMsg)
-		a.pushToast(errMsg, toast.Warn)
-		return core.Next(s)
+		return core.Next(a.handleTaskQueueNoTarget(s, c.Arg("pane"), rootProjectID, focusedTaskID, items, errMsg))
 	}
 	if target != nil {
 		a.sendTaskQueueDispatch(items, *target)

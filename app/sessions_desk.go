@@ -307,7 +307,7 @@ func (a *App) sessionsNew(s core.State, c core.Command) core.StepResult {
 	return core.Next(a.openDispatchTargetPicker(s, dispatchTargetRequest{
 		Title: "New AI session", ProjectID: projectID,
 		Defaults: data.DispatchTargetSpec{NewAgent: true, IncludeProjectContext: a.autoInjectProjectContextEnabled()},
-		OnTarget: func(_ data.DispatchTargetSpec, pane data.Record) {
+		OnTarget: func(_ data.DispatchTargetSpec, pane data.Record, _ bool) {
 			a.afterModal(func(st core.State) core.State {
 				a.selectSession(pane.ID)
 				ref := pane.Ref()

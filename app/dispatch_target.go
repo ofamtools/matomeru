@@ -35,8 +35,13 @@ type dispatchTargetRequest struct {
 	TaskID string
 	// Defaults pre-fill the New Agent form.
 	Defaults data.DispatchTargetSpec
-	// OnTarget receives the resolved target and its pane (spawned or reused).
-	OnTarget func(spec data.DispatchTargetSpec, pane data.Record)
+	// BuildPrompt optionally computes the initial prompt before a new agent
+	// pane is started so harnesses with native CLI prompt flags receive it at
+	// process launch.
+	BuildPrompt func(spec data.DispatchTargetSpec, pane data.Record) (string, bool)
+	// OnTarget receives the resolved target, its pane (spawned or reused), and
+	// whether the initial prompt was already delivered during pane startup.
+	OnTarget func(spec data.DispatchTargetSpec, pane data.Record, promptDelivered bool)
 }
 
 // dispatchTargetItems builds the picker rows: New Agent first, always, then
@@ -306,38 +311,61 @@ func (a *App) newDispatchCwdPicker(current string, onPick func(path string)) mod
 // finishDispatchTarget resolves the pane (spawning or reusing it) and hands
 // both to the request.
 func (a *App) finishDispatchTarget(req dispatchTargetRequest, spec data.DispatchTargetSpec) {
-	pane, err := a.resolveDispatchPane(req, spec)
+	pane, delivered, err := a.resolveDispatchPane(req, spec)
 	if err != nil {
 		a.fail("dispatch target", err)
 		return
 	}
 	if req.OnTarget != nil {
-		req.OnTarget(spec, pane)
+		req.OnTarget(spec, pane, delivered)
 	}
 }
 
 // resolveDispatchPane returns the target's pane: the existing one, or a new
 // agent pane started in the target's directory with its harness and watch
-// cadence, bound to the request's task.
-func (a *App) resolveDispatchPane(req dispatchTargetRequest, spec data.DispatchTargetSpec) (data.Record, error) {
+// cadence, bound to the request's task. When req.BuildPrompt is supplied for a
+// new pane, the prompt is passed directly to attachWithPrompt so CLI harnesses
+// receive it on startup.
+func (a *App) resolveDispatchPane(req dispatchTargetRequest, spec data.DispatchTargetSpec) (data.Record, bool, error) {
 	if a.Store == nil {
-		return data.Record{}, fmt.Errorf("no store")
+		return data.Record{}, false, fmt.Errorf("no store")
 	}
 	if id := strings.TrimSpace(spec.ExistingPaneID); id != "" {
 		pane, err := a.Store.Get(core.Ref{Kind: data.KindPane, ID: id})
 		if err != nil {
-			return data.Record{}, err
+			return data.Record{}, false, err
 		}
-		return *pane, nil
+		return *pane, false, nil
 	}
 
-	harness := strings.TrimSpace(spec.Harness)
-	if harness == "" {
-		harness = "claude"
+	harnessName := strings.TrimSpace(spec.Harness)
+	if harnessName == "" {
+		harnessName = "claude"
 	}
-	title := harness
+	fields := a.newDispatchPaneFields(req, spec, harnessName)
+	pane, cs, err := a.Store.Create(data.CreateInput{Kind: data.KindPane, Fields: fields}, User)
+	if err != nil {
+		return data.Record{}, false, err
+	}
+	initialPrompt := ""
+	if req.BuildPrompt != nil {
+		if built, ok := req.BuildPrompt(spec, *pane); ok {
+			initialPrompt = built
+		}
+	}
+	delivered, err := a.attachWithPrompt(*pane, initialPrompt)
+	if err != nil {
+		return data.Record{}, false, fmt.Errorf("start %s: %w", harnessName, err)
+	}
+	a.wrote("started agent "+views.Title(a.schema(data.KindPane), *pane), cs, nil)
+	a.viewMemo.gen++
+	return *pane, delivered, nil
+}
+
+func (a *App) newDispatchPaneFields(req dispatchTargetRequest, spec data.DispatchTargetSpec, harnessName string) map[string]any {
+	title := harnessName
 	if spec.Orchestrator {
-		title = "orchestrator · " + harness
+		title = "orchestrator · " + harnessName
 	}
 	taskID := strings.TrimSpace(req.TaskID)
 	if taskID == "" {
@@ -345,7 +373,7 @@ func (a *App) resolveDispatchPane(req dispatchTargetRequest, spec data.DispatchT
 	}
 	fields := map[string]any{
 		"title":     title,
-		"harness":   harness,
+		"harness":   harnessName,
 		"runStatus": "running",
 		"role":      data.RoleNormal,
 	}
@@ -360,14 +388,5 @@ func (a *App) resolveDispatchPane(req dispatchTargetRequest, spec data.DispatchT
 		fields["task"] = ref
 		fields["title"] = title + ": " + a.title(ref)
 	}
-	pane, cs, err := a.Store.Create(data.CreateInput{Kind: data.KindPane, Fields: fields}, User)
-	if err != nil {
-		return data.Record{}, err
-	}
-	if err := a.attach(*pane); err != nil {
-		return data.Record{}, fmt.Errorf("start %s: %w", harness, err)
-	}
-	a.wrote("started agent "+views.Title(a.schema(data.KindPane), *pane), cs, nil)
-	a.viewMemo.gen++
-	return *pane, nil
+	return fields
 }

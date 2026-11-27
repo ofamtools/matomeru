@@ -12,22 +12,31 @@ import (
 	"ofam.dev/matomeru/mcpui"
 )
 
-// ResolveHarnessLaunch resolves a harness ID (e.g. claude, codex, omp, gemini,
-// zsh) against harnesses.json and built-in defaults into a shell command string
-// and extra environment variables.
+// ResolveHarnessLaunch resolves a harness ID (e.g. claude, codex, agy, omp,
+// gemini, opencode, pi, zsh) against harnesses.json and built-in defaults into
+// a shell command string and extra environment variables.
 func ResolveHarnessLaunch(configDir, harnessID, mcpURL, paneID, customCmd string) (string, map[string]string, error) {
+	cmd, env, _, err := ResolveHarnessLaunchWithPrompt(configDir, harnessID, mcpURL, paneID, customCmd, "")
+	return cmd, env, err
+}
+
+// ResolveHarnessLaunchWithPrompt resolves harnessID with an optional initial
+// prompt. When the harness declares a CLI prompt mode ("positional" or "flag")
+// and customCmd is empty, the shell-escaped prompt is embedded directly in the
+// returned launch command and deliveredInCmd is true.
+func ResolveHarnessLaunchWithPrompt(configDir, harnessID, mcpURL, paneID, customCmd, prompt string) (string, map[string]string, bool, error) {
 	if strings.TrimSpace(customCmd) != "" {
-		return strings.TrimSpace(customCmd), nil, nil
+		return strings.TrimSpace(customCmd), nil, false, nil
 	}
 	id := strings.ToLower(strings.TrimSpace(harnessID))
 	if id == "" || id == "zsh" || id == "bash" || id == "sh" || id == "shell" {
 		if id == "bash" || id == "sh" || id == "zsh" {
-			return id, nil, nil
+			return id, nil, false, nil
 		}
 		if sh := strings.TrimSpace(os.Getenv("SHELL")); sh != "" {
-			return sh, nil, nil
+			return sh, nil, false, nil
 		}
-		return "zsh", nil, nil
+		return "zsh", nil, false, nil
 	}
 	var cfg harness.FileConfig
 	if configDir != "" {
@@ -35,29 +44,13 @@ func ResolveHarnessLaunch(configDir, harnessID, mcpURL, paneID, customCmd string
 			cfg = loaded
 		}
 	}
-	entries := harness.MergeInstalled(nil, cfg)
-	for _, e := range entries {
-		if strings.EqualFold(e.ID, id) || strings.EqualFold(e.Name, id) {
-			argv, env := harness.BuildLaunchCommand(e, mcpURL, paneID)
-			if len(argv) == 0 {
-				break
-			}
-			return shellJoin(argv), env, nil
+	if entry, ok := harness.ResolveEntry(id, cfg); ok {
+		argv, env, delivered := harness.BuildLaunchCommandWithPrompt(entry, mcpURL, paneID, prompt)
+		if len(argv) > 0 {
+			return harness.ShellJoin(argv), env, delivered, nil
 		}
 	}
-	return id, nil, nil
-}
-
-func shellJoin(argv []string) string {
-	quoted := make([]string, len(argv))
-	for i, a := range argv {
-		if a == "" || strings.ContainsAny(a, " \t\n'\"\\$`!&|;()<>*?[]{}") {
-			quoted[i] = "'" + strings.ReplaceAll(a, "'", `'\''`) + "'"
-		} else {
-			quoted[i] = a
-		}
-	}
-	return strings.Join(quoted, " ")
+	return id, nil, false, nil
 }
 
 // DefaultConfigDir returns the Matomeru config directory (~/.config/matomeru or $MTM_CONFIG_DIR).
