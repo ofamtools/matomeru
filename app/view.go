@@ -182,6 +182,7 @@ func (a *App) tabsMemoKey(s core.State) string {
 	}
 	b.WriteString(a.filterMemoKey(s))
 	b.WriteString(a.splitRatiosMemoKey())
+	b.WriteString(a.pageSearchViewKey(s))
 	return b.String()
 }
 
@@ -322,7 +323,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 			}
 		}
 		hintsLine := line("hints", clip(a.hintLine(s, chain), w), "muted")
-		bottomLine, ok := a.filterBarNode(s, root, w)
+		bottomLine, ok := a.activeBottomBarNode(s, root, w)
 		if !ok {
 			bottomLine = line("status", a.bottomStatusLine(s, root, w), "accent")
 		}
@@ -337,7 +338,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 				statusText = leftStatus + "  " + rightStats
 			}
 		}
-		bottomLine, ok := a.filterBarNode(s, root, w)
+		bottomLine, ok := a.activeBottomBarNode(s, root, w)
 		if !ok {
 			bottomLine = line("hints", clip(a.hintLine(s, chain), w), "muted")
 		}
@@ -349,6 +350,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 	root.Children = append(append([]ui.ViewNode{tabs}, footer...), overlays...)
 	applyTreeGuides(&root, a.cfg.Settings.Bool(SetTreeGuides, true))
 	a.applySplitRatios(&root)
+	a.applyPageSearchHighlights(&root)
 	if a.focusHintsActive() {
 		if style := a.focusHintsStyle(); style == FocusHintsInline || style == FocusHintsBoth {
 			applyFocusHintBadges(&root, a.panes.hints.session)

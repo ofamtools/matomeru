@@ -449,6 +449,10 @@ func ledgerContentRegion(panel ui.ViewNode, regionNum int, opts ShowOptions, sta
 		"crumb":        panel.Title,
 		"copy":         raw,
 	}
+	if p, ok := panel.Facts["path"].(string); ok && p != "" {
+		facts["path"] = p
+		facts["tokenType"] = "path"
+	}
 	return ui.ViewNode{
 		ID:        panel.ID,
 		Kind:      ui.KindVStack,

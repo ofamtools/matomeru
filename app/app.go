@@ -312,6 +312,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 			"readlinePriority":    a.inputReadlinePriorityEnabled(),
 			"filterScrollMotions": a.inputFilterScrollMotionsEnabled(),
 			"splitResize":         a.splitResizeEnabled(),
+			"hasSearch":           a.hasPageSearch(),
 			factListTarget:        a.listTargetFact(s),
 			factTreeTarget:        a.treeTargetFact(),
 			factSelectTarget:      a.selectTargetFact(s),
@@ -837,6 +838,9 @@ func (a *App) register() {
 	a.registerProjectHomeHandlers()
 	a.registerLaneBarHandlers()
 	a.registerProjectPortalHandlers()
+	a.registerProjectCycleHandlers()
+	a.registerContentHintsHandlers()
+	a.registerScreenSearchHandlers()
 	a.registerNoteDeckHandlers()
 	a.initNoteDeck()
 	a.registerProjectTabsHandlers()

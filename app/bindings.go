@@ -244,6 +244,7 @@ func Modes() []core.Mode {
 		{Name: ModeTerminal, Passthrough: true},
 		{Name: ModeTerminalLeader},
 		{Name: ModeFilter},
+		{Name: ModeSearch},
 		{Name: ModePicker, Base: ModeGlobal},
 		{Name: ModePickerFilter},
 		{Name: ModeForm, Base: ModeGlobal},
@@ -413,7 +414,7 @@ func DefaultBindings() []core.Binding {
 		when(bind(n, views.ScopeIndex, "N", "motion.up", "prev match"), "facts.hasFilter"),
 		when(bind(n, all, "n", "motion.down", "next match"), "facts.hasFilter"),
 		when(bind(n, all, "N", "motion.up", "prev match"), "facts.hasFilter"),
-		when(with(bind(n, all, "n", views.CmdNew, "new task"), map[string]any{"kind": "task"}), "!facts.hasFilter"),
+		when(with(bind(n, all, "n", views.CmdNew, "new task"), map[string]any{"kind": "task"}), "!facts.hasFilter && !facts.hasSearch"),
 		with(bind(n, SpacePanes, "C", views.CmdNew, "new terminal"), map[string]any{
 			"kind":     data.KindPane,
 			"defaults": map[string]any{"harness": "zsh"},
@@ -423,11 +424,11 @@ func DefaultBindings() []core.Binding {
 			"kind":           data.KindPane,
 			"title":          "New Agent",
 			"excludeChoices": map[string]any{"harness": []string{"zsh"}},
-		}), "!facts.hasFilter"),
+		}), "!facts.hasFilter && !facts.hasSearch"),
 		when(bind(n, SpacePanes, "t", CmdSiteTOCToggle, "toggle pages"), "layer == nil"),
-		when(bind(n, SpaceWork, "n", CmdNewHere, "new"), "!facts.hasFilter"),
+		when(bind(n, SpaceWork, "n", CmdNewHere, "new"), "!facts.hasFilter && !facts.hasSearch"),
 		bind(n, all, "g m", CmdAssign, "move to a task"),
-		when(with(bind(n, all, "N", views.CmdNew, "new note"), map[string]any{"kind": "note"}), "!facts.hasFilter"),
+		when(with(bind(n, all, "N", views.CmdNew, "new note"), map[string]any{"kind": "note"}), "!facts.hasFilter && !facts.hasSearch"),
 		when(bind(n, all, "s", CmdStatusCycle, "cycle status"), "facts.hasStatus"),
 		when(bind(n, all, "m", views.CmdStar, "star"), "facts.starStatus != \"starred\""),
 		when(bind(n, all, "m", views.CmdUnstar, "unstar"), "facts.starStatus == \"starred\""),
@@ -904,10 +905,13 @@ func DefaultBindings() []core.Binding {
 	out = append(out, zeroFieldBindings()...)
 	out = append(out, pickerPickerBindings()...)
 	out = append(out, splitResizeBindings()...)
-	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeCommandLine, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModePickerFilter} {
+	out = append(out, projectCycleBindings()...)
+	out = append(out, contentHintsBindings()...)
+	out = append(out, screenSearchBindings()...)
+	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeSearch, ModeCommandLine, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModePickerFilter} {
 		out = append(out, with(bind(mode, all, "alt+h", CmdPaneHints, "paste terminal hint"), map[string]any{"action": HintsActionInsert}))
 	}
-	for _, mode := range []string{ModeFormEdit, ModeFilter, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModeNoteDeck} {
+	for _, mode := range []string{ModeFormEdit, ModeFilter, ModeSearch, ModePickerFilter, ModeBindingsFilter, ModeCommandLine, ModeComposer, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModeNoteDeck} {
 		out = appendReadlineBindings(out, mode, all)
 	}
 	// Motions and space switches work everywhere; the footer leaves them out

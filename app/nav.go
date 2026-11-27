@@ -59,6 +59,7 @@ type NavController struct {
 	filterTarget          string
 	filterSpec            *ui.FilterSpec
 	filterLine            input.Line
+	pageSearch            *pageSearchState
 	cmdline               *commandline.Model
 	lastFDSearch          map[string]any
 	Registers             core.Registers

@@ -125,6 +125,11 @@ func (a *App) bottomStatusLine(s core.State, root ui.ViewNode, w int) string {
 			parts = append(parts, prefix+"/"+shownQuery+" ("+string(f.FilterMode())+")")
 		}
 	}
+	if a.Engine.Mode(s) != ModeSearch {
+		if sb := a.pageSearchStatusBadge(); sb != "" {
+			parts = append(parts, sb)
+		}
+	}
 	if a.status != "" {
 		parts = append(parts, a.status)
 	}
