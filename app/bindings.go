@@ -361,8 +361,8 @@ func DefaultBindings() []core.Binding {
 		hidden(when(bind(n, views.ScopeIndex, "z c", tree.CmdFoldClose, "fold subtree"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "z R", tree.CmdFoldOpenAll, "unfold all"), "facts.isTree")),
 		hidden(when(bind(n, views.ScopeIndex, "z M", tree.CmdFoldCloseAll, "fold all"), "facts.isTree")),
-		hidden(when(bind(n, views.ScopeIndex, "=", tree.CmdHoistIn, "hoist subtree"), "facts.isTree")),
-		hidden(when(bind(n, views.ScopeIndex, "-", tree.CmdHoistOut, "unhoist"), "facts.isTree && facts.hoisted")),
+		hidden(when(bind(n, views.ScopeIndex, "=", tree.CmdHoistIn, "hoist subtree"), "facts.isTree && facts.outlineRescoping")),
+		hidden(when(bind(n, views.ScopeIndex, "-", tree.CmdHoistOut, "unhoist"), "facts.isTree && facts.hoisted && facts.outlineRescoping")),
 		hidden(when(bind(n, views.ScopeIndex, "esc", tree.CmdHoistOut, "unhoist"), "facts.isTree && !facts.visualActive && !(facts.markedCount > 0) && facts.hoisted")),
 		hidden(when(bind(n, views.ScopeIndex, "esc", CmdOutlineCleanSlateExit, "exit clean slate"), "facts.isTree && !facts.visualActive && !(facts.markedCount > 0) && !facts.hoisted && facts.cleanSlate")),
 		hidden(when(bind(n, views.ScopeIndex, "X", CmdOutlineTriage, "triage outline with agent"), "facts.isTree")),
@@ -794,8 +794,8 @@ func DefaultBindings() []core.Binding {
 		bind(ModeOutline, all, "z c", tree.CmdFoldClose, "fold subtree"),
 		bind(ModeOutline, all, "z R", tree.CmdFoldOpenAll, "unfold all"),
 		bind(ModeOutline, all, "z M", tree.CmdFoldCloseAll, "fold all"),
-		bind(ModeOutline, all, "=", tree.CmdHoistIn, "hoist subtree"),
-		when(bind(ModeOutline, all, "-", tree.CmdHoistOut, "unhoist"), "facts.hoisted"),
+		when(bind(ModeOutline, all, "=", tree.CmdHoistIn, "hoist subtree"), "facts.outlineRescoping"),
+		when(bind(ModeOutline, all, "-", tree.CmdHoistOut, "unhoist"), "facts.hoisted && facts.outlineRescoping"),
 		bind(ModeOutline, all, "b", CmdOutlineCleanSlate, "blank outline"),
 		bind(ModeOutline, all, "X", CmdOutlineTriage, "triage outline with agent"),
 		bind(ModeOutline, all, "w", CmdTaskAgentToggle, "toggle agent queue"),
@@ -922,6 +922,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, pinnedAgentsBindings()...)
 	out = append(out, pasteBindings()...)
 	out = append(out, remindersBindings()...)
+	out = append(out, outlineScopeBindings()...)
 	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeSearch, ModeCommandLine, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModePickerFilter} {
 		out = append(out, with(bind(mode, all, "alt+h", CmdPaneHints, "paste terminal hint"), map[string]any{"action": HintsActionInsert}))
 	}

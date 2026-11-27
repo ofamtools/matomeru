@@ -262,8 +262,23 @@ func (a *App) projectOutlineView(s *core.State, projectID string) ui.ViewNode {
 		panel.Children[0].Facts["hoisted"] = subHoisted
 		panel.Children[0].Facts["hoistDepth"] = subHoistDepth
 	}
+	views.ApplyTreeScope(&panel, tm, projectOutlineTree, projectID)
+	a.applyProjectOutlineTreeNodeFacts(&panel, projectID)
 	a.attachOutlineSuggestions(&panel, tm, data.KindTask, projectOutlineTree)
 	return panel
+}
+
+func (a *App) applyProjectOutlineTreeNodeFacts(panel *ui.ViewNode, projectID string) {
+	treeNode := panel.Find(projectOutlineTree)
+	if treeNode == nil {
+		return
+	}
+	if treeNode.Facts == nil {
+		treeNode.Facts = map[string]any{}
+	}
+	treeNode.Facts["isTree"] = true
+	treeNode.Facts["projectOutline"] = true
+	treeNode.Facts["projectID"] = projectID
 }
 
 // projectOutlineTreeMove handles tree navigation motions when focus is in the

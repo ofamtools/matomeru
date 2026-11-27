@@ -265,6 +265,7 @@ const (
 	YankFormatTitle                    = "title"
 	SetRemindersTopNavTab              = "ui.remindersTopNavTab"
 	SetReminderToasts                  = "ui.reminderToasts"
+	SetOutlineRescoping                = "ui.outlineRescoping"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -470,6 +471,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetPasteContextual, true, "enable contextual paste (p / P / g p) using typed registers (off: plain-text paste only)"),
 		flag(SetRemindersTopNavTab, true, "show top-level Reminders tab in the top navigation bar"),
 		flag(SetReminderToasts, true, "show top-right Matomeru reminder notifications (temporary 30s toasts and persistent alerts)"),
+		flag(SetOutlineRescoping, true, "allow re-scoping outlines onto any subtask root, stepping up one level, and jumping back to root"),
 	}
 }
 
@@ -524,6 +526,7 @@ func (a *App) reloadSettings() {
 	}
 	a.syncToastSetting()
 	a.syncSessionRecorder()
+	a.syncOutlineRescopingSetting()
 	a.applyRendererSettings()
 	a.viewMemo.gen++
 }
