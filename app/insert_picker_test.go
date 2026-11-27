@@ -160,13 +160,13 @@ func TestInsertPickerOutlineModalAndWorkTreeLiveSwitch(t *testing.T) {
 	}
 	d.Type(" see ")
 
-	// Open File Picker via ctrl+f.
-	d.Keys("ctrl+f")
+	// Open File Picker via alt+i (ctrl+f stays readline char-right by default).
+	d.Keys("alt+i")
 	if a.Modal() != insertPickerModalID || a.Mode() != ModePicker {
-		t.Fatalf("ctrl+f in ModeOutlineEdit: modal=%q mode=%q status=%q", a.Modal(), a.Mode(), a.Status())
+		t.Fatalf("alt+i in ModeOutlineEdit: modal=%q mode=%q status=%q", a.Modal(), a.Mode(), a.Status())
 	}
 	if _, ok := a.modals.Top().(*modal.PathPickerModal); !ok {
-		t.Fatalf("expected PathPickerModal for ctrl+f, got %T", a.modals.Top())
+		t.Fatalf("expected PathPickerModal for alt+i, got %T", a.modals.Top())
 	}
 	ov := a.modals.Top().View(120, 36)
 	var badgeTexts []string
@@ -227,9 +227,9 @@ func TestInsertPickerOutlineModalAndWorkTreeLiveSwitch(t *testing.T) {
 		t.Fatalf("outline edit buffer = %q, want it to contain context URL", got)
 	}
 
-	// Also insert a relative file via ctrl+f -> alpha.go while staying in ModeOutlineEdit.
+	// Also insert a relative file via alt+i -> alpha.go while staying in ModeOutlineEdit.
 	d.Type(" ")
-	d.Keys("ctrl+f")
+	d.Keys("alt+i")
 	selectPathEntryInInsertPicker(t, a, d, "alpha.go")
 	if a.Modal() != "outline" || a.Mode() != ModeOutlineEdit {
 		t.Fatalf("after picking file in outline edit: modal=%q mode=%q", a.Modal(), a.Mode())
@@ -260,9 +260,9 @@ func TestInsertPickerOutlineModalAndWorkTreeLiveSwitch(t *testing.T) {
 		t.Fatalf("o in 2 Work tree did not enter ModeOutlineEdit: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	d.Type("Review ")
-	d.Keys("ctrl+f")
+	d.Keys("alt+i")
 	if a.Modal() != insertPickerModalID {
-		t.Fatalf("ctrl+f in 2 Work ModeOutlineEdit did not open file picker: modal=%q", a.Modal())
+		t.Fatalf("alt+i in 2 Work ModeOutlineEdit did not open file picker: modal=%q", a.Modal())
 	}
 	d.Keys("ctrl+l")
 	selectInsertSourceInPicker(t, a, d, "context")
@@ -286,12 +286,12 @@ func TestInsertPickerOutlineModalAndWorkTreeLiveSwitch(t *testing.T) {
 func TestInsertPickerDirectOpenInOutlineComposerAndForm(t *testing.T) {
 	a, d, _, workDir := setupInsertPickerFixture(t)
 
-	// 1. ModeOutlineEdit: direct ctrl+l opens Insert Picker chooser -> tasks -> @task:proj-insert.
+	// 1. ModeOutlineEdit: direct alt+p opens Insert Picker chooser -> tasks -> @task:proj-insert.
 	d.Keys("2", "o")
 	d.Type("Linked ")
-	d.Keys("ctrl+l")
+	d.Keys("alt+p")
 	if a.Modal() != insertPickerModalID {
-		t.Fatalf("ctrl+l in ModeOutlineEdit did not open Insert Picker chooser: modal=%q", a.Modal())
+		t.Fatalf("alt+p in ModeOutlineEdit did not open Insert Picker chooser: modal=%q", a.Modal())
 	}
 	selectInsertSourceInPicker(t, a, d, "tasks")
 	d.Keys("enter")
@@ -303,7 +303,7 @@ func TestInsertPickerDirectOpenInOutlineComposerAndForm(t *testing.T) {
 	}
 	d.Keys("ctrl+c") // discard draft
 
-	// 2. ModeComposer: ctrl+l inserts skills/recipes; ctrl+f attaches file chips AND live-switches to agents!
+	// 2. ModeComposer: alt+p inserts skills/recipes; alt+i attaches file chips AND live-switches to agents!
 	d.Keys("1", "c")
 	cm := a.activeRichComposer()
 	if cm == nil || a.Mode() != ModeComposer {
@@ -311,10 +311,10 @@ func TestInsertPickerDirectOpenInOutlineComposerAndForm(t *testing.T) {
 	}
 	d.Type("Run ")
 
-	// Direct ctrl+l -> Skills -> inserts "$tdd-loop ".
-	d.Keys("ctrl+l")
+	// Direct alt+p -> Skills -> inserts "$tdd-loop ".
+	d.Keys("alt+p")
 	if a.Modal() != insertPickerModalID {
-		t.Fatalf("ctrl+l in ModeComposer did not open Insert Picker: modal=%q", a.Modal())
+		t.Fatalf("alt+p in ModeComposer did not open Insert Picker: modal=%q", a.Modal())
 	}
 	selectInsertSourceInPicker(t, a, d, "skills")
 	d.Keys("enter")
@@ -325,10 +325,10 @@ func TestInsertPickerDirectOpenInOutlineComposerAndForm(t *testing.T) {
 		t.Fatalf("composer value = %q, want $tdd-loop ", cm.in.Value())
 	}
 
-	// ctrl+f in composer -> live switch via ctrl+l to Agents -> filter claude -> inserts "@agent:claude " into input!
-	d.Keys("ctrl+f")
+	// alt+i in composer -> live switch via ctrl+l to Agents -> filter claude -> inserts "@agent:claude " into input!
+	d.Keys("alt+i")
 	if a.Modal() != insertPickerModalID {
-		t.Fatalf("ctrl+f in composer did not open insert file picker: modal=%q", a.Modal())
+		t.Fatalf("alt+i in composer did not open insert file picker: modal=%q", a.Modal())
 	}
 	d.Keys("ctrl+l")
 	selectInsertSourceInPicker(t, a, d, "agents")
@@ -342,8 +342,8 @@ func TestInsertPickerDirectOpenInOutlineComposerAndForm(t *testing.T) {
 		t.Fatalf("composer value = %q, want @agent:claude ", cm.in.Value())
 	}
 
-	// ctrl+f in composer -> select alpha.go -> STILL attaches file chip!
-	d.Keys("ctrl+f")
+	// alt+i in composer -> select alpha.go -> STILL attaches file chip!
+	d.Keys("alt+i")
 	selectPathEntryInInsertPicker(t, a, d, "alpha.go")
 	if a.Mode() != ModeComposer || a.Modal() != "composer" {
 		t.Fatalf("expected return to composer after file attach: modal=%q mode=%q", a.Modal(), a.Mode())
@@ -353,7 +353,7 @@ func TestInsertPickerDirectOpenInOutlineComposerAndForm(t *testing.T) {
 	}
 	d.Keys("esc")
 
-	// 3. ModeFormEdit: ctrl+l inserts document path and ctrl+f inserts @alpha.go while staying in ModeFormEdit!
+	// 3. ModeFormEdit: alt+p inserts document path and alt+i inserts @alpha.go while staying in ModeFormEdit!
 	d.Keys("2", "n")
 	if a.Modal() != "form" || a.Mode() != ModeForm {
 		t.Fatalf("n did not open create form: modal=%q mode=%q", a.Modal(), a.Mode())
@@ -363,9 +363,9 @@ func TestInsertPickerDirectOpenInOutlineComposerAndForm(t *testing.T) {
 		t.Fatalf("i in form did not enter ModeFormEdit: mode=%q", a.Mode())
 	}
 	d.Type("Doc: ")
-	d.Keys("ctrl+l")
+	d.Keys("alt+p")
 	if a.Modal() != insertPickerModalID {
-		t.Fatalf("ctrl+l in ModeFormEdit did not open Insert Picker: modal=%q", a.Modal())
+		t.Fatalf("alt+p in ModeFormEdit did not open Insert Picker: modal=%q", a.Modal())
 	}
 	selectInsertSourceInPicker(t, a, d, "documents")
 	d.Keys("enter")
@@ -382,11 +382,11 @@ func TestInsertPickerDirectOpenInOutlineComposerAndForm(t *testing.T) {
 		t.Fatalf("form title value = %q, want %q", gotTitle, wantDocPath)
 	}
 
-	// Also test ctrl+f in ModeFormEdit.
+	// Also test alt+i in ModeFormEdit.
 	d.Type(" ")
-	d.Keys("ctrl+f")
+	d.Keys("alt+i")
 	if a.Modal() != insertPickerModalID {
-		t.Fatalf("ctrl+f in ModeFormEdit did not open file insert picker: modal=%q", a.Modal())
+		t.Fatalf("alt+i in ModeFormEdit did not open file insert picker: modal=%q", a.Modal())
 	}
 	d.Keys("ctrl+l")
 	selectInsertSourceInPicker(t, a, d, "recipes")

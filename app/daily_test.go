@@ -928,7 +928,9 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 		t.Fatalf("form commit after readline = %q (err=%v)", rec.Text("title"), err)
 	}
 
-	// 2. Work tree filter mode: ctrl+w, ctrl+a, ctrl+u, ctrl+y.
+	// 2. Work tree filter mode: ctrl+w kills word; with filterScrollMotions=false, ctrl+u kills line and ctrl+y yanks it back.
+	a.cfg.userSettings[SetInputFilterScrollMotions] = false
+	a.reloadSettings()
 	d.Keys("/")
 	d.Type("one two")
 	d.Keys("ctrl+w")
@@ -944,6 +946,8 @@ func TestReadlineBindingsAcrossInputs(t *testing.T) {
 		t.Fatalf("filter ctrl+y -> %q", got)
 	}
 	d.Keys("esc")
+	delete(a.cfg.userSettings, SetInputFilterScrollMotions)
+	a.reloadSettings()
 
 	// 3. Picker mode: ctrl+w / ctrl+a / ctrl+y edit query while ctrl+n moves selection.
 	d.Keys(":")

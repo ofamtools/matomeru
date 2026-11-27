@@ -69,7 +69,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetCardBorderStyle: ui.CardBorderSubtle, SetRailEnterMode: RailEnterModeLive,
 		SetSideTermSplit: true, SetInheritProjectTask: true, SetFocusRailOnExit: true, SetFocusRailOnDetach: true,
 		SetExtensionsShowCatalog: true, SetExtensionsGoPrivate: "ofam.dev",
-		SetFocusHintsStyle: FocusHintsInline, SetFocusHintsDrilldown: true,
+		SetFocusHintsStyle: FocusHintsInline, SetFocusHintsDrilldown: false,
 		SetComposerCompact: true, SetComposerWrap: true,
 		SetArchiveAnimation: true, SetArchiveAnimationMs: 2500,
 		SetTasksShowNoteIndicators: true, SetTasksInlineNoteThreads: true, SetTasksLockThreadEdits: false,
@@ -94,7 +94,8 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetAnswerShowQuestion: true, SetProjectNavPreselectTask: true, SetProjectNavShowNewItems: true,
 		SetShowTitleAttachmentChips: true, SetPanesKeepCompletedLaneBars: true,
 		SetFocusHideNonPriority: true, SetFocusEnforceLocks: true, SetFocusChromeCountdown: true,
-		SetDeclarativePresentations: true, SetContextExtractCodeBlocks: true}
+		SetDeclarativePresentations: true, SetContextExtractCodeBlocks: true,
+		SetInputReadlinePriority: true, SetInputFilterScrollMotions: true, SetSplitResize: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

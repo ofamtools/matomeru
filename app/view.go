@@ -184,6 +184,7 @@ func (a *App) tabsMemoKey(s core.State) string {
 		fmt.Fprintf(&b, "|ss:%s:%s:%s", data.RefText(a.nav.showScrollRef), showScrollOffsetText(a.nav.showRelatedOff), showScrollOffsetText(a.nav.showPropsOff))
 	}
 	b.WriteString(a.filterMemoKey(s))
+	b.WriteString(a.splitRatiosMemoKey())
 	return b.String()
 }
 
@@ -350,6 +351,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 	}
 	root.Children = append(append([]ui.ViewNode{tabs}, footer...), overlays...)
 	applyTreeGuides(&root, a.cfg.Settings.Bool(SetTreeGuides, true))
+	a.applySplitRatios(&root)
 	if a.focusHintsActive() {
 		if style := a.focusHintsStyle(); style == FocusHintsInline || style == FocusHintsBoth {
 			applyFocusHintBadges(&root, a.panes.hints.session)

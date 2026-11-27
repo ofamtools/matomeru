@@ -301,16 +301,19 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.Shell.AppFacts = func(s core.State) map[string]any {
 		_, recording := a.nav.Macros.Recording()
 		return map[string]any{
-			"space":              s.ActivePage,
-			"recording":          recording,
-			"enterOpensShow":     a.enterOpensShow(),
-			"hlFolds":            a.treeHLFolds(),
-			"isProjectTab":       isProjectTab(s.ActivePage),
-			"inChildPaneView":    a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
-			"featuresPageActive": a.featuresPageActive(),
-			factListTarget:       a.listTargetFact(s),
-			factTreeTarget:       a.treeTargetFact(),
-			factSelectTarget:     a.selectTargetFact(s),
+			"space":               s.ActivePage,
+			"recording":           recording,
+			"enterOpensShow":      a.enterOpensShow(),
+			"hlFolds":             a.treeHLFolds(),
+			"isProjectTab":        isProjectTab(s.ActivePage),
+			"inChildPaneView":     a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
+			"featuresPageActive":  a.featuresPageActive(),
+			"readlinePriority":    a.inputReadlinePriorityEnabled(),
+			"filterScrollMotions": a.inputFilterScrollMotionsEnabled(),
+			"splitResize":         a.splitResizeEnabled(),
+			factListTarget:        a.listTargetFact(s),
+			factTreeTarget:        a.treeTargetFact(),
+			factSelectTarget:      a.selectTargetFact(s),
 		}
 	}
 	a.Shell.OnPassThrough = func(e core.PassToWidgetEffect) tea.Cmd {
@@ -515,6 +518,7 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 
 func (a *App) register() {
 	a.registerJobsHandlers()
+	a.registerSplitResizeHandlers()
 	for _, id := range []string{"motion.down", "motion.up", "motion.left", "motion.right", "motion.top", "motion.bottom",
 		"motion.half.down", "motion.half.up", "motion.page.down", "motion.page.up", "motion.block.next", "motion.block.prev",
 		"motion.scroll.down", "motion.scroll.up"} {

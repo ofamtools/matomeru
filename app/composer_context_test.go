@@ -115,7 +115,7 @@ func TestComposerOfficialProjectContextAutoSelectToggleAndCherryPick(t *testing.
 		t.Fatalf("expected accent banner node, got %+v", banner)
 	}
 	bannerText, _ := banner.Props["text"].(string)
-	for _, want := range []string{"★ Project Context (2/2 official)", "Design Doc", "Metrics Sheet", "first prompt", "ctrl+g off · ctrl+o pick"} {
+	for _, want := range []string{"★ Project Context (2/2 official)", "Design Doc", "Metrics Sheet", "first prompt", "ctrl+g off · alt+o pick"} {
 		if !strings.Contains(bannerText, want) {
 			t.Fatalf("banner missing %q: %q", want, bannerText)
 		}
@@ -162,7 +162,7 @@ func TestComposerOfficialProjectContextAutoSelectToggleAndCherryPick(t *testing.
 	if offBanner == nil || offBanner.Tone != "muted" {
 		t.Fatalf("expected muted banner when opted out, got %+v", offBanner)
 	}
-	if txt, _ := offBanner.Props["text"].(string); !strings.Contains(txt, "○ Project Context: off (2 official available)") || !strings.Contains(txt, "ctrl+g on · ctrl+o pick") {
+	if txt, _ := offBanner.Props["text"].(string); !strings.Contains(txt, "○ Project Context: off (2 official available)") || !strings.Contains(txt, "ctrl+g on · alt+o pick") {
 		t.Fatalf("unexpected opted-out banner text: %q", txt)
 	}
 
@@ -184,14 +184,18 @@ func TestComposerOfficialProjectContextAutoSelectToggleAndCherryPick(t *testing.
 		t.Fatalf("opted-out prompt must omit Official Project Context:\n%s", delivered2)
 	}
 
-	// 3. Cherry-pick via ctrl+o picker: drop one official item (Design Doc) and
-	// add the scraped item for this single prompt.
+	// 3. Cherry-pick via alt+o picker (ctrl+o stays free so it never pops a surprise modal):
+	// drop one official item (Design Doc) and add the scraped item for this single prompt.
 	a.termOf(pane.ID).lines = nil
 	d.Keys("c")
 	cm = a.activeComposer()
 	d.Keys("ctrl+o")
+	if a.Modal() != "composer" || a.Mode() != ModeComposer {
+		t.Fatalf("ctrl+o unexpectedly opened modal while input.readlinePriority=true: modal=%q mode=%q", a.Modal(), a.Mode())
+	}
+	d.Keys("alt+o")
 	if a.Modal() != composerContextPickerID || a.Mode() != ModePicker {
-		t.Fatalf("ctrl+o did not open context picker: modal=%q mode=%q", a.Modal(), a.Mode())
+		t.Fatalf("alt+o did not open context picker: modal=%q mode=%q", a.Modal(), a.Mode())
 	}
 	pickerFrame := d.Frame()
 	for _, want := range []string{"[✓] ★ Design Doc (gdoc)", "[✓] ★ Metrics Sheet (sheet)", "[ ] Scraped Debug URL (url)"} {

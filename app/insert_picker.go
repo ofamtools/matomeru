@@ -99,14 +99,15 @@ func insertPickerBindings() []core.Binding {
 	var out []core.Binding
 	for _, mode := range []string{ModeOutlineEdit, ModeFormEdit} {
 		out = append(out,
-			bind(mode, "", "ctrl+f", CmdInsertPickerFile, "file picker"),
-			bind(mode, "", "ctrl+l", CmdInsertPickerOpen, "insert picker"),
-			hidden(bind(mode, "", "alt+p", CmdInsertPickerOpen, "insert picker")),
+			bind(mode, "", "alt+i", CmdInsertPickerFile, "file picker"),
+			bind(mode, "", "alt+p", CmdInsertPickerOpen, "insert picker"),
+			when(bind(mode, "", "ctrl+f", CmdInsertPickerFile, "file picker"), "!facts.readlinePriority"),
+			when(bind(mode, "", "ctrl+l", CmdInsertPickerOpen, "insert picker"), "!facts.readlinePriority"),
 		)
 	}
 	out = append(out,
-		bind(ModeComposer, "", "ctrl+l", CmdInsertPickerOpen, "insert picker"),
-		hidden(bind(ModeComposer, "", "alt+p", CmdInsertPickerOpen, "insert picker")),
+		bind(ModeComposer, "", "alt+p", CmdInsertPickerOpen, "insert picker"),
+		when(bind(ModeComposer, "", "ctrl+l", CmdInsertPickerOpen, "insert picker"), "!facts.readlinePriority"),
 	)
 	for _, mode := range []string{ModePicker, ModePickerFilter} {
 		out = append(out,

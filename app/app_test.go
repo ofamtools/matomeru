@@ -262,12 +262,12 @@ func TestListsWorkOnAnyField(t *testing.T) {
 		t.Fatalf("regex filter matched %d rows in mode %s", got, a.nav.tables[workTable].MatchMode)
 	}
 	// One field: the regex is anchored to that field's text.
-	d.Keys("ctrl+u", "ctrl+t")
+	d.Keys("ctrl+x", "ctrl+t")
 	d.Type("^tier [01]")
 	if got := len(a.nav.tables[workTable].Filtered()); got != 2 || a.nav.tables[workTable].FilterField != "title" {
 		t.Fatalf("regex on %s matched %d rows", a.nav.tables[workTable].FilterField, got)
 	}
-	d.Keys("ctrl+u")
+	d.Keys("ctrl+x")
 	d.Type("[")
 	if a.nav.tables[workTable].Filtered(); a.nav.tables[workTable].FilterErr == "" || !strings.Contains(d.Frame(), "invalid regex") {
 		t.Fatal("an invalid regex is not reported")
