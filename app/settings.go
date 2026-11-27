@@ -460,6 +460,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetCaptureComposeEnabled, true, "enable global dictation/compose capture modal (g i / alt+c) and persistent capture log"),
 		flag(SetPinnedAgentChrome, true, "show active pinned agent indicator chip in the top chrome bar"),
 		flag(SetFeaturesDomainNav, true, "show the Domain navigation group (Everything, Indicators, Components, etc.) and related Domain sections in Features"),
+		flag(SetOutlineCrossProjectAdd, true, "enable picking another project to add a task from any outline (g o)"),
 	}
 }
 

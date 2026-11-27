@@ -216,6 +216,10 @@ func (a *App) treeHLFolds() bool {
 	return a.cfg.Settings.Bool(SetTreeHLFolds, true)
 }
 
+func (a *App) outlineCrossProjectAddEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetOutlineCrossProjectAdd, true)
+}
+
 // ConfigExport is the configuration in effect: the defaults with the user's
 // files laid over them.
 type ConfigExport struct {

@@ -97,7 +97,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetDeclarativePresentations: true, SetContextExtractCodeBlocks: true,
 		SetInputReadlinePriority: true, SetInputFilterScrollMotions: true, SetSplitResize: true, SetProjectNavCompact: true, SetRepoAutoHarvestPanes: true, SetRichAddToQueue: true, SetTOCStyle: views.TOCStyleAuto, SetSearchHighlight: true,
 		SetOutlineAutoSuggest: true, SetFeaturesOutline: true, SetProjectNavPriorityOrder: true, SetProjectNavMode: views.ProjectNavModeSections, SetProjectSectionPickerNested: true,
-		SetCaptureComposeEnabled: true, SetPinnedAgentChrome: true, SetFeaturesDomainNav: true}
+		SetCaptureComposeEnabled: true, SetPinnedAgentChrome: true, SetFeaturesDomainNav: true, SetOutlineCrossProjectAdd: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {

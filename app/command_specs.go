@@ -45,6 +45,7 @@ func CommandSpecs() []core.CommandSpec {
 	base = append(base, sessionsCommandSpecs()...)
 	base = append(base, focusCommandSpecs()...)
 	base = append(base, captureCommandSpecs()...)
+	base = append(base, crossProjectAddCommandSpecs()...)
 	base = append(base, pinnedAgentsCommandSpecs()...)
 	base = append(base, jobsSpecs()...)
 	base = append(base, taskLineageSpecs()...)

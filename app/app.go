@@ -916,6 +916,7 @@ func (a *App) register() {
 	a.registerSessions()
 	a.registerFocus()
 	a.registerCaptures()
+	a.registerCrossProjectAdd()
 	a.registerPinnedAgents()
 	a.handle(CmdFDSearch, a.fdSearch)
 	a.handle(CmdFDSearchAgain, a.fdSearchAgain)
