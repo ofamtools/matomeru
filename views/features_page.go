@@ -99,6 +99,7 @@ type FeaturesDetailSpec struct {
 	Props              []FeaturesPropRow
 	ItemizedNouns      []FeaturesItemizedNoun
 	Views              []FeaturesViewRow
+	DomainGroups       []DomainGroup
 	Concepts           []FeaturesLinkedItem
 	CanSuggestProp     bool
 	CanSuggestView     bool
@@ -444,6 +445,7 @@ func featuresContentPanel(detail FeaturesDetailSpec, activeKey string, compact b
 		sections = append(sections, featuresLinkedSection("features.section.lanes", "Linked Lanes", "features.lane.", detail.LinkedLanes))
 	}
 	sections = append(sections, featuresItemizedSections(detail)...)
+	sections = append(sections, featuresDomainSections(detail.DomainGroups)...)
 	if len(detail.Concepts) > 0 {
 		sections = append(sections, featuresLinkedSection("features.section.concepts", "Concepts", "features.concept.", detail.Concepts))
 	}

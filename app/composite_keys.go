@@ -15,6 +15,7 @@ const (
 	featureKeyPage      featureKeyKind = "page"
 	featureKeyComponent featureKeyKind = "component"
 	featureKeyNoun      featureKeyKind = "noun"
+	featureKeyDomain    featureKeyKind = "domain"
 	featureKeyGroup     featureKeyKind = "group"
 	featureKeyConcept   featureKeyKind = "concept"
 )
@@ -37,6 +38,10 @@ func featureComponentKey(compID string) featureKey {
 
 func featureNounKey(kind string) featureKey {
 	return featureKey{Kind: featureKeyNoun, Name: strings.TrimSpace(kind)}
+}
+
+func featureDomainKey(groupKey string) featureKey {
+	return featureKey{Kind: featureKeyDomain, Name: strings.TrimSpace(groupKey)}
 }
 
 func featureGroupKey(groupID string) featureKey {
@@ -72,7 +77,7 @@ func parseFeatureKey(raw string) (featureKey, bool) {
 	}
 	kind := featureKeyKind(strings.TrimSpace(prefix))
 	switch kind {
-	case featureKeyPage, featureKeyComponent, featureKeyNoun, featureKeyGroup, featureKeyConcept:
+	case featureKeyPage, featureKeyComponent, featureKeyNoun, featureKeyDomain, featureKeyGroup, featureKeyConcept:
 		return featureKey{Kind: kind, Name: name}, true
 	default:
 		return featureKey{}, false

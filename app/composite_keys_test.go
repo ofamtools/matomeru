@@ -15,6 +15,7 @@ func TestFeatureCompositeKeysRoundTrip(t *testing.T) {
 		{featurePageKey("panes"), "page:panes"},
 		{featureComponentKey("panes.rail"), "component:panes.rail"},
 		{featureNounKey("schedule"), "noun:schedule"},
+		{featureDomainKey("indicators"), "domain:indicators"},
 		{featureGroupKey("grp-1"), "group:grp-1"},
 		{featureConceptKey("prop"), "concept:prop"},
 	}

@@ -203,6 +203,7 @@ const (
 	SetSelfHostedFeaturesRepoPath      = "selfHosted.featuresPage.repoPath"
 	SetFeaturesItemization             = "features.itemization"
 	SetFeaturesCaptureDocked           = "features.captureDocked"
+	SetFeaturesDomainNav               = "features.domainNav"
 	SetHintsDefaultAction              = "hints.defaultAction"
 	SetProjectHomeDashboard            = "project.homeDashboard"
 	SetPanesCompactTopArea             = "panes.compactTopArea"
@@ -458,6 +459,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectSectionPickerNested, true, "allow drilling down into section items inside the Project Portal g s picker (off: flat section-only picker)"),
 		flag(SetCaptureComposeEnabled, true, "enable global dictation/compose capture modal (g i / alt+c) and persistent capture log"),
 		flag(SetPinnedAgentChrome, true, "show active pinned agent indicator chip in the top chrome bar"),
+		flag(SetFeaturesDomainNav, true, "show the Domain navigation group (Everything, Indicators, Components, etc.) and related Domain sections in Features"),
 	}
 }
 

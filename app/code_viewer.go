@@ -71,7 +71,7 @@ func codeViewerSpecs() []core.CommandSpec {
 			ID:          CmdCodeOpen,
 			Description: "Open a file in the read-only Vim code viewer with optional highlighted source lines",
 			Params: []core.ParamSpec{
-				{Name: "file", Type: core.ParamPath, Required: true, Description: "File path to open"},
+				{Name: "file", Type: core.ParamPath, Description: "File path to open (defaults to focused item's code location)"},
 				{Name: "startLine", Type: core.ParamInt, Description: "Optional 1-based start line to highlight"},
 				{Name: "endLine", Type: core.ParamInt, Description: "Optional 1-based end line to highlight"},
 				{Name: "title", Type: core.ParamString, Description: "Optional viewer title override"},
@@ -113,6 +113,8 @@ func codeViewerSpecs() []core.CommandSpec {
 func codeViewerBindings() []core.Binding {
 	m, sm, all := ModeCodeView, ModeCodeViewSearch, ""
 	return []core.Binding{
+		when(bind(ModeNormal, all, "g k", CmdCodeOpen, "view in code"), "facts.hasCodeLocation"),
+
 		// Numeric counts so 5j, 12G, 3w work like real Vim.
 		with(hidden(bind(m, all, "1", core.CmdCountPush, "count")), map[string]any{"digit": 1}),
 		with(hidden(bind(m, all, "2", core.CmdCountPush, "count")), map[string]any{"digit": 2}),
@@ -205,25 +207,82 @@ func (a *App) activeCodeViewer() *codeViewerModal {
 }
 
 func (a *App) codeOpenCmd(s core.State, c core.Command) core.StepResult {
-	file := strings.TrimSpace(c.Arg("file"))
-	if file == "" {
+	req, ok := a.resolveCodeOpenRequest(s, c)
+	if !ok {
 		a.say("code.open needs a file path")
 		return core.Next(s)
-	}
-	req := CodeOpenRequest{
-		File:      file,
-		StartLine: intArg(c.Args["startLine"]),
-		EndLine:   intArg(c.Args["endLine"]),
-		Title:     strings.TrimSpace(c.Arg("title")),
-		Label:     strings.TrimSpace(c.Arg("label")),
-		Note:      strings.TrimSpace(c.Arg("note")),
-		Color:     strings.TrimSpace(c.Arg("color")),
 	}
 	if ref, ok := a.subject(s, c); ok && ref.ID != "" {
 		r := ref
 		req.SourceRef = &r
 	}
 	return core.Next(a.openCodeViewer(s, req))
+}
+
+func (a *App) featuresViewInCodeCmd(s core.State, c core.Command) core.StepResult {
+	return a.codeOpenCmd(s, c)
+}
+
+func (a *App) resolveCodeOpenRequest(s core.State, c core.Command) (CodeOpenRequest, bool) {
+	if file := strings.TrimSpace(c.Arg("file")); file != "" {
+		return CodeOpenRequest{
+			File:      a.resolveCodeTargetPath(file),
+			StartLine: intArg(c.Args["startLine"]),
+			EndLine:   intArg(c.Args["endLine"]),
+			Title:     strings.TrimSpace(c.Arg("title")),
+			Label:     strings.TrimSpace(c.Arg("label")),
+			Note:      strings.TrimSpace(c.Arg("note")),
+			Color:     strings.TrimSpace(c.Arg("color")),
+		}, true
+	}
+	facts := a.focusedCodeFacts(s)
+	if facts == nil {
+		return CodeOpenRequest{}, false
+	}
+	file, _ := facts["codeFile"].(string)
+	file = strings.TrimSpace(file)
+	if file == "" {
+		return CodeOpenRequest{}, false
+	}
+	title, _ := facts["codeTitle"].(string)
+	sym, _ := facts["codeSymbol"].(string)
+	note, _ := facts["codeSummary"].(string)
+	return CodeOpenRequest{
+		File:      a.resolveCodeTargetPath(file),
+		StartLine: intArg(facts["codeStartLine"]),
+		EndLine:   intArg(facts["codeEndLine"]),
+		Title:     strings.TrimSpace(title),
+		Label:     firstNonEmpty(strings.TrimSpace(sym), strings.TrimSpace(title)),
+		Note:      strings.TrimSpace(note),
+	}, true
+}
+
+func (a *App) focusedCodeFacts(s core.State) map[string]any {
+	focus := s.ActiveFrame().FocusID
+	if focus == "" {
+		return nil
+	}
+	root := a.View(s)
+	node := root.Find(focus)
+	if node == nil {
+		return nil
+	}
+	return node.Facts
+}
+
+func (a *App) resolveCodeTargetPath(file string) string {
+	clean := cleanLocalTargetPath(strings.TrimSpace(file))
+	if clean == "" {
+		return ""
+	}
+	expanded := expandHome(clean)
+	if filepath.IsAbs(expanded) {
+		return filepath.Clean(expanded)
+	}
+	if _, repo := a.detectMatomeruCheckout(); repo != "" {
+		return filepath.Join(repo, filepath.FromSlash(expanded))
+	}
+	return filepath.Clean(expanded)
 }
 
 func normalizeCodePath(path string) string {

@@ -223,7 +223,7 @@ func TestFeaturesPageLeftNavDynamicDiscoveryAndCollapse(t *testing.T) {
 	for _, group := range navGroups {
 		keys = append(keys, group.Key)
 	}
-	if want := []string{"pages", "nouns", "groups", "concepts"}; !slices.Equal(keys, want) {
+	if want := []string{"pages", "nouns", "domain", "groups", "concepts"}; !slices.Equal(keys, want) {
 		t.Fatalf("nav group keys = %v, want %v", keys, want)
 	}
 

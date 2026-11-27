@@ -678,8 +678,73 @@ func (a *App) syncFeaturesOutlineTree(snap featuresSnapshot, activeKey string, d
 	return tm
 }
 
+func (b *featuresOutlineBuilder) buildDomainSections() []tree.Node {
+	if len(b.detail.DomainGroups) == 0 {
+		return nil
+	}
+	out := make([]tree.Node, 0, len(b.detail.DomainGroups))
+	for gi, group := range b.detail.DomainGroups {
+		key := strings.TrimSpace(group.Key)
+		if key == "" {
+			key = fmt.Sprintf("group-%d", gi)
+		}
+		kids := make([]tree.Node, 0, len(group.Items))
+		for i, item := range group.Items {
+			kids = append(kids, b.domainOccurrenceTreeNode(key, i, item))
+		}
+		secID := "featsec.domain." + key
+		out = append(out, b.sectionNode(secID, "domain", firstNonEmpty(group.Icon, "◆"), group.Title, kids))
+	}
+	return out
+}
+
+func (b *featuresOutlineBuilder) domainOccurrenceTreeNode(groupKey string, idx int, item views.DomainOccurrence) tree.Node {
+	id := fmt.Sprintf("features.domain.%s.%d", groupKey, idx)
+	if clean := strings.TrimSpace(item.ID); clean != "" {
+		id = fmt.Sprintf("features.domain.%s.%s", groupKey, clean)
+	}
+	label := item.Name
+	if item.Summary != "" {
+		label += " — " + clip(item.Summary, 60)
+	}
+	var meta []ui.TreeMeta
+	if loc := item.Location.Format(); loc != "" {
+		meta = append(meta, ui.TreeMeta{Text: loc, Tone: "accent"})
+	}
+	if sym := strings.TrimSpace(item.Location.Symbol); sym != "" {
+		meta = append(meta, ui.TreeMeta{Text: sym, Tone: "muted"})
+	}
+	facts := map[string]any{
+		"featuresSection":      "domain",
+		"domainOccurrenceId":   item.ID,
+		"domainClassification": item.Classification,
+		"hasCodeLocation":      item.Location.Valid(),
+	}
+	if item.Location.Valid() {
+		facts["codeFile"] = strings.TrimSpace(item.Location.File)
+		facts["codeStartLine"] = item.Location.StartLine
+		facts["codeEndLine"] = item.Location.EndLine
+		facts["codeSymbol"] = strings.TrimSpace(item.Location.Symbol)
+		facts["codeTitle"] = strings.TrimSpace(item.Name)
+		facts["codeSummary"] = strings.TrimSpace(item.Summary)
+	}
+	return b.decorateCatalogNode(tree.Node{
+		ID:         id,
+		Scope:      views.ScopeFeaturesContent,
+		Icon:       firstNonEmpty(item.Glyph, "·"),
+		IconTone:   firstNonEmpty(item.Tone, "info"),
+		Label:      label,
+		Meta:       meta,
+		Facts:      facts,
+		SearchText: traits.FormatFilterableText("section", "domain", "title", item.Name, "file", item.Location.File, "symbol", item.Location.Symbol),
+	}, "domain", "")
+}
+
 func (b *featuresOutlineBuilder) buildFullOutlineRoots() []tree.Node {
 	var roots []tree.Node
+	if b.detail.Kind == string(featureKeyDomain) {
+		roots = append(roots, b.buildDomainSections()...)
+	}
 	if sec, ok := b.buildFeaturesSection(); ok {
 		roots = append(roots, sec)
 	}
@@ -690,6 +755,9 @@ func (b *featuresOutlineBuilder) buildFullOutlineRoots() []tree.Node {
 		roots = append(roots, sec)
 	}
 	roots = append(roots, b.buildIdeasSection())
+	if b.detail.Kind != string(featureKeyDomain) {
+		roots = append(roots, b.buildDomainSections()...)
+	}
 	if sec, ok := b.buildLinkedRecordsSection(featSecGroups, "groups", "◈", "Organized Feature Groups", b.detail.LinkedGroups, true); ok {
 		roots = append(roots, sec)
 	}
