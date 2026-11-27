@@ -1,15 +1,12 @@
 package app
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
-	"ofam.dev/ochazuke/widgets/modal"
-	"ofam.dev/ochazuke/widgets/picker"
 )
 
 const CmdProjectSectionPick = "project.section.pick"
@@ -178,48 +175,4 @@ func hintScopeRank(scope string, chain []core.ContextFrame) int {
 		return 150
 	}
 	return 50
-}
-
-// projectSectionPick opens a quick-jump picker over all sections of the active
-// Project Page workspace without needing to collapse/expand the nav tree.
-func (a *App) projectSectionPick(s core.State, _ core.Command) core.StepResult {
-	projKey := a.activeProjectWorkspaceKey(s)
-	if projKey == "" {
-		a.say("open a project workspace first")
-		return core.Next(s)
-	}
-	defs := a.projectNavSectionDefs()
-	pc := a.projectCtrl()
-	activeSec := pc.activeSection(projKey)
-	items := make([]picker.Item, 0, len(defs))
-	for _, def := range defs {
-		badge := def.Group
-		if def.Key == activeSec {
-			badge = "active"
-		}
-		items = append(items, picker.Item{
-			ID:       def.Key,
-			Title:    def.Label,
-			Subtitle: def.Key,
-			Badges:   []ui.Badge{{Text: badge, Tone: "muted"}},
-		})
-	}
-	pm := picker.New(fmt.Sprintf("Jump to Project Section (%d)", len(items)), items)
-	pm.MatchMode = a.matchMode()
-	m := a.newPickerModal(pm, modal.PickerOptions{
-		ID:       "project.sections",
-		PageSize: 12,
-		OnConfirm: func(it picker.Item) modal.Result {
-			return modal.Result{
-				Handled:     true,
-				Close:       true,
-				CloseReason: modal.CloseSubmit,
-				Emit: []core.Command{{
-					ID:   CmdProjectSectionSelect,
-					Args: map[string]any{"section": it.ID},
-				}},
-			}
-		},
-	})
-	return core.Next(a.pushModal(s, m))
 }
