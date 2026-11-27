@@ -157,9 +157,11 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.Keys("]")
 	k.check("] advances from Extensions to Projects", a.Space() == SpaceProjects && k.has("Projects", "ochazuke-v2", "matomeru-v2"))
 	k.Keys("]")
+	k.check("] advances from Projects to Reminders", a.Space() == "reminders")
+	k.Keys("]")
 	k.check("] wraps round to Panes", a.Space() == SpacePanes)
-	k.Keys("[")
-	k.check("[ wraps back from Panes to Projects", a.Space() == SpaceProjects)
+	k.Keys("[", "[")
+	k.check("[ wraps back from Panes past Reminders to Projects", a.Space() == SpaceProjects)
 	k.Keys("1")
 	k.check("1 returns to Panes", a.Space() == SpacePanes && a.Focus() == railTable)
 

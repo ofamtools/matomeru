@@ -450,15 +450,56 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 	return firstErr
 }
 
-func (s *Scheduler) evalSchedule(ctx context.Context, rec data.Record, now time.Time) error {
+func effectiveScheduleCron(rec data.Record) (*CronExpr, error) {
 	cronSpec := strings.TrimSpace(rec.Text("cron"))
-	var expr *CronExpr
-	if cronSpec != "" {
-		var err error
-		expr, err = ParseCron(cronSpec)
-		if err != nil {
-			return fmt.Errorf("schedule %s: %w", rec.ID, err)
+	if cronSpec == "" && strings.TrimSpace(rec.Text("scheduleKind")) == data.ScheduleKindDaily {
+		cronSpec = data.CronForTimeOfDay(rec.Text("timeOfDay"))
+	}
+	if cronSpec == "" {
+		return nil, nil
+	}
+	return ParseCron(cronSpec)
+}
+
+func (s *Scheduler) evalReminderSchedule(ctx context.Context, rec data.Record, dueAt, now time.Time) (outcome string, extra map[string]any, summary string) {
+	channel := data.EffectiveNotifyChannel(rec)
+	persistence := data.EffectiveNotifyPersistence(rec)
+	ttlSec := data.EffectiveNotifyTTLSeconds(rec)
+	title := strings.TrimSpace(rec.Text("title"))
+	msg := strings.TrimSpace(rec.Text("reminderMessage"))
+	body := msg
+	if body == "" {
+		body = fmt.Sprintf("Scheduled reminder (%s)", dueAt.UTC().Format(time.RFC3339))
+	}
+
+	osFailed := false
+	if data.ChannelIncludesOS(channel) && s.notifier != nil {
+		if err := s.notifier.Notify(ctx, title, body); err != nil {
+			osFailed = true
 		}
+	}
+
+	extra = map[string]any{
+		"notifiedAt":    now.UTC().Format(data.TimeFormat),
+		"notifyChannel": channel,
+		"ttlSeconds":    ttlSec,
+		"message":       msg,
+		"ackRequired":   false,
+	}
+	if persistence == data.NotifyPersistencePersistent && data.ChannelIncludesMTM(channel) {
+		extra["ackRequired"] = true
+		return "pending", extra, "reminder notification awaiting acknowledgement"
+	}
+	if osFailed {
+		return "failed", extra, "OS reminder notification failed"
+	}
+	return "done", extra, "record schedule occurrence outcome"
+}
+
+func (s *Scheduler) evalSchedule(ctx context.Context, rec data.Record, now time.Time) error {
+	expr, err := effectiveScheduleCron(rec)
+	if err != nil {
+		return fmt.Errorf("schedule %s: %w", rec.ID, err)
 	}
 
 	nextDue := rec.Time("nextDueAt")
@@ -509,68 +550,41 @@ func (s *Scheduler) evalSchedule(ctx context.Context, rec data.Record, now time.
 
 	kind := rec.Text("scheduleKind")
 	if kind == "" {
-		kind = "remind"
+		kind = data.ScheduleKindRemind
 	}
 	title := rec.Text("title")
 	command := rec.Text("command")
 
 	outcome := "done"
 	outcomeSummary := "record schedule occurrence outcome"
+	occFields := map[string]any{
+		"checkedAt": now.UTC().Format(data.TimeFormat),
+	}
 	switch kind {
-	case "remind":
-		if err := s.notifier.Notify(ctx, title, fmt.Sprintf("Scheduled reminder (%s)", dueAt.UTC().Format(time.RFC3339))); err != nil {
-			outcome = "failed"
+	case data.ScheduleKindRemind, data.ScheduleKindDaily:
+		var extra map[string]any
+		outcome, extra, outcomeSummary = s.evalReminderSchedule(ctx, rec, dueAt, now)
+		for k, v := range extra {
+			occFields[k] = v
 		}
-	case "run":
+	case data.ScheduleKindRun:
 		if command == "" {
 			outcome = "skipped"
 		} else if _, err := s.runner.Run(ctx, command); err != nil {
 			outcome = "failed"
 		}
-	case "check":
-		body := ""
-		eventKind := "check"
-		if command != "" {
-			out, rerr := s.runner.Run(ctx, command)
-			body = strings.TrimSpace(out)
-			if rerr != nil {
-				outcome = "failed"
-				eventKind = "failure"
-				if body == "" {
-					body = rerr.Error()
-				} else {
-					body = body + "\n" + rerr.Error()
-				}
-			}
-		}
-		sigFields := map[string]any{
-			"title":       title,
-			"source":      "schedule",
-			"eventKind":   eventKind,
-			"author":      "mtm-daemon",
-			"container":   rec.ID,
-			"body":        body,
-			"occurredAt":  now.UTC().Format(data.TimeFormat),
-			"triageState": data.TriageUnreviewed,
-		}
-		if taskRef, ok := rec.RefField("task"); ok {
-			sigFields["task"] = taskRef
-		}
-		if _, _, serr := s.store.Create(data.CreateInput{Kind: data.KindSignal, Fields: sigFields}, daemonActor); serr != nil {
-			outcome = "failed"
-		}
-	case "agent_queue":
+	case data.ScheduleKindCheck:
+		outcome = s.evalCheckSchedule(ctx, rec, title, command, now)
+	case data.ScheduleKindAgentQueue:
 		outcome, outcomeSummary = s.evalAgentQueueSchedule(ctx, rec, command, now)
 	default:
 		outcome = "skipped"
 	}
+	occFields["outcomeStatus"] = outcome
 
 	_, _, _ = s.store.Patch(data.PatchInput{
-		Ref: occ.Ref(),
-		Fields: map[string]any{
-			"outcomeStatus": outcome,
-			"checkedAt":     now.UTC().Format(data.TimeFormat),
-		},
+		Ref:     occ.Ref(),
+		Fields:  occFields,
 		Summary: outcomeSummary,
 	}, daemonActor)
 
@@ -584,6 +598,42 @@ func (s *Scheduler) evalSchedule(ctx context.Context, rec data.Record, now time.
 		Summary: "advance nextDueAt",
 	}, daemonActor)
 	return err
+}
+
+func (s *Scheduler) evalCheckSchedule(ctx context.Context, rec data.Record, title, command string, now time.Time) string {
+	outcome := "done"
+	body := ""
+	eventKind := "check"
+	if command != "" {
+		out, rerr := s.runner.Run(ctx, command)
+		body = strings.TrimSpace(out)
+		if rerr != nil {
+			outcome = "failed"
+			eventKind = "failure"
+			if body == "" {
+				body = rerr.Error()
+			} else {
+				body = body + "\n" + rerr.Error()
+			}
+		}
+	}
+	sigFields := map[string]any{
+		"title":       title,
+		"source":      "schedule",
+		"eventKind":   eventKind,
+		"author":      "mtm-daemon",
+		"container":   rec.ID,
+		"body":        body,
+		"occurredAt":  now.UTC().Format(data.TimeFormat),
+		"triageState": data.TriageUnreviewed,
+	}
+	if taskRef, ok := rec.RefField("task"); ok {
+		sigFields["task"] = taskRef
+	}
+	if _, _, serr := s.store.Create(data.CreateInput{Kind: data.KindSignal, Fields: sigFields}, daemonActor); serr != nil {
+		outcome = "failed"
+	}
+	return outcome
 }
 
 const maxQueuePromptEnvBytes = 64 * 1024

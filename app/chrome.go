@@ -6,6 +6,7 @@ import (
 
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/ui"
 )
 
@@ -60,10 +61,23 @@ func (a *App) chromeSeparatorNode(s core.State, chain []core.ContextFrame, w int
 			}
 		}
 	}
-	return ui.ViewNode{
+	sep := ui.ViewNode{
 		ID:    "chrome.sep",
 		Kind:  ui.KindText,
+		Box:   layout.Constraints{Flex: 1, FixedH: 1},
 		Props: map[string]any{"text": text, "spans": spans},
+	}
+	anchor := ui.ViewNode{
+		ID:    reminderTopRightAnchorID,
+		Kind:  ui.KindText,
+		Box:   layout.Constraints{FixedW: 1, FixedH: 1},
+		Props: map[string]any{"text": " "},
+	}
+	return ui.ViewNode{
+		ID:       "chrome.sep.row",
+		Kind:     ui.KindHStack,
+		Box:      layout.Constraints{FixedH: 1},
+		Children: []ui.ViewNode{sep, anchor},
 	}
 }
 

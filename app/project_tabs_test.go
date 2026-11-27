@@ -363,12 +363,20 @@ func TestMultipleProjectTabsNavigationClosingAndOptOuts(t *testing.T) {
 		t.Fatalf("7 -> %q, want %q", a.Space(), gammaTab)
 	}
 	d.Keys("]")
+	if a.Space() != SpaceReminders {
+		t.Fatalf("] from last dynamic tab -> %q, want %q", a.Space(), SpaceReminders)
+	}
+	d.Keys("]")
 	if a.Space() != SpacePanes {
-		t.Fatalf("] from last dynamic tab -> %q, want %q", a.Space(), SpacePanes)
+		t.Fatalf("] from Reminders -> %q, want %q", a.Space(), SpacePanes)
+	}
+	d.Keys("[")
+	if a.Space() != SpaceReminders {
+		t.Fatalf("[ from Panes -> %q, want %q", a.Space(), SpaceReminders)
 	}
 	d.Keys("[")
 	if a.Space() != gammaTab {
-		t.Fatalf("[ from Panes -> %q, want %q", a.Space(), gammaTab)
+		t.Fatalf("[ from Reminders -> %q, want %q", a.Space(), gammaTab)
 	}
 
 	// Close 7 Gamma with x -> returns cleanly to 5 Projects while 6 Beta stays open.
@@ -413,7 +421,7 @@ func TestMultipleProjectTabsNavigationClosingAndOptOuts(t *testing.T) {
 		t.Fatalf("dynamicTabs=false enter in 5 Projects should fall back to 1 Panes project overview, got %q", a.Space())
 	}
 
-	// Opt-out 3: projects.topNavTab.enabled = false -> 5 Projects hidden, ] from 4 Extensions wraps to 1 Panes.
+	// Opt-out 3: projects.topNavTab.enabled = false -> 5 Projects hidden, ] from 4 Extensions advances to Reminders then wraps to 1 Panes.
 	a.cfg.userSettings[SetProjectsTopNavTab] = false
 	a.reloadSettings()
 	a.applySettings()
@@ -421,8 +429,8 @@ func TestMultipleProjectTabsNavigationClosingAndOptOuts(t *testing.T) {
 	if strings.Contains(d.Frame(), "5 Projects") {
 		t.Fatalf("topNavTab=false should hide 5 Projects tab:\n%s", d.Frame())
 	}
-	d.Keys("]")
+	d.Keys("]", "]")
 	if a.Space() != SpacePanes {
-		t.Fatalf("topNavTab=false ] from Extensions -> %q, want %q", a.Space(), SpacePanes)
+		t.Fatalf("topNavTab=false ] ] from Extensions -> %q, want %q", a.Space(), SpacePanes)
 	}
 }

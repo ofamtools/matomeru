@@ -287,3 +287,125 @@ func TestEscapeAppleScript(t *testing.T) {
 		t.Fatalf("EscapeAppleScript = %q, want %q", got, want)
 	}
 }
+
+func TestSchedulerReminderChannelsPersistenceAndDailyTimeOfDay(t *testing.T) {
+	store, err := data.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	owner := core.Actor{Kind: "user", ID: "owner"}
+	now := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
+	dueStr := now.Add(-time.Minute).Format(data.TimeFormat)
+
+	var osNotified []string
+	sched := NewScheduler(SchedulerConfig{
+		Store: store,
+		Clock: func() time.Time { return now },
+		Notifier: NotifierFunc(func(_ context.Context, title, body string) error {
+			osNotified = append(osNotified, title+"|"+body)
+			return nil
+		}),
+	})
+
+	// 1. MTM-only persistent reminder: must NOT call OS notifier; occurrence stays pending + ackRequired=true.
+	mtmPersist, _, err := store.Create(data.CreateInput{
+		Kind: data.KindSchedule,
+		Fields: map[string]any{
+			"title":             "Ship release notes",
+			"scheduleKind":      data.ScheduleKindRemind,
+			"notifyChannel":     data.NotifyChannelMTM,
+			"notifyPersistence": data.NotifyPersistencePersistent,
+			"reminderMessage":   "Confirm changelog before tagging",
+			"nextDueAt":         dueStr,
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Both-channel temporary reminder (custom 45s TTL): calls OS notifier; occurrence outcomeStatus=done, ackRequired=false.
+	bothTemp, _, err := store.Create(data.CreateInput{
+		Kind: data.KindSchedule,
+		Fields: map[string]any{
+			"title":             "Stand up & stretch",
+			"scheduleKind":      data.ScheduleKindRemind,
+			"notifyChannel":     data.NotifyChannelBoth,
+			"notifyPersistence": data.NotifyPersistenceTemporary,
+			"notifyTTLSeconds":  45,
+			"reminderMessage":   "Posture check",
+			"nextDueAt":         dueStr,
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. Timed daily reminder (09:00 matches now): calls OS notifier and advances nextDueAt to tomorrow 09:00.
+	timedDaily, _, err := store.Create(data.CreateInput{
+		Kind: data.KindSchedule,
+		Fields: map[string]any{
+			"title":             "Morning vitamins",
+			"scheduleKind":      data.ScheduleKindDaily,
+			"timeOfDay":         "09:00",
+			"notifyChannel":     data.NotifyChannelBoth,
+			"notifyPersistence": data.NotifyPersistencePersistent,
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 4. Silent daily checklist item (no timeOfDay, no cron): must NOT fire.
+	_, _, err = store.Create(data.CreateInput{
+		Kind: data.KindSchedule,
+		Fields: map[string]any{
+			"title":        "Inbox zero",
+			"scheduleKind": data.ScheduleKindDaily,
+		},
+	}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sched.Tick(context.Background()); err != nil {
+		t.Fatalf("Tick: %v", err)
+	}
+
+	// OS notifier called ONLY for bothTemp and timedDaily (NOT mtmPersist, NOT silentDaily).
+	if len(osNotified) != 2 {
+		t.Fatalf("osNotified = %v, want 2 entries", osNotified)
+	}
+
+	occs, err := store.Query(data.Query{Kind: data.KindOccurrence})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(occs.Items) != 3 {
+		t.Fatalf("occurrences = %d, want 3", len(occs.Items))
+	}
+	bySched := map[string]data.Record{}
+	for _, o := range occs.Items {
+		if ref, ok := o.RefField("schedule"); ok {
+			bySched[ref.ID] = o
+		}
+	}
+	if o := bySched[mtmPersist.ID]; o.Text("outcomeStatus") != "pending" || !o.Bool("ackRequired") || o.Text("notifyChannel") != data.NotifyChannelMTM {
+		t.Fatalf("mtmPersist occurrence = %+v", o.Fields)
+	}
+	if o := bySched[bothTemp.ID]; o.Text("outcomeStatus") != "done" || o.Bool("ackRequired") || data.EffectiveNotifyTTLSeconds(o) != 45 || o.Text("notifiedAt") == "" {
+		t.Fatalf("bothTemp occurrence = %+v", o.Fields)
+	}
+	if o := bySched[timedDaily.ID]; o.Text("outcomeStatus") != "pending" || !o.Bool("ackRequired") {
+		t.Fatalf("timedDaily occurrence = %+v", o.Fields)
+	}
+	updatedDaily, err := store.Get(timedDaily.Ref())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantTomorrow := time.Date(2026, 11, 28, 9, 0, 0, 0, time.UTC)
+	if got := updatedDaily.Time("nextDueAt"); !got.Equal(wantTomorrow) {
+		t.Fatalf("timedDaily nextDueAt = %v, want %v", got, wantTomorrow)
+	}
+}

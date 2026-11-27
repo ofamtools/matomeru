@@ -230,6 +230,14 @@ func (a *App) pasteContextualEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetPasteContextual, true)
 }
 
+func (a *App) remindersTopNavTabEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetRemindersTopNavTab, true)
+}
+
+func (a *App) reminderToastsEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetReminderToasts, true)
+}
+
 // ConfigExport is the configuration in effect: the defaults with the user's
 // files laid over them.
 type ConfigExport struct {

@@ -78,9 +78,9 @@ func (a *App) projectChildPaneViewEnabled() bool {
 func (a *App) topTabsCacheKey() string {
 	rev := a.storeRev()
 	pc := a.projectCtrl()
-	return fmt.Sprintf("%d|%t|%t|%t|%t|%s",
+	return fmt.Sprintf("%d|%t|%t|%t|%t|%t|%d|%s",
 		rev, a.Store != nil, a.projectsTopNavTabEnabled(), a.projectsDynamicTabsEnabled(),
-		a.featuresPageActive(), strings.Join(pc.openTabs, ","),
+		a.featuresPageActive(), a.remindersTopNavTabEnabled(), a.remindersPendingCount(), strings.Join(pc.openTabs, ","),
 	)
 }
 
@@ -139,8 +139,19 @@ func (a *App) topTabs() []topTabDef {
 		out = append(out, topTabDef{id: SpaceFeatures, title: "Features"})
 	}
 	out = append(out, a.buildDynamicProjectTabs(pc)...)
+	if a.remindersTopNavTabEnabled() {
+		out = append(out, topTabDef{id: SpaceReminders, title: a.remindersTabTitle()})
+	}
 	pc.topTabsCache, pc.topTabsCacheKey = out, a.topTabsCacheKey()
 	return slices.Clone(out)
+}
+
+func standalonePageIfAbsent(pageID string, active int) (standalonePageDef, bool) {
+	if active >= 0 {
+		return standalonePageDef{}, false
+	}
+	p, ok := standalonePages[pageID]
+	return p, ok
 }
 
 func (a *App) isValidTopTab(id string) bool {
