@@ -407,6 +407,20 @@ func (a *App) markTaskNotesRead(taskID string) bool {
 	return err == nil
 }
 
+func (a *App) autoMarkRecordRead(ref *core.Ref, unread bool) bool {
+	if !unread || ref == nil || ref.ID == "" || ref.Kind == data.KindPane {
+		return false
+	}
+	return a.markRecordRead(*ref)
+}
+
+func (a *App) autoMarkProjectNavTargetRead(target projectNavTarget) bool {
+	if !target.Unread || (target.Ref != nil && target.Ref.Kind == data.KindPane) {
+		return false
+	}
+	return a.markProjectNavTargetRead(target)
+}
+
 func (a *App) markProjectNavTargetRead(target projectNavTarget) bool {
 	if target.Ref == nil || target.Ref.ID == "" {
 		return false
@@ -498,7 +512,8 @@ func (a *App) markProjectNavSectionRead(ws projectWorkspaceData, secKey string) 
 	case "pages":
 		markAll(ws.pages)
 	case "panes":
-		markAll(ws.panes)
+		// Never mass-clear ui.page viewedAt when clearing the Panes section;
+		// pages are marked read explicitly on the page itself or via Pages section.
 	case "lanes":
 		markAll(ws.allLanes)
 	case "documents":

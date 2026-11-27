@@ -858,9 +858,7 @@ func (a *App) projectNavNodeOpen(s core.State, focusID string) core.StepResult {
 		return core.Next(a.column(s, 1))
 	}
 
-	if target.Unread {
-		a.markProjectNavTargetRead(target)
-	}
+	a.autoMarkProjectNavTargetRead(target)
 	if target.NodeID == projectNavOverflowNodeID {
 		return a.projectSectionSelect(s, core.Command{ID: CmdProjectSectionSelect, Args: map[string]any{"section": target.Section}})
 	}
