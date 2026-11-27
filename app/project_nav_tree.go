@@ -768,52 +768,66 @@ func (a *App) projectNavHL(s core.State, delta int) (core.State, bool) {
 	return s, false
 }
 
-func (a *App) projectNavToggle(s core.State, _ core.Command) core.StepResult {
+func (a *App) foldProjectNavNode(s core.State, projKey, nodeTarget, action string) (core.StepResult, bool) {
+	pc := a.projectCtrl()
+	target, ok := pc.navTarget(projKey, nodeTarget)
+	if !ok {
+		_ = a.View(s)
+		target, ok = pc.navTarget(projKey, nodeTarget)
+	}
+	if !ok || !target.Expandable {
+		return core.Next(s), ok
+	}
+	nodeKey := target.Section + "." + target.NodeID
+	next := resolveFoldNext(pc.isNavNodeExpanded(projKey, nodeKey), action)
+	pc.setNavNodeExpanded(projKey, nodeKey, next)
+	a.viewMemo.gen++
+	if next {
+		a.say("expanded %s", target.Label)
+	} else {
+		a.say("collapsed %s", target.Label)
+	}
+	return core.Next(s), true
+}
+
+func (a *App) foldProjectNavSection(s core.State, projKey, nodeTarget, secKey, action string) (core.StepResult, bool) {
+	root := a.View(s)
+	nd := root.ByID(nodeTarget)
+	if nd == nil || nd.Facts == nil || nd.Facts["navExpandable"] != true {
+		return core.Next(s), false
+	}
+	pc := a.projectCtrl()
+	next := resolveFoldNext(pc.isNavSectionExpanded(projKey, secKey), action)
+	pc.setNavSectionExpanded(projKey, secKey, next)
+	a.viewMemo.gen++
+	if next {
+		a.say("expanded %s", secKey)
+	} else {
+		a.say("collapsed %s", secKey)
+	}
+	return core.Next(s), true
+}
+
+func (a *App) foldProjectNavAt(s core.State, nodeTarget, action string) (core.StepResult, bool) {
 	if !a.projectNavTreeEnabled() {
-		return core.Next(s)
+		return core.Next(s), false
 	}
 	projKey := a.activeProjectWorkspaceKey(s)
 	if projKey == "" {
-		return core.Next(s)
+		return core.Next(s), false
 	}
-	focus := s.ActiveFrame().FocusID
-	pc := a.projectCtrl()
+	if strings.HasPrefix(nodeTarget, projectNavNodePrefix) {
+		return a.foldProjectNavNode(s, projKey, nodeTarget, action)
+	}
+	if secKey, isNode := projectNavFocusSection(nodeTarget); secKey != "" && !isNode {
+		return a.foldProjectNavSection(s, projKey, nodeTarget, secKey, action)
+	}
+	return core.Next(s), false
+}
 
-	if strings.HasPrefix(focus, projectNavNodePrefix) {
-		target, ok := pc.navTarget(projKey, focus)
-		if !ok {
-			_ = a.View(s)
-			target, ok = pc.navTarget(projKey, focus)
-		}
-		if ok && target.Expandable {
-			nodeKey := target.Section + "." + target.NodeID
-			next := !pc.isNavNodeExpanded(projKey, nodeKey)
-			pc.setNavNodeExpanded(projKey, nodeKey, next)
-			a.viewMemo.gen++
-			if next {
-				a.say("expanded %s", target.Label)
-			} else {
-				a.say("collapsed %s", target.Label)
-			}
-		}
-		return core.Next(s)
-	}
-
-	if secKey, isNode := projectNavFocusSection(focus); secKey != "" && !isNode {
-		root := a.View(s)
-		nd := root.Find(focus)
-		if nd != nil && nd.Facts != nil && nd.Facts["navExpandable"] == true {
-			next := !pc.isNavSectionExpanded(projKey, secKey)
-			pc.setNavSectionExpanded(projKey, secKey, next)
-			a.viewMemo.gen++
-			if next {
-				a.say("expanded %s", secKey)
-			} else {
-				a.say("collapsed %s", secKey)
-			}
-		}
-	}
-	return core.Next(s)
+func (a *App) projectNavToggle(s core.State, _ core.Command) core.StepResult {
+	res, _ := a.foldProjectNavAt(s, s.ActiveFrame().FocusID, "toggle")
+	return res
 }
 
 func (a *App) projectNavNodeOpen(s core.State, focusID string) core.StepResult {

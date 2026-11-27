@@ -269,20 +269,28 @@ func (a *App) pageStepItem(delta int) func(core.State, core.Command) core.StepRe
 	}
 }
 
-func (a *App) tocGroupToggle(s core.State, _ core.Command) core.StepResult {
-	focus := s.ActiveFrame().FocusID
-	group, ok := strings.CutPrefix(focus, views.TOCGroupPrefix)
-	if !ok || group == "" {
+func (a *App) foldTOCGroup(s core.State, group, action string) core.StepResult {
+	if group == "" {
 		return core.Next(s)
 	}
 	if a.panes.tocCollapsed == nil {
 		a.panes.tocCollapsed = map[string]bool{}
 	}
-	a.panes.tocCollapsed[group] = !a.panes.tocCollapsed[group]
+	expanded := resolveFoldNext(!a.panes.tocCollapsed[group], action)
+	a.panes.tocCollapsed[group] = !expanded
 	if a.panes.tocCollapsed[group] {
 		a.say("collapsed %s group", group)
 	} else {
 		a.say("expanded %s group", group)
 	}
 	return core.Next(s)
+}
+
+func (a *App) tocGroupToggle(s core.State, _ core.Command) core.StepResult {
+	focus := s.ActiveFrame().FocusID
+	group, ok := strings.CutPrefix(focus, views.TOCGroupPrefix)
+	if !ok || group == "" {
+		return core.Next(s)
+	}
+	return a.foldTOCGroup(s, group, "toggle")
 }

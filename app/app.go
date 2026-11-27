@@ -846,6 +846,7 @@ func (a *App) register() {
 	a.handle(CmdShowRegionNext, a.showRegionJump(1))
 	a.handle(CmdShowRegionPrev, a.showRegionJump(-1))
 	a.handle(CmdViewCycle, a.viewCycle)
+	a.registerStandardVerbs()
 	a.handle(CmdSessionRecordSave, a.sessionRecordSave)
 	a.handle(CmdSessionRecordToggle, a.sessionRecordToggle)
 	a.handle(CmdSessionRecordClear, a.sessionRecordClear)

@@ -23,6 +23,9 @@ const PageScrollID = "site.page.scroll"
 // TOCGroupPrefix prefixes collapsible group headers inside a compact pane TOC.
 const TOCGroupPrefix = "site.toc.group."
 
+// SiteTOCID is the ViewNode ID of the pane Pages table-of-contents panel.
+const SiteTOCID = "site.toc"
+
 func isScreen(page data.Record) bool { return page.Text("pageKind") == "screen" }
 
 // pageRoot decodes the ViewNode tree stored in a page's root field.

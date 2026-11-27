@@ -12,6 +12,7 @@ import (
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/layout"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/commandline"
 	"ofam.dev/ochazuke/widgets/form"
@@ -388,14 +389,22 @@ func (a *App) hintsCancel(s core.State, _ core.Command) core.StepResult {
 	return core.Next(s)
 }
 
-func (a *App) hintsActionCycle(s core.State, _ core.Command) core.StepResult {
+func (a *App) cycleHintsActionDir(s core.State, dir int) (core.StepResult, bool) {
 	hs := a.panes.hints
 	if hs == nil || hs.focusJump || hs.session == nil || !hs.session.Active() {
-		return core.Next(s)
+		return core.StepResult{}, false
 	}
-	hs.session.CycleAction(hintsCycleOrder)
+	next, _ := traits.Cycle(hintsCycleOrder, hs.session.ActiveAction(), dir, true)
+	hs.session.SetAction(next)
 	a.viewMemo.gen++
 	a.say("%s", hintsStatusLine(hs.session))
+	return core.Next(s), true
+}
+
+func (a *App) hintsActionCycle(s core.State, c core.Command) core.StepResult {
+	if res, ok := a.cycleHintsActionDir(s, parseCycleDir(c.Args)); ok {
+		return res
+	}
 	return core.Next(s)
 }
 

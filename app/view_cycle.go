@@ -7,6 +7,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
 	"ofam.dev/ochazuke/widgets/modal"
@@ -42,6 +43,10 @@ func viewCycleBindings() []core.Binding {
 		when(bind(ModeForm, "", "+", form.CmdItemAdd, "add item"), "facts.repeatable"),
 		when(bind(ModeForm, "", "x", form.CmdItemRemove, "remove item"), "facts.repeatable && facts.itemIndex >= 0"),
 	}
+}
+
+func (a *App) hasOpenModal() bool {
+	return a.modals != nil && a.modals.Top() != nil
 }
 
 func (a *App) topFormModal() *modal.FormModal {
@@ -95,6 +100,14 @@ func (a *App) setActivePreset(tableID, name string) {
 	}
 }
 
+func presetNames(presets []table.Preset) []string {
+	names := make([]string, len(presets))
+	for i, p := range presets {
+		names[i] = p.Name
+	}
+	return names
+}
+
 func (a *App) cycleTablePreset(tableID string, dir int) {
 	presets := a.tablePresets(tableID)
 	if len(presets) == 0 {
@@ -103,25 +116,42 @@ func (a *App) cycleTablePreset(tableID string, dir int) {
 	}
 	tbl := a.ensureTable(tableID)
 	if tbl == nil {
-		return // the table is not built: nothing to cycle
+		return
 	}
-	curIdx := 0
-	if cur := a.nav.activePreset[tableID]; cur != "" {
-		if i := slices.IndexFunc(presets, func(p table.Preset) bool { return p.Name == cur }); i >= 0 {
-			curIdx = i + 1
-		}
+	modes := append([]string{""}, presetNames(presets)...)
+	cur := a.nav.activePreset[tableID]
+	if !slices.Contains(modes, cur) {
+		cur = ""
 	}
-	total := len(presets) + 1
-	nextIdx := ((curIdx+dir)%total + total) % total
-	if nextIdx == 0 {
+	nextName, _ := traits.Cycle(modes, cur, dir, true)
+	if nextName == "" {
 		a.clearTableViewState(tbl)
 		a.setActivePreset(tableID, "")
 		a.say("%s: default view", tableID)
 		return
 	}
-	preset := presets[nextIdx-1]
-	a.applyTablePreset(tableID, preset.Name)
-	a.say("%s: preset %q (%d/%d)", tableID, preset.Name, nextIdx, len(presets))
+	a.applyTablePreset(tableID, nextName)
+	idx := slices.Index(modes, nextName)
+	a.say("%s: preset %q (%d/%d)", tableID, nextName, idx, len(presets))
+}
+
+func (a *App) setRailGroupMode(mode string) {
+	tbl := a.rail()
+	a.clearTableViewState(tbl)
+	a.setActivePreset(railTable, "")
+	a.cfg.userSettings[SetPanesGroup] = mode
+	a.panes.railGroupSet = false
+	a.panes.railCustomGroup = ""
+	a.reloadSettings()
+	a.applySettings()
+	if mode == PanesGroupProjectPane {
+		tbl.GroupField = "project"
+	} else {
+		tbl.GroupField = ""
+	}
+	tbl.Collapsed = nil
+	a.rail()
+	a.say("panes rail: %s", mode)
 }
 
 func (a *App) cycleRailView(s core.State, c core.Command, dir int) core.StepResult {
@@ -129,49 +159,23 @@ func (a *App) cycleRailView(s core.State, c core.Command, dir int) core.StepResu
 	if len(presets) == 0 {
 		return a.panesGroupToggle(s, c)
 	}
-	tbl := a.rail()
-	curIdx := 0
-	if cur := a.nav.activePreset[railTable]; cur != "" {
-		if i := slices.IndexFunc(presets, func(p table.Preset) bool { return p.Name == cur }); i >= 0 {
-			curIdx = 2 + i
-		}
-	} else if a.panesGroupMode() == PanesGroupFlat {
-		curIdx = 1
+	modes := append([]string{PanesGroupProjectPane, PanesGroupFlat}, presetNames(presets)...)
+	cur := a.nav.activePreset[railTable]
+	if cur == "" || !slices.Contains(modes[2:], cur) {
+		cur = a.panesGroupMode()
 	}
-	total := 2 + len(presets)
-	nextIdx := ((curIdx+dir)%total + total) % total
-	switch nextIdx {
-	case 0:
-		a.clearTableViewState(tbl)
-		a.setActivePreset(railTable, "")
-		a.cfg.userSettings[SetPanesGroup] = PanesGroupProjectPane
-		a.panes.railGroupSet = false
-		a.panes.railCustomGroup = ""
-		a.reloadSettings()
-		a.applySettings()
-		tbl.GroupField = "project"
-		tbl.Collapsed = nil
-		a.rail()
-		a.say("panes rail: %s", PanesGroupProjectPane)
-	case 1:
-		a.clearTableViewState(tbl)
-		a.setActivePreset(railTable, "")
-		a.cfg.userSettings[SetPanesGroup] = PanesGroupFlat
-		a.panes.railGroupSet = false
-		a.panes.railCustomGroup = ""
-		a.reloadSettings()
-		a.applySettings()
-		tbl.GroupField = ""
-		tbl.Collapsed = nil
-		a.rail()
-		a.say("panes rail: %s", PanesGroupFlat)
+	nextMode, _ := traits.Cycle(modes, cur, dir, true)
+	switch nextMode {
+	case PanesGroupProjectPane, PanesGroupFlat:
+		a.setRailGroupMode(nextMode)
 	default:
-		preset := presets[nextIdx-2]
-		a.applyTablePreset(railTable, preset.Name)
-		a.say("panes rail: preset %q", preset.Name)
+		a.applyTablePreset(railTable, nextMode)
+		a.say("panes rail: preset %q", nextMode)
 	}
 	return core.Next(s)
 }
+
+var projectContextGroupCycle = []string{"", "kind", "pane", "source"}
 
 func (a *App) cycleProjectContextView(dir int) {
 	if len(a.tablePresets(projectContextTable)) > 0 {
@@ -180,20 +184,9 @@ func (a *App) cycleProjectContextView(dir int) {
 	}
 	tbl := a.nav.tables[projectContextTable]
 	if tbl == nil {
-		return // the context table is not built: nothing to cycle
+		return
 	}
-	groups := []string{"", "kind", "pane", "source"}
-	idx := slices.Index(groups, tbl.GroupField)
-	var nextGroup string
-	if idx < 0 {
-		if dir >= 0 {
-			nextGroup = "kind"
-		} else {
-			nextGroup = "source"
-		}
-	} else {
-		nextGroup = groups[((idx+dir)%len(groups)+len(groups))%len(groups)]
-	}
+	nextGroup, _ := traits.Cycle(projectContextGroupCycle, tbl.GroupField, dir, true)
 	tbl.GroupField = nextGroup
 	tbl.Collapsed = nil
 	tbl.SelectedIdx, tbl.Offset = 0, 0
@@ -201,6 +194,73 @@ func (a *App) cycleProjectContextView(dir int) {
 		a.say("context items: flat")
 	} else {
 		a.say("context items: grouped by %s", nextGroup)
+	}
+}
+
+const (
+	workIndexModeTree  = "tree"
+	workIndexModeTable = "table"
+)
+
+func workNounLabel(schema data.Schema, kind string) string {
+	if label := strings.ToLower(schema.Plural); label != "" {
+		return label
+	}
+	return kind
+}
+
+func (a *App) currentWorkIndexMode(s core.State, presets []table.Preset) string {
+	if a.inWorkTree(s) {
+		return workIndexModeTree
+	}
+	if cur := a.nav.activePreset[workTable]; cur != "" {
+		if slices.Contains(presetNames(presets), cur) {
+			return cur
+		}
+	}
+	return workIndexModeTable
+}
+
+func (a *App) applyWorkTreeIndexMode(kind, nounLabel string) {
+	var selID string
+	if tbl := a.nav.tables[workTable]; tbl != nil {
+		if row, ok := tbl.FocusedRow(); ok && row.Ref != nil && row.Ref.Kind == kind {
+			selID = row.Ref.ID
+		}
+		a.clearTableViewState(tbl)
+	}
+	a.setActivePreset(workTable, "")
+	a.trees.layoutOverride[kind] = WorkTasksLayoutTree
+	tm := a.trees.workModel(kind)
+	a.syncTreeModel(tm, kind, workTable)
+	if selID != "" {
+		tm.Reveal(selID)
+		a.trees.folded[kind] = tm.Folded
+		a.syncWorkTreeToTable(kind, tm)
+	}
+	a.say("%s: tree view", nounLabel)
+}
+
+func (a *App) applyWorkTableIndexMode(s core.State, kind, nounLabel, presetName string) {
+	var selID string
+	if a.inWorkTree(s) {
+		selID = a.trees.workModel(kind).SelectedID
+	}
+	a.trees.layoutOverride[kind] = WorkTasksLayoutTable
+	tbl := a.records(workTable, kind)
+	if presetName == "" {
+		a.clearTableViewState(tbl)
+		a.setActivePreset(workTable, "")
+		a.say("%s: table view (default)", nounLabel)
+	} else {
+		a.applyTablePreset(workTable, presetName)
+		a.say("%s: preset %q", nounLabel, presetName)
+	}
+	if selID != "" {
+		refID := data.RefText(core.Ref{Kind: kind, ID: selID})
+		if selectRow(tbl, refID) {
+			a.trees.workTableRowID[kind] = refID
+		}
 	}
 }
 
@@ -215,73 +275,51 @@ func (a *App) cycleWorkIndexView(s core.State, c core.Command, dir int) core.Ste
 	if len(presets) == 0 {
 		return a.workLayoutToggle(s, c)
 	}
-	nounLabel := strings.ToLower(schema.Plural)
-	if nounLabel == "" {
-		nounLabel = kind
-	}
-	// Cycle: tree [0] -> table (default) [1] -> table (preset 1..N) [2..N+1] -> tree.
-	curIdx := 1
-	if a.inWorkTree(s) {
-		curIdx = 0
-	} else if cur := a.nav.activePreset[workTable]; cur != "" {
-		if i := slices.IndexFunc(presets, func(p table.Preset) bool { return p.Name == cur }); i >= 0 {
-			curIdx = 2 + i
-		}
-	}
-	total := 2 + len(presets)
-	nextIdx := ((curIdx+dir)%total + total) % total
-	switch nextIdx {
-	case 0:
-		var selID string
-		if tbl := a.nav.tables[workTable]; tbl != nil {
-			if row, ok := tbl.FocusedRow(); ok && row.Ref != nil && row.Ref.Kind == kind {
-				selID = row.Ref.ID
-			}
-			a.clearTableViewState(tbl)
-		}
-		a.setActivePreset(workTable, "")
-		a.trees.layoutOverride[kind] = WorkTasksLayoutTree
-		tm := a.trees.workModel(kind)
-		a.syncTreeModel(tm, kind, workTable)
-		if selID != "" {
-			tm.Reveal(selID)
-			a.trees.folded[kind] = tm.Folded
-			a.syncWorkTreeToTable(kind, tm)
-		}
-		a.say("%s: tree view", nounLabel)
-	case 1:
-		var selID string
-		if a.inWorkTree(s) {
-			selID = a.trees.workModel(kind).SelectedID
-		}
-		a.trees.layoutOverride[kind] = WorkTasksLayoutTable
-		tbl := a.records(workTable, kind)
-		a.clearTableViewState(tbl)
-		a.setActivePreset(workTable, "")
-		if selID != "" {
-			refID := data.RefText(core.Ref{Kind: kind, ID: selID})
-			if selectRow(tbl, refID) {
-				a.trees.workTableRowID[kind] = refID
-			}
-		}
-		a.say("%s: table view (default)", nounLabel)
+	nounLabel := workNounLabel(schema, kind)
+	modes := append([]string{workIndexModeTree, workIndexModeTable}, presetNames(presets)...)
+	cur := a.currentWorkIndexMode(s, presets)
+	nextMode, _ := traits.Cycle(modes, cur, dir, true)
+	switch nextMode {
+	case workIndexModeTree:
+		a.applyWorkTreeIndexMode(kind, nounLabel)
+	case workIndexModeTable:
+		a.applyWorkTableIndexMode(s, kind, nounLabel, "")
 	default:
-		var selID string
-		if a.inWorkTree(s) {
-			selID = a.trees.workModel(kind).SelectedID
-		}
-		a.trees.layoutOverride[kind] = WorkTasksLayoutTable
-		tbl := a.records(workTable, kind)
-		preset := presets[nextIdx-2]
-		a.applyTablePreset(workTable, preset.Name)
-		if selID != "" {
-			refID := data.RefText(core.Ref{Kind: kind, ID: selID})
-			if selectRow(tbl, refID) {
-				a.trees.workTableRowID[kind] = refID
-			}
-		}
-		a.say("%s: preset %q", nounLabel, preset.Name)
+		a.applyWorkTableIndexMode(s, kind, nounLabel, nextMode)
 	}
+	return core.Next(s)
+}
+
+func (a *App) toggleShowCompact(s core.State) core.StepResult {
+	a.nav.showCompact = !a.nav.showCompact
+	if a.nav.showCompact {
+		a.say("show view: compact")
+	} else {
+		a.say("show view: full")
+	}
+	return core.Next(s)
+}
+
+var formDensityCycle = []string{ui.DensityBalanced, ui.DensityCompact, ui.DensitySpacious}
+
+func (a *App) cycleModalView(s core.State, dir int) core.StepResult {
+	fm := a.topFormModal()
+	if fm == nil {
+		a.say("no view modes to cycle here")
+		return core.Next(s)
+	}
+	cur := a.theme().EffectiveDensity()
+	if !slices.Contains(formDensityCycle, cur) {
+		cur = formDensityCycle[0]
+	}
+	nextDensity, _ := traits.Cycle(formDensityCycle, cur, dir, true)
+	a.cfg.userSettings[SetDensity] = nextDensity
+	a.reloadSettings()
+	a.applySettings()
+	if sfm := a.activeSettingsForm(); sfm != nil && sfm == fm && fm.Model() != nil {
+		fm.Model().SetValue(SetDensity, nextDensity)
+	}
+	a.say("form density: %s", nextDensity)
 	return core.Next(s)
 }
 
@@ -290,85 +328,5 @@ func (a *App) viewCycle(s core.State, c core.Command) core.StepResult {
 		a.say("view cycling is disabled (ui.viewCycle)")
 		return core.Next(s)
 	}
-	dir := 1
-	if raw, ok := c.Args["dir"]; ok {
-		switch v := raw.(type) {
-		case int:
-			if v < 0 {
-				dir = -1
-			}
-		case int64:
-			if v < 0 {
-				dir = -1
-			}
-		case float64:
-			if v < 0 {
-				dir = -1
-			}
-		}
-	}
-
-	// 1. Modal Form open: cycle density (balanced -> compact -> spacious).
-	if a.Modal() != "" {
-		if fm := a.topFormModal(); fm != nil {
-			densities := []string{ui.DensityBalanced, ui.DensityCompact, ui.DensitySpacious}
-			cur := a.theme().EffectiveDensity()
-			idx := slices.Index(densities, cur)
-			if idx < 0 {
-				idx = 0
-			}
-			nextDensity := densities[((idx+dir)%len(densities)+len(densities))%len(densities)]
-			a.cfg.userSettings[SetDensity] = nextDensity
-			a.reloadSettings()
-			a.applySettings()
-			if a.Modal() == "settings" && fm.Model() != nil {
-				fm.Model().SetValue(SetDensity, nextDensity)
-			}
-			a.say("form density: %s", nextDensity)
-			return core.Next(s)
-		}
-		a.say("no view modes to cycle here")
-		return core.Next(s)
-	}
-
-	focus := s.ActiveFrame().FocusID
-
-	// 2. Panes Rail focused.
-	if s.ActivePage == SpacePanes && focus == railTable {
-		return a.cycleRailView(s, c, dir)
-	}
-
-	// 3. Project Overview Context Table focused.
-	if focus == projectContextTable {
-		a.cycleProjectContextView(dir)
-		return core.Next(s)
-	}
-
-	// 4. Pane Site focused.
-	if s.ActivePage == SpacePanes && (strings.HasPrefix(focus, "site.") || a.nav.focusRegion == "site.toc" || a.nav.focusRegion == "site.content") {
-		return a.siteTOCToggle(s, c)
-	}
-
-	// 5 & 6. Work space: Index vs Show page.
-	if s.ActivePage == SpaceWork {
-		if _, showing := a.Showing(); showing {
-			a.nav.showCompact = !a.nav.showCompact
-			if a.nav.showCompact {
-				a.say("show view: compact")
-			} else {
-				a.say("show view: full")
-			}
-			return core.Next(s)
-		}
-		return a.cycleWorkIndexView(s, c, dir)
-	}
-
-	// 7. Any other focused table (Runs, Extensions, etc.).
-	if tbl, tableID := a.focusedTableForPreset(s, c); tbl != nil && tableID != "" {
-		a.cycleTablePreset(tableID, dir)
-		return core.Next(s)
-	}
-
-	a.say("no view modes to cycle here")
-	return core.Next(s)
+	return a.runStandardCycle(s, c)
 }
