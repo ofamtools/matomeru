@@ -52,7 +52,7 @@ func TestDefaultSchemas(t *testing.T) {
 	for _, s := range reg.List() {
 		kinds = append(kinds, s.Kind)
 	}
-	if want := []string{"task", "lane", "pane", "ui.page", "document", "note", "schedule", "schedule.occurrence", "run", "extension", "signal", "triage.rule", "question", "command", "context", "concept", "queue", "repo"}; !reflect.DeepEqual(kinds, want) {
+	if want := []string{"task", "lane", "pane", "ui.page", "document", "note", "schedule", "schedule.occurrence", "run", "extension", "signal", "triage.rule", "question", "command", "context", "concept", "queue", "repo", "capture"}; !reflect.DeepEqual(kinds, want) {
 		t.Fatalf("kinds = %v, want %v (there is no project noun)", kinds, want)
 	}
 	task, _ := reg.Get(KindTask)

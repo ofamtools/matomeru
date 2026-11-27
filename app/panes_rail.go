@@ -374,6 +374,7 @@ func (a *App) buildRail() *table.Model {
 		if a.openable(pane) {
 			row.Facts[factOpenable] = true
 		}
+		a.decoratePinnedRailRow(row, pane)
 		a.applyArchiveAnimToRow(row, "rail", data.Text(row.Cells["rail"]), pane.Ref())
 	}
 	a.panes.railProjectRefs = projRefs

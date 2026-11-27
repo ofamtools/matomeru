@@ -67,10 +67,10 @@ func (a *App) chromeSeparatorNode(s core.State, chain []core.ContextFrame, w int
 	}
 }
 
-// chromeStats is the chrome's live strip: the Pomodoro countdown chip and
-// the system stats, as far as they fit in maxWidth.
+// chromeStats is the chrome's live strip: the active pinned agent chip, the
+// Pomodoro countdown chip, and the system stats, as far as they fit in maxWidth.
 func (a *App) chromeStats(maxWidth int) string {
-	chip := a.focusChromeChip()
+	chip := a.chromeChips()
 	if !a.chromeSystemStatsEnabled() || a.rt == nil || a.rt.live.sysStats == nil {
 		return chip
 	}
@@ -81,6 +81,17 @@ func (a *App) chromeStats(maxWidth int) string {
 		return chip + " · " + stats
 	}
 	return chip
+}
+
+func (a *App) chromeChips() string {
+	var parts []string
+	if pinned := a.pinnedAgentChromeChip(); pinned != "" {
+		parts = append(parts, pinned)
+	}
+	if focus := a.focusChromeChip(); focus != "" {
+		parts = append(parts, focus)
+	}
+	return strings.Join(parts, " · ")
 }
 
 func (a *App) chromeContextAndMode(s core.State, chain []core.ContextFrame) string {

@@ -912,6 +912,8 @@ func DefaultBindings() []core.Binding {
 	out = append(out, screenSearchBindings()...)
 	out = append(out, outlineSuggestBindings()...)
 	out = append(out, codeViewerBindings()...)
+	out = append(out, captureBindings()...)
+	out = append(out, pinnedAgentsBindings()...)
 	for _, mode := range []string{ModeComposer, ModeFormEdit, ModeFilter, ModeSearch, ModeCommandLine, ModeOutlineEdit, ModeFeaturesNote, ModeThreadsCompose, ModePickerFilter} {
 		out = append(out, with(bind(mode, all, "alt+h", CmdPaneHints, "paste terminal hint"), map[string]any{"action": HintsActionInsert}))
 	}

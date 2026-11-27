@@ -118,6 +118,13 @@
       "row":    {"titleFields": ["name", "path"], "metaFields": ["defaultBranch", "source"]},
       "card":   {"titleFields": ["name", "path"], "subtitleFields": ["path", "remoteUrl"], "metaFields": ["defaultBranch", "source"]},
       "detail": {"titleFields": ["name", "path"], "subtitleFields": ["path", "remoteUrl"], "metaFields": ["defaultBranch", "source"]}
+    }},
+    {"kind": "capture", "forms": {
+      "chip":   {"icon": "✦", "titleFields": ["title", "body"], "toneField": "captureStatus", "maxLen": 32},
+      "inline": {"icon": "✦", "titleFields": ["title", "body"], "maxLen": 48},
+      "row":    {"titleFields": ["title", "body"], "metaFields": ["source"], "badgeFields": ["captureStatus"]},
+      "card":   {"titleFields": ["title", "body"], "subtitleFields": ["body"], "metaFields": ["source", "sentAt"], "badgeFields": ["captureStatus"]},
+      "detail": {"titleFields": ["title", "body"], "subtitleFields": ["body"], "metaFields": ["source", "sentAt", "error"], "badgeFields": ["captureStatus"]}
     }}
   ]
 }
