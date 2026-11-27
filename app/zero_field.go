@@ -50,6 +50,7 @@ func zeroFieldSpecs() []core.CommandSpec {
 	return []core.CommandSpec{
 		{ID: CmdZeroFieldOpen, Description: "Open the unified Zero-Field Filter / Group / Sort chip modal", Params: []core.ParamSpec{
 			{Name: "mode", Type: core.ParamString, Enum: []string{data.QueryModeFilter, data.QueryModeGroup, data.QueryModeSort}, Default: data.QueryModeFilter},
+			{Name: "table", Type: core.ParamString, Description: "target table ID (defaults to the focused or active page list)"},
 		}},
 		{ID: CmdZeroFieldKey, Description: "Process a Zero-Field hint key", Params: text, Meta: map[string]any{"internal": true}},
 		{ID: CmdZeroFieldApply, Description: "Apply Zero-Field query and close modal without discarding edits", Meta: map[string]any{"internal": true}},
@@ -89,7 +90,7 @@ func (a *App) registerZeroFieldHandlers() {
 		if mode == "" {
 			mode = data.QueryModeFilter
 		}
-		return a.openZeroFieldModal(s, mode)
+		return a.openZeroFieldForCommand(s, mode, c)
 	})
 	a.handle(CmdZeroFieldKey, a.handleModal)
 	a.handle(CmdZeroFieldApply, a.handleModal)
@@ -99,17 +100,32 @@ func (a *App) registerZeroFieldHandlers() {
 	a.handle(CmdPresetList, a.presetListCmd)
 }
 
+func (a *App) openZeroFieldForCommand(s core.State, startMode string, c core.Command) core.StepResult {
+	tbl, tableID := a.resolveTableForCommand(s, c)
+	if tbl == nil {
+		if isInteractiveCommandSource(c.Source) {
+			return a.promptListTargetForCommand(s, c)
+		}
+		return core.Next(s) // no list on the page: nothing to query
+	}
+	return a.openZeroFieldModalFor(s, startMode, tbl, tableID)
+}
+
 func (a *App) openZeroFieldModal(s core.State, startMode string) core.StepResult {
 	tbl, tableID := a.activeListTable(s)
 	if tbl == nil {
 		return core.Next(s) // no list on the page: nothing to query
 	}
+	return a.openZeroFieldModalFor(s, startMode, tbl, tableID)
+}
+
+func (a *App) openZeroFieldModalFor(s core.State, startMode string, tbl *table.Model, tableID string) core.StepResult {
 	if a.genericPresets == nil {
 		a.initGenericPresets()
 	}
 	kind := a.kindOfTable(tableID)
 	schema := a.schema(kind)
-	records := a.tableCandidates(kind)
+	records, fields := a.zeroFieldSource(tableID, kind, schema, tbl)
 	refs := a.Store.ResolveRefsFor(data.QueryRefs(schema, records))
 	refs.Presentations = a.presentations()
 	m := &zeroFieldModal{
@@ -118,12 +134,91 @@ func (a *App) openZeroFieldModal(s core.State, startMode string) core.StepResult
 		kind:    kind,
 		schema:  schema,
 		records: records,
-		fields:  data.SchemaFieldDefs(schema),
+		fields:  fields,
 		labels:  data.NewClauseLabels(schema, records, refs),
 	}
 	m.draft = data.NewQueryDraft(startMode, tableQuerySpec(tbl, a.zeroFieldSpecs[tableID]), m.fields)
 	a.say("zero-field %s · hint keys edit chips · S saves preset · esc applies", m.draft.Mode)
 	return core.Next(a.pushModal(s, m))
+}
+
+func isPrimarySpaceTable(tableID string) bool {
+	for _, sp := range spaces {
+		if sp.table == tableID {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) zeroFieldSource(tableID, kind string, schema data.Schema, tbl *table.Model) ([]data.Record, []data.QueryFieldDef) {
+	if isPrimarySpaceTable(tableID) {
+		return a.tableCandidates(kind), data.SchemaFieldDefs(schema)
+	}
+	if a.nav != nil {
+		if scoped, ok := a.nav.tableRecs[tableID]; ok {
+			return scoped, data.SchemaFieldDefs(schema)
+		}
+	}
+	if recs := recordsFromTableRows(a.Store, tbl); len(recs) > 0 {
+		if kind != "" {
+			return recs, data.SchemaFieldDefs(schema)
+		}
+		return recs, queryFieldDefsFromColumns(tbl)
+	}
+	if kind != "" {
+		return a.tableCandidates(kind), data.SchemaFieldDefs(schema)
+	}
+	return nil, queryFieldDefsFromColumns(tbl)
+}
+
+func recordsFromTableRows(store *data.Store, tbl *table.Model) []data.Record {
+	if tbl == nil || len(tbl.Rows) == 0 {
+		return nil
+	}
+	out := make([]data.Record, 0, len(tbl.Rows))
+	for _, row := range tbl.Rows {
+		if store != nil && row.Ref != nil && row.Ref.Kind != "" && row.Ref.ID != "" {
+			if rec, err := store.Get(*row.Ref); err == nil && rec != nil {
+				out = append(out, *rec)
+				continue
+			}
+		}
+		out = append(out, syntheticRecordFromRow(row))
+	}
+	return out
+}
+
+func syntheticRecordFromRow(row table.Row) data.Record {
+	fields := make(map[string]any, len(row.Cells))
+	for k, v := range row.Cells {
+		if k != "" && k != views.AnyField {
+			fields[k] = v
+		}
+	}
+	kind := ""
+	if row.Ref != nil {
+		kind = row.Ref.Kind
+	}
+	return data.Record{ID: row.ID, Kind: kind, Fields: fields}
+}
+
+func queryFieldDefsFromColumns(tbl *table.Model) []data.QueryFieldDef {
+	if tbl == nil {
+		return nil
+	}
+	out := make([]data.QueryFieldDef, 0, len(tbl.Columns))
+	for _, col := range tbl.Columns {
+		if col.Key == "" || col.Key == views.AnyField || col.Key == views.FlagsField {
+			continue
+		}
+		label := col.Title
+		if label == "" {
+			label = col.Key
+		}
+		out = append(out, data.QueryFieldDef{Name: col.Key, Label: label, Type: "string"})
+	}
+	return out
 }
 
 // tableQuerySpec is the query a table shows: the filter last applied to
@@ -233,6 +328,7 @@ func (a *App) applyQuerySpec(tableID string, q data.QuerySpec) {
 	filterChanged := a.zeroFieldSpecs[tableID].FilterSummary() != q.FilterSummary()
 	a.zeroFieldSpecs[tableID] = q.Clone()
 	delete(a.nav.recCacheKeys, tableID) // the rows depend on the filter: rebuild them
+	a.invalidateProjectTableCache(tableID)
 	a.viewMemo.gen++
 	tbl := a.nav.tables[tableID]
 	if tbl == nil {

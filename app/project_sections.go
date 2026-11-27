@@ -269,7 +269,8 @@ func (a *App) projectSectionPages(s core.State, ws projectWorkspaceData) ui.View
 		}
 		pc.setOpenPageID(ws.projectKey, "")
 	}
-	cacheKey := fmt.Sprintf("pages|%s|%d|%v|%s|%d", ws.projectKey, ws.cacheRev, a.nav.showArchived, ws.cacheRailKey, len(ws.pages))
+	pages := a.filterProjectRecords(projectPagesTable, data.KindPage, ws.pages)
+	cacheKey := fmt.Sprintf("pages|%s|%d|%v|%s|%d|%s", ws.projectKey, ws.cacheRev, a.nav.showArchived, ws.cacheRailKey, len(pages), a.zeroFieldSpecs[projectPagesTable].FilterSummary())
 	tbl, cached := a.cachedProjectTable(projectPagesTable, cacheKey)
 	if !cached {
 		cols := []table.Column{
@@ -278,7 +279,7 @@ func (a *App) projectSectionPages(s core.State, ws projectWorkspaceData) ui.View
 			{Key: "pane", Title: "Pane", Width: 18},
 			{Key: "flags", Title: "Flags", Width: 5},
 		}
-		rows := make([]table.Row, 0, len(ws.pages)+1)
+		rows := make([]table.Row, 0, len(pages)+1)
 		rows = append(rows, table.Row{
 			ID: projectPagesOutlineRowID, Scope: scopeProjectPages,
 			Cells:  map[string]any{"title": "★ Tasks (Outline)", "pageKind": "outline", "pane": "project", "flags": "★", views.AnyField: "Tasks Outline project"},
@@ -290,7 +291,7 @@ func (a *App) projectSectionPages(s core.State, ws projectWorkspaceData) ui.View
 		for _, p := range ws.panes {
 			paneTitles[p.ID] = views.Title(paneSchema, p)
 		}
-		for _, p := range ws.pages {
+		for _, p := range pages {
 			ref := p.Ref()
 			paneLabel := "project"
 			if pRef, ok := p.RefField("pane"); ok {
@@ -369,15 +370,24 @@ func (a *App) projectTreePanel(panelID, treeID, kind, parentField, section, pane
 	return panel
 }
 
+func (a *App) filterProjectRecords(tableID, kind string, recs []data.Record) []data.Record {
+	a.rememberTableRecords(tableID, recs)
+	if !a.hasActiveZeroFieldFilter(tableID) {
+		return recs
+	}
+	return a.tableQuery(tableID, a.schema(kind)).Filter(recs)
+}
+
 func (a *App) projectRecordPanel(panelID, tableID, kind, section, title, panelScope string, ws projectWorkspaceData, recs []data.Record, badges []ui.Badge) ui.ViewNode {
+	filtered := a.filterProjectRecords(tableID, kind, recs)
 	st := a.styleOptions()
-	cacheKey := fmt.Sprintf("rec|%s|%s|%s|%d|%v|%v:%v|%d", tableID, ws.projectKey, kind, ws.cacheRev, a.nav.showArchived, st.RowSemanticStyling, st.StatusIcons, len(recs))
+	cacheKey := fmt.Sprintf("rec|%s|%s|%s|%d|%v|%v:%v|%d|%s", tableID, ws.projectKey, kind, ws.cacheRev, a.nav.showArchived, st.RowSemanticStyling, st.StatusIcons, len(filtered), a.zeroFieldSpecs[tableID].FilterSummary())
 	tbl, cached := a.cachedProjectTable(tableID, cacheKey)
 	if !cached {
 		schema := a.schema(kind)
-		fresh := views.TableFromRecordsWith(schema, recs, st)
-		a.resolveTableRefCells(schema, recs, fresh)
-		for i, rec := range recs {
+		fresh := views.TableFromRecordsWith(schema, filtered, st)
+		a.resolveTableRefCells(schema, filtered, fresh)
+		for i, rec := range filtered {
 			if a.openable(rec) {
 				fresh.Rows[i].Facts[factOpenable] = true
 			}
@@ -436,17 +446,18 @@ func (a *App) projectSectionWorktrees(ws projectWorkspaceData) ui.ViewNode {
 }
 
 func (a *App) projectSectionNotes(ws projectWorkspaceData) ui.ViewNode {
+	notes := a.filterProjectRecords(projectNotesTable, data.KindNote, ws.notes)
 	st := a.styleOptions()
-	cacheKey := fmt.Sprintf("notes|%s|%d|%v|%v:%v|%d", ws.projectKey, ws.cacheRev, a.nav.showArchived, st.RowSemanticStyling, st.StatusIcons, len(ws.notes))
+	cacheKey := fmt.Sprintf("notes|%s|%d|%v|%v:%v|%d|%s", ws.projectKey, ws.cacheRev, a.nav.showArchived, st.RowSemanticStyling, st.StatusIcons, len(notes), a.zeroFieldSpecs[projectNotesTable].FilterSummary())
 	tbl, cached := a.cachedProjectTable(projectNotesTable, cacheKey)
 	if !cached {
 		cols := []table.Column{
 			{Key: "title", Title: "Note"}, {Key: "target", Title: "Target", Width: 20},
 			{Key: "authorKind", Title: "Author", Width: 9}, {Key: "body", Title: "Excerpt"},
 		}
-		rows := make([]table.Row, len(ws.notes))
+		rows := make([]table.Row, len(notes))
 		schema := a.schema(data.KindNote)
-		for i, n := range ws.notes {
+		for i, n := range notes {
 			ref := n.Ref()
 			target := a.projectNoteTargetLabel(n)
 			author := strings.TrimSpace(n.Text("authorKind"))

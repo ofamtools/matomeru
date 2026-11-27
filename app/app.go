@@ -504,7 +504,10 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 		prevMode := a.Engine.Mode(s)
 		a.syncEscapeGuardModal(prevModal)
 		unreadNavTarget, hasUnreadNav := a.unreadNavTargetAt(s)
-		out := a.executeAction(s, c, fn)
+		out, intercepted := a.interceptMissingRequiredArgs(s, c)
+		if !intercepted {
+			out = a.executeAction(s, c, fn)
+		}
 		a.focusTick(out.State, c)
 		if hasUnreadNav && isProjectNavAckCommand(c.ID) {
 			if a.markProjectNavTargetRead(unreadNavTarget) {

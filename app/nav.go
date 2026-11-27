@@ -34,6 +34,7 @@ const maxJumpHistory = 100
 // registers, and macros.
 type NavController struct {
 	tables                map[string]*table.Model
+	tableRecs             map[string][]data.Record
 	recCacheKeys          map[string]string
 	presets               *table.PresetStore
 	activePreset          map[string]string
@@ -69,6 +70,7 @@ type NavController struct {
 func newNavController() *NavController {
 	return &NavController{
 		tables:           map[string]*table.Model{},
+		tableRecs:        map[string][]data.Record{},
 		recCacheKeys:     map[string]string{},
 		activePreset:     map[string]string{},
 		lastFocus:        map[string]string{},

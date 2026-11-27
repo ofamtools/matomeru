@@ -798,18 +798,32 @@ func (a *App) helpOpen(s core.State, _ core.Command) core.StepResult {
 	active := a.activeKeyBindings(s)
 	items := make([]picker.Item, len(active))
 	for i, b := range active {
-		items[i] = picker.Item{ID: fmt.Sprint(i), Title: fmt.Sprintf("%-12s %s", b.keys, b.command), Subtitle: b.hint, Keywords: []string{b.scope, b.mode}}
+		items[i] = picker.Item{ID: fmt.Sprint(i), Title: fmt.Sprintf("%-12s %s", b.keys, b.command), Subtitle: b.hint, Keywords: []string{b.scope, b.mode}, Data: b}
 		if b.scope != "" {
 			items[i].Badges = []ui.Badge{{Text: b.scope, Tone: "accent"}}
 		}
 	}
 	pm := picker.New("Bindings · "+a.Engine.Mode(s), items)
-	pm.Placeholder = "keys that work here"
+	pm.Placeholder = "enter runs binding · / filters"
 	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "help",
 		PageSize: 10,
-		OnConfirm: func(_ picker.Item) modal.Result {
-			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+		OnConfirm: func(picked picker.Item) modal.Result {
+			b, ok := picked.Data.(activeBinding)
+			if !ok || b.rawCommand == "" {
+				return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
+			}
+			return modal.Result{
+				Handled:     true,
+				Close:       true,
+				CloseReason: modal.CloseSubmit,
+				Emit: []core.Command{{
+					ID:     b.rawCommand,
+					Args:   maps.Clone(b.args),
+					Source: "help",
+					Actor:  User,
+				}},
+			}
 		},
 	})
 	return core.Next(a.pushModal(s, m))
