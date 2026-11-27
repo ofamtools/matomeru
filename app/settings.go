@@ -255,6 +255,7 @@ const (
 	SetOutlineAutoSuggest              = "outline.autoSuggest"
 	SetFeaturesOutline                 = "features.outline"
 	SetProjectNavMode                  = "ui.projectNavMode"
+	SetProjectSectionPickerNested      = "ui.projectSectionPickerNested"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -452,6 +453,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetFeaturesOutline, true, "render the Features page content as a unified interactive clean-slate outline across Features, Concepts, Views, Props, and Raw Ideas"),
 		flag(SetProjectNavPriorityOrder, true, "order Project Portal left nav as Home, Panes, Tasks, Lanes, Pages, Documents first (off restores legacy section grouping order)"),
 		enum(SetProjectNavMode, views.ProjectNavModeSections, "Project Portal left-nav layout: sections (grouped by record type) or by-pane (panes as top-level items with pages, questions, lanes, and context grouped underneath)", views.ProjectNavModeSections, views.ProjectNavModeByPane),
+		flag(SetProjectSectionPickerNested, true, "allow drilling down into section items inside the Project Portal g s picker (off: flat section-only picker)"),
 	}
 }
 

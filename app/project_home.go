@@ -278,8 +278,15 @@ func projectHomeSpecs() []core.CommandSpec {
 		spec(CmdProjectContentOpen, "Open the focused item inside the Project Page content area"),
 		spec(CmdContextOfficialToggle, "Promote or demote the focused context item as Official Project Context", "editing"),
 		spec(CmdContextAddOfficial, "Add an Official Project Context link, Google Doc/Sheet, PR, or file", "editing"),
-		spec(CmdProjectSectionPick, "Pick a section of the active Project Page workspace to jump to"),
-	}, projectNavUnreadSpecs()...)
+		{
+			ID:          CmdProjectSectionPick,
+			Description: "Pick a section or drill down into any item of the active Project Portal workspace",
+			Params: []core.ParamSpec{
+				{Name: "section", Type: core.ParamString, Description: "optional section key to open directly at item level"},
+				{Name: "mode", Type: core.ParamString, Enum: []string{"default", "nested", "flat"}, Description: "picker mode (default, nested, or flat)"},
+			},
+		},
+	}, append(projectNavUnreadSpecs(), projectSectionPickerSpecs()...)...)
 }
 
 // projectHomeBindings returns key bindings strictly scoped to the Project Page
@@ -308,7 +315,7 @@ func projectHomeBindings() []core.Binding {
 		hidden(bind(n, ScopeProjectOverview, "N", CmdContextAddOfficial, "add official context")),
 		bind(n, views.ScopeProjectNav, "g s", CmdProjectSectionPick, "jump to section"),
 		bind(n, views.ScopeProjectContent, "g s", CmdProjectSectionPick, "jump to section"),
-	}, projectHomeDashboardBindings()...)
+	}, append(projectHomeDashboardBindings(), projectSectionPickerBindings()...)...)
 }
 
 // registerProjectHomeHandlers registers all Project Page command handlers.
@@ -323,6 +330,7 @@ func (a *App) registerProjectHomeHandlers() {
 	a.handle(CmdContextOfficialToggle, a.contextOfficialToggle)
 	a.handle(CmdContextAddOfficial, a.contextAddOfficial)
 	a.handle(CmdProjectSectionPick, a.projectSectionPick)
+	a.registerProjectSectionPickerHandlers()
 }
 
 // projectOverviewView renders the right side of 1 Panes when a Project header
@@ -616,13 +624,20 @@ func (a *App) findRailGroupForProject(projectID string) string {
 }
 
 func (a *App) syncProjectNavPointer(sec string) {
-	if sec == "" || a.nav == nil {
+	if sec == "" {
+		return
+	}
+	a.syncProjectNavFocus(projectNavPrefix + sec)
+}
+
+func (a *App) syncProjectNavFocus(focusID string) {
+	if focusID == "" || a.nav == nil {
 		return
 	}
 	if a.nav.lastFocus == nil {
 		a.nav.lastFocus = map[string]string{}
 	}
-	a.nav.lastFocus["project.nav"] = projectNavPrefix + sec
+	a.nav.lastFocus["project.nav"] = focusID
 }
 
 func (a *App) projectSectionSelect(s core.State, c core.Command) core.StepResult {
@@ -653,7 +668,7 @@ func (a *App) projectSectionSelect(s core.State, c core.Command) core.StepResult
 	}
 	pc.setSection(projKey, sec)
 	a.syncProjectNavPointer(sec)
-	s = withFocus(s, projectNavPrefix+sec)
+	s = withMode(withFocus(s, projectNavPrefix+sec), ModeNormal)
 	a.viewMemo.gen++
 	nodes := a.focusables(s)
 	for _, def := range defaultProjectNavSections {
