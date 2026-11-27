@@ -454,6 +454,7 @@ func (a *App) taskAgentToggle(s core.State, c core.Command) core.StepResult {
 		a.fail("agent toggle", err)
 		return core.Next(s)
 	}
+	a.invalidateQueueViews()
 	title := views.Title(a.schema(data.KindTask), updated)
 	if nextForAgent {
 		msg := fmt.Sprintf("Queued %q for agent pickup", title)

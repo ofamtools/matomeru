@@ -186,33 +186,6 @@ func queueTitlesByID(queues []Record) map[string]string {
 // QueueTitlesByID maps queue record IDs to their names.
 func QueueTitlesByID(queues []Record) map[string]string { return queueTitlesByID(queues) }
 
-// NamedQueues returns the active queue records visible to projectID: the
-// project's own and the shared ones (no project). An empty projectID returns
-// every queue.
-func (s *Store) NamedQueues(projectID string) ([]Record, error) {
-	res, err := s.Query(Query{Kind: KindQueue})
-	if err != nil {
-		return nil, err
-	}
-	projectID = strings.TrimSpace(projectID)
-	out := make([]Record, 0, len(res.Items))
-	for _, q := range res.Items {
-		if projectID != "" {
-			if ref, ok := q.RefField("project"); ok && ref.ID != "" && ref.ID != projectID {
-				continue
-			}
-		}
-		out = append(out, q)
-	}
-	slices.SortStableFunc(out, func(a, b Record) int {
-		if c := strings.Compare(strings.ToLower(a.Text("title")), strings.ToLower(b.Text("title"))); c != 0 {
-			return c
-		}
-		return strings.Compare(a.ID, b.ID)
-	})
-	return out, nil
-}
-
 // WatchInterval returns the polling interval of a schedule watcher, in
 // seconds: the record's watchIntervalSec, or DefaultWatchIntervalSec.
 func WatchInterval(rec Record) int {
@@ -222,143 +195,6 @@ func WatchInterval(rec Record) int {
 		}
 	}
 	return DefaultWatchIntervalSec
-}
-
-// RootTaskID walks a task's parents to its root (the project). It returns
-// taskID itself for a root or an unknown task.
-func (s *Store) RootTaskID(taskID string) string {
-	taskID = strings.TrimSpace(taskID)
-	seen := map[string]bool{}
-	for cur := taskID; cur != "" && !seen[cur]; {
-		seen[cur] = true
-		rec, err := s.Get(core.Ref{Kind: KindTask, ID: cur})
-		if err != nil || rec == nil {
-			break
-		}
-		parent, ok := rec.RefField("parent")
-		if !ok || parent.Kind != KindTask || parent.ID == "" {
-			return cur
-		}
-		cur = parent.ID
-	}
-	return taskID
-}
-
-// QueryNamedQueue returns the queued agent tasks of queueName (empty or "any"
-// for every queue) inside projectID (empty for every project), hydrated with
-// notes and context and ordered like QueryAgentQueue.
-func (s *Store) QueryNamedQueue(queueName, projectID string) ([]AgentQueueItem, error) {
-	return s.QueryNamedQueueFiltered(queueName, AgentQueueFilter{
-		ProjectID:      strings.TrimSpace(projectID),
-		Status:         AgentStatusQueued,
-		IncludeSubtree: true,
-		IncludeNotes:   true,
-		IncludeContext: true,
-	})
-}
-
-// QueryNamedQueueFiltered is QueryAgentQueue narrowed to one named queue.
-func (s *Store) QueryNamedQueueFiltered(queueName string, filter AgentQueueFilter) ([]AgentQueueItem, error) {
-	items, err := s.QueryAgentQueue(filter)
-	if err != nil {
-		return nil, err
-	}
-	queueName = strings.TrimSpace(queueName)
-	if queueName == "" || strings.EqualFold(queueName, QueueNameAny) {
-		return items, nil
-	}
-	queues, err := s.NamedQueues("")
-	if err != nil {
-		return nil, err
-	}
-	return FilterQueueItems(items, queueName, queueTitlesByID(queues)), nil
-}
-
-// EnsureNamedQueue returns the queue record named name in projectID, creating
-// it when there is none. DefaultQueueName needs no record and is never created.
-func (s *Store) EnsureNamedQueue(name, projectID string, fields map[string]any, actor core.Actor) (*Record, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, errors.New("data: queue name is required")
-	}
-	projectID = strings.TrimSpace(projectID)
-	queues, err := s.NamedQueues(projectID)
-	if err != nil {
-		return nil, err
-	}
-	for i := range queues {
-		if strings.EqualFold(strings.TrimSpace(queues[i].Text("title")), name) {
-			return &queues[i], nil
-		}
-	}
-	create := map[string]any{}
-	for k, v := range fields {
-		create[k] = v
-	}
-	create["title"] = name
-	if projectID != "" {
-		create["project"] = core.Ref{Kind: KindTask, ID: projectID}
-	}
-	rec, _, err := s.Create(CreateInput{Kind: KindQueue, Fields: create}, actor)
-	return rec, err
-}
-
-// AddTaskToQueue puts a task in a named queue and flags it queued for agent
-// pickup, in one change set. queue may be nil for a queue without a record.
-func (s *Store) AddTaskToQueue(taskID, queueName string, queue *Record, actor core.Actor) (*Record, error) {
-	taskID = strings.TrimSpace(taskID)
-	if taskID == "" {
-		return nil, errors.New("data: task ID is required")
-	}
-	fields := map[string]any{
-		FieldQueueName:        NormalizeQueueName(queueName),
-		FieldQueue:            nil,
-		"forAgent":            true,
-		"agentStatus":         AgentStatusQueued,
-		"agentDispatchedAt":   nil,
-		"agentDispatchedPane": nil,
-	}
-	if queue != nil && queue.ID != "" {
-		fields[FieldQueue] = queue.Ref()
-		fields[FieldQueueName] = NormalizeQueueName(queue.Text("title"))
-	}
-	rec, _, err := s.Patch(PatchInput{
-		Ref:     core.Ref{Kind: KindTask, ID: taskID},
-		Fields:  fields,
-		Summary: "queue task:" + taskID + " in " + Text(fields[FieldQueueName]),
-	}, actor)
-	return rec, err
-}
-
-// QueueDispatchInput assembles the deterministic ID handoff for items of
-// queueName: the queue record, the project, and the open lane (with its
-// branch and worktree) working the first item.
-func (s *Store) QueueDispatchInput(queueName string, items []AgentQueueItem, target DispatchTargetSpec, extraPrompt string) (QueueDispatchPromptInput, error) {
-	in := QueueDispatchPromptInput{
-		QueueName:   NormalizeQueueName(queueName),
-		Items:       items,
-		Target:      target,
-		ExtraPrompt: extraPrompt,
-	}
-	if len(items) > 0 {
-		in.ProjectID, in.ProjectTitle = items[0].ProjectID, items[0].ProjectTitle
-	}
-	queues, err := s.NamedQueues(in.ProjectID)
-	if err != nil {
-		return in, err
-	}
-	for _, q := range queues {
-		if strings.EqualFold(strings.TrimSpace(q.Text("title")), in.QueueName) {
-			in.QueueID = q.ID
-			break
-		}
-	}
-	lanes, err := s.Query(Query{Kind: KindLane})
-	if err != nil {
-		return in, err
-	}
-	in.Lanes = QueueItemLanes(items, lanes.Items)
-	return in, nil
 }
 
 // QueueItemLanes returns, per item in order, the open lane working its task
@@ -392,41 +228,649 @@ func QueueItemLanes(items []AgentQueueItem, lanes []Record) []QueueLaneHandoff {
 	return out
 }
 
-// LinkDispatchedPane ties a pane to the work it was just handed, so every
-// record leads to the others: the pane takes the first item's task when it
-// has none, each open lane working an item is claimed by the pane, and the
-// queue record is worked by it.
-func (s *Store) LinkDispatchedPane(pane core.Ref, in QueueDispatchPromptInput, actor core.Actor) error {
-	if pane.Kind != KindPane || strings.TrimSpace(pane.ID) == "" || len(in.Items) == 0 {
-		return nil
-	}
-	rec, err := s.Get(pane)
-	if err != nil {
-		return err
-	}
-	if _, bound := rec.RefField("task"); !bound {
-		if _, _, err := s.Patch(PatchInput{
-			Ref:     pane,
-			Fields:  map[string]any{"task": in.Items[0].Task.Ref()},
-			Summary: "bind pane to dispatched task",
-		}, actor); err != nil {
-			return err
-		}
-	}
-	seen := map[string]bool{}
-	for _, lane := range in.Lanes {
-		if lane.LaneID == "" || seen[lane.LaneID] {
-			continue
-		}
-		seen[lane.LaneID] = true
-		if _, _, err := s.Relate(RelateInput{From: core.Ref{Kind: KindLane, ID: lane.LaneID}, Kind: RelClaim, To: pane}, actor); err != nil {
-			return err
-		}
-	}
-	if in.QueueID != "" {
-		if _, _, err := s.Relate(RelateInput{From: core.Ref{Kind: KindQueue, ID: in.QueueID}, Kind: RelClaim, To: pane}, actor); err != nil {
-			return err
+// --- Pure queue board value objects & state transitions --------------------------
+
+// EnqueueMode chooses how a task is queued when added via the rich add-to-queue flow.
+type EnqueueMode string
+
+const (
+	EnqueueModeAdd       EnqueueMode = "add"
+	EnqueueModeAddStart  EnqueueMode = "start"
+	EnqueueModeAddPreset EnqueueMode = "preset"
+)
+
+// EnqueueRequest is the pure input for adding a task to a named queue.
+type EnqueueRequest struct {
+	TaskID    string      `json:"taskId"`
+	Title     string      `json:"title,omitempty"`
+	QueueName string      `json:"queueName"`
+	QueueID   string      `json:"queueId,omitempty"`
+	Mode      EnqueueMode `json:"mode,omitempty"`
+	Priority  string      `json:"priority,omitempty"`
+	Harness   string      `json:"harness,omitempty"`
+	CWD       string      `json:"cwd,omitempty"`
+	ProjectID string      `json:"projectId,omitempty"`
+}
+
+// QueueEntry is the pure domain representation of one open item in a named queue.
+type QueueEntry struct {
+	TaskID              string `json:"taskId"`
+	Title               string `json:"title"`
+	QueueName           string `json:"queueName"`
+	QueueID             string `json:"queueId,omitempty"`
+	Position            int    `json:"position"` // 1-based position within its queue
+	Status              string `json:"status"`   // queued, working, needs_you, done
+	Priority            string `json:"priority,omitempty"`
+	Order               int64  `json:"order,omitempty"`
+	ProjectID           string `json:"projectId,omitempty"`
+	ProjectTitle        string `json:"projectTitle,omitempty"`
+	LaneID              string `json:"laneId,omitempty"`
+	LaneTitle           string `json:"laneTitle,omitempty"`
+	AgentPaneID         string `json:"agentPaneId,omitempty"`
+	AgentTitle          string `json:"agentTitle,omitempty"`
+	AgentState          string `json:"agentState,omitempty"`
+	Dispatched          bool   `json:"dispatched,omitempty"`
+	NeedsAttention      bool   `json:"needsAttention,omitempty"`
+	AttentionReason     string `json:"attentionReason,omitempty"` // "question", "needs_you", "status"
+	AttentionPaneID     string `json:"attentionPaneId,omitempty"`
+	AttentionPageID     string `json:"attentionPageId,omitempty"`
+	AttentionQuestionID string `json:"attentionQuestionId,omitempty"`
+}
+
+// QueueAttentionTarget identifies the exact pane, question page, or record
+// requiring owner attention for a queued item.
+type QueueAttentionTarget struct {
+	TaskID     string `json:"taskId"`
+	TaskTitle  string `json:"taskTitle,omitempty"`
+	QueueName  string `json:"queueName"`
+	ProjectID  string `json:"projectId,omitempty"`
+	PaneID     string `json:"paneId,omitempty"`
+	PageID     string `json:"pageId,omitempty"`
+	QuestionID string `json:"questionId,omitempty"`
+	Reason     string `json:"reason"` // "question", "needs_you", "status"
+}
+
+// QueueWatcher is the pure projection of a live agent pane watching queues.
+type QueueWatcher struct {
+	PaneID      string `json:"paneId"`
+	Title       string `json:"title"`
+	Harness     string `json:"harness,omitempty"`
+	State       string `json:"state,omitempty"`
+	WatchMode   string `json:"watchMode"`
+	WatchQueues string `json:"watchQueues,omitempty"`
+	IntervalSec int    `json:"intervalSec,omitempty"`
+	Current     string `json:"current,omitempty"`
+	Done        int    `json:"done"`
+	Total       int    `json:"total"`
+}
+
+// QueueBoardInput is the pure, store-free input to BuildQueueBoard.
+type QueueBoardInput struct {
+	ProjectID         string
+	Queues            []Record
+	Items             []AgentQueueItem
+	Lanes             []Record
+	Panes             []QueuePane
+	Questions         []Record
+	OpenQuestionPages map[string]string // paneID -> pageID for open interactive questions
+}
+
+// QueueBoard is the complete pure projection of every named queue in a scope.
+type QueueBoard struct {
+	ProjectID string
+	Records   []Record
+	Queues    []QueueProgress
+	Entries   map[string][]QueueEntry
+	Projects  map[string]string
+	Watchers  []QueueWatcher
+}
+
+// QueueRecordByName returns the named queue record matching name (case-insensitive), or nil.
+func QueueRecordByName(records []Record, name string) *Record {
+	want := NormalizeQueueName(name)
+	for i := range records {
+		if strings.EqualFold(strings.TrimSpace(records[i].Text("title")), want) {
+			return &records[i]
 		}
 	}
 	return nil
+}
+
+// BuildQueueBoard projects named queues, progress segments, open queue entries,
+// attention targets, and watchers from pure input data with zero store access.
+func BuildQueueBoard(in QueueBoardInput) QueueBoard {
+	board := QueueBoard{
+		ProjectID: in.ProjectID,
+		Records:   in.Queues,
+		Entries:   map[string][]QueueEntry{},
+		Projects:  map[string]string{},
+		Watchers:  buildQueueWatchers(in.Panes),
+	}
+	titles := QueueTitlesByID(in.Queues)
+	panesByID, paneByTask := indexQueuePanes(in.Panes)
+	qByTask, qByPane := indexOpenQuestions(in.Questions)
+
+	for _, name := range QueueNames(in.Queues, in.Items) {
+		items := FilterQueueItems(in.Items, name, titles)
+		taskIDs := collectQueueTaskIDs(items, board.Projects)
+		lanes := QueueLanes(in.Lanes, name, taskIDs, titles)
+		handoffs := QueueItemLanes(items, lanes)
+		progressIn := QueueProgressInput{
+			Name:      name,
+			ProjectID: in.ProjectID,
+			Items:     items,
+			Lanes:     lanes,
+			Sessions:  QueueSessions(items, handoffs, in.Panes),
+		}
+		if rec := QueueRecordByName(in.Queues, name); rec != nil {
+			progressIn.QueueID = rec.ID
+		}
+		board.Queues = append(board.Queues, ComputeQueueProgress(progressIn))
+		board.Entries[name] = buildQueueEntries(queueEntriesInput{
+			queueName:         name,
+			queueID:           progressIn.QueueID,
+			items:             items,
+			lanes:             lanes,
+			handoffs:          handoffs,
+			panesByID:         panesByID,
+			paneByTask:        paneByTask,
+			questionsByTask:   qByTask,
+			questionsByPane:   qByPane,
+			openQuestionPages: in.OpenQuestionPages,
+		})
+	}
+	return board
+}
+
+type queueEntriesInput struct {
+	queueName         string
+	queueID           string
+	items             []AgentQueueItem
+	lanes             []Record
+	handoffs          []QueueLaneHandoff
+	panesByID         map[string]QueuePane
+	paneByTask        map[string]QueuePane
+	questionsByTask   map[string]Record
+	questionsByPane   map[string]Record
+	openQuestionPages map[string]string
+}
+
+func collectQueueTaskIDs(items []AgentQueueItem, projects map[string]string) map[string]bool {
+	ids := make(map[string]bool, len(items))
+	for _, item := range items {
+		ids[item.Task.ID] = true
+		projects[item.Task.ID] = item.ProjectID
+	}
+	return ids
+}
+
+func buildQueueWatchers(panes []QueuePane) []QueueWatcher {
+	var watchers []QueueWatcher
+	for _, qp := range panes {
+		mode := NormalizeWatchMode(qp.WatchMode)
+		if mode == WatchModeManual {
+			continue
+		}
+		w := QueueWatcher{
+			PaneID:      qp.PaneID,
+			Title:       qp.Title,
+			Harness:     qp.Harness,
+			State:       qp.State,
+			WatchMode:   mode,
+			WatchQueues: qp.WatchQueues,
+			IntervalSec: qp.IntervalSec,
+		}
+		w.Done, w.Total = qp.Checklist.Counts()
+		if cur, ok := qp.Checklist.Current(); ok {
+			w.Current = cur.Title
+		}
+		watchers = append(watchers, w)
+	}
+	return watchers
+}
+
+func indexQueuePanes(panes []QueuePane) (byID map[string]QueuePane, byTask map[string]QueuePane) {
+	byID = make(map[string]QueuePane, len(panes))
+	byTask = make(map[string]QueuePane, len(panes))
+	for _, p := range panes {
+		byID[p.PaneID] = p
+		if p.TaskID != "" {
+			if prev, exists := byTask[p.TaskID]; !exists || isNeedsAttentionState(p.State) && !isNeedsAttentionState(prev.State) {
+				byTask[p.TaskID] = p
+			}
+		}
+	}
+	return byID, byTask
+}
+
+func indexOpenQuestions(questions []Record) (byTask map[string]Record, byPane map[string]Record) {
+	byTask = map[string]Record{}
+	byPane = map[string]Record{}
+	for _, q := range questions {
+		if !isOpenQuestionRecord(q) {
+			continue
+		}
+		if ref, ok := q.RefField("task"); ok && ref.ID != "" {
+			if _, exists := byTask[ref.ID]; !exists {
+				byTask[ref.ID] = q
+			}
+		}
+		if ref, ok := q.RefField("pane"); ok && ref.ID != "" {
+			if _, exists := byPane[ref.ID]; !exists {
+				byPane[ref.ID] = q
+			}
+		}
+	}
+	return byTask, byPane
+}
+
+func isOpenQuestionRecord(q Record) bool {
+	if q.IsArchived() {
+		return false
+	}
+	st := strings.ToLower(strings.TrimSpace(q.Text("status")))
+	if st == "answered" || st == "dismissed" {
+		return false
+	}
+	return strings.TrimSpace(q.Text("answer")) == ""
+}
+
+func isNeedsAttentionState(state string) bool {
+	s := strings.ToLower(strings.TrimSpace(state))
+	return s == AgentStatusNeedsYou || s == "waiting"
+}
+
+func buildQueueEntries(in queueEntriesInput) []QueueEntry {
+	laneTitles := make(map[string]string, len(in.lanes))
+	for _, lane := range in.lanes {
+		laneTitles[lane.ID] = strings.TrimSpace(lane.Text("title"))
+	}
+	entries := make([]QueueEntry, 0, len(in.items))
+	for i, item := range in.items {
+		if item.Task.IsArchived() {
+			continue
+		}
+		status := effectiveAgentStatus(item.Task)
+		if status == AgentStatusDone || status == AgentStatusNone {
+			continue
+		}
+		entry := buildSingleQueueEntry(in, i, item, status, laneTitles)
+		entry.Position = len(entries) + 1
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func buildSingleQueueEntry(in queueEntriesInput, idx int, item AgentQueueItem, status string, laneTitles map[string]string) QueueEntry {
+	projTitle := item.ProjectTitle
+	if item.ProjectID == item.Task.ID {
+		projTitle = ""
+	}
+	entry := QueueEntry{
+		TaskID:       item.Task.ID,
+		Title:        strings.TrimSpace(item.Task.Text("title")),
+		QueueName:    in.queueName,
+		QueueID:      in.queueID,
+		Status:       status,
+		Priority:     item.Task.Text("priority"),
+		ProjectID:    item.ProjectID,
+		ProjectTitle: projTitle,
+		Dispatched:   strings.TrimSpace(item.Task.Text("agentDispatchedAt")) != "",
+	}
+	if v, ok := item.Task.Value("order"); ok {
+		if n, isNum := number(v); isNum {
+			entry.Order = int64(n)
+		}
+	}
+	if idx < len(in.handoffs) && in.handoffs[idx].LaneID != "" {
+		entry.LaneID = in.handoffs[idx].LaneID
+		entry.LaneTitle = laneTitles[entry.LaneID]
+	}
+	attachQueueEntryPane(&entry, item.Task, in.panesByID, in.paneByTask)
+	attachQueueEntryAttention(&entry, in)
+	return entry
+}
+
+func attachQueueEntryPane(entry *QueueEntry, task Record, panesByID, paneByTask map[string]QueuePane) {
+	if ref, ok := task.RefField("agentDispatchedPane"); ok && ref.ID != "" {
+		entry.AgentPaneID = ref.ID
+		if pane, live := panesByID[ref.ID]; live {
+			entry.AgentTitle = pane.Title
+			entry.AgentState = pane.State
+		}
+		return
+	}
+	if pane, ok := paneByTask[task.ID]; ok {
+		entry.AgentPaneID = pane.PaneID
+		entry.AgentTitle = pane.Title
+		entry.AgentState = pane.State
+	}
+}
+
+func attachQueueEntryAttention(entry *QueueEntry, in queueEntriesInput) {
+	if q, ok := matchEntryOpenQuestion(entry, in.questionsByTask, in.questionsByPane); ok {
+		entry.NeedsAttention = true
+		entry.AttentionReason = "question"
+		entry.AttentionQuestionID = q.ID
+		if ref, hasPage := q.RefField("page"); hasPage {
+			entry.AttentionPageID = ref.ID
+		}
+		if ref, hasPane := q.RefField("pane"); hasPane && ref.ID != "" {
+			entry.AttentionPaneID = ref.ID
+		} else {
+			entry.AttentionPaneID = entry.AgentPaneID
+		}
+		return
+	}
+	if entry.AgentPaneID != "" && in.openQuestionPages[entry.AgentPaneID] != "" {
+		entry.NeedsAttention = true
+		entry.AttentionReason = "question"
+		entry.AttentionPaneID = entry.AgentPaneID
+		entry.AttentionPageID = in.openQuestionPages[entry.AgentPaneID]
+		return
+	}
+	if isNeedsAttentionState(entry.AgentState) {
+		entry.NeedsAttention = true
+		entry.AttentionReason = AgentStatusNeedsYou
+		entry.AttentionPaneID = entry.AgentPaneID
+		return
+	}
+	if entry.Status == AgentStatusNeedsYou {
+		entry.NeedsAttention = true
+		entry.AttentionReason = "status"
+		entry.AttentionPaneID = entry.AgentPaneID
+	}
+}
+
+func matchEntryOpenQuestion(entry *QueueEntry, byTask, byPane map[string]Record) (Record, bool) {
+	if q, ok := byTask[entry.TaskID]; ok {
+		return q, true
+	}
+	if entry.AgentPaneID != "" {
+		if q, ok := byPane[entry.AgentPaneID]; ok {
+			return q, true
+		}
+	}
+	return Record{}, false
+}
+
+// ResolveQueueAttention finds the attention target in entries: the focused item
+// when it needs attention, otherwise the next item after selectedTaskID
+// (wrapping around) that needs attention.
+func ResolveQueueAttention(entries []QueueEntry, selectedTaskID string) (QueueAttentionTarget, bool) {
+	if len(entries) == 0 {
+		return QueueAttentionTarget{}, false
+	}
+	start := -1
+	if selectedTaskID != "" {
+		start = slices.IndexFunc(entries, func(e QueueEntry) bool { return e.TaskID == selectedTaskID })
+		if start >= 0 && entries[start].NeedsAttention {
+			return attentionTargetFromEntry(entries[start]), true
+		}
+	}
+	for offset := 1; offset <= len(entries); offset++ {
+		idx := (start + offset + len(entries)) % len(entries)
+		if entries[idx].NeedsAttention {
+			return attentionTargetFromEntry(entries[idx]), true
+		}
+	}
+	return QueueAttentionTarget{}, false
+}
+
+// ResolveBoardAttention resolves the next attention target starting in
+// activeQueue (focused item first, then next in activeQueue), then checking the
+// remaining queues in board order.
+func ResolveBoardAttention(board QueueBoard, activeQueue, selectedTaskID string) (QueueAttentionTarget, bool) {
+	active := NormalizeQueueName(activeQueue)
+	if target, ok := ResolveQueueAttention(board.Entries[active], selectedTaskID); ok {
+		return target, true
+	}
+	for _, q := range board.Queues {
+		if q.Name == active {
+			continue
+		}
+		if target, ok := ResolveQueueAttention(board.Entries[q.Name], ""); ok {
+			return target, true
+		}
+	}
+	return QueueAttentionTarget{}, false
+}
+
+func attentionTargetFromEntry(e QueueEntry) QueueAttentionTarget {
+	paneID := e.AttentionPaneID
+	if paneID == "" {
+		paneID = e.AgentPaneID
+	}
+	return QueueAttentionTarget{
+		TaskID:     e.TaskID,
+		TaskTitle:  e.Title,
+		QueueName:  e.QueueName,
+		ProjectID:  e.ProjectID,
+		PaneID:     paneID,
+		PageID:     e.AttentionPageID,
+		QuestionID: e.AttentionQuestionID,
+		Reason:     e.AttentionReason,
+	}
+}
+
+// QueueFilterAndGroup filters entries by whitespace-separated case-insensitive
+// terms and groups them by "" (none), "status", or "project".
+func QueueFilterAndGroup(entries []QueueEntry, query, groupBy string) []QueueEntry {
+	filtered := filterQueueEntries(entries, query)
+	return groupQueueEntries(filtered, groupBy)
+}
+
+func filterQueueEntries(entries []QueueEntry, query string) []QueueEntry {
+	terms := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
+	if len(terms) == 0 {
+		return slices.Clone(entries)
+	}
+	out := make([]QueueEntry, 0, len(entries))
+	for _, e := range entries {
+		haystack := strings.ToLower(strings.Join([]string{
+			e.Title, e.Status, e.Priority, e.ProjectTitle, e.LaneTitle, e.AgentTitle, e.AttentionReason,
+		}, " "))
+		if matchesAllTerms(haystack, terms) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func matchesAllTerms(haystack string, terms []string) bool {
+	for _, term := range terms {
+		if !strings.Contains(haystack, term) {
+			return false
+		}
+	}
+	return true
+}
+
+func groupQueueEntries(entries []QueueEntry, groupBy string) []QueueEntry {
+	if groupBy != "status" && groupBy != "project" {
+		return entries
+	}
+	rank := map[string]int{}
+	if groupBy == "status" {
+		rank = map[string]int{AgentStatusNeedsYou: -4, AgentStatusWorking: -3, AgentStatusQueued: -2, AgentStatusDone: -1}
+	}
+	keyOf := func(e QueueEntry) string {
+		if groupBy == "status" {
+			if e.NeedsAttention {
+				return AgentStatusNeedsYou
+			}
+			return e.Status
+		}
+		if e.ProjectTitle == "" {
+			return "(no project)"
+		}
+		return e.ProjectTitle
+	}
+	for _, e := range entries {
+		k := keyOf(e)
+		if _, ok := rank[k]; !ok {
+			rank[k] = len(rank)
+		}
+	}
+	out := slices.Clone(entries)
+	slices.SortStableFunc(out, func(a, b QueueEntry) int {
+		return rank[keyOf(a)] - rank[keyOf(b)]
+	})
+	return out
+}
+
+// ApplyEnqueue adds or updates req in entries in priority order, deduplicating
+// by TaskID, and returns the updated slice and 1-based position of the entry.
+func ApplyEnqueue(entries []QueueEntry, req EnqueueRequest) ([]QueueEntry, int, error) {
+	taskID := strings.TrimSpace(req.TaskID)
+	if taskID == "" {
+		return entries, 0, errors.New("data: task ID is required")
+	}
+	queueName := NormalizeQueueName(req.QueueName)
+	out := slices.Clone(entries)
+	idx := slices.IndexFunc(out, func(e QueueEntry) bool { return e.TaskID == taskID })
+	if idx >= 0 {
+		out[idx].QueueName = queueName
+		out[idx].QueueID = req.QueueID
+		out[idx].Status = AgentStatusQueued
+		out[idx].Dispatched = false
+		out[idx].AgentPaneID = ""
+		out[idx].AgentTitle = ""
+		if strings.TrimSpace(req.Priority) != "" {
+			out[idx].Priority = strings.TrimSpace(req.Priority)
+		}
+	} else {
+		out = append(out, QueueEntry{
+			TaskID:    taskID,
+			Title:     strings.TrimSpace(req.Title),
+			QueueName: queueName,
+			QueueID:   req.QueueID,
+			Status:    AgentStatusQueued,
+			Priority:  strings.TrimSpace(req.Priority),
+			ProjectID: strings.TrimSpace(req.ProjectID),
+			Order:     int64(len(out) + 1),
+		})
+	}
+	slices.SortStableFunc(out, compareQueueEntries)
+	pos := reindexQueuePositions(out, taskID)
+	return out, pos, nil
+}
+
+func compareQueueEntries(a, b QueueEntry) int {
+	if pa, pb := priorityRank(a.Priority), priorityRank(b.Priority); pa != pb {
+		return pa - pb
+	}
+	if a.Order != b.Order {
+		if a.Order < b.Order {
+			return -1
+		}
+		return 1
+	}
+	return 0
+}
+
+func reindexQueuePositions(entries []QueueEntry, targetID string) int {
+	pos := 0
+	for i := range entries {
+		entries[i].Position = i + 1
+		if entries[i].TaskID == targetID {
+			pos = entries[i].Position
+		}
+	}
+	return pos
+}
+
+// ApplyClaim assigns paneID/agentTitle to taskID (marking it dispatched and
+// working), or clears the claim when paneID is empty (returning it to queued).
+func ApplyClaim(entries []QueueEntry, taskID, paneID, agentTitle string) ([]QueueEntry, bool) {
+	out := slices.Clone(entries)
+	idx := slices.IndexFunc(out, func(e QueueEntry) bool { return e.TaskID == taskID })
+	if idx < 0 {
+		return out, false
+	}
+	paneID = strings.TrimSpace(paneID)
+	if paneID == "" {
+		out[idx].AgentPaneID = ""
+		out[idx].AgentTitle = ""
+		out[idx].AgentState = ""
+		out[idx].Dispatched = false
+		out[idx].Status = AgentStatusQueued
+		return out, true
+	}
+	out[idx].AgentPaneID = paneID
+	out[idx].AgentTitle = strings.TrimSpace(agentTitle)
+	out[idx].Dispatched = true
+	out[idx].Status = AgentStatusWorking
+	return out, true
+}
+
+// ApplyReorder shifts taskID by delta (-1 up, +1 down) within entries,
+// re-numbering sequential Order and 1-based Position values.
+func ApplyReorder(entries []QueueEntry, taskID string, delta int) ([]QueueEntry, int, bool) {
+	if delta == 0 {
+		return slices.Clone(entries), 0, false
+	}
+	idx := slices.IndexFunc(entries, func(e QueueEntry) bool { return e.TaskID == taskID })
+	if idx < 0 {
+		return slices.Clone(entries), 0, false
+	}
+	target := idx + delta
+	if target < 0 {
+		target = 0
+	}
+	if target >= len(entries) {
+		target = len(entries) - 1
+	}
+	if target == idx {
+		return slices.Clone(entries), idx + 1, false
+	}
+	out := slices.Clone(entries)
+	item := out[idx]
+	out = slices.Delete(out, idx, idx+1)
+	out = slices.Insert(out, target, item)
+	for i := range out {
+		out[i].Order = int64(i + 1)
+		out[i].Position = i + 1
+	}
+	return out, target + 1, true
+}
+
+// ApplyStatus transitions taskID to status. Transitioning to AgentStatusDone or
+// AgentStatusNone removes the entry from the open queue list.
+func ApplyStatus(entries []QueueEntry, taskID, status string) ([]QueueEntry, bool) {
+	status = strings.TrimSpace(status)
+	if !isValidAgentStatus(status) {
+		return slices.Clone(entries), false
+	}
+	idx := slices.IndexFunc(entries, func(e QueueEntry) bool { return e.TaskID == taskID })
+	if idx < 0 {
+		return slices.Clone(entries), false
+	}
+	out := slices.Clone(entries)
+	if status == AgentStatusDone || status == AgentStatusNone {
+		out = slices.Delete(out, idx, idx+1)
+		reindexQueuePositions(out, "")
+		return out, true
+	}
+	out[idx].Status = status
+	if status == AgentStatusNeedsYou {
+		out[idx].NeedsAttention = true
+		if out[idx].AttentionReason == "" {
+			out[idx].AttentionReason = "status"
+		}
+	} else if status == AgentStatusQueued {
+		out[idx].Dispatched = false
+		out[idx].NeedsAttention = false
+		out[idx].AttentionReason = ""
+	}
+	return out, true
+}
+
+func isValidAgentStatus(status string) bool {
+	switch status {
+	case AgentStatusNone, AgentStatusQueued, AgentStatusWorking, AgentStatusNeedsYou, AgentStatusDone:
+		return true
+	default:
+		return false
+	}
 }

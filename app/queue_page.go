@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
@@ -22,28 +23,33 @@ const (
 	SpaceQueue          = "queue"
 	projectQueueSection = "queues"
 
-	CmdQueueOpen    = "queue.open"
-	CmdQueueTaskAdd = "queue.task.add"
+	CmdQueueOpen          = "queue.open"
+	CmdQueueTaskAdd       = "queue.task.add"
+	CmdQueueJumpAttention = "queue.jump.attention"
 
-	cmdQueueTabCycle   = "queue.tab.cycle"
-	cmdQueueRowsMove   = "queue.rows.move"
-	cmdQueueGroupCycle = "queue.group.cycle"
-	cmdQueueCreate     = "queue.create"
-	cmdQueueItemAdd    = "queue.item.add"
-	cmdQueueDispatch   = "queue.dispatch"
-	cmdQueueWatch      = "queue.watch.configure"
+	cmdQueueTabCycle    = "queue.tab.cycle"
+	cmdQueueRowsMove    = "queue.rows.move"
+	cmdQueueGroupCycle  = "queue.group.cycle"
+	cmdQueueCreate      = "queue.create"
+	cmdQueueItemAdd     = "queue.item.add"
+	cmdQueueItemReorder = "queue.item.reorder"
+	cmdQueueItemDone    = "queue.item.done"
+	cmdQueueDispatch    = "queue.dispatch"
+	cmdQueueWatch       = "queue.watch.configure"
 
-	queueTaskPickerID  = "queue.task.pick"
-	queueNamePickerID  = "queue.name.pick"
-	queueWatchPickerID = "queue.watch.pane"
-	queueWatchFormID   = "queue.watch.form"
-	queueFilterField   = "search"
+	queueTaskPickerID   = "queue.task.pick"
+	queueNamePickerID   = "queue.name.pick"
+	queuePresetPickerID = "queue.preset.pick"
+	queueWatchPickerID  = "queue.watch.pane"
+	queueWatchFormID    = "queue.watch.form"
+	queueFilterField    = "search"
 )
 
 // queueSnapshot is everything the Queue Page shows for one project scope,
-// computed once per store revision and telemetry tick.
+// computed once per store revision and telemetry tick from data.BuildQueueBoard.
 type queueSnapshot struct {
 	key      string
+	board    data.QueueBoard
 	records  []data.Record                   // queue records visible to the scope
 	queues   []data.QueueProgress            // one per named queue, in tab order
 	rows     map[string][]views.QueueItemRow // open items by queue name
@@ -70,6 +76,20 @@ func (a *App) initQueue() {
 	a.registerFilterable(views.QueueListID, list)
 }
 
+// invalidateQueueViews drops cached queue snapshots and project home progress
+// strips so queue mutations appear immediately across every surface.
+func (a *App) invalidateQueueViews() {
+	if a.queue != nil && a.queue.snapshots != nil {
+		clear(a.queue.snapshots)
+	}
+	if a.proj != nil {
+		clear(a.proj.homeCache)
+		clear(a.proj.durableCache)
+		clear(a.proj.navCache)
+	}
+	a.viewMemo.gen++
+}
+
 // --- snapshot ---------------------------------------------------------------------
 
 // queueSnapshot rolls the scope's queues up. It reads the store only when
@@ -84,99 +104,135 @@ func (a *App) queueSnapshot(projectID string) queueSnapshot {
 	if snap, ok := q.snapshots[projectID]; ok && snap.key == key {
 		return snap
 	}
-	snap := queueSnapshot{key: key, rows: map[string][]views.QueueItemRow{}, projects: map[string]string{}}
+	board := data.BuildQueueBoard(a.loadQueueBoardInput(projectID))
+	snap := snapshotFromQueueBoard(key, board)
+	q.snapshots[projectID] = snap
+	return snap
+}
 
+func (a *App) loadQueueBoardInput(projectID string) data.QueueBoardInput {
+	in := data.QueueBoardInput{ProjectID: projectID}
 	var err error
-	if snap.records, err = a.Store.NamedQueues(projectID); err != nil {
+	if in.Queues, err = a.Store.NamedQueues(projectID); err != nil {
 		a.fail("load queues", err)
 	}
-	titles := data.QueueTitlesByID(snap.records)
-	all, err := a.Store.QueryAgentQueue(data.AgentQueueFilter{ProjectID: projectID, Status: "all", IncludeSubtree: true})
-	if err != nil {
+	if in.Items, err = a.Store.QueryAgentQueue(data.AgentQueueFilter{ProjectID: projectID, Status: "all", IncludeSubtree: true}); err != nil {
 		a.fail("load queue items", err)
 	}
-	var allLanes []data.Record
-	if res, err := a.Store.Query(data.Query{Kind: data.KindLane}); err == nil {
-		allLanes = res.Items
+	in.Lanes = a.loadQueueLanes(projectID, in.Queues)
+	if res, err := a.Store.Query(data.Query{Kind: data.KindQuestion}); err == nil {
+		in.Questions = res.Items
 	}
-	if projectID != "" {
-		ids, _ := a.Store.ProjectTaskIDs(projectID, a.nav.showArchived)
-		allLanes = data.LanesInProject(allLanes, ids, titles)
-	}
+	in.Panes, in.OpenQuestionPages = a.loadQueuePanes()
+	return in
+}
 
+func (a *App) loadQueueLanes(projectID string, queues []data.Record) []data.Record {
+	res, err := a.Store.Query(data.Query{Kind: data.KindLane})
+	if err != nil {
+		return nil
+	}
+	lanes := res.Items
+	if projectID == "" {
+		return lanes
+	}
+	ids, _ := a.Store.ProjectTaskIDs(projectID, a.nav.showArchived)
+	return data.LanesInProject(lanes, ids, data.QueueTitlesByID(queues))
+}
+
+func (a *App) loadQueuePanes() ([]data.QueuePane, map[string]string) {
 	paneSchema := a.schema(data.KindPane)
 	live := a.liveAgentPanes()
 	panes := make([]data.QueuePane, 0, len(live))
-	paneTitles := make(map[string]string, len(live))
+	openPages := map[string]string{}
 	for _, p := range live {
-		qp := data.QueuePane{PaneID: p.ID, Title: views.Title(paneSchema, p), Harness: p.Text("harness"), State: p.Text("runStatus")}
-		if pt := a.paneTelemetry(p.ID); pt != nil {
-			qp.Checklist = pt.Checklist
-			if pt.State != "" {
-				qp.State = pt.State
-			}
-		}
+		qp := a.buildQueuePane(paneSchema, p)
 		panes = append(panes, qp)
-		paneTitles[p.ID] = qp.Title
-		if mode := data.NormalizeWatchMode(p.Text(data.FieldWatchMode)); mode != data.WatchModeManual {
-			w := views.QueueWatcherRow{
-				PaneID: p.ID, Title: qp.Title, Harness: qp.Harness, State: qp.State,
-				WatchMode: mode, WatchQueues: p.Text(data.FieldWatchQueues), IntervalSec: data.WatchInterval(p),
-			}
-			w.Done, w.Total = qp.Checklist.Counts()
-			if cur, ok := qp.Checklist.Current(); ok {
-				w.Current = cur.Title
-			}
-			snap.watchers = append(snap.watchers, w)
+		if pageID, asked := a.openQuestion(p.ID); asked {
+			openPages[p.ID] = pageID
 		}
 	}
+	return panes, openPages
+}
 
-	for _, name := range data.QueueNames(snap.records, all) {
-		items := data.FilterQueueItems(all, name, titles)
-		taskIDs := make(map[string]bool, len(items))
-		for _, item := range items {
-			taskIDs[item.Task.ID] = true
-			snap.projects[item.Task.ID] = item.ProjectID
-		}
-		lanes := data.QueueLanes(allLanes, name, taskIDs, titles)
-		handoffs := data.QueueItemLanes(items, lanes)
-		in := data.QueueProgressInput{
-			Name: name, ProjectID: projectID, Items: items, Lanes: lanes,
-			Sessions: data.QueueSessions(items, handoffs, panes),
-		}
-		for _, rec := range snap.records {
-			if strings.EqualFold(strings.TrimSpace(rec.Text("title")), name) {
-				in.QueueID = rec.ID
-			}
-		}
-		snap.queues = append(snap.queues, data.ComputeQueueProgress(in))
-
-		laneTitles := make(map[string]string, len(lanes))
-		for _, lane := range lanes {
-			laneTitles[lane.ID] = strings.TrimSpace(lane.Text("title"))
-		}
-		for i, item := range items {
-			status := item.Task.Text("agentStatus")
-			if status == data.AgentStatusDone {
-				continue // finished items count in the bar, not in the to-do table
-			}
-			row := views.QueueItemRow{
-				ID: item.Task.ID, Title: strings.TrimSpace(item.Task.Text("title")), Status: status,
-				Priority: item.Task.Text("priority"), Project: item.ProjectTitle,
-				Lane:       laneTitles[handoffs[i].LaneID],
-				Dispatched: strings.TrimSpace(item.Task.Text("agentDispatchedAt")) != "",
-			}
-			if item.ProjectID == item.Task.ID {
-				row.Project = ""
-			}
-			if ref, ok := item.Task.RefField("agentDispatchedPane"); ok {
-				row.Agent = paneTitles[ref.ID]
-			}
-			snap.rows[name] = append(snap.rows[name], row)
+func (a *App) buildQueuePane(paneSchema data.Schema, p data.Record) data.QueuePane {
+	qp := data.QueuePane{
+		PaneID:      p.ID,
+		Title:       views.Title(paneSchema, p),
+		Harness:     p.Text("harness"),
+		State:       p.Text("runStatus"),
+		WatchMode:   p.Text(data.FieldWatchMode),
+		WatchQueues: p.Text(data.FieldWatchQueues),
+		IntervalSec: data.WatchInterval(p),
+	}
+	if ref, ok := p.RefField("task"); ok {
+		qp.TaskID = ref.ID
+	}
+	if pt := a.paneTelemetry(p.ID); pt != nil {
+		qp.Checklist = pt.Checklist
+		if pt.State != "" {
+			qp.State = pt.State
 		}
 	}
-	q.snapshots[projectID] = snap
-	return snap
+	if a.paneHasAttention(p.ID) {
+		qp.State = daemon.StateNeedsYou
+	}
+	return qp
+}
+
+func snapshotFromQueueBoard(key string, board data.QueueBoard) queueSnapshot {
+	rows := make(map[string][]views.QueueItemRow, len(board.Entries))
+	for name, entries := range board.Entries {
+		rows[name] = queueItemRowsFromEntries(entries)
+	}
+	return queueSnapshot{
+		key:      key,
+		board:    board,
+		records:  board.Records,
+		queues:   board.Queues,
+		rows:     rows,
+		projects: board.Projects,
+		watchers: queueWatcherRows(board.Watchers),
+	}
+}
+
+func queueItemRowsFromEntries(entries []data.QueueEntry) []views.QueueItemRow {
+	out := make([]views.QueueItemRow, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, views.QueueItemRow{
+			ID:              e.TaskID,
+			Title:           e.Title,
+			Status:          e.Status,
+			Priority:        e.Priority,
+			Project:         e.ProjectTitle,
+			Lane:            e.LaneTitle,
+			Agent:           e.AgentTitle,
+			AgentPaneID:     e.AgentPaneID,
+			Dispatched:      e.Dispatched,
+			NeedsAttention:  e.NeedsAttention,
+			AttentionReason: e.AttentionReason,
+		})
+	}
+	return out
+}
+
+func queueWatcherRows(watchers []data.QueueWatcher) []views.QueueWatcherRow {
+	out := make([]views.QueueWatcherRow, 0, len(watchers))
+	for _, w := range watchers {
+		out = append(out, views.QueueWatcherRow{
+			PaneID:      w.PaneID,
+			Title:       w.Title,
+			Harness:     w.Harness,
+			State:       w.State,
+			WatchMode:   w.WatchMode,
+			WatchQueues: w.WatchQueues,
+			IntervalSec: w.IntervalSec,
+			Current:     w.Current,
+			Done:        w.Done,
+			Total:       w.Total,
+		})
+	}
+	return out
 }
 
 // syncQueue points the controller at projectID's scope and brings the list
@@ -194,7 +250,7 @@ func (a *App) syncQueue(projectID string) queueSnapshot {
 	for _, item := range ordered {
 		byID[item.ID] = item
 		rows = append(rows, table.Row{ID: item.ID, Cells: map[string]any{
-			queueFilterField: strings.Join([]string{item.Title, item.Status, item.Priority, item.Project, item.Lane, item.Agent}, " "),
+			queueFilterField: strings.Join([]string{item.Title, item.Status, item.Priority, item.Project, item.Lane, item.Agent, item.AttentionReason}, " "),
 		}})
 	}
 	shown := syncTableSelection(q.list, rows, "")
@@ -275,11 +331,13 @@ func queueCommandSpecs() []core.CommandSpec {
 	internal := map[string]any{"internal": true}
 	return []core.CommandSpec{
 		spec(CmdQueueOpen, "Open Queues & Dispatch"),
-		{ID: CmdQueueTaskAdd, Description: "Add a task to a named agent queue, optionally starting it", Tags: []string{"editing"}, Params: []core.ParamSpec{
+		{ID: CmdQueueTaskAdd, Description: "Add a task to a named agent queue, optionally starting it or applying a preset", Tags: []string{"editing"}, Params: []core.ParamSpec{
 			{Name: "task", Type: core.ParamString, Description: "task ID; default is the focused task"},
 			{Name: "queue", Type: core.ParamString, Description: "queue name; omitted opens the queue picker"},
 			{Name: "start", Type: core.ParamBool, Default: false, Description: "also dispatch the task to an agent"},
+			{Name: "preset", Type: core.ParamString, Description: "optional harness/model preset for dispatch"},
 		}},
+		spec(CmdQueueJumpAttention, "Jump to the focused or next queue item needing attention (pane or open question)"),
 		{ID: cmdQueueTabCycle, Description: "Switch the named queue", Params: []core.ParamSpec{
 			{Name: "delta", Type: core.ParamInt, Default: 1},
 		}, Meta: internal},
@@ -291,6 +349,10 @@ func queueCommandSpecs() []core.CommandSpec {
 		{ID: cmdQueueItemAdd, Description: "Add a task to the active queue", Tags: []string{"editing"}, Params: []core.ParamSpec{
 			{Name: "start", Type: core.ParamBool, Default: false, Description: "also dispatch the task to an agent"},
 		}},
+		{ID: cmdQueueItemReorder, Description: "Move the selected queue item up or down in the active queue", Tags: []string{"editing"}, Params: []core.ParamSpec{
+			{Name: "direction", Type: core.ParamString, Enum: []string{"up", "down"}},
+		}},
+		spec(cmdQueueItemDone, "Mark the selected queue item done", "editing"),
 		{ID: cmdQueueDispatch, Description: "Dispatch the selected queue item (or the whole queue) to a new or existing agent", Params: []core.ParamSpec{
 			{Name: "all", Type: core.ParamBool, Default: false, Description: "dispatch every undispatched item of the active queue"},
 		}},
@@ -299,20 +361,27 @@ func queueCommandSpecs() []core.CommandSpec {
 }
 
 func queueBindings() []core.Binding {
-	n, scope := ModeNormal, views.ScopeQueue
+	n, scope := ModeNormal, views.ScopeQueuePage
 	return []core.Binding{
 		bind(n, "", "g q", CmdQueueOpen, "queues & dispatch"),
 		hidden(bind(n, data.KindTask, "g Q", CmdQueueTaskAdd, "add to named queue")),
 		bind(n, scope, "tab", cmdQueueTabCycle, "next queue"),
 		bind(n, scope, "]", cmdQueueTabCycle, "next queue"),
 		with(bind(n, scope, "[", cmdQueueTabCycle, "previous queue"), map[string]any{"delta": -1}),
-		when(bind(n, scope, "enter", cmdQueueDispatch, "dispatch item"), "facts.hasSelection"),
+		when(bind(n, scope, "enter", CmdQueueJumpAttention, "jump to needs-you"), "facts.hasSelection && facts.selectedNeedsYou"),
+		when(bind(n, scope, "enter", cmdQueueDispatch, "dispatch item"), "facts.hasSelection && !facts.selectedNeedsYou"),
+		bind(n, scope, "J", CmdQueueJumpAttention, "jump to needs-you"),
 		when(with(bind(n, scope, "D", cmdQueueDispatch, "dispatch queue"), map[string]any{"all": true}), "facts.count > 0"),
 		bind(n, scope, "a", cmdQueueItemAdd, "add task"),
 		with(bind(n, scope, "A", cmdQueueItemAdd, "add & start"), map[string]any{"start": true}),
 		bind(n, scope, "C", cmdQueueCreate, "new queue"),
 		bind(n, scope, "W", cmdQueueWatch, "agent watch cadence"),
 		bind(n, scope, "b", cmdQueueGroupCycle, "group items"),
+		when(with(bind(n, scope, "<", cmdQueueItemReorder, "move up"), map[string]any{"direction": "up"}), "facts.hasSelection"),
+		when(with(bind(n, scope, ">", cmdQueueItemReorder, "move down"), map[string]any{"direction": "down"}), "facts.hasSelection"),
+		hidden(when(with(bind(n, scope, "shift+up", cmdQueueItemReorder, "move up"), map[string]any{"direction": "up"}), "facts.hasSelection")),
+		hidden(when(with(bind(n, scope, "shift+down", cmdQueueItemReorder, "move down"), map[string]any{"direction": "down"}), "facts.hasSelection")),
+		when(bind(n, scope, "x", cmdQueueItemDone, "mark done"), "facts.hasSelection"),
 		with(bind(n, scope, "j", cmdQueueRowsMove, "next item"), map[string]any{"direction": "down"}),
 		with(bind(n, scope, "k", cmdQueueRowsMove, "previous item"), map[string]any{"direction": "up"}),
 		hidden(with(bind(n, scope, "down", cmdQueueRowsMove, "next item"), map[string]any{"direction": "down"})),
@@ -327,6 +396,7 @@ func (a *App) registerQueue() {
 		return core.Next(a.openSpace(s, SpaceQueue))
 	})
 	a.handle(CmdQueueTaskAdd, a.queueTaskAdd)
+	a.handle(CmdQueueJumpAttention, a.queueJumpAttention)
 	a.handle(cmdQueueTabCycle, a.queueTabCycle)
 	a.handle(cmdQueueRowsMove, func(s core.State, c core.Command) core.StepResult {
 		a.syncQueue(a.queueScope(s))
@@ -346,6 +416,8 @@ func (a *App) registerQueue() {
 	})
 	a.handle(cmdQueueCreate, a.queueCreate)
 	a.handle(cmdQueueItemAdd, a.queueItemAdd)
+	a.handle(cmdQueueItemReorder, a.queueItemReorder)
+	a.handle(cmdQueueItemDone, a.queueItemDone)
 	a.handle(cmdQueueDispatch, a.queueDispatch)
 	a.handle(cmdQueueWatch, a.queueWatchConfigure)
 }
@@ -362,6 +434,7 @@ func (a *App) cycleQueueTabDir(s core.State, step int) core.StepResult {
 	}
 	q.active, _ = traits.Cycle(names, q.active, step, true)
 	resetTableSelection(q.list)
+	a.syncQueue(a.queueScope(s))
 	a.say("queue: %s", q.active)
 	return core.Next(s)
 }
@@ -377,12 +450,7 @@ func (a *App) queueTabCycle(s core.State, c core.Command) core.StepResult {
 // queueRecord returns the queue record named name in the snapshot, or nil
 // for a queue that only exists as a name on its tasks.
 func (snap queueSnapshot) queueRecord(name string) *data.Record {
-	for i := range snap.records {
-		if strings.EqualFold(strings.TrimSpace(snap.records[i].Text("title")), name) {
-			return &snap.records[i]
-		}
-	}
-	return nil
+	return data.QueueRecordByName(snap.records, name)
 }
 
 func (a *App) queueCreate(s core.State, _ core.Command) core.StepResult {
@@ -394,259 +462,6 @@ func (a *App) queueCreate(s core.State, _ core.Command) core.StepResult {
 		"kind": data.KindQueue, "title": "New queue", "defaults": defaults,
 		"fields": []string{"title", "description", "defaultHarness", "defaultCwd", data.FieldWatchMode, data.FieldWatchIntervalSec, "orchestratorDefault", "includeContextDefault"},
 	}})
-}
-
-// queueItemAdd picks a task and adds it to the active queue (a), or adds it
-// and goes straight to the target picker (A).
-func (a *App) queueItemAdd(s core.State, c core.Command) core.StepResult {
-	projectID := a.queueScope(s)
-	a.syncQueue(projectID)
-	queueName := a.queue.active
-	start := c.Args["start"] == true
-
-	res, err := a.Store.Query(data.Query{Kind: data.KindTask})
-	if err != nil {
-		a.fail("add to queue", err)
-		return core.Next(s)
-	}
-	schema := a.schema(data.KindTask)
-	var items []picker.Item
-	for _, t := range res.Items {
-		switch t.Text("agentStatus") {
-		case data.AgentStatusQueued, data.AgentStatusWorking, data.AgentStatusNeedsYou:
-			continue // already in a queue
-		}
-		if projectID != "" && a.Store.RootTaskID(t.ID) != projectID {
-			continue
-		}
-		ref := t.Ref()
-		title := views.Title(schema, t)
-		items = append(items, picker.Item{
-			ID: t.ID, Title: title, Ref: &ref, Scope: data.KindTask,
-			Badges: views.StatusBadges(schema, t), Keywords: []string{title, t.ID},
-		})
-	}
-	verb := "Add to queue"
-	if start {
-		verb = "Add & start"
-	}
-	pm := picker.New(fmt.Sprintf("%s · %s", verb, queueName), items)
-	pm.MatchMode = a.matchMode()
-	pm.Placeholder = "pick a task"
-	m := a.newPickerModal(pm, modal.PickerOptions{
-		ID:       queueTaskPickerID,
-		PageSize: 10,
-		OnConfirm: func(picked picker.Item) modal.Result {
-			a.afterModal(func(st core.State) core.State {
-				return a.addTaskToQueue(st, picked.ID, queueName, start)
-			})
-			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
-		},
-	})
-	a.say("%s: pick a task for %q", strings.ToLower(verb), queueName)
-	return core.Next(a.pushModal(s, m))
-}
-
-// queueTaskAdd adds the focused task (outline, tables) to a named queue. The
-// picker offers every queue twice: "Add to queue" and "Add & start"; typing
-// a new name creates that queue.
-func (a *App) queueTaskAdd(s core.State, c core.Command) core.StepResult {
-	taskID := strings.TrimSpace(c.Arg("task"))
-	if taskID == "" {
-		id, ok := a.resolveFocusedTaskID(s, c)
-		if !ok {
-			a.say("no task selected to queue")
-			return core.Next(s)
-		}
-		taskID = id
-	}
-	if name := strings.TrimSpace(c.Arg("queue")); name != "" {
-		return core.Next(a.addTaskToQueue(s, taskID, name, c.Args["start"] == true))
-	}
-
-	projectID := a.Store.RootTaskID(taskID)
-	snap := a.queueSnapshot(projectID)
-	type choice struct {
-		queue string
-		start bool
-	}
-	var items []picker.Item
-	for _, q := range snap.queues {
-		open := q.Queued + q.Working + q.NeedsYou
-		for _, start := range []bool{false, true} {
-			title, id := "Add to queue · "+q.Name, "add:"+q.Name
-			if start {
-				title, id = "Add & start · "+q.Name, "start:"+q.Name
-			}
-			items = append(items, picker.Item{
-				ID: id, Title: title, Subtitle: fmt.Sprintf("%d open", open),
-				Keywords: []string{q.Name, title}, Data: choice{q.Name, start},
-			})
-		}
-	}
-	pm := picker.New("Add to named queue · "+a.title(core.Ref{Kind: data.KindTask, ID: taskID}), items)
-	pm.MatchMode = a.matchMode()
-	pm.Placeholder = "pick a queue, or type a new queue name"
-	m := a.newPickerModal(pm, modal.PickerOptions{
-		ID:       queueNamePickerID,
-		PageSize: 10,
-		Create:   &modal.PickerCreateHook{Kind: data.KindQueue, Label: "Queue", Subtitle: "create this queue and add the task"},
-		OnConfirm: func(picked picker.Item) modal.Result {
-			ch, ok := picked.Data.(choice)
-			if !ok {
-				return modal.Result{Handled: true}
-			}
-			a.afterModal(func(st core.State) core.State {
-				return a.addTaskToQueue(st, taskID, ch.queue, ch.start)
-			})
-			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
-		},
-		OnCreate: func(query string) modal.Result {
-			name := strings.TrimSpace(query)
-			if name == "" {
-				return modal.Result{Handled: true}
-			}
-			if _, err := a.Store.EnsureNamedQueue(name, projectID, nil, User); err != nil {
-				a.fail("create queue", err)
-				return modal.Result{Handled: true}
-			}
-			a.afterModal(func(st core.State) core.State {
-				return a.addTaskToQueue(st, taskID, name, false)
-			})
-			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
-		},
-	})
-	a.say("pick a queue · Add & start also dispatches · type a new name to create a queue")
-	return core.Next(a.pushModal(s, m))
-}
-
-// addTaskToQueue queues taskID in queueName and, when start is set, opens
-// the target picker for it.
-func (a *App) addTaskToQueue(s core.State, taskID, queueName string, start bool) core.State {
-	projectID := a.Store.RootTaskID(taskID)
-	queueName = data.NormalizeQueueName(queueName)
-	var queueRec *data.Record
-	if queues, err := a.Store.NamedQueues(projectID); err == nil {
-		queueRec = queueSnapshot{records: queues}.queueRecord(queueName)
-	}
-	rec, err := a.Store.AddTaskToQueue(taskID, queueName, queueRec, User)
-	if err != nil {
-		a.fail("add to queue", err)
-		return s
-	}
-	a.queue.active = queueName
-	msg := fmt.Sprintf("Queued %q in %s", views.Title(a.schema(data.KindTask), *rec), queueName)
-	a.say("%s", msg)
-	a.pushToast(msg, toast.Ok)
-	if !start {
-		return s
-	}
-	return a.openQueueDispatch(s, queueName, projectID, []string{taskID})
-}
-
-func (a *App) queueDispatch(s core.State, c core.Command) core.StepResult {
-	projectID := a.queueScope(s)
-	a.syncQueue(projectID)
-	q := a.queue
-	var ids []string
-	if c.Args["all"] == true {
-		for _, row := range q.visible {
-			if row.Status == data.AgentStatusQueued && !row.Dispatched {
-				ids = append(ids, row.ID)
-			}
-		}
-		if len(ids) == 0 {
-			a.say("nothing left to dispatch in %q", q.active)
-			return core.Next(s)
-		}
-	} else {
-		row, ok := q.list.FocusedRow()
-		if !ok || row.ID == "" {
-			a.say("no queue item selected · a adds a task")
-			return core.Next(s)
-		}
-		ids = []string{row.ID}
-	}
-	return core.Next(a.openQueueDispatch(s, q.active, projectID, ids))
-}
-
-// openQueueDispatch opens the target picker for taskIDs of queueName, with
-// the queue record's defaults.
-func (a *App) openQueueDispatch(s core.State, queueName, projectID string, taskIDs []string) core.State {
-	if len(taskIDs) == 0 {
-		return s
-	}
-	if projectID == "" {
-		projectID = a.Store.RootTaskID(taskIDs[0])
-	}
-	defaults := data.DispatchTargetSpec{
-		NewAgent:              true,
-		IncludeProjectContext: a.autoInjectProjectContextEnabled(),
-		WatchQueues:           queueName,
-	}
-	if queues, err := a.Store.NamedQueues(projectID); err == nil {
-		if rec := (queueSnapshot{records: queues}).queueRecord(queueName); rec != nil {
-			defaults.CWD = strings.TrimSpace(rec.Text("defaultCwd"))
-			defaults.Harness = strings.TrimSpace(rec.Text("defaultHarness"))
-			defaults.Orchestrator = rec.Bool("orchestratorDefault")
-			defaults.WatchMode = rec.Text(data.FieldWatchMode)
-			if _, set := rec.Value("includeContextDefault"); set {
-				defaults.IncludeProjectContext = rec.Bool("includeContextDefault")
-			}
-		}
-	}
-	title := fmt.Sprintf("Dispatch %d queued task(s) from %q to", len(taskIDs), queueName)
-	if len(taskIDs) == 1 {
-		title = fmt.Sprintf("Dispatch %q to", a.title(core.Ref{Kind: data.KindTask, ID: taskIDs[0]}))
-	}
-	return a.openDispatchTargetPicker(s, dispatchTargetRequest{
-		Title: title, ProjectID: projectID, TaskID: taskIDs[0], Defaults: defaults,
-		OnTarget: func(spec data.DispatchTargetSpec, pane data.Record) {
-			a.dispatchQueueItems(queueName, taskIDs, spec, pane)
-		},
-	})
-}
-
-// dispatchQueueItems delivers the items to pane with the full ID handoff,
-// stamps them dispatched, and links pane, tasks, lanes and queue.
-func (a *App) dispatchQueueItems(queueName string, taskIDs []string, spec data.DispatchTargetSpec, pane data.Record) {
-	include := spec.IncludeProjectContext
-	all, err := a.Store.QueryNamedQueueFiltered(queueName, data.AgentQueueFilter{
-		Status: "open", IncludeSubtree: true, IncludeNotes: true, IncludeContext: true, IncludeProjectContext: &include,
-	})
-	if err != nil {
-		a.fail("dispatch queue", err)
-		return
-	}
-	items := make([]data.AgentQueueItem, 0, len(taskIDs))
-	for _, id := range taskIDs {
-		if i := slices.IndexFunc(all, func(it data.AgentQueueItem) bool { return it.Task.ID == id }); i >= 0 {
-			items = append(items, all[i])
-		}
-	}
-	if len(items) == 0 {
-		a.say("the queued item is no longer in %q", queueName)
-		return
-	}
-	in, err := a.Store.QueueDispatchInput(queueName, items, spec, "")
-	if err != nil {
-		a.fail("dispatch queue", err)
-		return
-	}
-	a.deliverComposerPrompt(pane, data.BuildQueueDispatchPrompt(in), ComposerModeQueue)
-	ids := make([]string, 0, len(items))
-	for _, it := range items {
-		ids = append(ids, it.Task.ID)
-	}
-	if _, err := a.Store.MarkTasksDispatched(ids, pane.ID, a.now(), User); err != nil {
-		a.fail("mark dispatched", err)
-	}
-	if err := a.Store.LinkDispatchedPane(pane.Ref(), in, User); err != nil {
-		a.fail("link dispatched pane", err)
-	}
-	msg := fmt.Sprintf("Dispatched %d queued task(s) from %q to %s", len(items), queueName, views.Title(a.schema(data.KindPane), pane))
-	a.say("%s", msg)
-	a.pushToast(msg, toast.Ok)
 }
 
 // queueWatchConfigure picks a live agent pane and edits how it watches the
@@ -721,6 +536,7 @@ func (a *App) openQueueWatchForm(s core.State, pane data.Record, activeQueue str
 				fields[data.FieldWatchIntervalSec] = n
 			}
 			_, cs, err := a.Store.Patch(data.PatchInput{Ref: pane.Ref(), Fields: fields, Summary: "configure queue watch"}, User)
+			a.invalidateQueueViews()
 			a.wrote(fmt.Sprintf("%s watches %s (%s)", views.Title(a.schema(data.KindPane), pane), fields[data.FieldWatchQueues], fields[data.FieldWatchMode]), cs, err)
 			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
 		},
