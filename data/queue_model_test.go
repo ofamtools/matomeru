@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"ofam.dev/ochazuke/core"
 )
 
 func queuedTask(t *testing.T, s *Store, fields map[string]any) *Record {
@@ -230,5 +232,184 @@ func TestDispatchTargetNormalized(t *testing.T) {
 	}
 	if f := got.PaneWatchFields(); f[FieldWatchMode] != WatchModeOnDone || f[FieldWatchQueues] != "bugs,review" {
 		t.Errorf("PaneWatchFields = %v", f)
+	}
+}
+
+func TestQueuePureEnqueueDedupOrderAndPriority(t *testing.T) {
+	if _, _, err := ApplyEnqueue(nil, EnqueueRequest{}); err == nil {
+		t.Fatal("ApplyEnqueue accepted empty TaskID")
+	}
+	entries, pos, err := ApplyEnqueue(nil, EnqueueRequest{TaskID: "t2", Title: "Normal", QueueName: "", Priority: "P2"})
+	if err != nil || pos != 1 || len(entries) != 1 || entries[0].QueueName != DefaultQueueName {
+		t.Fatalf("first enqueue = %+v pos=%d err=%v", entries, pos, err)
+	}
+	entries, pos, err = ApplyEnqueue(entries, EnqueueRequest{TaskID: "t0", Title: "Urgent", QueueName: "bugs", Priority: "P0"})
+	if err != nil || pos != 1 || entries[0].TaskID != "t0" || entries[1].Position != 2 {
+		t.Fatalf("priority enqueue = %+v pos=%d err=%v", entries, pos, err)
+	}
+	entries, pos, err = ApplyEnqueue(entries, EnqueueRequest{TaskID: "t3", Title: "Unset prio", QueueName: "bugs"})
+	if err != nil || pos != 3 || entries[2].TaskID != "t3" {
+		t.Fatalf("unset priority enqueue = %+v pos=%d err=%v", entries, pos, err)
+	}
+	// Deduplication: re-enqueuing t2 with P1 updates its queue/priority and moves it without duplicating.
+	entries, pos, err = ApplyEnqueue(entries, EnqueueRequest{TaskID: "t2", QueueName: "bugs", Priority: "P1"})
+	if err != nil || len(entries) != 3 || pos != 2 || entries[1].TaskID != "t2" || entries[1].QueueName != "bugs" {
+		t.Fatalf("dedup enqueue = %+v pos=%d err=%v", entries, pos, err)
+	}
+}
+
+func TestQueuePureClaimReorderAndStatus(t *testing.T) {
+	entries := []QueueEntry{
+		{TaskID: "t1", Title: "First", QueueName: "review", Position: 1, Order: 1, Status: AgentStatusQueued},
+		{TaskID: "t2", Title: "Second", QueueName: "review", Position: 2, Order: 2, Status: AgentStatusQueued},
+		{TaskID: "t3", Title: "Third", QueueName: "review", Position: 3, Order: 3, Status: AgentStatusQueued},
+	}
+
+	// Claim and unclaim.
+	claimed, ok := ApplyClaim(entries, "t1", "pane-1", "claude: review")
+	if !ok || !claimed[0].Dispatched || claimed[0].Status != AgentStatusWorking || claimed[0].AgentPaneID != "pane-1" {
+		t.Fatalf("claim failed: %+v ok=%v", claimed, ok)
+	}
+	unclaimed, ok := ApplyClaim(claimed, "t1", "", "")
+	if !ok || unclaimed[0].Dispatched || unclaimed[0].Status != AgentStatusQueued || unclaimed[0].AgentPaneID != "" {
+		t.Fatalf("unclaim failed: %+v ok=%v", unclaimed, ok)
+	}
+
+	// Reorder down and up, plus boundary no-op.
+	down, pos, moved := ApplyReorder(entries, "t1", 1)
+	if !moved || pos != 2 || down[0].TaskID != "t2" || down[1].TaskID != "t1" || down[1].Position != 2 || down[1].Order != 2 {
+		t.Fatalf("reorder down = %+v pos=%d moved=%v", down, pos, moved)
+	}
+	if _, _, movedEdge := ApplyReorder(down, "t2", -1); movedEdge {
+		t.Fatal("reorder past top edge reported moved=true")
+	}
+	up, pos, moved := ApplyReorder(down, "t3", -2)
+	if !moved || pos != 1 || up[0].TaskID != "t3" {
+		t.Fatalf("reorder up = %+v pos=%d moved=%v", up, pos, moved)
+	}
+
+	// Status transitions: needs_you marks attention; done/none removes from open list; invalid rejected.
+	if _, ok := ApplyStatus(up, "t1", "bogus"); ok {
+		t.Fatal("ApplyStatus accepted invalid status")
+	}
+	need, ok := ApplyStatus(up, "t1", AgentStatusNeedsYou)
+	if !ok || !need[2].NeedsAttention || need[2].Status != AgentStatusNeedsYou {
+		t.Fatalf("needs_you status = %+v ok=%v", need, ok)
+	}
+	done, ok := ApplyStatus(need, "t1", AgentStatusDone)
+	if !ok || len(done) != 2 || done[0].Position != 1 || done[1].Position != 2 {
+		t.Fatalf("done removal = %+v ok=%v", done, ok)
+	}
+}
+
+func TestQueuePureFilterGroupAndAttentionResolution(t *testing.T) {
+	proj := Record{Kind: KindTask, ID: "proj-1", Fields: map[string]any{"title": "Apollo"}}
+	qRec := Record{Kind: KindQueue, ID: "q-rev", Fields: map[string]any{"title": "review"}}
+	tNormal := Record{Kind: KindTask, ID: "t-norm", Fields: map[string]any{"title": "Refactor lexer", "forAgent": true, "agentStatus": AgentStatusQueued, FieldQueue: qRec.Ref(), "priority": "P1"}}
+	tPaneNeeds := Record{Kind: KindTask, ID: "t-pane", Fields: map[string]any{"title": "Fix approval", "forAgent": true, "agentStatus": AgentStatusWorking, FieldQueue: qRec.Ref(), "agentDispatchedAt": "2026-11-26T12:00:00Z", "agentDispatchedPane": core.Ref{Kind: KindPane, ID: "p-need"}}}
+	tQuestion := Record{Kind: KindTask, ID: "t-ask", Fields: map[string]any{"title": "Clarify API", "forAgent": true, "agentStatus": AgentStatusWorking, FieldQueueName: DefaultQueueName}}
+	tDone := Record{Kind: KindTask, ID: "t-done", Fields: map[string]any{"title": "Already shipped", "forAgent": true, "agentStatus": AgentStatusDone, FieldQueue: qRec.Ref()}}
+	tArchived := Record{Kind: KindTask, ID: "t-arch", ArchiveStatus: ArchiveArchived, Fields: map[string]any{"title": "Archived task", "forAgent": true, "agentStatus": AgentStatusQueued, FieldQueue: qRec.Ref()}}
+
+	openQ := Record{Kind: KindQuestion, ID: "q-open", Fields: map[string]any{
+		"prompt": "REST or gRPC?", "status": "open", "task": tQuestion.Ref(),
+		"pane": core.Ref{Kind: KindPane, ID: "p-ask"}, "page": core.Ref{Kind: KindPage, ID: "pg-ask"},
+	}}
+	answeredQ := Record{Kind: KindQuestion, ID: "q-done", Fields: map[string]any{
+		"prompt": "Old question", "status": "answered", "answer": "yes", "task": tNormal.Ref(),
+	}}
+
+	board := BuildQueueBoard(QueueBoardInput{
+		ProjectID: proj.ID,
+		Queues:    []Record{qRec},
+		Items: []AgentQueueItem{
+			{Task: tNormal, ProjectID: proj.ID, ProjectTitle: "Apollo"},
+			{Task: tPaneNeeds, ProjectID: proj.ID, ProjectTitle: "Apollo"},
+			{Task: tQuestion, ProjectID: proj.ID, ProjectTitle: "Apollo"},
+			{Task: tDone, ProjectID: proj.ID, ProjectTitle: "Apollo"},
+			{Task: tArchived, ProjectID: proj.ID, ProjectTitle: "Apollo"},
+		},
+		Panes: []QueuePane{
+			{PaneID: "p-need", Title: "claude: approval", Harness: "claude", State: "needs_you", WatchMode: WatchModeOnDone, WatchQueues: "review"},
+			{PaneID: "p-ask", Title: "codex: api", Harness: "codex", State: "running", TaskID: tQuestion.ID},
+		},
+		Questions: []Record{openQ, answeredQ},
+	})
+
+	// Done and archived items must be excluded from open entries.
+	revEntries := board.Entries["review"]
+	if len(revEntries) != 2 || revEntries[0].TaskID != "t-norm" || revEntries[1].TaskID != "t-pane" {
+		t.Fatalf("review entries = %+v, want only open non-archived items", revEntries)
+	}
+	if !revEntries[1].NeedsAttention || revEntries[1].AttentionReason != AgentStatusNeedsYou || revEntries[1].AttentionPaneID != "p-need" {
+		t.Fatalf("pane needs_you not propagated: %+v", revEntries[1])
+	}
+	if revEntries[0].NeedsAttention {
+		t.Fatalf("answered question should not trigger attention: %+v", revEntries[0])
+	}
+	if len(board.Watchers) != 1 || board.Watchers[0].PaneID != "p-need" {
+		t.Fatalf("watchers = %+v", board.Watchers)
+	}
+
+	// Open question on default queue resolves exact page and pane.
+	defEntries := board.Entries[DefaultQueueName]
+	if len(defEntries) != 1 || !defEntries[0].NeedsAttention || defEntries[0].AttentionPageID != "pg-ask" || defEntries[0].AttentionQuestionID != "q-open" {
+		t.Fatalf("question entry = %+v", defEntries)
+	}
+
+	// Focused normal item jumps to next needs-you item in same queue.
+	target, ok := ResolveBoardAttention(board, "review", "t-norm")
+	if !ok || target.TaskID != "t-pane" || target.PaneID != "p-need" {
+		t.Fatalf("ResolveBoardAttention(review, t-norm) = %+v, %v", target, ok)
+	}
+	// Focused needs-you item jumps to itself.
+	target, ok = ResolveBoardAttention(board, DefaultQueueName, "t-ask")
+	if !ok || target.PageID != "pg-ask" || target.PaneID != "p-ask" {
+		t.Fatalf("ResolveBoardAttention(default, t-ask) = %+v, %v", target, ok)
+	}
+	// Cross-queue fallback when active queue has no attention items.
+	board.Entries["empty"] = []QueueEntry{{TaskID: "t-e", Title: "Quiet", QueueName: "empty", Status: AgentStatusQueued}}
+	target, ok = ResolveBoardAttention(board, "empty", "t-e")
+	if !ok || target.QueueName != DefaultQueueName || target.TaskID != "t-ask" {
+		t.Fatalf("cross-queue ResolveBoardAttention = %+v, %v", target, ok)
+	}
+
+	// Pure filter & group.
+	filtered := QueueFilterAndGroup(revEntries, "approval", "")
+	if len(filtered) != 1 || filtered[0].TaskID != "t-pane" {
+		t.Fatalf("QueueFilterAndGroup filter = %+v", filtered)
+	}
+	grouped := QueueFilterAndGroup(revEntries, "", "status")
+	if len(grouped) != 2 || grouped[0].TaskID != "t-pane" {
+		t.Fatalf("QueueFilterAndGroup status group should put needs_you first: %+v", grouped)
+	}
+}
+
+func TestStoreEnqueuePositionAndReorder(t *testing.T) {
+	s := openTest(t)
+	proj := create(t, s, KindTask, map[string]any{"title": "Apollo"})
+	qRec, err := s.EnsureNamedQueue("review", proj.ID, nil, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t1 := create(t, s, KindTask, map[string]any{"title": "First", "parent": proj.Ref(), "order": int64(1)})
+	t2 := create(t, s, KindTask, map[string]any{"title": "Second", "parent": proj.Ref(), "order": int64(2)})
+
+	_, pos1, err := s.EnqueueTask(EnqueueRequest{TaskID: t1.ID, QueueName: "review", ProjectID: proj.ID}, qRec, owner)
+	if err != nil || pos1 != 1 {
+		t.Fatalf("EnqueueTask #1 = pos %d err %v", pos1, err)
+	}
+	_, pos2, err := s.EnqueueTask(EnqueueRequest{TaskID: t2.ID, QueueName: "review", ProjectID: proj.ID}, qRec, owner)
+	if err != nil || pos2 != 2 {
+		t.Fatalf("EnqueueTask #2 = pos %d err %v", pos2, err)
+	}
+
+	newPos, moved, err := s.ReorderQueueTask(t2.ID, "review", proj.ID, -1, owner)
+	if err != nil || !moved || newPos != 1 {
+		t.Fatalf("ReorderQueueTask up = pos %d moved %v err %v", newPos, moved, err)
+	}
+	items, err := s.QueryNamedQueue("review", proj.ID)
+	if err != nil || len(items) != 2 || items[0].Task.ID != t2.ID {
+		t.Fatalf("after reorder items = %v err=%v", queueTitles(items), err)
 	}
 }

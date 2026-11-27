@@ -135,11 +135,12 @@ func TestQueuePageViewLayoutFactsAndFilter(t *testing.T) {
 			{PaneID: "p2", Title: "codex", State: "idle", WatchMode: data.WatchModeSchedule, IntervalSec: 60},
 		},
 	})
-	if page.ID != QueuePageID || page.Scope != ScopeQueue {
+	if page.ID != QueuePageID || page.Scope != ScopeQueue || ScopeQueuePage != ScopeQueue {
 		t.Fatalf("page = %s scope %s", page.ID, page.Scope)
 	}
 	wantFacts := map[string]any{"queueName": "review", "queueCount": 2, "count": 2, "hasFilter": false, "groupBy": "",
-		"hasSelection": true, "selectedTask": "t2", "selectedStatus": data.AgentStatusWorking, "watcherCount": 2, "section": "queues"}
+		"hasSelection": true, "selectedTask": "t2", "selectedStatus": data.AgentStatusWorking,
+		"selectedNeedsYou": false, "needsYouCount": 0, "hasNeedsYou": true, "watcherCount": 2, "section": "queues"}
 	for k, want := range wantFacts {
 		if page.Facts[k] != want {
 			t.Errorf("fact %s = %v, want %v", k, page.Facts[k], want)

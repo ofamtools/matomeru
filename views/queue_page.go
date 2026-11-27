@@ -17,6 +17,7 @@ const (
 	// ScopeQueue is the page's own scope. It is not "queue": that is the
 	// noun's scope, which the Show page gives to sections of queue records.
 	ScopeQueue         = "queue.page"
+	ScopeQueuePage     = ScopeQueue
 	QueuePageID        = "queue.page"
 	QueueListID        = "queue.list"
 	QueueStripID       = "queue.progress"
@@ -34,14 +35,17 @@ var QueueGroupModes = []string{QueueGroupNone, QueueGroupStatus, QueueGroupProje
 
 // QueueItemRow is one queued task, pre-formatted by the caller.
 type QueueItemRow struct {
-	ID         string
-	Title      string
-	Status     string // agent status: queued, working, needs_you, done
-	Priority   string
-	Project    string
-	Lane       string
-	Agent      string // pane the item was dispatched to
-	Dispatched bool
+	ID              string
+	Title           string
+	Status          string // agent status: queued, working, needs_you, done
+	Priority        string
+	Project         string
+	Lane            string
+	Agent           string // pane the item was dispatched to
+	AgentPaneID     string
+	Dispatched      bool
+	NeedsAttention  bool
+	AttentionReason string
 }
 
 // QueueWatcherRow is one agent pane and how it watches the queues.
@@ -87,27 +91,7 @@ func QueuePageView(spec QueuePageSpec) ui.ViewNode {
 	filtering := strings.TrimSpace(spec.FilterQuery) != ""
 
 	columns, rows := queueItemRows(spec.Items, spec.GroupBy)
-	facts := map[string]any{
-		"queueName":      active,
-		"queueCount":     len(spec.Queues),
-		"count":          len(rows),
-		"hasFilter":      filtering,
-		"groupBy":        spec.GroupBy,
-		"hasSelection":   false,
-		"selectedTask":   "",
-		"selectedStatus": "",
-		"watcherCount":   len(spec.Watchers),
-	}
-	if spec.Section != "" {
-		facts["section"] = spec.Section
-	}
-	selected := -1
-	if i := spec.SelectedIdx; i >= 0 && i < len(spec.Items) {
-		selected = i
-		facts["hasSelection"] = true
-		facts["selectedTask"] = spec.Items[i].ID
-		facts["selectedStatus"] = spec.Items[i].Status
-	}
+	facts, selected := queuePageFacts(spec, active, filtering, len(rows))
 
 	body := ui.ViewNode{
 		ID:        QueueListID,
@@ -154,6 +138,48 @@ func QueuePageView(spec QueuePageSpec) ui.ViewNode {
 		Facts:    facts,
 		Children: children,
 	}
+}
+
+func queuePageFacts(spec QueuePageSpec, active string, filtering bool, rowCount int) (map[string]any, int) {
+	needsYouCount := 0
+	for _, item := range spec.Items {
+		if rowNeedsAttention(item) {
+			needsYouCount++
+		}
+	}
+	hasNeedsYou := needsYouCount > 0 || slices.ContainsFunc(spec.Queues, func(q data.QueueProgress) bool {
+		return q.NeedsYou > 0
+	})
+	facts := map[string]any{
+		"queueName":        active,
+		"queueCount":       len(spec.Queues),
+		"count":            rowCount,
+		"hasFilter":        filtering,
+		"groupBy":          spec.GroupBy,
+		"hasSelection":     false,
+		"selectedTask":     "",
+		"selectedStatus":   "",
+		"selectedNeedsYou": false,
+		"needsYouCount":    needsYouCount,
+		"hasNeedsYou":      hasNeedsYou,
+		"watcherCount":     len(spec.Watchers),
+	}
+	if spec.Section != "" {
+		facts["section"] = spec.Section
+	}
+	selected := -1
+	if i := spec.SelectedIdx; i >= 0 && i < len(spec.Items) {
+		selected = i
+		facts["hasSelection"] = true
+		facts["selectedTask"] = spec.Items[i].ID
+		facts["selectedStatus"] = spec.Items[i].Status
+		facts["selectedNeedsYou"] = rowNeedsAttention(spec.Items[i])
+	}
+	return facts, selected
+}
+
+func rowNeedsAttention(item QueueItemRow) bool {
+	return item.NeedsAttention || item.Status == data.AgentStatusNeedsYou
 }
 
 // QueueProgressStripView renders one segmented progress bar per queue:
@@ -511,7 +537,9 @@ func queueItemRows(items []QueueItemRow, groupBy string) (columns []any, rows []
 	prev, first := "", true
 	for _, item := range items {
 		status := item.Status
-		if item.Dispatched && status == data.AgentStatusQueued {
+		if item.NeedsAttention {
+			status = data.AgentStatusNeedsYou
+		} else if item.Dispatched && status == data.AgentStatusQueued {
 			status = "dispatched"
 		}
 		cells := []any{item.Title, status, item.Priority, item.Project, item.Lane, item.Agent}
@@ -533,6 +561,9 @@ func queueItemRows(items []QueueItemRow, groupBy string) (columns []any, rows []
 func QueueGroupKey(item QueueItemRow, groupBy string) string {
 	switch groupBy {
 	case QueueGroupStatus:
+		if item.NeedsAttention {
+			return data.AgentStatusNeedsYou
+		}
 		return item.Status
 	case QueueGroupProject:
 		if item.Project == "" {

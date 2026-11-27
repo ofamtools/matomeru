@@ -248,6 +248,7 @@ const (
 	SetSplitResize                     = "ui.splitResize"
 	SetProjectNavCompact               = "ui.projectNavCompact"
 	SetRepoAutoHarvestPanes            = "repo.autoHarvestPanes"
+	SetRichAddToQueue                  = "ui.richAddToQueue"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -438,6 +439,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetSplitResize, true, "allow resizing UI splits interactively with ctrl+w >/< / +/- / ="),
 		flag(SetProjectNavCompact, true, "use a less dense Project Portal left nav: hide zero-count badges, cap auto-expanded unread previews, and add group spacing"),
 		flag(SetRepoAutoHarvestPanes, true, "automatically register git repositories discovered from pane working directories"),
+		flag(SetRichAddToQueue, true, "open the named-queue picker (Add / Add & Start / Add with Preset) when adding a task to the queue (off: instant enqueue to default queue)"),
 	}
 }
 
@@ -624,6 +626,11 @@ func (a *App) projectNavCompactEnabled() bool {
 func (a *App) repoAutoHarvestPanesEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetRepoAutoHarvestPanes, true)
 }
+
+func (a *App) richAddToQueueEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetRichAddToQueue, true)
+}
+
 func (a *App) detachFocusTarget() string {
 	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
 		return DetachFocusLeft

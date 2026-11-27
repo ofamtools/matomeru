@@ -265,11 +265,15 @@ func QueueLanes(lanes []Record, queueName string, taskIDs map[string]bool, queue
 
 // QueuePane is one live agent pane QueueSessions places in a queue.
 type QueuePane struct {
-	PaneID    string
-	Title     string
-	Harness   string
-	State     string
-	Checklist *SessionChecklist
+	PaneID      string
+	Title       string
+	Harness     string
+	State       string
+	TaskID      string
+	WatchMode   string
+	WatchQueues string
+	IntervalSec int
+	Checklist   *SessionChecklist
 }
 
 // QueueSessions returns the AI sessions working items: a pane is working an
