@@ -103,16 +103,68 @@ func TestPaneSiteTOCStylesAndTightDensity(t *testing.T) {
 		}
 	}
 
-	// 4. Auto preserves existing CompactTOC behavior 100%.
+	// 4. Auto preserves card/row style and ALWAYS wraps in KindScroll so off-screen focus scrolls into view.
 	autoCompact := PaneSiteViewWith(w.pane, pages, ScreenPageID, "", SiteOptions{TOCStyle: TOCStyleAuto, CompactTOC: true})
 	if n := autoCompact.Find("site.toc.screen"); n == nil || n.Kind != ui.KindText {
 		t.Fatalf("auto+CompactTOC=true Screen = %+v, want KindText", n)
+	}
+	if scroll := autoCompact.Find("site.toc.scroll"); scroll == nil || scroll.Kind != ui.KindScroll {
+		t.Fatalf("auto+CompactTOC=true missing KindScroll wrapper: %+v", scroll)
 	}
 	autoCards := PaneSiteViewWith(w.pane, pages, ScreenPageID, "", SiteOptions{TOCStyle: TOCStyleAuto, CompactTOC: false})
 	if n := autoCards.Find("site.toc.screen"); n == nil || n.Kind != ui.KindCard || n.Padding != ([4]int{}) {
 		t.Fatalf("auto+CompactTOC=false Screen = %+v, want default KindCard", n)
 	}
-	if autoCards.Find("site.toc.scroll") != nil {
-		t.Fatal("auto+CompactTOC=false must keep unwrapped VStack for backward compatibility")
+	if scroll := autoCards.Find("site.toc.scroll"); scroll == nil || scroll.Kind != ui.KindScroll {
+		t.Fatalf("auto+CompactTOC=false missing KindScroll wrapper: %+v", scroll)
+	}
+}
+
+func TestPaneSiteTOCScrollFollowsFocusAcrossAllStyles(t *testing.T) {
+	w := build(t)
+	var pages []data.Record
+	for i := 1; i <= 16; i++ {
+		id := "p" + itoa(i)
+		title := "TargetPage-" + itoa(i)
+		rec, _, err := w.store.Create(data.CreateInput{
+			Kind: data.KindPage,
+			ID:   id,
+			Fields: map[string]any{
+				"title": title, "slug": id, "pageKind": "custom", "pane": w.pane.Ref(),
+				"root": ui.ViewNode{Kind: ui.KindMarkdown, Props: map[string]any{"markdown": "# " + title}},
+			},
+		}, owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages = append(pages, *rec)
+	}
+	theme := ui.SpaciousDarkTheme()
+	targetFocus := "site.toc.p1" // oldest -> last in newest-first TOC, well below an 18-row viewport
+	cases := []struct {
+		name string
+		opts SiteOptions
+	}{
+		{"auto+spacious", SiteOptions{TOCStyle: TOCStyleAuto, CompactTOC: false}},
+		{"auto+compact", SiteOptions{TOCStyle: TOCStyleAuto, CompactTOC: true}},
+		{"tight", SiteOptions{TOCStyle: TOCStyleTight}},
+		{"spacious", SiteOptions{TOCStyle: TOCStyleSpacious}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			site := PaneSiteViewWith(w.pane, pages, ScreenPageID, "", tc.opts)
+			frame, solved := ui.Render(site, theme, targetFocus, 120, 16)
+			if scroll := site.Find("site.toc.scroll"); scroll == nil || scroll.Kind != ui.KindScroll {
+				t.Fatalf("missing site.toc.scroll KindScroll wrapper")
+			}
+			plain := stripANSI(frame.ANSI)
+			if !strings.Contains(plain, "TargetPage-1") {
+				t.Fatalf("focused off-screen TOC entry %q was not scrolled into view (scrolls=%+v):\n%s", targetFocus, solved.Scrolls, plain)
+			}
+			si, ok := solved.Scrolls["site.toc.scroll"]
+			if !ok || si.Offset <= 0 {
+				t.Fatalf("site.toc.scroll did not scroll down to reveal %s: ScrollInfo=%+v (ok=%v)", targetFocus, si, ok)
+			}
+		})
 	}
 }
