@@ -72,6 +72,7 @@ func (m *outlineModal) OnClose(modal.CloseReason) {
 	if m.a.trees.editingOutline() {
 		m.a.trees.clearEdit()
 	}
+	m.a.resetOutlineSuggest()
 	m.a.clearCleanSlate(data.KindTask, outlineTree)
 	if tm := m.a.trees.outlineModel(); tm != nil {
 		tm.ClearVisual()
@@ -143,13 +144,13 @@ func (m *outlineModal) Handle(cmd core.Command) modal.Result {
 		m.a.runOutlineEditOutdent()
 		return modal.Result{Handled: true, Mode: m.Mode()}
 	case CmdOutlineEditCancel:
-		m.a.runOutlineEditCancel()
+		m.a.runOutlineEditCancelOrFeatures()
 		return modal.Result{Handled: true, Mode: m.Mode()}
 	case CmdOutlineEditCommit:
-		m.a.runOutlineEditCommit()
+		m.a.runOutlineEditCommitOrFeatures()
 		return modal.Result{Handled: true, Mode: m.Mode()}
 	case CmdOutlineEditNewline:
-		m.a.runOutlineEditNewline()
+		m.a.runOutlineEditNewlineOrSuggest()
 		return modal.Result{Handled: true, Mode: m.Mode()}
 	case CmdOutlineEditLinebreak:
 		m.a.runOutlineEditLinebreak()
@@ -206,8 +207,10 @@ func (a *App) runTreeStartEdit(tm *tree.Model, kind, treeID string, isWork bool,
 	a.trees.editMeta = &treeEditMeta{
 		kind:       kind,
 		returnMode: returnMode,
+		treeID:     treeID,
 		isWorkTree: isWork,
 	}
+	a.resetOutlineSuggest()
 	a.say("inline edit · enter saves & adds · esc saves · shift+enter newline · ctrl+c discards")
 	return true
 }
@@ -222,8 +225,10 @@ func (a *App) runTreeStartAdd(tm *tree.Model, kind, treeID string, isWork bool, 
 	a.trees.editMeta = &treeEditMeta{
 		kind:       kind,
 		returnMode: returnMode,
+		treeID:     treeID,
 		isWorkTree: isWork,
 	}
+	a.resetOutlineSuggest()
 	noun := strings.ToLower(schema.Title)
 	if noun == "" {
 		noun = kind
@@ -237,6 +242,12 @@ func (a *App) outlineStartEdit(atEnd bool) func(core.State, core.Command) core.S
 			return a.handleModal(s, c)
 		}
 		// The focused tree, else the page's (focus moves to it for the edit).
+		if a.inFeaturesOutlineTree(&s) {
+			if a.featuresOutlineStartEdit(atEnd) {
+				return core.Next(withMode(s, ModeOutlineEdit))
+			}
+			return core.Next(s)
+		}
 		ts, _ := a.treeTargetState(s)
 		tm, kind, treeID, isWork, ok := a.activeTree(ts)
 		if !ok {
@@ -253,6 +264,10 @@ func (a *App) outlineStartAdd(above bool) func(core.State, core.Command) core.St
 	return func(s core.State, c core.Command) core.StepResult {
 		if a.Modal() == "outline" {
 			return a.handleModal(s, c)
+		}
+		if a.inFeaturesOutlineTree(&s) {
+			a.featuresOutlineStartAdd(above)
+			return core.Next(withMode(s, ModeOutlineEdit))
 		}
 		ts, _ := a.treeTargetState(s) // as outlineStartEdit
 		tm, kind, treeID, isWork, ok := a.activeTree(ts)
@@ -289,14 +304,14 @@ func (a *App) outlineEditBackspace(s core.State, c core.Command) core.StepResult
 }
 
 func (a *App) runOutlineEditIndent() {
+	if _, accepted := a.tryAcceptOutlineSuggestion(true); accepted {
+		return
+	}
 	tm, meta, ok := a.activeEditTree()
 	if !ok {
 		return
 	}
-	treeID := outlineTree
-	if meta.isWorkTree {
-		treeID = workTable
-	}
+	treeID := a.editTreeID(meta)
 	if tm.EditIndent() {
 		a.saveTreeFolded(meta.kind, treeID, tm)
 		if ed := tm.Edit(); ed != nil && ed.ParentID != "" {
@@ -371,7 +386,7 @@ func (a *App) outlineEditCancel(s core.State, c core.Command) core.StepResult {
 	if a.Modal() == "outline" {
 		return a.handleModal(s, c)
 	}
-	if ret, ok := a.runOutlineEditCancel(); ok {
+	if ret, ok := a.runOutlineEditCancelOrFeatures(); ok {
 		return core.Next(withMode(s, ret))
 	}
 	return core.Next(s)
@@ -483,7 +498,7 @@ func (a *App) outlineEditCommit(s core.State, c core.Command) core.StepResult {
 	if a.Modal() == "outline" {
 		return a.handleModal(s, c)
 	}
-	if ret, ok := a.runOutlineEditCommit(); ok {
+	if ret, ok := a.runOutlineEditCommitOrFeatures(); ok {
 		return core.Next(withMode(s, ret))
 	}
 	return core.Next(s)
@@ -551,7 +566,7 @@ func (a *App) outlineEditNewline(s core.State, c core.Command) core.StepResult {
 	if a.Modal() == "outline" {
 		return a.handleModal(s, c)
 	}
-	if mode, ok := a.runOutlineEditNewline(); ok {
+	if mode, ok := a.runOutlineEditNewlineOrSuggest(); ok {
 		return core.Next(withMode(s, mode))
 	}
 	return core.Next(s)

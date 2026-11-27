@@ -251,6 +251,8 @@ const (
 	SetRichAddToQueue                  = "ui.richAddToQueue"
 	SetTOCStyle                        = "panes.tocStyle"
 	SetSearchHighlight                 = "ui.searchHighlight"
+	SetOutlineAutoSuggest              = "outline.autoSuggest"
+	SetFeaturesOutline                 = "features.outline"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -444,6 +446,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetRichAddToQueue, true, "open the named-queue picker (Add / Add & Start / Add with Preset) when adding a task to the queue (off: instant enqueue to default queue)"),
 		enum(SetTOCStyle, views.TOCStyleAuto, "pane Pages TOC style: auto (follows panes.compactTOC), compact (1-line rows), tight (compact bordered cards), or spacious (full bordered cards)", views.TOCStyleAuto, views.TOCStyleCompact, views.TOCStyleTight, views.TOCStyleSpacious),
 		flag(SetSearchHighlight, true, "highlight matching spans inline during non-destructive in-page search (\\)"),
+		flag(SetOutlineAutoSuggest, true, "suggest existing outline items while typing new items (re-anchors clean-slate top-level items to existing projects)"),
+		flag(SetFeaturesOutline, true, "render the Features page content as a unified interactive clean-slate outline across Features, Concepts, Views, Props, and Raw Ideas"),
 	}
 }
 

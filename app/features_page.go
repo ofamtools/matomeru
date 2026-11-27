@@ -96,11 +96,12 @@ func (a *App) featuresViewKey(s core.State) string {
 		}
 	}
 	slices.Sort(collapsed)
-	return fmt.Sprintf("1:%s:%s:%t:%t:%t:%t:%d:%s:%q:%s",
+	return fmt.Sprintf("1:%s:%s:%t:%t:%t:%t:%t:%d:%s:%s:%q:%s",
 		repoPath, fc.activeItemKey(), fc.captureExpanded,
-		a.featuresCaptureDockedEnabled(), fc.noteEditing,
+		a.featuresCaptureDockedEnabled(), a.featuresOutlineEnabled(), fc.noteEditing,
 		a.isCleanSlateActive(data.KindTask, featuresCaptureTree),
 		fc.noteGen,
+		a.featuresOutlineViewKeySuffix(),
 		strings.Join(collapsed, ","),
 		a.filterQuery(views.FeaturesNavFilterID), a.filterMode(views.FeaturesNavFilterID),
 	)
@@ -576,12 +577,8 @@ func (a *App) featuresSuggestConcept(s core.State, _ core.Command) core.StepResu
 	}})
 }
 
-// featuresSpace projects the complete self-hosted Features page view tree.
-func (a *App) featuresSpace(s core.State) ui.ViewNode {
-	_, repoPath := a.detectMatomeruCheckout()
+func (a *App) resolveFeaturesNavSelection(s core.State, snap featuresSnapshot) (string, []views.FeaturesNavGroup) {
 	fc := a.featuresCtrl()
-	snap := a.collectFeaturesSnapshot()
-
 	activeKey := fc.activeItemKey()
 	if s.ActivePage == SpaceFeatures {
 		focus := s.Pages[SpaceFeatures].FocusID
@@ -593,25 +590,44 @@ func (a *App) featuresSpace(s core.State) ui.ViewNode {
 	}
 	navGroups, validKeys := a.buildFeaturesNav(snap, activeKey)
 	if !validKeys[activeKey] {
-		activeKey = featurePageKey(SpacePanes).String()
-		if !validKeys[activeKey] {
-			for _, g := range navGroups {
-				if len(g.Items) > 0 {
-					activeKey = g.Items[0].Key
-					break
-				}
-			}
-		}
+		activeKey = firstValidFeaturesNavKey(navGroups, validKeys)
 		navGroups, _ = a.buildFeaturesNav(snap, activeKey)
 	}
 	fc.activeKey = activeKey
+	return activeKey, navGroups
+}
+
+func firstValidFeaturesNavKey(navGroups []views.FeaturesNavGroup, validKeys map[string]bool) string {
+	if def := featurePageKey(SpacePanes).String(); validKeys[def] {
+		return def
+	}
+	for _, g := range navGroups {
+		if len(g.Items) > 0 {
+			return g.Items[0].Key
+		}
+	}
+	return featurePageKey(SpacePanes).String()
+}
+
+// featuresSpace projects the complete self-hosted Features page view tree.
+func (a *App) featuresSpace(s core.State) ui.ViewNode {
+	_, repoPath := a.detectMatomeruCheckout()
+	fc := a.featuresCtrl()
+	snap := a.collectFeaturesSnapshot()
+
+	activeKey, navGroups := a.resolveFeaturesNavSelection(s, snap)
 	navQuery := a.filterQuery(views.FeaturesNavFilterID)
 	navGroups = filterFeaturesNavGroups(navGroups, navQuery, a.filterMode(views.FeaturesNavFilterID))
 
 	docked := a.featuresCaptureDockedEnabled()
+	outlineOn := !docked && a.featuresOutlineEnabled()
 	var captureNode ui.ViewNode
 	if docked {
 		captureNode = a.featuresCaptureNode(snap.wishlistRoot)
+	}
+	detail := a.buildFeaturesDetail(snap, activeKey)
+	if outlineOn {
+		detail.OutlineNode = a.featuresOutlineNode(snap, activeKey, detail)
 	}
 
 	return views.FeaturesPageView(views.FeaturesPageSpec{
@@ -620,7 +636,7 @@ func (a *App) featuresSpace(s core.State) ui.ViewNode {
 		NavRatio:        0.24,
 		NavFilterQuery:  navQuery,
 		NavGroups:       navGroups,
-		Detail:          a.buildFeaturesDetail(snap, activeKey),
+		Detail:          detail,
 		CaptureNode:     captureNode,
 		ShowCapture:     docked,
 		CaptureExpanded: docked && fc.captureExpanded,
@@ -629,6 +645,7 @@ func (a *App) featuresSpace(s core.State) ui.ViewNode {
 			"featuresActiveKey":     activeKey,
 			"captureExpanded":       docked && fc.captureExpanded,
 			"featuresCaptureDocked": docked,
+			"featuresOutline":       outlineOn,
 		},
 	})
 }

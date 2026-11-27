@@ -140,6 +140,13 @@ func newStandardVerbRegistry() standardVerbRegistry {
 				standardTargetScreenHintsOvl: (*App).stdCycleHintsAction,
 				runsTable:                    (*App).stdCycleTableByID,
 				extTable:                     (*App).stdCycleTableByID,
+				outlineTree:                  (*App).stdCycleOutlineView,
+				projectOutlineTree:           (*App).stdCycleOutlineView,
+				projectOutlinePanel:          (*App).stdCycleOutlineView,
+				featuresCaptureTree:          (*App).stdCycleOutlineView,
+				featuresCapturePanel:         (*App).stdCycleOutlineView,
+				featuresOutlineTree:          (*App).stdCycleOutlineView,
+				featuresOutlinePanel:         (*App).stdCycleOutlineView,
 			},
 			byScope: map[string]standardVerbHandler{
 				ScopeRail:           (*App).stdCycleRail,
@@ -150,6 +157,7 @@ func newStandardVerbRegistry() standardVerbRegistry {
 				views.ScopeQueue:    (*App).stdCycleQueueTabs,
 				views.ScopeFiles:    (*App).stdCycleFilesTabs,
 				views.ScopeJobs:     (*App).stdCycleJobsTabs,
+				views.ScopeOutline:  (*App).stdCycleOutlineView,
 			},
 			byTrait: map[string]standardVerbHandler{
 				traits.TraitCycle: (*App).stdCycleTableNode,
@@ -164,6 +172,7 @@ func newStandardVerbRegistry() standardVerbRegistry {
 				outlineTree:                 (*App).stdFoldTreeNode,
 				projectOutlineTree:          (*App).stdFoldTreeNode,
 				featuresCaptureTree:         (*App).stdFoldTreeNode,
+				featuresOutlineTree:         (*App).stdFoldTreeNode,
 			},
 			byScope: map[string]standardVerbHandler{
 				standardScopeShowFold: (*App).stdFoldShowEmpty,

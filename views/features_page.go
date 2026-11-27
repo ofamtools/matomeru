@@ -102,6 +102,7 @@ type FeaturesDetailSpec struct {
 	Concepts           []FeaturesLinkedItem
 	CanSuggestProp     bool
 	CanSuggestView     bool
+	OutlineNode        ui.ViewNode // unified interactive outline tree (features.outline.tree)
 }
 
 // FeaturesPageSpec is the pure data contract for FeaturesPageView.
@@ -397,6 +398,31 @@ func featuresContentPanel(detail FeaturesDetailSpec, activeKey string, compact b
 		}
 	}
 
+	if detail.OutlineNode.ID != "" {
+		facts["featuresOutline"] = true
+		hdr := featuresHeaderCard(detail)
+		hdr.Focusable = true
+		hdr.Box = layout.Constraints{FixedH: featuresHeaderCardHeight(detail)}
+		outline := detail.OutlineNode
+		outline.Box = layout.Constraints{Flex: 1}
+		return ui.ViewNode{
+			ID:     "features.content",
+			Kind:   ui.KindPanel,
+			Scope:  ScopeFeaturesContent,
+			Title:  title,
+			Badges: detail.Badges,
+			Border: true,
+			Box:    layout.Constraints{Flex: 1},
+			Facts:  facts,
+			Children: []ui.ViewNode{{
+				ID:       "features.content.outline.stack",
+				Kind:     ui.KindVStack,
+				Box:      layout.Constraints{Flex: 1},
+				Children: []ui.ViewNode{hdr, outline},
+			}},
+		}
+	}
+
 	sections := []ui.ViewNode{featuresHeaderCard(detail)}
 
 	if detail.Kind == "noun" {
@@ -449,6 +475,20 @@ func featuresContentPanel(detail FeaturesDetailSpec, activeKey string, compact b
 			},
 		},
 	}
+}
+
+func featuresHeaderCardHeight(detail FeaturesDetailSpec) int {
+	h := 3
+	if strings.TrimSpace(detail.Subtitle) != "" {
+		h++
+	}
+	if strings.TrimSpace(detail.Summary) != "" {
+		h++
+	}
+	if len(detail.TargetTags) > 0 {
+		h++
+	}
+	return min(h, 6)
 }
 
 func featuresHeaderCard(detail FeaturesDetailSpec) ui.ViewNode {

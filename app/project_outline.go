@@ -82,6 +82,10 @@ func (a *App) syncScopedTaskTree(tm *tree.Model, treeID string) (data.Schema, []
 	if a.trees == nil {
 		return data.Schema{}, nil, false
 	}
+	if treeID == featuresOutlineTree {
+		a.resyncActiveFeaturesOutline()
+		return a.schema(data.KindTask), nil, true
+	}
 	projID := a.trees.projectIDForModel(tm)
 	if treeID == featuresCaptureTree || projID != "" {
 		if wid := a.featuresWishlistTaskID(); wid != "" && (treeID == featuresCaptureTree || projID == wid) {
@@ -143,7 +147,7 @@ func (a *App) syncProjectTaskTree(tm *tree.Model, projectID, treeID string) (dat
 
 	var nodes []data.TreeNode
 	if projNode, ok := findProjectTreeNode(allNodes, projectID); ok {
-		nodes = []data.TreeNode{projNode}
+		nodes = a.applyOutlineViewToProjectRoot([]data.TreeNode{projNode}, data.KindTask, treeID)
 	}
 
 	builtNodes, opts := a.buildTreeNodes(schema, data.KindTask, nodes)
@@ -202,12 +206,13 @@ func (a *App) projectOutlineView(s *core.State, projectID string) ui.ViewNode {
 	schema, _ := a.syncProjectTaskTree(tm, projectID, projectOutlineTree)
 	a.registerTreeFilterable(projectOutlineTree, tm)
 
-	var extra []ui.Badge
+	extra := a.outlineViewBadges(projectOutlineTree)
 	if a.nav.showArchived {
 		extra = append(extra, ui.Badge{Text: "archived", Tone: "muted"})
 	}
 	panel := views.TreeViewWith(schema, tm, projectOutlinePanel, projectOutlineTree, views.ScopeIndex, a.stickyTreeBreadcrumbsEnabled(), extra...)
 	panel.Title = projectOutlineTitle
+	a.applyOutlineViewFacts(&panel, projectOutlineTree)
 
 	subHoisted := len(tm.HoistStack) > 1 || (tm.Hoisted() && tm.HoistID() != projectID)
 	subHoistDepth := 0
@@ -257,6 +262,7 @@ func (a *App) projectOutlineView(s *core.State, projectID string) ui.ViewNode {
 		panel.Children[0].Facts["hoisted"] = subHoisted
 		panel.Children[0].Facts["hoistDepth"] = subHoistDepth
 	}
+	a.attachOutlineSuggestions(&panel, tm, data.KindTask, projectOutlineTree)
 	return panel
 }
 

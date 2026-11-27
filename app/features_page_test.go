@@ -337,7 +337,10 @@ func TestFeaturesPageInlineNoteBoxAndCenteredCaptureModal(t *testing.T) {
 	fs := matomeruCheckoutFS("/home/dev", "/home/dev/proj/matomeru")
 	a, d := newFeaturesTestApp(t, Options{FS: fs})
 
-	// Default: features.captureDocked is false; View() stays pure and shows inline note box with no docked bar.
+	// Opt-out setting (features.outline=false) restores legacy inline note box with no docked bar.
+	a.cfg.userSettings[SetFeaturesOutline] = false
+	a.reloadSettings()
+	a.applySettings()
 	if a.featuresCaptureDockedEnabled() {
 		t.Fatal("featuresCaptureDockedEnabled() = true by default, want false")
 	}

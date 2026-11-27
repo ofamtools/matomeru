@@ -87,9 +87,11 @@ func featuresItemizedRow(section string, index int, name, description string, su
 		parts = append(parts, description)
 	}
 	return ui.ViewNode{
-		ID:    fmt.Sprintf("%s.row.%d", section, index),
-		Kind:  ui.KindText,
-		Tone:  tone,
-		Props: map[string]any{"text": "  " + strings.Join(parts, " · ")},
+		ID:        fmt.Sprintf("%s.row.%d", section, index),
+		Kind:      ui.KindText,
+		Scope:     ScopeFeaturesContent,
+		Focusable: true,
+		Tone:      tone,
+		Props:     map[string]any{"text": "  " + strings.Join(parts, " · "), "focusedText": "▸ " + strings.Join(parts, " · ")},
 	}
 }

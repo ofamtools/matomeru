@@ -7,6 +7,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/widgets/tree"
 )
 
 func TestFeaturesItemizationProjectsSchemasAndTrackedConcepts(t *testing.T) {
@@ -85,8 +86,12 @@ func TestFeaturesItemizationProjectsSchemasAndTrackedConcepts(t *testing.T) {
 			t.Fatalf("Concepts navigation missing %s", kind)
 		}
 	}
-	if root.Find("features.concept."+prop.ID) == nil || root.Find("features.concept."+pageView.ID) != nil {
-		t.Fatal("Prop Concepts category did not filter tracked records by kind")
+	outlineModel := a.trees.featuresOutlineState().model
+	hasRow := func(id string) bool {
+		return slices.ContainsFunc(outlineModel.Flatten(), func(r tree.VisibleRow) bool { return r.ID == id })
+	}
+	if !hasRow(prop.ID) || hasRow(pageView.ID) {
+		t.Fatal("Prop Concepts category did not filter tracked records by kind in unified Features outline")
 	}
 	d.Keys("space")
 	root = a.View(a.State())
