@@ -1,10 +1,33 @@
 package app
 
 import (
+	"slices"
+	"strings"
+
+	"ofam.dev/matomeru/data"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/table"
 )
+
+// tableKinds maps non-primary registered tables (project sections and projects
+// directory) to the noun kind their rows represent.
+var tableKinds = map[string]string{
+	projectPagesTable:     data.KindPage,
+	projectDocumentsTable: data.KindDocument,
+	projectNotesTable:     data.KindNote,
+	projectQuestionsTable: data.KindQuestion,
+	projectCommandsTable:  data.KindCommand,
+	projectTasksFlatTable: data.KindTask,
+	projectsDirTable:      data.KindTask,
+	projectContextTable:   data.KindContext,
+	projectPinnedTable:    data.KindContext,
+	projectPRsTable:       data.KindContext,
+}
+
+func tableKind(id string) string {
+	return tableKinds[id]
+}
 
 // factListTarget is the app fact that is true when the list verbs (filter
 // field, sort, group, zero-field query) have a table to act on: the one
@@ -87,4 +110,42 @@ func (a *App) listTargetFact(s core.State) bool {
 	}
 	id := a.focusedListID(s)
 	return a.nav.tables[id] != nil || a.lazyListTable(s, id) || a.viewMemo.PageListID != ""
+}
+
+func (a *App) hasActiveZeroFieldFilter(tableID string) bool {
+	return a != nil && len(a.zeroFieldSpecs[tableID].Tokens) > 0
+}
+
+func (a *App) resolveTableForCommand(s core.State, c core.Command) (*table.Model, string) {
+	if id := strings.TrimSpace(c.Arg("table")); id != "" {
+		if tbl := a.ensureTable(id); tbl != nil {
+			return tbl, id
+		}
+	}
+	return a.activeListTable(s)
+}
+
+func (a *App) knownTableChoices() []string {
+	out := []string{workTable, railTable, runsTable, extTable}
+	if a == nil || a.nav == nil {
+		return out
+	}
+	var extra []string
+	for id := range a.nav.tables {
+		if id != "" && !slices.Contains(out, id) {
+			extra = append(extra, id)
+		}
+	}
+	slices.Sort(extra)
+	return append(out, extra...)
+}
+
+func (a *App) rememberTableRecords(tableID string, recs []data.Record) {
+	if a == nil || a.nav == nil || tableID == "" {
+		return
+	}
+	if a.nav.tableRecs == nil {
+		a.nav.tableRecs = map[string][]data.Record{}
+	}
+	a.nav.tableRecs[tableID] = slices.Clone(recs)
 }

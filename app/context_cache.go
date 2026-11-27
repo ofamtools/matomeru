@@ -79,6 +79,13 @@ func (a *App) storeProjectTableKey(tableID, key string) {
 	a.perfCache().sectionTableKeys[tableID] = key
 }
 
+func (a *App) invalidateProjectTableCache(tableID string) {
+	if a == nil || a.ctx == nil || a.ctx.perf == nil || tableID == "" {
+		return
+	}
+	delete(a.ctx.perf.sectionTableKeys, tableID)
+}
+
 func (a *App) cachedProjectTree(treeID, key string) (*tree.Model, bool) {
 	if key == "" {
 		return nil, false

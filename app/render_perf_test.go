@@ -119,12 +119,14 @@ func linearBindingsForReference(a *App, s core.State, chain []core.ContextFrame,
 					}
 				}
 				out = append(out, activeBinding{
-					keys:    prefix + keys,
-					command: command,
-					hint:    b.Hint,
-					scope:   scope,
-					mode:    mode,
-					hidden:  b.Hidden || b.Class != "",
+					keys:       prefix + keys,
+					command:    command,
+					rawCommand: b.Command,
+					args:       staticBindingArgs(b.Args),
+					hint:       b.Hint,
+					scope:      scope,
+					mode:       mode,
+					hidden:     b.Hidden || b.Class != "",
 				})
 			}
 		}

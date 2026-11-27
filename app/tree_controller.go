@@ -254,7 +254,7 @@ func (a *App) inWorkTree(s core.State) bool {
 	if tbl := a.nav.tables[workTable]; tbl != nil && (tbl.SortField != "" || tbl.GroupField != "" || (tbl.Query != "" && !a.inPlaceTreeFilterEnabled())) {
 		return false
 	}
-	return true
+	return !a.hasActiveZeroFieldFilter(workTable)
 }
 
 func (a *App) taskNoteThreads() (map[string][]data.Record, error) {

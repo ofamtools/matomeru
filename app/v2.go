@@ -61,7 +61,7 @@ func (a *App) kindOfTable(id string) string {
 			return sp.kind
 		}
 	}
-	return ""
+	return tableKind(id)
 }
 
 func (a *App) nounsPick(s core.State, _ core.Command) core.StepResult {
@@ -185,26 +185,49 @@ func (a *App) tableKeys(id string, tbl *table.Model) []string {
 // fieldPick opens a picker over every key of the focused table, for the
 // filter field, the sort field or the group field.
 func (a *App) fieldPick(what string) func(core.State, core.Command) core.StepResult {
-	return func(s core.State, _ core.Command) core.StepResult {
+	return func(s core.State, c core.Command) core.StepResult {
 		a.lastFieldPickWhat = what
 		if a.zeroFieldQueryDefaultEnabled() {
-			return a.openZeroFieldModal(s, what)
+			return a.openZeroFieldForCommand(s, what, c)
 		}
-		return a.openClassicFieldPick(s, what)
+		return a.openClassicFieldPickForCommand(s, what, c)
 	}
+}
+
+func (a *App) openClassicFieldPickForCommand(s core.State, what string, c core.Command) core.StepResult {
+	tbl, id := a.resolveTableForCommand(s, c)
+	if tbl == nil {
+		if isInteractiveCommandSource(c.Source) {
+			return a.promptListTargetForCommand(s, c)
+		}
+		return core.Next(s)
+	}
+	return a.openClassicFieldPickFor(s, what, tbl, id)
 }
 
 func (a *App) openClassicFieldPick(s core.State, what string) core.StepResult {
 	tbl, id := a.activeListTable(s)
-	if a.Modal() != "" || tbl == nil {
+	if tbl == nil {
 		return core.Next(s) // no list on the page: nothing to pick for
 	}
-	// Fresh rows: a field written a moment ago is offered too.
+	return a.openClassicFieldPickFor(s, what, tbl, id)
+}
+
+func (a *App) refreshSpaceTable(id string, tbl *table.Model) *table.Model {
 	if id == railTable {
-		tbl = a.rail()
-	} else if kind := a.kindOfTable(id); kind != "" {
-		tbl = a.records(id, kind)
+		return a.rail()
 	}
+	for _, sp := range spaces {
+		if sp.table == id {
+			if kind := a.kindOfTable(id); kind != "" {
+				return a.records(id, kind)
+			}
+		}
+	}
+	return tbl
+}
+
+func (a *App) fieldPickItems(what, id string, tbl *table.Model) []picker.Item {
 	current := map[string]string{"filter": tbl.FilterField, "sort": tbl.SortField, "group": tbl.GroupField}[what]
 	var items []picker.Item
 	switch what {
@@ -223,13 +246,23 @@ func (a *App) openClassicFieldPick(s core.State, what string) core.StepResult {
 		} else if slices.ContainsFunc(tbl.Columns, func(c table.Column) bool { return c.Key == k }) {
 			item.Subtitle = "column"
 		}
+		if k == current {
+			item.Badges = []ui.Badge{{Text: "now", Tone: "accent"}}
+		}
 		items = append(items, item)
 	}
-	for i := range items {
-		if items[i].ID == current || (current == "" && what == "filter" && items[i].ID == views.AnyField) {
-			items[i].Badges = []ui.Badge{{Text: "now", Tone: "accent"}}
-		}
+	if len(items) > 0 && (items[0].ID == current || (current == "" && what == "filter")) {
+		items[0].Badges = []ui.Badge{{Text: "now", Tone: "accent"}}
 	}
+	return items
+}
+
+func (a *App) openClassicFieldPickFor(s core.State, what string, tbl *table.Model, id string) core.StepResult {
+	if a.Modal() != "" {
+		return core.Next(s)
+	}
+	tbl = a.refreshSpaceTable(id, tbl)
+	items := a.fieldPickItems(what, id, tbl)
 	pm := picker.New(strings.ToUpper(what[:1])+what[1:]+" by", items)
 	pm.Placeholder = "any field of these rows · ) switches to Zero-Field view"
 	tableID := id

@@ -400,8 +400,9 @@ func (a *App) statusLine(s core.State, root ui.ViewNode, chain []core.ContextFra
 // --- bindings that work here ------------------------------------------------------
 
 type activeBinding struct {
-	keys, command, hint, scope, mode string
-	hidden                           bool // left out of the footer, listed by help
+	keys, command, rawCommand, hint, scope, mode string
+	args                                         map[string]any
+	hidden                                       bool // left out of the footer, listed by help
 }
 
 // activeKeyBindings lists the bindings a key press would reach in this state:
@@ -427,6 +428,7 @@ type bindingBucketKey struct {
 
 type compiledBinding struct {
 	keys, command, rawCommand, hint, scope, mode string
+	args                                         map[string]any
 	hidden, hasWhen                              bool
 	cond                                         expr.Expr
 }
@@ -484,6 +486,7 @@ func (a *App) compiledBindings() *compiledBindingsIndex {
 			keys:       keys,
 			command:    command,
 			rawCommand: b.Command,
+			args:       staticBindingArgs(b.Args),
 			hint:       b.Hint,
 			scope:      b.Scope,
 			mode:       b.Mode,
@@ -554,7 +557,7 @@ func (a *App) bindingsFor(s core.State, chain []core.ContextFrame, modes, exclud
 				if prefix != "" {
 					keys = prefix + keys
 				}
-				out = append(out, activeBinding{keys: keys, command: cb.command, hint: cb.hint, scope: cb.scope, mode: cb.mode, hidden: cb.hidden})
+				out = append(out, activeBinding{keys: keys, command: cb.command, rawCommand: cb.rawCommand, args: cb.args, hint: cb.hint, scope: cb.scope, mode: cb.mode, hidden: cb.hidden})
 			}
 		}
 	}

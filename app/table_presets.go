@@ -410,7 +410,6 @@ func (a *App) tablePresetDelete(s core.State, c core.Command) core.StepResult {
 	}
 	name := strings.TrimSpace(c.Arg("name"))
 	if name == "" {
-		a.say("preset name is required")
 		return core.Next(s)
 	}
 	a.deleteTablePreset(id, name)
