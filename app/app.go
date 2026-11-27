@@ -11,7 +11,6 @@ package app
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -56,14 +55,15 @@ const (
 type spaceDef struct {
 	id, title, table, kind string
 	columns                []table.Column
+	legacy                 bool
 }
 
 var spaces = []spaceDef{
-	{SpacePanes, "Panes", railTable, data.KindPane, nil},
-	{SpaceWork, "Work", workTable, data.KindTask, nil},
-	{SpaceRuns, "Runs", runsTable, data.KindRun, []table.Column{
+	{id: SpacePanes, title: "Panes", table: railTable, kind: data.KindPane, legacy: true},
+	{id: SpaceWork, title: "Work", table: workTable, kind: data.KindTask, legacy: true},
+	{id: SpaceRuns, title: "Runs", table: runsTable, kind: data.KindRun, columns: []table.Column{
 		{Key: "title", Title: "Run"}, {Key: "runStatus", Title: "State", Width: 9}, {Key: "exitCode", Title: "Exit", Width: 4, Align: "right"}, {Key: views.FlagsField, Title: "Flags", Width: 5}}},
-	{SpaceExtensions, "Extensions", extTable, data.KindExtension, []table.Column{
+	{id: SpaceExtensions, title: "Extensions", table: extTable, kind: data.KindExtension, columns: []table.Column{
 		{Key: "name", Title: "Extension"}, {Key: "runStatus", Title: "Health", Width: 11}, {Key: "binary", Title: "Binary", Width: 12}, {Key: views.FlagsField, Title: "Flags", Width: 5}}},
 }
 
@@ -304,11 +304,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		frames = append(frames, core.Frame{ID: id, Mode: ModeNormal, FocusID: page.focus})
 	}
 	initial := core.NewState(frames...)
-	if start := a.cfg.Settings.String("startSpace", SpacePanes); slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == start }) ||
-		(start == SpaceProjects && a.projectsTopNavTabEnabled()) ||
-		(start == SpaceFeatures && a.featuresPageActive()) || standalonePages[start].render != nil {
-		initial.ActivePage = start
-	}
+	initial.ActivePage = a.resolveStartSpace()
 	a.Shell = otea.New(a.Engine, initial, a.View, theme)
 	a.applyRendererSettings()
 	a.initSessionRecorder()
@@ -317,21 +313,22 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.Shell.AppFacts = func(s core.State) map[string]any {
 		_, recording := a.nav.Macros.Recording()
 		return map[string]any{
-			"space":               s.ActivePage,
-			"recording":           recording,
-			"enterOpensShow":      a.enterOpensShow(),
-			"hlFolds":             a.treeHLFolds(),
-			"isProjectTab":        isProjectTab(s.ActivePage),
-			"inChildPaneView":     a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
-			"featuresPageActive":  a.featuresPageActive(),
-			"readlinePriority":    a.inputReadlinePriorityEnabled(),
-			"filterScrollMotions": a.inputFilterScrollMotionsEnabled(),
-			"splitResize":         a.splitResizeEnabled(),
-			"outlineRescoping":    a.outlineRescopingEnabled(),
-			"hasSearch":           a.hasPageSearch(),
-			factListTarget:        a.listTargetFact(s),
-			factTreeTarget:        a.treeTargetFact(),
-			factSelectTarget:      a.selectTargetFact(s),
+			"space":                    s.ActivePage,
+			"recording":                recording,
+			"enterOpensShow":           a.enterOpensShow(),
+			"hlFolds":                  a.treeHLFolds(),
+			"isProjectTab":             isProjectTab(s.ActivePage),
+			"inChildPaneView":          a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
+			"featuresPageActive":       a.featuresPageActive(),
+			"showLegacyPanesWorkPages": a.showLegacyPanesWorkPages(),
+			"readlinePriority":         a.inputReadlinePriorityEnabled(),
+			"filterScrollMotions":      a.inputFilterScrollMotionsEnabled(),
+			"splitResize":              a.splitResizeEnabled(),
+			"outlineRescoping":         a.outlineRescopingEnabled(),
+			"hasSearch":                a.hasPageSearch(),
+			factListTarget:             a.listTargetFact(s),
+			factTreeTarget:             a.treeTargetFact(),
+			factSelectTarget:           a.selectTargetFact(s),
 		}
 	}
 	a.Shell.OnPassThrough = func(e core.PassToWidgetEffect) tea.Cmd {

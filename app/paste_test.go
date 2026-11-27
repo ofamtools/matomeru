@@ -25,6 +25,7 @@ func newPasteTestApp(t *testing.T) (*App, *Driver, *data.Store) {
 
 func TestYankDefaultFormatRefAndTitleAndPickerField(t *testing.T) {
 	a, d, store := newPasteTestApp(t)
+	enableLegacyPagesForTest(a, SpacePanes) // drives 1 Panes / 2 Work by digit
 	t1, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{
 		"title":       "Auth Flow",
 		"description": "OAuth2 PKCE login",
@@ -341,6 +342,7 @@ func TestPasteQueueEnqueuesTaskCaptureAndText(t *testing.T) {
 
 func TestPasteTerminalLeaderAndCaptureModalAndOptOut(t *testing.T) {
 	a, d, store := newPasteTestApp(t)
+	enableLegacyPagesForTest(a, SpacePanes) // drives 1 Panes / 2 Work by digit
 	pane, _, _ := store.Create(data.CreateInput{Kind: data.KindPane, Fields: map[string]any{
 		"title": "dev-agent", "harness": "claude", "runStatus": "running",
 	}}, User)

@@ -383,7 +383,7 @@ func TestWaveD2CommandRunEditAndYank(t *testing.T) {
 }
 
 func TestWaveD2UnlinkedPaneWarningContextPersistAndAssociateBackfill(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	task := titled(t, a, data.KindTask, "matomeru-v2")
 
 	// Create an unlinked pane (no task ref).
@@ -647,7 +647,7 @@ esac
 }
 
 func TestWaveD2WorkTasksTreeLayoutAndOutlineAddFold(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	if a.workTasksLayout() != WorkTasksLayoutTree {
 		t.Fatalf("default work.tasksLayout = %q, want tree", a.workTasksLayout())
 	}
@@ -769,7 +769,7 @@ func TestWaveD2ExtensionSetupBinding(t *testing.T) {
 	t.Cleanup(func() { a.Close() })
 	d := NewDriver(a, 120, 36)
 
-	d.Keys("4", "U")
+	d.Keys("3", "U")
 	runsRes, _ := store.Query(data.Query{Kind: data.KindRun})
 	if runsRes.Total != 1 {
 		t.Fatalf("U on extension with setup command expected 1 run, got %d (status=%q)", runsRes.Total, a.Status())
@@ -837,7 +837,7 @@ func TestWaveD2EnrichedActionCatalog(t *testing.T) {
 }
 
 func TestWaveD2NewPaneRefPickerCreateNewTaskAndDefaultCwd(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// Configure agy as an installed harness to verify agy shows cleanly too.
 	a.SetInstalledHarnesses([]harness.InstalledHarness{

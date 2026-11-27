@@ -167,6 +167,7 @@ func TestRemindersDailyCheckOffNightlyResetAndPermanentHistory(t *testing.T) {
 func TestRemindersTopRightTemporary30sAndPersistentNotifications(t *testing.T) {
 	f := newRemindersFixture(t)
 	a, d := f.app, f.drv
+	enableLegacyPagesForTest(a, SpacePanes) // this walk drives 1 Panes / 2 Work by digit
 
 	tempSched, _, err := f.store.Create(data.CreateInput{
 		Kind: data.KindSchedule,

@@ -46,13 +46,13 @@ func setupHintsApp(t *testing.T, lines []string, settings map[string]any) (*App,
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	a.cfg.userSettings[SetShowLegacyPanesWorkPages] = true
 	for k, v := range settings {
 		a.cfg.userSettings[k] = v
 	}
-	if len(settings) > 0 {
-		a.reloadSettings()
-		a.applySettings()
-	}
+	a.reloadSettings()
+	a.applySettings()
+	a.Shell.State = a.openSpace(a.State(), SpacePanes)
 	d := NewDriver(a, 120, 36)
 	return a, d, host, pane, cwd
 }

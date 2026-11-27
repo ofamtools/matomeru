@@ -19,7 +19,7 @@ import (
 //   - Palette -> Path/Ref -> Palette
 //   - Presets -> SaveForm -> Presets
 func TestModalStackNestedFlows(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. Form -> Path -> Form and Form -> Ref -> Form
 	d.Keys("2", "n")
@@ -148,7 +148,7 @@ func TestModalStackNestedFlows(t *testing.T) {
 // persists unsaved composer/form drafts, clears outline inline edit state, and
 // empties core.State.Modals.
 func TestModalStackDropAllLIFOCleanup(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. Composer open with unsaved text -> dropModals saves draft and clears stack.
 	d.Keys("1", "c")
@@ -230,7 +230,7 @@ func (m *lifoProbeModal) OnClose(r modal.CloseReason) {
 // TestModalStackScopeBindings verifies all 17 migrated Scope-targeted bindings
 // fire cleanly against Modal.Scope() without any modal.id expression guards.
 func TestModalStackScopeBindings(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. "yank" scope: y with empty query copies primary value; typing y after query filters.
 	d.Keys("2", "y")
@@ -389,7 +389,7 @@ func TestModalStackScopeBindings(t *testing.T) {
 // TestModalStackPickerCreateHook verifies the "+ Create new" PickerCreateHook
 // end-to-end inside ref, assign, and pane.associate pickers.
 func TestModalStackPickerCreateHook(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. Inside "ref" picker (from record form parent field).
 	d.Keys("2", "n")

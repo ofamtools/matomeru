@@ -243,6 +243,7 @@ func TestInputPasteClipboardUniversalAllModes(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	fakePNG := append(append([]byte{}, pngMagicHeader...), []byte("universal-png")...)
@@ -462,6 +463,7 @@ func TestClipboardAttachmentsOptOutSetting(t *testing.T) {
 	t.Cleanup(func() { a.Close() })
 	a.cfg.userSettings[SetAttachmentsEnabled] = false
 	a.reloadSettings()
+	enableLegacyPagesForTest(a, SpacePanes)
 
 	d := NewDriver(a, 120, 36)
 

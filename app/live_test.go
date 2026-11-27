@@ -46,6 +46,7 @@ func liveApp(t *testing.T, seed bool, opts Options) (*App, *Driver) {
 		a.Close()
 		store.Close()
 	})
+	enableLegacyPagesForTest(a, SpacePanes)
 	return a, NewDriver(a, 120, 36)
 }
 

@@ -21,7 +21,7 @@ func openProjectTabOnNav(t *testing.T, section string) (*App, *Driver) {
 	pc := a.projectCtrl()
 	pc.openTabs = append(pc.openTabs, proj.ID)
 	pc.setSection(proj.ID, section)
-	d.Keys("6")
+	d.Keys("4")
 	a.Shell.State = withFocus(a.State(), projectNavPrefix+section)
 	_ = d.Frame()
 	return a, d

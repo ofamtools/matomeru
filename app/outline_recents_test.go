@@ -45,6 +45,7 @@ func TestOutlineReorderIndentOutdentStatusAndUndo(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	// Open outline: First is selected.

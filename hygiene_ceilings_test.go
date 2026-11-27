@@ -83,7 +83,7 @@ var specialCaseCeilings = map[string]int{
 // activePageCeilings ratchets .ActivePage and Space* dispatch branches in app/.
 // Zero exceptions in views/ and all new app/ files.
 var activePageCeilings = map[string]int{
-	"app/app.go":                4,
+	"app/app.go":                2,
 	"app/chrome.go":             6,
 	"app/drafts.go":             1,
 	"app/features_capture.go":   1,
@@ -116,7 +116,7 @@ var activePageCeilings = map[string]int{
 	"app/tutorial.go":           2,
 	"app/ux_notes.go":           2,
 	"app/v2.go":                 1,
-	"app/view.go":               11,
+	"app/view.go":               10,
 }
 
 // focusRegionIDCeilings ratchets focus/region/container string-ID dispatch in app/.
@@ -151,7 +151,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/about.go:FormatAboutMarkdown":                                          37,
 	"app/about.go:buildAboutInfoWithCatalogs":                                   61,
 	"app/app.go:(App).register":                                                 41,
-	"app/app.go:New":                                                            29,
+	"app/app.go:New":                                                            23,
 	"app/canvas_links.go:(App).canvasHeadingStep":                               14,
 	"app/canvas_links.go:(App).canvasTabSelect":                                 14,
 	"app/canvas_links.go:canvasTreeNodesLen":                                    17,
@@ -215,7 +215,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/live_visibility.go:(App).visibleTerminalPanes":                         14,
 	"app/modals.go:(App).applyModalResult":                                      15,
 	"app/modals.go:(App).newPathPickerModalFor":                                 13,
-	"app/modals.go:(App).paletteEntries":                                        23,
+	"app/modals.go:(App).paletteEntries":                                        21,
 	"app/nav.go:(App).column":                                                   20,
 	"app/nav.go:(App).jumpTravel":                                               34,
 	"app/nav.go:(App).motion":                                                   39,
@@ -235,7 +235,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/outline_triage.go:(App).outlineTriage":                                 19,
 	"app/outline_triage.go:(App).resolveOutlineTriagePane":                      24,
 	"app/outline_triage.go:formatOutlineSubtree":                                13,
-	"app/pages_picker.go:(App).pagesPick":                                       24,
+	"app/pages_picker.go:(App).pagesPick":                                       18,
 	"app/pane_search.go:(App).paneSearch":                                       32,
 	"app/pane_search.go:(App).paneSearchBuildOpts":                              16,
 	"app/pane_search.go:renderPaneSearchPreview":                                17,
@@ -351,7 +351,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/v2.go:(App).assign":                                                    17,
 	"app/v2.go:(bindingsModal).Handle":                                          33,
 	"app/view.go:(App).bindingsFor":                                             19,
-	"app/view.go:(App).build":                                                   44,
+	"app/view.go:(App).build":                                                   43,
 	"app/view.go:(App).compiledBindings":                                        19,
 	"app/view.go:(App).detail":                                                  18,
 	"app/view.go:(App).displayedSitePageID":                                     15,

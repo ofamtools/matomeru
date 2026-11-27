@@ -30,13 +30,13 @@ func newClockedApp(t *testing.T, clock *time.Time, settings map[string]any) (*Ap
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	a.cfg.userSettings[SetShowLegacyPanesWorkPages] = true
 	for k, v := range settings {
 		a.cfg.userSettings[k] = v
 	}
-	if len(settings) > 0 {
-		a.reloadSettings()
-		a.applySettings()
-	}
+	a.reloadSettings()
+	a.applySettings()
+	a.Shell.State = a.openSpace(a.State(), SpacePanes)
 	return a, NewDriver(a, 100, 32)
 }
 

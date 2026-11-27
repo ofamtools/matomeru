@@ -262,7 +262,7 @@ func TestProjectNavTreePagesLivePreviewAndFullModePageInteraction(t *testing.T) 
 	a, d := f.app, f.driver
 
 	// Open 6 Helios Project Tab via 5 Projects -> enter.
-	d.Keys("5", "enter")
+	d.Keys("1", "enter")
 	wantTab := projectTabID(f.proj.ID)
 	if a.Space() != wantTab {
 		t.Fatalf("expected project tab %q, got %q", wantTab, a.Space())
@@ -439,7 +439,7 @@ func TestProjectNavTreePanesDocsAndBothSpacesAndOptOut(t *testing.T) {
 	a.projectCtrl().setNavNodeExpanded(f.proj.ID, "panes."+f.mainPane.ID, false)
 
 	// 2. Test inside 6+ Project Tab.
-	d.Keys("5", "enter")
+	d.Keys("1", "enter")
 	if a.Space() != projectTabID(f.proj.ID) {
 		t.Fatalf("expected project tab, got %q", a.Space())
 	}

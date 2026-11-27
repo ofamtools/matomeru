@@ -205,7 +205,7 @@ func TestProjectHomeDashboardAllFiveSectionsAndOrdering(t *testing.T) {
 	a, d := f.app, f.driver
 
 	// Open 6 Helios dynamic tab on Home section.
-	d.Keys("5", "enter")
+	d.Keys("1", "enter")
 	if a.Space() != projectTabID(f.proj.ID) {
 		t.Fatalf("expected project tab %q, got %q", projectTabID(f.proj.ID), a.Space())
 	}
@@ -279,7 +279,7 @@ func TestProjectHomeDashboardAllFiveSectionsAndOrdering(t *testing.T) {
 	}
 
 	// Verify 5 Projects right-hand preview is non-interactive (zero focusables inside project.home).
-	d.Keys("5")
+	d.Keys("1")
 	pRoot := a.View(a.State())
 	previewHome := pRoot.Find(views.ProjectHomePanelID)
 	if previewHome == nil {
@@ -306,7 +306,7 @@ func TestProjectHomeDashboardInteractionsAndReadActions(t *testing.T) {
 	a, d := f.app, f.driver
 
 	// Open 6 Helios and enter Home content (lands on first decision item).
-	d.Keys("5", "enter", "enter")
+	d.Keys("1", "enter", "enter")
 	decID := views.ProjectHomeItemPrefix + "decisions." + f.openQ.ID
 	if a.Focus() != decID {
 		t.Fatalf("entering Home focus = %q, want %q", a.Focus(), decID)
@@ -428,7 +428,7 @@ func TestProjectHomeDashboardOptOut(t *testing.T) {
 	f := setupHomeDashboardFixture(t)
 	a, d := f.app, f.driver
 
-	d.Keys("5", "enter")
+	d.Keys("1", "enter")
 	if root := a.View(a.State()); root.Find(views.ProjectHomeScrollID) == nil {
 		t.Fatal("expected interactive dashboard scroll when project.homeDashboard=true")
 	}

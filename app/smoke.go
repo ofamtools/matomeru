@@ -135,6 +135,10 @@ func RunSmoke(out io.Writer, dump bool) error {
 		return byslug
 	}
 
+	k.section("0. default top chrome (legacy Panes & Work hidden)")
+	smokeCheckDefaultTabs(k)
+	smokeEnableLegacyTabs(k)
+
 	k.section("1. the four spaces")
 	k.check("starts on Panes with the tab bar", a.Space() == SpacePanes && k.has("Panes", "Work", "Runs", "Extensions"))
 	k.check("panes: rail, table of contents and the Screen page", k.has("claude: wave 5B", "nvim: core/keymap.go", "Pages", "Screen", "Questions", "Architecture"))
@@ -611,6 +615,40 @@ func RunSmoke(out io.Writer, dump bool) error {
 	}
 	fmt.Fprintln(out, "smoke: all checks passed")
 	return nil
+}
+
+func smokeCheckDefaultTabs(k *smoke) {
+	a := k.App
+	tabs := a.topTabs()
+	ids := make([]string, len(tabs))
+	for i, tb := range tabs {
+		ids[i] = tb.id
+	}
+	k.check("default startup lands on Projects with legacy Panes & Work hidden",
+		len(ids) == 4 && ids[0] == "projects" && ids[1] == "runs" && ids[2] == "extensions" && ids[3] == "reminders" &&
+			a.Space() == ids[0] && k.has("Projects", "Runs", "Extensions", "Reminders"))
+	k.Keys("2")
+	k.check("default 2 opens Runs", a.Space() == ids[1])
+	k.Keys("3")
+	k.check("default 3 opens Extensions", a.Space() == ids[2])
+	k.Keys("]")
+	k.check("default ] from Extensions reaches Reminders", a.Space() == ids[3])
+	k.Keys("]")
+	k.check("default ] wraps round to Projects", a.Space() == ids[0])
+	k.Keys("[")
+	k.check("default [ wraps back to Reminders", a.Space() == ids[3])
+	k.Keys("I")
+	k.check("I keeps direct Panes access while legacy tabs are hidden", a.Space() == "panes" && k.has("claude: wave 5B"))
+	k.Keys("1")
+	k.check("default 1 returns to Projects", a.Space() == ids[0])
+}
+
+func smokeEnableLegacyTabs(k *smoke) {
+	a := k.App
+	a.cfg.userSettings[SetShowLegacyPanesWorkPages] = true
+	a.reloadSettings()
+	a.applySettings()
+	k.Keys("1")
 }
 
 // has2 is has without the report: for checks that a text is absent.

@@ -11,6 +11,7 @@ import (
 
 func TestPinnedAgentsPinUnpinJumpCycleSendAndChrome(t *testing.T) {
 	f := setupCaptureFixture(t)
+	enableLegacyPagesForTest(f.app, SpacePanes)
 	f.now = time.Date(2026, 11, 27, 16, 0, 0, 0, time.UTC)
 
 	// Initially no pinned agent -> chrome chip empty.

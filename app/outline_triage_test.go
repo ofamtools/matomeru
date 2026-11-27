@@ -135,6 +135,7 @@ func TestOutlineTriageOneKeyResolutionAndDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 32)
 
 	// 1. Zero live agent panes -> warns with toast and does NOT open picker.

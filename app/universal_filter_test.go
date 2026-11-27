@@ -205,6 +205,7 @@ func TestUniversalFilterEverySurface(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	a.cfg.userSettings[SetSelfHostedFeaturesEnabled] = SelfHostedFeaturesOn
 	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTree
 	a.cfg.userSettings[SetFilterInPlaceTree] = true
@@ -454,6 +455,7 @@ func TestUniversalFilterDynamicUIPageNodes(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	a.panes.activePage[pane.ID] = dynPage.ID
 
 	d := NewDriver(a, 140, 36)
@@ -619,6 +621,7 @@ func TestEveryCollectionUsesTraitFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	a.cfg.userSettings[SetSelfHostedFeaturesEnabled] = SelfHostedFeaturesOn
 	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTree
 	a.cfg.userSettings[SetFilterInPlaceTree] = true

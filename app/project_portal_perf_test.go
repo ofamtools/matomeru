@@ -93,7 +93,7 @@ func TestOutlineModalOverProjectPortalDoesNotRebuildBackground(t *testing.T) {
 
 	// Open the Project Portal tab and warm all caches.
 	a.ensureProjectTabOpen(proj.ID)
-	d.Keys("6")
+	d.Keys("4")
 	_ = d.Frame()
 	if !isProjectTab(a.Space()) {
 		t.Fatalf("expected active Project Portal tab, got space=%q", a.Space())
@@ -159,7 +159,7 @@ func TestProjectPortalNavigationZeroDurableRebuilds(t *testing.T) {
 
 	// Open the Project Portal tab (>24-char title) and warm initial caches.
 	a.ensureProjectTabOpen(proj.ID)
-	d.Keys("6")
+	d.Keys("4")
 	_ = d.Frame()
 	if !isProjectTab(a.Space()) {
 		t.Fatalf("expected active Project Portal tab, got space=%q", a.Space())
@@ -247,7 +247,7 @@ func TestProjectNavCompactModeAndOptOut(t *testing.T) {
 	d := NewDriver(a, 140, 40)
 
 	a.ensureProjectTabOpen(proj.ID)
-	d.Keys("6")
+	d.Keys("4")
 
 	// Default: ui.projectNavCompact = true.
 	if !a.projectNavCompactEnabled() {
@@ -387,7 +387,7 @@ func TestProjectNavCompletedLaneDimmedWithOrangeUnreadDot(t *testing.T) {
 
 	d := NewDriver(a, 140, 40)
 	a.ensureProjectTabOpen(proj.ID)
-	d.Keys("6")
+	d.Keys("4")
 	a.projectCtrl().setNavSectionExpanded(proj.ID, "lanes", true)
 	a.viewMemo.gen++
 

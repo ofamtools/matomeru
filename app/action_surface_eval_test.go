@@ -98,7 +98,7 @@ func runViaPaletteInteractive(t *testing.T, a *App, d *Driver, entryID string) {
 
 func TestZeroFieldWorksInDefaultWorkTreeAndProjectNavTables(t *testing.T) {
 	t.Run("2 Work default tree layout applies and clears Zero-Field filter", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Keys("2")
 		_ = d.Frame()
 		if !a.inWorkTree(a.State()) {
@@ -235,7 +235,7 @@ func TestZeroFieldWorksInDefaultWorkTreeAndProjectNavTables(t *testing.T) {
 }
 
 func TestBindingHelpExecutesSelectedBinding(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2", "g", "t")
 	_ = d.Frame()
 
@@ -317,7 +317,7 @@ func TestMissingRequiredArgsOpensAutoFormAcrossSurfaces(t *testing.T) {
 	})
 
 	t.Run("built-in required-arg commands open forms on missing args across palette, help, and binding", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Keys("2", "g", "t")
 		_ = d.Frame()
 
@@ -386,7 +386,7 @@ func TestActionSurfaceConsistencyEvals(t *testing.T) {
 	// Verify representative core verbs work consistently across all 5 surfaces:
 	// 1. Key binding, 2. Binding Help (?), 3. Palette (:), 4. CLI catalog, 5. MCP tool dispatch.
 	t.Run("record.star and record.unstar across all 5 surfaces", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Keys("2", "g", "t")
 		_ = d.Frame()
 		ref, ok := a.subject(a.State(), core.Command{})
@@ -442,7 +442,7 @@ func TestActionSurfaceConsistencyEvals(t *testing.T) {
 	})
 
 	t.Run("record.archive, record.new, record.edit, and task.agent.toggle across UI + MCP + CLI catalog", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Keys("2", "g", "t")
 		_ = d.Frame()
 		ref, ok := a.subject(a.State(), core.Command{})

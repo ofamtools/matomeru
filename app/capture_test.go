@@ -116,6 +116,7 @@ func TestCaptureBindingsAndSpecsValid(t *testing.T) {
 
 func TestCaptureComposeSaveToLogFromAnywhereAndLeaderInTerminal(t *testing.T) {
 	f := setupCaptureFixture(t)
+	enableLegacyPagesForTest(f.app, SpacePanes)
 
 	// Open Capture modal from 2 Work via g i.
 	f.driver.Keys("2")

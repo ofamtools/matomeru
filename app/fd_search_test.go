@@ -198,7 +198,7 @@ func TestBuildFDArgs(t *testing.T) {
 }
 
 func TestFDSearchFormReactiveAndRepeatable(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// Open fd search form with g F.
 	d.Keys("2", "g", "F")
@@ -333,7 +333,7 @@ func TestFDSearchEndToEndWithFakeBinary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	a.cfg.userSettings[SetToolsFDBinary] = fakeFD
 	a.reloadSettings()
 	a.applySettings()

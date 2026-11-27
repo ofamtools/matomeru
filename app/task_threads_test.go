@@ -89,6 +89,7 @@ func TestTaskTreeNoteIndicatorsInlineThreadsAndOptOuts(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	// 1. Go to 2 Work task tree: unread agent note indicator (● 💬 2) and attachment indicator (📎 1) appear.
@@ -259,6 +260,7 @@ func TestTaskAgentFlagReplyAppendAndQueueDispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	// Navigate to Work tree, unfold root, focus child task.
@@ -394,6 +396,7 @@ func TestTaskOutlineGutterQueueDispatchAgentPickupAndOptOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	findNode := func(id string) (string, string, bool) {

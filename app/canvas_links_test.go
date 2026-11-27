@@ -318,7 +318,7 @@ func findOverlayByScope(root ui.ViewNode, scope string) *ui.ViewNode {
 }
 
 func TestComposerCompactAndWrapSettings(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// Default: panes.composerCompact=true (62% x 34%, MinH 4) and panes.composerWrap=true.
 	d.Keys("c")

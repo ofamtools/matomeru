@@ -267,6 +267,7 @@ const (
 	SetRemindersTopNavTab              = "ui.remindersTopNavTab"
 	SetReminderToasts                  = "ui.reminderToasts"
 	SetOutlineRescoping                = "ui.outlineRescoping"
+	SetShowLegacyPanesWorkPages        = "ui.showLegacyPanesWorkPages"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -474,6 +475,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetRemindersTopNavTab, true, "show top-level Reminders tab in the top navigation bar"),
 		flag(SetReminderToasts, true, "show top-right Matomeru reminder notifications (temporary 30s toasts and persistent alerts)"),
 		flag(SetOutlineRescoping, true, "allow re-scoping outlines onto any subtask root, stepping up one level, and jumping back to root"),
+		flag(SetShowLegacyPanesWorkPages, false, "show legacy Panes and Work spaces in the top navigation bar (off hides them from default chrome; still reachable via commands/palette)"),
 	}
 }
 
@@ -481,7 +483,7 @@ func SettingSpecs() []core.ParamSpec {
 // SettingSpecs and the few read only from settings.json.
 func DefaultSettings() map[string]any {
 	out := map[string]any{
-		"startSpace":   SpacePanes,
+		"startSpace":   SpaceProjects,
 		"snoozeHours":  24,
 		"showArchived": false,
 		"mouse":        true,

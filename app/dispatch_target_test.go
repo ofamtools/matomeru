@@ -344,6 +344,7 @@ func TestTaskPageDispatchSpawnsWithPromptAndDeliversToLivePane(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { a.Close() })
+			enableLegacyPagesForTest(a, SpacePanes)
 			d := NewDriver(a, 120, 36)
 
 			task, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{
@@ -402,6 +403,7 @@ func TestTaskPageDispatchSpawnsWithPromptAndDeliversToLivePane(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { a.Close() })
+		enableLegacyPagesForTest(a, SpacePanes)
 		d := NewDriver(a, 120, 36)
 
 		task, _, err := store.Create(data.CreateInput{Kind: data.KindTask, Fields: map[string]any{

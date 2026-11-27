@@ -297,3 +297,7 @@ func (a *App) projectNavSectionMaxItems() int {
 	}
 	return max(0, a.cfg.Settings.Int(SetProjectsNavSectionMaxItems, 7))
 }
+
+func (a *App) showLegacyPanesWorkPages() bool {
+	return a != nil && a.cfg != nil && a.cfg.Settings != nil && a.cfg.Settings.Bool(SetShowLegacyPanesWorkPages, false)
+}

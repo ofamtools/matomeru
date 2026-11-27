@@ -38,6 +38,7 @@ type topTabDef struct {
 	fullTitle string
 	projectID string
 	dynamic   bool
+	unlisted  bool
 }
 
 func (tb topTabDef) projectTitle() string {
@@ -78,8 +79,8 @@ func (a *App) projectChildPaneViewEnabled() bool {
 func (a *App) topTabsCacheKey() string {
 	rev := a.storeRev()
 	pc := a.projectCtrl()
-	return fmt.Sprintf("%d|%t|%t|%t|%t|%t|%d|%s",
-		rev, a.Store != nil, a.projectsTopNavTabEnabled(), a.projectsDynamicTabsEnabled(),
+	return fmt.Sprintf("%d|%t|%t|%t|%t|%t|%t|%d|%s",
+		rev, a.Store != nil, a.showLegacyPanesWorkPages(), a.projectsTopNavTabEnabled(), a.projectsDynamicTabsEnabled(),
 		a.featuresPageActive(), a.remindersTopNavTabEnabled(), a.remindersPendingCount(), strings.Join(pc.openTabs, ","),
 	)
 }
@@ -120,19 +121,29 @@ func (a *App) buildDynamicProjectTabs(pc *ProjectController) []topTabDef {
 	return out
 }
 
-// topTabs returns the ordered top-bar tabs: 1 Panes, 2 Work, 3 Runs, 4 Extensions,
-// optional 5 Projects, and any open dynamic 6+ Project Tabs (auto-pruning deleted tasks).
+// topTabs returns the ordered top-bar tabs. By default (ui.showLegacyPanesWorkPages=false),
+// legacy Panes and Work spaces are hidden so Projects leads the strip:
+// Projects, Runs, Extensions, optional Features, and open dynamic Project Tabs.
+// With ui.showLegacyPanesWorkPages=true, legacy order is restored:
+// Panes, Work, Runs, Extensions, optional Projects, optional Features, and Project Tabs.
 func (a *App) topTabs() []topTabDef {
 	pc := a.projectCtrl()
 	cacheKey := a.topTabsCacheKey()
 	if pc.topTabsCacheKey == cacheKey && pc.topTabsCache != nil {
 		return slices.Clone(pc.topTabsCache)
 	}
-	out := make([]topTabDef, 0, len(spaces)+1+len(pc.openTabs))
+	showLegacy := a.showLegacyPanesWorkPages()
+	out := make([]topTabDef, 0, len(spaces)+2+len(pc.openTabs))
+	if !showLegacy && a.projectsTopNavTabEnabled() {
+		out = append(out, topTabDef{id: SpaceProjects, title: "Projects"})
+	}
 	for _, sp := range spaces {
+		if sp.legacy && !showLegacy {
+			continue
+		}
 		out = append(out, topTabDef{id: sp.id, title: sp.title})
 	}
-	if a.projectsTopNavTabEnabled() {
+	if showLegacy && a.projectsTopNavTabEnabled() {
 		out = append(out, topTabDef{id: SpaceProjects, title: "Projects"})
 	}
 	if a.featuresPageActive() {
@@ -146,12 +157,45 @@ func (a *App) topTabs() []topTabDef {
 	return slices.Clone(out)
 }
 
-func standalonePageIfAbsent(pageID string, active int) (standalonePageDef, bool) {
-	if active >= 0 {
-		return standalonePageDef{}, false
+func (a *App) defaultStartSpace() string {
+	if tabs := a.topTabs(); len(tabs) > 0 {
+		return tabs[0].id
 	}
-	p, ok := standalonePages[pageID]
-	return p, ok
+	return SpaceProjects
+}
+
+func (a *App) canStartOnSpace(id string) bool {
+	if a.isValidTopTab(id) {
+		return true
+	}
+	if slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == id }) {
+		return true
+	}
+	return standalonePages[id].render != nil
+}
+
+func (a *App) resolveStartSpace() string {
+	if raw, ok := a.cfg.userSettings["startSpace"].(string); ok && raw != "" && a.canStartOnSpace(raw) {
+		return raw
+	}
+	return a.defaultStartSpace()
+}
+
+func (a *App) visibleTabsForRender(activePage string) (tabs []topTabDef, active int, standalone *standalonePageDef) {
+	tabs = a.topTabs()
+	active = slices.IndexFunc(tabs, func(tb topTabDef) bool { return tb.id == activePage })
+	if sp, ok := standalonePages[activePage]; ok && active < 0 {
+		return tabs, len(tabs), &sp
+	}
+	if active < 0 {
+		if idx := slices.IndexFunc(spaces, func(sp spaceDef) bool { return sp.id == activePage }); idx >= 0 {
+			sp := spaces[idx]
+			tabs = append(tabs, topTabDef{id: sp.id, title: sp.title, unlisted: true})
+			return tabs, len(tabs) - 1, nil
+		}
+		active = 0
+	}
+	return tabs, active, nil
 }
 
 func (a *App) isValidTopTab(id string) bool {
@@ -212,7 +256,7 @@ func projectTabsSpecs() []core.CommandSpec {
 func projectTabsBindings() []core.Binding {
 	n, all := ModeNormal, ""
 	return []core.Binding{
-		with(bind(n, all, "5", core.CmdPageOpen, "projects"), map[string]any{"slot": 5}),
+		with(bind(n, all, "5", core.CmdPageOpen, "tab 5"), map[string]any{"slot": 5}),
 		with(bind(n, all, "6", core.CmdPageOpen, "tab 6"), map[string]any{"slot": 6}),
 		with(bind(n, all, "7", core.CmdPageOpen, "tab 7"), map[string]any{"slot": 7}),
 		with(bind(n, all, "8", core.CmdPageOpen, "tab 8"), map[string]any{"slot": 8}),
@@ -603,7 +647,7 @@ func (a *App) projectTabClose(s core.State, c core.Command) core.StepResult {
 	delete(pc.childPaneByProject, pid)
 
 	if s.ActivePage == projectTabID(pid) {
-		nextSpace := SpacePanes
+		nextSpace := a.defaultStartSpace()
 		if a.projectsTopNavTabEnabled() {
 			nextSpace = SpaceProjects
 		} else if len(pc.openTabs) > 0 && a.projectsDynamicTabsEnabled() {

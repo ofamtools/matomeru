@@ -18,7 +18,7 @@ func TestPanesUXRailEnterLiveAndOptOut(t *testing.T) {
 		t.Fatalf("CheckBindings errors: err=%v errors=%+v", err, rep.Errors)
 	}
 
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	pane, ok := a.SelectedPane()
 	if !ok {
 		t.Fatal("expected initial selected pane")
@@ -67,7 +67,7 @@ func TestPanesUXRailEnterLiveAndOptOut(t *testing.T) {
 }
 
 func TestPanesUXSideSplitVsGlobalScratch(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Send(resize(160, 36))
 	host := newLaunchCaptureHost()
 	a.panes.Host = host
@@ -198,7 +198,7 @@ func TestPanesUXSideSplitVsGlobalScratch(t *testing.T) {
 }
 
 func TestPanesUXProjectInheritanceOverviewAndOpen(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// Set a distinct defaultDir on the top-level matomeru-v2 project.
 	projRec, err := a.Store.GetByField(data.KindTask, "title", "matomeru-v2")
@@ -335,7 +335,7 @@ func TestPanesUXProjectInheritanceOverviewAndOpen(t *testing.T) {
 }
 
 func TestPanesUXCardBorderStyleSubtleAndOptOut(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// Default ui.cardBorderStyle is "subtle" applied directly to Shell.Theme.CardBorderStyle.
 	if a.Shell.Theme.CardBorderStyle != ui.CardBorderSubtle {
@@ -415,7 +415,7 @@ func TestDataLogQAMarkdownHint(t *testing.T) {
 }
 
 func TestPanesUXDeadPaneExitClosesSideSplitDetachesFocusesRailAndSelectsNext(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	first, ok := a.SelectedPane()
 	if !ok {
 		t.Fatal("expected initial selected pane")
@@ -477,7 +477,7 @@ func TestPanesUXDeadPaneExitClosesSideSplitDetachesFocusesRailAndSelectsNext(t *
 }
 
 func TestPanesUXKeyIJumpsToPanesAndKilledSessionVanishTriggersExit(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2")
 	if a.Space() != SpaceWork {
 		t.Fatalf("expected SpaceWork, got %q", a.Space())
@@ -560,7 +560,7 @@ func (v *vanishingHost) Snapshot(id string) (ptyhost.Frame, bool) {
 }
 
 func TestPanesUXNewAgentAndProjectNavPaneAttach(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	host := newLaunchCaptureHost()
 	a.panes.Host = host
 	a.panes.Term = ptyhost.NewController(host)

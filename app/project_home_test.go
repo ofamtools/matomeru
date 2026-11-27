@@ -569,7 +569,7 @@ func TestProjectPortalNewestFirstSorting(t *testing.T) {
 	d := NewDriver(a, 160, 40)
 
 	a.ensureProjectTabOpen(proj.ID)
-	d.Keys("6")
+	d.Keys("4")
 
 	navChildIDs := func(secKey string) []string {
 		a.projectCtrl().setNavSectionExpanded(proj.ID, secKey, true)

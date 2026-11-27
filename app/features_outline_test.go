@@ -32,7 +32,7 @@ func TestFeaturesUnifiedInteractiveOutlineFeaturesConceptsViewsAndRawIdeas(t *te
 	if !a.featuresOutlineEnabled() {
 		t.Fatal("featuresOutlineEnabled() = false by default, want true")
 	}
-	d.Keys("6")
+	d.Keys("4")
 	frame := d.Frame()
 	for _, want := range []string{"Features", "Views", "Props", "Concepts", "Raw Ideas", "Split Pane Presets"} {
 		if !strings.Contains(frame, want) {

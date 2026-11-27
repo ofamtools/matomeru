@@ -39,14 +39,14 @@ func newSelectionTestApp(t *testing.T) (*App, *Driver, []*data.Record) {
 		t.Fatal(err)
 	}
 	a.cfg.userSettings[SetArchiveAnimation] = false
-	a.reloadSettings()
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 	d.Keys("2")
 	return a, d, tasks
 }
 
 func TestViewCycleParenthesesForwardAndBackward(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2")
 	_ = a.nav.presets.Save(workTable, table.Preset{Name: "p1", Filter: "tier"})
 	_ = a.nav.presets.Save(workTable, table.Preset{Name: "p2", Group: "workStatus"})
@@ -266,7 +266,7 @@ func TestBatchMutationsOverVisualAndMarked(t *testing.T) {
 }
 
 func TestHasStatusFactIsSchemaDriven(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// Task has workStatus -> facts.hasStatus == true.
 	d.Keys("2")
@@ -314,6 +314,7 @@ func TestSmartHLTreeAndGroupFoldAndOptOut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 	d.Keys("2")
 
@@ -354,7 +355,7 @@ func TestSmartHLTreeAndGroupFoldAndOptOut(t *testing.T) {
 	a.reloadSettings()
 	a.applySettings()
 
-	a2, d2 := demo(t)
+	a2, d2 := demoLegacy(t)
 	d2.Keys("1", "g", "g") // lands on expanded project group header in rail
 	if it, ok := a2.rail().Focused(); !ok || !it.Header || it.Collapsed {
 		t.Fatalf("expected expanded rail group header, got %+v (ok=%v)", it, ok)
@@ -419,7 +420,7 @@ func TestEnterVsEAndEnterOpensShowOptOut(t *testing.T) {
 }
 
 func TestGlobalJumpListCtrlOAndCtrlIAndPathPickerGO(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	project := titled(t, a, data.KindTask, "ochazuke-v2")
 
 	// Navigate: 1 Panes -> 2 Work -> Show(ochazuke-v2) -> 3 Runs -> 4 Extensions.

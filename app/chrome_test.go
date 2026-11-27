@@ -32,12 +32,16 @@ func TestW2ChromeRedesignNounFirstHintsAndOptOut(t *testing.T) {
 	if len(lines) < 4 {
 		t.Fatalf("short frame:\n%s", frame)
 	}
-	// 1. Top tab bar omits leading numbers by default (ui.topChromeRedesign=true).
-	if strings.Contains(lines[0], "1 Panes") || strings.Contains(lines[0], "2 Work") {
+	// 1. Top tab bar omits leading numbers by default (ui.topChromeRedesign=true)
+	// and hides legacy Panes/Work by default (ui.showLegacyPanesWorkPages=false).
+	if strings.Contains(lines[0], "1 Projects") || strings.Contains(lines[0], "2 Runs") {
 		t.Fatalf("redesigned top tab bar should omit leading numbers: %q", lines[0])
 	}
-	if !strings.Contains(lines[0], "Panes") || !strings.Contains(lines[0], "Work") {
+	if !strings.Contains(lines[0], "Projects") || !strings.Contains(lines[0], "Runs") || !strings.Contains(lines[0], "Extensions") {
 		t.Fatalf("top tab bar missing expected space names: %q", lines[0])
+	}
+	if strings.Contains(lines[0], "Panes") || strings.Contains(lines[0], "Work") {
+		t.Fatalf("default top tab bar should hide legacy Panes/Work: %q", lines[0])
 	}
 	// 2. Chrome separator bar carries CPU/RAM/disk + context chain + MODE badge.
 	root := a.View(a.State())
@@ -74,13 +78,13 @@ func TestW2ChromeRedesignNounFirstHintsAndOptOut(t *testing.T) {
 	}
 	legacyFrame := d.Frame()
 	legacyLines := strings.Split(legacyFrame, "\n")
-	if !strings.Contains(legacyLines[0], "1 Panes") {
-		t.Fatalf("opt-out should restore numbered tabs (enabled=%v, tab0=%q): %q", a.topChromeRedesignEnabled(), legacyRoot.Find("space.panes").Title, legacyLines[0])
+	if !strings.Contains(legacyLines[0], "1 Projects") {
+		t.Fatalf("opt-out should restore numbered tabs (enabled=%v, tab0=%q): %q", a.topChromeRedesignEnabled(), legacyRoot.Find("space.projects").Title, legacyLines[0])
 	}
 }
 
 func TestW2DetachLeftToTOCAndRightEntersLive(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	// Start on Panes rail -> l moves to TOC first (NOT directly into live terminal).
 	if a.Focus() != railTable || a.Mode() != ModeNormal {
 		t.Fatalf("initial state focus=%q mode=%q", a.Focus(), a.Mode())
@@ -124,7 +128,7 @@ func TestW2ProjectSectionPickAndCtrlWRegionJump(t *testing.T) {
 	pc := a.projectCtrl()
 	pc.openTabs = append(pc.openTabs, proj.ID)
 	pc.setSection(proj.ID, "home")
-	d.Keys("6")
+	d.Keys("4")
 	a.Shell.State = withFocus(a.State(), projectNavPrefix+"home")
 
 	// g s opens the Project Section quick-jump picker.

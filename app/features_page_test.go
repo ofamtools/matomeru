@@ -213,7 +213,7 @@ func TestFeaturesPageLeftNavDynamicDiscoveryAndCollapse(t *testing.T) {
 	}
 
 	// Open Features tab (slot 6 after 1..4 + 5 Projects).
-	d.Keys("6")
+	d.Keys("4")
 	if a.Space() != SpaceFeatures {
 		t.Fatalf("slot 6 did not open SpaceFeatures: space=%q", a.Space())
 	}
@@ -400,7 +400,7 @@ func TestFeaturesPageInlineNoteBoxAndCenteredCaptureModal(t *testing.T) {
 	if a.featuresCaptureDockedEnabled() {
 		t.Fatal("featuresCaptureDockedEnabled() = true by default, want false")
 	}
-	d.Keys("6")
+	d.Keys("4")
 	_ = d.Frame()
 	if a.featuresWishlistTaskID() != "" {
 		t.Fatal("View() mutated store by creating Features Wishlist before capture")
@@ -599,7 +599,7 @@ func TestFeaturesPageQuickCaptureAndOrganizedGroupProvenance(t *testing.T) {
 	a.applySettings()
 
 	// Open Features page: View() must remain pure (must NOT create Features Wishlist yet).
-	d.Keys("6")
+	d.Keys("4")
 	_ = d.Frame()
 	if a.featuresWishlistTaskID() != "" {
 		t.Fatal("View() mutated store by creating Features Wishlist before capture")

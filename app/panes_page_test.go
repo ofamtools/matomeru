@@ -36,7 +36,7 @@ func (h *pasteCaptureHost) Write(_ string, data []byte) error {
 }
 
 func TestNewPaneFormDefaultsToZshFirst(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	// Direct record.new {kind: "pane"} without excludeChoices keeps zsh first and default.
 	d.Send(core.CommandEvent{Command: core.Command{
 		ID:     views.CmdNew,
@@ -97,7 +97,7 @@ func TestNewPaneFormDefaultsToZshFirst(t *testing.T) {
 }
 
 func TestLiveTerminalPreservesBracketedPaste(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	host := &pasteCaptureHost{
 		frame: ptyhost.Frame{
 			Cols:           80,
@@ -143,7 +143,7 @@ func TestLiveTerminalPreservesBracketedPaste(t *testing.T) {
 }
 
 func TestUIPageTopDownScrollPaneLockAndOptOut(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	pane, ok := a.SelectedPane()
 	if !ok {
 		t.Fatal("expected selected pane")
@@ -251,7 +251,7 @@ func TestUIPageTopDownScrollPaneLockAndOptOut(t *testing.T) {
 }
 
 func TestMinimalHookBarLaneInTOCAndCompactScalableTOC(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	pane, ok := a.SelectedPane()
 	if !ok {
 		t.Fatal("expected selected pane")

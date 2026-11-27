@@ -143,6 +143,7 @@ func TestWave3StableProjectPaneRailGrouping(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	if got := a.panesGroupMode(); got != PanesGroupProjectPane {
@@ -241,7 +242,7 @@ func TestWave3StableProjectPaneRailGrouping(t *testing.T) {
 
 // 2. Project header overview + filterable/sortable/groupable Context Items table on right of 1 Panes
 func TestWave3ProjectHeaderOverviewAndContextTable(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	a.cfg.userSettings[SetProjectWorkspaceInPanes] = false
 	a.reloadSettings()
 	pane := titled(t, a, data.KindPane, "claude: wave 5B")
@@ -344,6 +345,7 @@ func TestWave3ContextHarvestingAndPicker(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	// Render once so liveScreen snapshots and harvests the visible terminal frame.
@@ -434,6 +436,7 @@ func TestWave3LiveTerminalHints(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	// Trigger pane.hints via `f` from 1 Panes rail.
@@ -553,6 +556,7 @@ fi
 	}
 	a.panes.interruptDelay = 15 * time.Millisecond
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	// Open composer with `c` on 1 Panes, wait for async @file and o-ai discovery.
@@ -716,6 +720,7 @@ func TestWave3BatchedQuestionsUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 40)
 
 	// Pane has attention dot for unread batched questions.

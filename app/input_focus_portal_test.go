@@ -92,7 +92,7 @@ func TestInputReadlinePriorityDoesNotOpenModalsAndOptOutRestoresLegacy(t *testin
 }
 
 func TestFilterInsertPageAndHalfPageMotions(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
 	a.reloadSettings()
 
@@ -253,7 +253,7 @@ func TestProjectPortalSectionPickSyncsLeftNavPointer(t *testing.T) {
 }
 
 func TestNoImplicitEdgeFocusSpillAndCtrlONeverOpensModal(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	if a.edgeFocusSpillEnabled() {
 		t.Fatal("SetEdgeFocusSpill must default to false")
 	}
@@ -369,7 +369,7 @@ func TestProjectNavSpaceTogglesFoldWithoutLeakingMark(t *testing.T) {
 }
 
 func TestSplitResizeAndResetAcrossViews(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. 1 Panes split: ctrl+w > widens panes.split (left rail focused), ctrl+w < narrows, ctrl+w = resets.
 	d.Keys("1")
@@ -433,7 +433,7 @@ func TestFocusHintsSkipsRedundantScrollWrapperInBothModes(t *testing.T) {
 	a, d := f.app, f.driver
 
 	// Open Helios Questions page in Project Portal so site.content has page.scroll wrapping q-1 card.
-	d.Keys("5", "enter", "j", "j", "l")
+	d.Keys("1", "enter", "j", "j", "l")
 	qFocusID := projectNavNodePrefix + "pages." + f.qPage.ID
 	a.Shell.State = withFocus(a.State(), qFocusID)
 	a.viewMemo.gen++

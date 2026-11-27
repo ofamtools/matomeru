@@ -27,6 +27,7 @@ func newJobsTestApp(t *testing.T, dbPath string, opts Options) (*App, *Driver) {
 		t.Fatal(err)
 	}
 	t.Cleanup(a.Close)
+	enableLegacyPagesForTest(a, SpacePanes)
 	return a, NewDriver(a, 120, 36)
 }
 

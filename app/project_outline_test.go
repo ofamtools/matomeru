@@ -114,6 +114,7 @@ func TestProjectOutlineViewFilteringAndNoteIndicators(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 
 	s := withPage(a.State(), SpacePanes, projectOutlineTree, ModeNormal)
 	if !a.inProjectOutlineTree(&s) {
@@ -218,6 +219,7 @@ func TestProjectOutlineInteractionsThreadsAgentToggleReplyAndAdd(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 
 	s := withPage(a.State(), SpacePanes, projectOutlineTree, ModeNormal)
 	_ = a.projectOutlineView(&s, proj.ID)
@@ -480,6 +482,7 @@ func TestProjectOutlineQueueDispatchScopingAndContextAutoInject(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 
 	s := withPage(a.State(), SpacePanes, projectOutlineTree, ModeNormal)
 	_ = a.projectOutlineView(&s, projA.ID)

@@ -42,7 +42,7 @@ func TestViewCycleBindingsAndSchemaPropagation(t *testing.T) {
 }
 
 func TestViewCycleWorkAndShow(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. Hierarchical Work Index (Tasks) without presets: ) toggles tree <-> table.
 	d.Keys("2")
@@ -126,7 +126,7 @@ func TestViewCycleWorkAndShow(t *testing.T) {
 }
 
 func TestViewCyclePanesRailProjectContextSiteAndTables(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. Panes rail without presets: delegates to panesGroupToggle (project-pane <-> flat).
 	d.Keys("1")
@@ -483,7 +483,7 @@ func TestReactiveAndRepeatableLaunchFormEndToEnd(t *testing.T) {
 func TestTOCStyleSettingAndViewCycle(t *testing.T) {
 	dir := t.TempDir()
 	a, d := configured(t, dir)
-	d.Keys("1", "l")
+	d.Keys("I", "l")
 	if !strings.HasPrefix(a.Focus(), tocPrefix) {
 		t.Fatalf("expected focus on site.toc.*, got %q", a.Focus())
 	}

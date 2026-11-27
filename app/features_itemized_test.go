@@ -78,7 +78,7 @@ func TestFeaturesItemizationProjectsSchemasAndTrackedConcepts(t *testing.T) {
 		t.Fatalf("page rail component detail = %+v", component)
 	}
 
-	d.Keys("6")
+	d.Keys("4")
 	d.Send(core.CommandEvent{Command: core.Command{ID: CmdFeaturesNavSelect, Args: map[string]any{"key": "concept:prop"}, Actor: User}})
 	if got := a.featuresCtrl().activeItemKey(); got != "concept:prop" {
 		t.Fatalf("selected Features key = %q, want concept:prop", got)
@@ -140,7 +140,7 @@ func TestFeaturesSuggestionsUseScopedKeysAndRecordForms(t *testing.T) {
 	form.Model().SetValue(data.FieldConceptTargetKind, "review")
 	assertRecord(submit("Review workflow"), data.ConceptKindWorkflow, "review", data.ConceptStatusIdea)
 
-	d.Keys("6")
+	d.Keys("4")
 	focusNav := func(key string) {
 		t.Helper()
 		d.Send(core.CommandEvent{Command: core.Command{ID: CmdFeaturesNavSelect, Args: map[string]any{"key": key}, Actor: User}})

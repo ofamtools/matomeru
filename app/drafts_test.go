@@ -14,7 +14,7 @@ import (
 // Edit forms does not write to SQLite until ctrl+s or navigating to the
 // [ Submit ] row and pressing enter.
 func TestExplicitSubmitNoPrematureWrites(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2")
 	task := titled(t, a, data.KindTask, "ochazuke-v2")
 
@@ -77,7 +77,7 @@ func TestExplicitSubmitNoPrematureWrites(t *testing.T) {
 // TestSubmitDirectlyFromFormEditMode verifies that ctrl+s works even while
 // actively typing in ModeFormEdit, and that u undoes the submission in one step.
 func TestSubmitDirectlyFromFormEditMode(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2", "n", "i")
 	if a.Mode() != ModeFormEdit {
 		t.Fatalf("mode = %q, want %q", a.Mode(), ModeFormEdit)
@@ -100,7 +100,7 @@ func TestSubmitDirectlyFromFormEditMode(t *testing.T) {
 // TestFormDraftsLifecycle verifies auto-save on cancel, draft badges,
 // [ / ] cycling, D discarding, and draft cleanup on submit.
 func TestFormDraftsLifecycle(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2")
 
 	// Save first draft on esc.
@@ -200,6 +200,7 @@ func TestFormDraftsPersistAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	enableLegacyPagesForTest(a1, SpacePanes)
 	d1 := NewDriver(a1, 120, 36)
 	d1.Keys("2", "n", "i")
 	d1.Type("Persisted draft")
@@ -216,6 +217,7 @@ func TestFormDraftsPersistAcrossRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a2.Close() })
+	enableLegacyPagesForTest(a2, SpacePanes)
 	d2 := NewDriver(a2, 120, 36)
 	d2.Keys("2", "n")
 	if a2.activeRecordForm().Model().DraftCount() != 1 {
@@ -230,7 +232,7 @@ func TestFormDraftsPersistAcrossRestart(t *testing.T) {
 // TestDraftKeysDoNotSwitchSpaces verifies that [ and ] in ModeForm never leak
 // to Normal mode's space switching.
 func TestDraftKeysDoNotSwitchSpaces(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2", "n")
 	if a.Space() != SpaceWork || a.Modal() != "form" {
 		t.Fatalf("setup: space=%q modal=%q", a.Space(), a.Modal())

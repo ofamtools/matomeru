@@ -43,7 +43,11 @@ func TestCrossSurfaceActionConsistencyFiveWays(t *testing.T) {
 	}
 	t.Cleanup(func() { a.Close() })
 	d := app.NewDriver(a, 120, 40)
-	d.Keys("2", "g", "t")
+	d.Send(core.CommandEvent{Command: core.Command{
+		ID:   core.CmdPageOpen,
+		Args: map[string]any{"id": app.SpaceWork},
+	}})
+	d.Keys("g", "t")
 	_ = d.Frame()
 
 	// 1. Key binding: m stars the task.

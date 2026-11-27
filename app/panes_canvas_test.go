@@ -13,7 +13,7 @@ import (
 )
 
 func TestInteractiveCanvasTableLinksAndPersistentCheckboxes(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	pane, ok := a.SelectedPane()
 	if !ok {
 		t.Fatal("expected selected pane")
@@ -160,7 +160,7 @@ func TestInteractiveCanvasTableLinksAndPersistentCheckboxes(t *testing.T) {
 }
 
 func TestSlimLeftRailInlineStateIconAndOptOut(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("1")
 	tbl := a.rail()
 	if len(tbl.Columns) != 1 || tbl.Columns[0].Key != "rail" {
@@ -184,7 +184,7 @@ func TestSlimLeftRailInlineStateIconAndOptOut(t *testing.T) {
 }
 
 func TestTOCLivePreviewOnCursorMoveAndOptOut(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	pane, ok := a.SelectedPane()
 	if !ok {
 		t.Fatal("expected selected pane")

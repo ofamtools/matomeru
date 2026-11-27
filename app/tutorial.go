@@ -219,6 +219,10 @@ func NewTutorial(opts Options) (*App, error) {
 		store.Close()
 		return nil, err
 	}
+	a.cfg.userSettings[SetShowLegacyPanesWorkPages] = true
+	a.reloadSettings()
+	a.applySettings()
+	a.Shell.State = a.openSpace(a.State(), SpacePanes)
 	a.say("tutorial: enter opens the guide's pages · 2 has the steps · nothing here is saved")
 	return a, nil
 }

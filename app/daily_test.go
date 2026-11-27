@@ -63,7 +63,7 @@ func panesWithRole(t *testing.T, a *App, role string) []data.Record {
 // y lists every value of the focused record, whatever its noun, each shown
 // as it will be copied; y y copies the main one without the picker.
 func TestYankPicker(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	task := titled(t, a, data.KindTask, "ochazuke-v2")
 	browseTo(t, a, d, mkRec(t, a, data.KindNote, map[string]any{"title": "placeholder"})) // any noun but tasks, then back
 	browseTo(t, a, d, task)
@@ -142,7 +142,7 @@ func TestYankPicker(t *testing.T) {
 // q and a letter records the keys pressed, @ and the letter replays them
 // through the engine, and the special registers follow what the owner does.
 func TestRegistersAndMacros(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
 	a.reloadSettings()
 	d.Keys("2")
@@ -257,7 +257,7 @@ const guideDoc = "# Guide\n\nRead [the other one](other.md#second-part) or [the 
 // links that go back through the handlers, and a code-block yank.
 func TestOpenHandlersAndMarkdownReader(t *testing.T) {
 	t.Setenv("EDITOR", "vim")
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	dir := t.TempDir()
 	guide := filepath.Join(dir, "guide.md")
 	for name, text := range map[string]string{"guide.md": guideDoc, "other.md": "# Other\n\nFirst.\n\n## Second part\n\nSecond.\n"} {
@@ -499,6 +499,7 @@ func TestGlobalScratches(t *testing.T) {
 	host := &stubHost{}
 	dataDir := filepath.Join(t.TempDir(), "share", "matomeru-next")
 	a, d := liveApp(t, true, Options{Host: host, DataDir: dataDir})
+	enableLegacyPagesForTest(a, SpacePanes)
 	before := len(a.rail().Rows)
 	d.Keys("2", "j", "j")
 	focus, row := a.Focus(), a.nav.tables[workTable].SelectedIdx
@@ -589,7 +590,7 @@ func TestGlobalScratches(t *testing.T) {
 
 // Without a live terminal a scratch still opens: what is typed is kept.
 func TestScratchWithoutHost(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("ctrl+a", "S")
 	if a.Modal() != "scratch" || a.Mode() != ModeTerminal {
 		t.Fatalf("modal %q, mode %q", a.Modal(), a.Mode())
@@ -669,6 +670,7 @@ func TestRuleFromSignal(t *testing.T) {
 func TestInspectActionsAndModes(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "matomeru-next")
 	a, d := configured(t, dir)
+	enableLegacyPagesForTest(a, SpacePanes)
 	d.Keys("2", ":")
 	d.Type("inspect actions")
 	d.Keys("enter")

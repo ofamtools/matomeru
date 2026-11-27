@@ -290,11 +290,11 @@ func DefaultBindings() []core.Binding {
 	n, all := ModeNormal, ""
 	out := []core.Binding{
 		// Spaces.
-		with(bind(n, all, "1", core.CmdPageOpen, "panes"), map[string]any{"id": SpacePanes}),
+		with(bind(n, all, "1", core.CmdPageOpen, "tab 1"), map[string]any{"slot": 1}),
 		with(bind(n, all, "I", core.CmdPageOpen, "panes"), map[string]any{"id": SpacePanes}),
-		with(bind(n, all, "2", core.CmdPageOpen, "work"), map[string]any{"id": SpaceWork}),
-		with(bind(n, all, "3", core.CmdPageOpen, "runs"), map[string]any{"id": SpaceRuns}),
-		with(bind(n, all, "4", core.CmdPageOpen, "extensions"), map[string]any{"id": SpaceExtensions}),
+		with(bind(n, all, "2", core.CmdPageOpen, "tab 2"), map[string]any{"slot": 2}),
+		with(bind(n, all, "3", core.CmdPageOpen, "tab 3"), map[string]any{"slot": 3}),
+		with(bind(n, all, "4", core.CmdPageOpen, "tab 4"), map[string]any{"slot": 4}),
 		bind(n, all, "]", core.CmdPageNext, "next space"),
 		bind(n, all, "[", core.CmdPagePrev, "previous space"),
 

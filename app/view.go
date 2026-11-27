@@ -111,7 +111,7 @@ func (a *App) tabsMemoKey(s core.State) string {
 	if a.nav != nil && a.nav.showEmptyFoldExpanded {
 		b.WriteString("|sf:1")
 	}
-	fmt.Fprintf(&b, "|tc:%t", a.topChromeRedesignEnabled())
+	fmt.Fprintf(&b, "|tc:%t:%t", a.topChromeRedesignEnabled(), a.showLegacyPanesWorkPages())
 	if ak := a.archiveAnimCacheKey(); ak != "" {
 		b.WriteString("|aa:" + ak)
 	}
@@ -209,20 +209,14 @@ func (a *App) build(s core.State) ui.ViewNode {
 		tabs = a.viewMemo.tabs
 	} else {
 		a.viewMemo.tabsBuilds++
-		topTabs := a.topTabs()
-		active := slices.IndexFunc(topTabs, func(tb topTabDef) bool { return tb.id == s.ActivePage })
-		standalone, isStandalone := standalonePageIfAbsent(s.ActivePage, active)
-		if isStandalone {
-			active = len(topTabs)
-		} else if active < 0 {
-			active = 0
-		}
+		topTabs, active, standalone := a.visibleTabsForRender(s.ActivePage)
+		isStandalone := standalone != nil
 		topChrome := a.topChromeRedesignEnabled()
 		tabs = ui.ViewNode{ID: "spaces", Kind: ui.KindTabs, Props: map[string]any{"active": active}, Box: layout.Constraints{Flex: 1}}
 		for i, tb := range topTabs {
-			tabTitle := fmt.Sprintf("%d %s", i+1, tb.title)
-			if topChrome {
-				tabTitle = tb.title
+			tabTitle := tb.title
+			if !topChrome && !tb.unlisted {
+				tabTitle = fmt.Sprintf("%d %s", i+1, tb.title)
 			}
 			tab := ui.ViewNode{ID: "space." + tb.id, Kind: ui.KindVStack, Scope: tb.id, Title: tabTitle}
 			if i == active {

@@ -153,8 +153,8 @@ func (a *App) settle(s core.State) core.State {
 	if len(s.Modals) > 0 {
 		return s
 	}
-	if _, standalone := standalonePages[s.ActivePage]; !standalone && s.ActivePage != SpaceJobs && !a.isValidTopTab(s.ActivePage) {
-		s.ActivePage = SpacePanes
+	if s.ActivePage != SpaceJobs && !a.canStartOnSpace(s.ActivePage) {
+		s.ActivePage = a.defaultStartSpace()
 		a.viewMemo.gen++
 	}
 	nodes := a.focusables(s)
