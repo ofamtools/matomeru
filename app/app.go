@@ -153,17 +153,20 @@ type Options struct {
 }
 
 type viewMemoState struct {
-	gen        uint64
-	overlayGen uint64
-	chromeGen  uint64
-	builds     uint64
-	tabsBuilds uint64
-	memoKey    string
-	memo       ui.ViewNode
-	tabsKey    string
-	tabs       ui.ViewNode
-	binds      *compiledBindingsIndex
-	fileCache  *contentFileCache
+	gen            uint64
+	overlayGen     uint64
+	chromeGen      uint64
+	builds         uint64
+	tabsBuilds     uint64
+	skipNextGen    bool
+	skipPostHandle bool
+	revCache       storeRevCache
+	memoKey        string
+	memo           ui.ViewNode
+	tabsKey        string
+	tabs           ui.ViewNode
+	binds          *compiledBindingsIndex
+	fileCache      *contentFileCache
 	// PageListID is the first table drawn on the page by the last build
 	// (pageListTableID), "" when the page draws none.
 	PageListID string
@@ -498,12 +501,26 @@ func sameTopOverlay(before, after core.State) bool {
 	return before.Modals[len(before.Modals)-1].ID == after.Modals[len(after.Modals)-1].ID
 }
 
+func sameFrameShallow(a, b core.State) bool {
+	return len(a.Modals) == len(b.Modals) && a.ActiveFrame() == b.ActiveFrame()
+}
+
+func (a *App) canFinishSilentHandle(s core.State, out core.StepResult, prevStatus string, toastExpired, focusChanged, acked bool) bool {
+	if !a.viewMemo.skipPostHandle || toastExpired || focusChanged || acked {
+		return false
+	}
+	return len(a.effects) == 0 && len(out.Effects) == 0 && a.status == prevStatus && sameFrameShallow(s, out.State)
+}
+
 // handle registers fn as the handler of id. Every handler bumps the view
 // generation after running and is followed by settle, so the view never shows
 // stale data and the focus never points at a node that is gone.
 func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResult) {
 	a.Engine.Handle(id, func(s core.State, c core.Command) core.StepResult {
-		a.tickToasts()
+		a.viewMemo.skipNextGen = false
+		a.viewMemo.skipPostHandle = false
+		toastExpired := a.tickToasts()
+		prevStatus := a.status
 		prevModal := a.Modal()
 		prevMode := a.Engine.Mode(s)
 		a.syncEscapeGuardModal(prevModal)
@@ -512,16 +529,25 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 		if !intercepted {
 			out = a.executeAction(s, c, fn)
 		}
-		a.focusTick(out.State, c)
+		focusChanged := a.focusTick(out.State, c)
+		acked := false
 		if hasUnreadNav && isProjectNavAckCommand(c.ID) {
 			if a.markProjectNavTargetRead(unreadNavTarget) {
 				out.State = a.settleNavFocusAfterRead(out.State, unreadNavTarget)
+				acked = true
 			}
 		}
 		a.afterCommandEscapeGuard(prevModal, prevMode, c, &out)
+		skipPost := a.canFinishSilentHandle(s, out, prevStatus, toastExpired, focusChanged, acked)
+		skipGen := a.viewMemo.skipNextGen && !acked && !focusChanged && a.status == prevStatus
+		a.viewMemo.skipPostHandle = false
+		a.viewMemo.skipNextGen = false
+		if skipPost {
+			return out
+		}
 		if sameTopOverlay(s, out.State) {
 			a.viewMemo.overlayGen++
-		} else {
+		} else if !skipGen {
 			a.viewMemo.gen++
 		}
 		out.State = a.settle(out.State)

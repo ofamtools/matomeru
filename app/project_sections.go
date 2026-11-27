@@ -140,6 +140,85 @@ func projectNavSectionBadge(secKey string, count, officialCount, ctxLen int, com
 	return ""
 }
 
+func (a *App) projectPanesTelemetryFP(panes []data.Record) string {
+	if len(panes) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, p := range panes {
+		status, _, needsYou := a.effectivePaneLiveStatus(p)
+		fmt.Fprintf(&b, "%s:%s:%t:%d|", p.ID, status, needsYou, len(a.pendingApprovalsFor(p.ID)))
+	}
+	return b.String()
+}
+
+func (a *App) projectPanesHomeTelemetryFP(panes []data.Record) string {
+	if len(panes) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, p := range panes {
+		status, pt, pending := a.effectiveHookState(p.ID)
+		turns := 0
+		var lastTurn int64
+		if pt != nil && len(pt.RecentTurns) > 0 {
+			turns = len(pt.RecentTurns)
+			lastTurn = pt.RecentTurns[turns-1].At.UnixNano()
+		}
+		fmt.Fprintf(&b, "%s:%s:%d:%d:%d|", p.ID, status, len(pending), turns, lastTurn)
+	}
+	return b.String()
+}
+
+func (a *App) refreshCachedNavPanes(pc *ProjectController, ws projectWorkspaceData, cached *cachedProjectNav, focusID string, treeEnabled, allowPeek, compact bool) {
+	if cached == nil {
+		return
+	}
+	panesIdx := slices.IndexFunc(cached.sections, func(s views.ProjectNavSection) bool { return s.Key == "panes" })
+	if panesIdx < 0 || len(ws.panes) == 0 {
+		return
+	}
+	nextTargets := make(map[string]projectNavTarget, len(cached.targets))
+	for k, v := range cached.targets {
+		if v.Section != "panes" {
+			nextTargets[k] = v
+		}
+	}
+	pc.navTargets[ws.projectKey] = nextTargets
+	expanded := treeEnabled && pc.isNavSectionExpanded(ws.projectKey, "panes")
+	children, unreadCount := a.buildProjectNavChildren(ws, "panes", focusID, expanded, allowPeek)
+	children = maybeCapPeekedNavChildren(pc, ws.projectKey, "panes", children, compact, expanded, allowPeek)
+	sec := cached.sections[panesIdx]
+	sec.UnreadCount = unreadCount
+	sec.Unread = unreadCount > 0
+	sec.Children = nil
+	if treeEnabled && len(children) > 0 {
+		sec.Children = children
+	}
+	cached.sections[panesIdx] = sec
+	cached.targets = pc.navTargets[ws.projectKey]
+}
+
+func (a *App) cachedProjectNavSections(pc *ProjectController, ws projectWorkspaceData, navKey, paneTelFP, activeKey, focusID, lockedFocus, openPage string, treeEnabled, allowPeek, compact bool) ([]views.ProjectNavSection, bool) {
+	if pc.navCache == nil {
+		return nil, false
+	}
+	cached, ok := pc.navCache[ws.projectKey]
+	if !ok || cached.key != navKey {
+		return nil, false
+	}
+	if pc.navTargets == nil {
+		pc.navTargets = map[string]map[string]projectNavTarget{}
+	}
+	if cached.paneTelFP != paneTelFP {
+		a.refreshCachedNavPanes(pc, ws, &cached, focusID, treeEnabled, allowPeek, compact)
+		cached.paneTelFP = paneTelFP
+		pc.navCache[ws.projectKey] = cached
+	}
+	pc.navTargets[ws.projectKey] = cached.targets
+	return cloneNavSectionsWithFocus(cached.sections, activeKey, focusID, lockedFocus, openPage), true
+}
+
 func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData, activeKey, focusID string) []views.ProjectNavSection {
 	pc := a.projectCtrl()
 	treeEnabled := a.projectNavTreeEnabled()
@@ -150,8 +229,9 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 		lockedFocus = locked.FocusID
 	}
 	openPage := pc.openPageID(ws.projectKey)
-	navKey := fmt.Sprintf("%d|%d|%d|%t|%t|%t|%t|%t|%t|%t|%s|%s|%s|%d|%s",
-		ws.cacheRev, ws.cacheCtxGen, a.telemetryViewSeq(),
+	paneTelFP := a.projectPanesTelemetryFP(ws.panes)
+	navKey := fmt.Sprintf("%d|%d|%t|%t|%t|%t|%t|%t|%t|%s|%s|%s|%d|%s",
+		ws.cacheRev, ws.cacheCtxGen,
 		a.nav.showArchived, treeEnabled, allowPeek, compact,
 		a.projectNavSurfaceContextUnreadEnabled(), a.projectNavUnreadDotOnlyEnabled(), a.projectNavLaneProgressBarEnabled(),
 		projectNavDefsCacheKey(defs),
@@ -160,14 +240,8 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 		a.navUnreadCutoff.UnixNano(),
 		a.archiveAnimCacheKey(),
 	)
-	if pc.navCache != nil {
-		if cached, ok := pc.navCache[ws.projectKey]; ok && cached.key == navKey {
-			if pc.navTargets == nil {
-				pc.navTargets = map[string]map[string]projectNavTarget{}
-			}
-			pc.navTargets[ws.projectKey] = cached.targets
-			return cloneNavSectionsWithFocus(cached.sections, activeKey, focusID, lockedFocus, openPage)
-		}
+	if hit, ok := a.cachedProjectNavSections(pc, ws, navKey, paneTelFP, activeKey, focusID, lockedFocus, openPage, treeEnabled, allowPeek, compact); ok {
+		return hit
 	}
 
 	counts := map[string]int{
@@ -207,9 +281,10 @@ func (a *App) buildProjectNavItems(defs []projectNavDef, ws projectWorkspaceData
 		pc.navCache = map[string]cachedProjectNav{}
 	}
 	pc.navCache[ws.projectKey] = cachedProjectNav{
-		key:      navKey,
-		sections: out,
-		targets:  pc.navTargets[ws.projectKey],
+		key:       navKey,
+		paneTelFP: paneTelFP,
+		sections:  out,
+		targets:   pc.navTargets[ws.projectKey],
 	}
 	return cloneNavSectionsWithFocus(out, activeKey, focusID, lockedFocus, openPage)
 }
@@ -427,7 +502,7 @@ func (a *App) projectRecordPanel(panelID, tableID, kind, section, title, panelSc
 	if !cached {
 		schema := a.schema(kind)
 		fresh := views.TableFromRecordsWith(schema, filtered, st)
-		a.resolveTableRefCells(schema, filtered, fresh)
+		a.resolveTableRefCells(ws, schema, filtered, fresh)
 		for i, rec := range filtered {
 			if a.openable(rec) {
 				fresh.Rows[i].Facts[factOpenable] = true
@@ -498,9 +573,11 @@ func (a *App) projectSectionNotes(ws projectWorkspaceData) ui.ViewNode {
 		}
 		rows := make([]table.Row, len(notes))
 		schema := a.schema(data.KindNote)
+		refTitles := a.projectWorkspaceRefTitles(ws)
+		aboutByNote := firstOutgoingRelByFrom(ws.relations, data.RelAbout, data.KindNote)
 		for i, n := range notes {
 			ref := n.Ref()
-			target := a.projectNoteTargetLabel(n)
+			target := a.projectNoteTargetLabelFrom(n, refTitles, aboutByNote)
 			author := strings.TrimSpace(n.Text("authorKind"))
 			if author == "" {
 				author = "owner"
@@ -553,8 +630,61 @@ func (a *App) keepProjectTable(id string, fresh *table.Model) *table.Model {
 	return tbl
 }
 
-func (a *App) resolveTableRefCells(schema data.Schema, recs []data.Record, tbl *table.Model) {
-	names := map[core.Ref]string{}
+func (a *App) projectWorkspaceRefTitles(ws projectWorkspaceData) map[core.Ref]string {
+	total := len(ws.tasks) + len(ws.panes) + len(ws.allLanes) + len(ws.pages) + len(ws.documents) + len(ws.notes) + len(ws.questions) + len(ws.commands) + 1
+	titles := make(map[core.Ref]string, total)
+	if ws.projRec != nil {
+		titles[ws.projRec.Ref()] = views.Title(a.schema(ws.projRec.Kind), *ws.projRec)
+	}
+	buckets := []struct {
+		kind string
+		recs []data.Record
+	}{
+		{data.KindTask, ws.tasks},
+		{data.KindPane, ws.panes},
+		{data.KindLane, ws.allLanes},
+		{data.KindPage, ws.pages},
+		{data.KindDocument, ws.documents},
+		{data.KindNote, ws.notes},
+		{data.KindQuestion, ws.questions},
+		{data.KindCommand, ws.commands},
+	}
+	for _, b := range buckets {
+		if len(b.recs) == 0 {
+			continue
+		}
+		schema := a.schema(b.kind)
+		for _, rec := range b.recs {
+			titles[rec.Ref()] = views.Title(schema, rec)
+		}
+	}
+	return titles
+}
+
+func firstOutgoingRelByFrom(rels []data.Relation, relKind, fromKind string) map[string]core.Ref {
+	out := make(map[string]core.Ref, len(rels))
+	for _, rel := range rels {
+		if rel.Kind != relKind || rel.From.Kind != fromKind || rel.From.ID == "" {
+			continue
+		}
+		if _, exists := out[rel.From.ID]; !exists {
+			out[rel.From.ID] = rel.To
+		}
+	}
+	return out
+}
+
+func (a *App) resolveWorkspaceRefTitle(ref core.Ref, titles map[core.Ref]string) string {
+	if t, ok := titles[ref]; ok {
+		return t
+	}
+	t := a.title(ref)
+	titles[ref] = t
+	return t
+}
+
+func (a *App) resolveTableRefCells(ws projectWorkspaceData, schema data.Schema, recs []data.Record, tbl *table.Model) {
+	names := a.projectWorkspaceRefTitles(ws)
 	for _, f := range schema.Fields {
 		if f.Type != core.ParamRef {
 			continue
@@ -564,10 +694,7 @@ func (a *App) resolveTableRefCells(schema data.Schema, recs []data.Record, tbl *
 			if !ok {
 				continue
 			}
-			if _, seen := names[ref]; !seen {
-				names[ref] = a.title(ref)
-			}
-			tbl.Rows[i].Cells[f.Name] = names[ref]
+			tbl.Rows[i].Cells[f.Name] = a.resolveWorkspaceRefTitle(ref, names)
 		}
 	}
 }
@@ -590,14 +717,9 @@ func (a *App) syncProjectSectionTree(treeID string, ws projectWorkspaceData, sch
 		pc.trees[treeID] = tm
 	}
 	nodes := data.BuildTree(recs, parentField, "", a.treeIncludesArchived(schema.Kind))
-	refTitles := map[core.Ref]string{}
+	refTitles := a.projectWorkspaceRefTitles(ws)
 	resolveRef := func(ref core.Ref) string {
-		if t, ok := refTitles[ref]; ok {
-			return t
-		}
-		t := a.title(ref)
-		refTitles[ref] = t
-		return t
+		return a.resolveWorkspaceRefTitle(ref, refTitles)
 	}
 	opts := views.TreeOptions{
 		Style: st, GapTopLevel: false, ShowFoldCount: true, ResolveRef: resolveRef,
@@ -704,17 +826,20 @@ func projectQuestionsList(raw []data.Record) ([]data.Record, int) {
 	return out, openCount
 }
 
-func (a *App) projectNoteTargetLabel(n data.Record) string {
+func (a *App) projectNoteTargetLabelFrom(n data.Record, titles map[core.Ref]string, aboutByNote map[string]core.Ref) string {
 	if tRef, ok := n.RefField("task"); ok {
-		return a.title(tRef)
+		return a.resolveWorkspaceRefTitle(tRef, titles)
+	}
+	if to, ok := aboutByNote[n.ID]; ok {
+		return a.resolveWorkspaceRefTitle(to, titles)
+	}
+	if pRef, ok := n.RefField("pane"); ok {
+		return a.resolveWorkspaceRefTitle(pRef, titles)
 	}
 	if a.Store != nil {
 		if rels, err := a.Store.Related(n.Ref(), data.RelAbout, data.Outgoing); err == nil && len(rels) > 0 {
-			return a.title(rels[0].To)
+			return a.resolveWorkspaceRefTitle(rels[0].To, titles)
 		}
-	}
-	if pRef, ok := n.RefField("pane"); ok {
-		return a.title(pRef)
 	}
 	return ""
 }

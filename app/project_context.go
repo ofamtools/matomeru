@@ -73,7 +73,7 @@ func (a *App) projectContextTableModel(ws projectWorkspaceData) *table.Model {
 }
 
 func (a *App) buildContextSectionTable(tableID, section string, ws projectWorkspaceData, items []CollectedContextItem, cols []table.Column) *table.Model {
-	cacheKey := fmt.Sprintf("ctx|%s|%s|%d|%d|%v|%s|%d", tableID, ws.projectKey, ws.cacheRev, ws.cacheCtxGen, a.nav.showArchived, ws.cacheRailKey, len(items))
+	cacheKey := fmt.Sprintf("ctx|%s|%s|%d|%d|%v|%s|%d", tableID, ws.projectKey, ws.contextRev, ws.cacheCtxGen, a.nav.showArchived, ws.cacheRailKey, len(items))
 	if tbl, ok := a.cachedProjectTable(tableID, cacheKey); ok && (len(items) == 0 || len(a.panes.projectCtxRows) > 0) {
 		a.panes.projectCtxGroup, a.panes.projectCtxRef = ws.groupName, ws.projRef
 		return tbl
@@ -142,7 +142,7 @@ func (a *App) projectContextPanel(panelID, tableID, section, title string, ws pr
 		node.Facts = map[string]any{}
 	}
 	node.Facts["section"] = section
-	badges := append([]ui.Badge{{Text: fmt.Sprintf("%d/%d", len(tbl.Filtered()), len(tbl.Rows))}}, extra...)
+	badges := append([]ui.Badge{{Text: fmt.Sprintf("%d/%d", tableFilteredCount(node, tbl), len(tbl.Rows))}}, extra...)
 	if tbl.Query != "" {
 		badges = append(badges, ui.Badge{Text: "/" + tbl.Query, Tone: "accent"})
 	}

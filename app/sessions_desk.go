@@ -65,7 +65,7 @@ func (a *App) sessionsSnapshot() []data.SessionDeskRow {
 	if a.Store == nil {
 		return nil
 	}
-	rev, _ := a.Store.LatestChangeSetNumber()
+	rev := a.storeRev()
 	key := fmt.Sprintf("%d|%d", rev, a.rt.live.telemetrySeq.Load())
 	if sc.snapshotKey == key {
 		return sc.rows

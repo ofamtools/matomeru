@@ -203,14 +203,31 @@ func (a *App) markDrawn() {
 	if !a.tracking() {
 		return
 	}
-	if n, err := a.Store.LatestChangeSetNumber(); err == nil {
-		a.rt.live.drawn = n
-		a.rt.live.seen.Store(n)
-	}
+	n := a.storeRev()
+	a.rt.live.drawn = n
+	a.rt.live.seen.Store(n)
 }
 
 func wakeMsg() tea.Msg {
 	return core.CommandEvent{Command: core.Command{ID: CmdWake, Source: "wake", Actor: core.Actor{Kind: "system", ID: "mtm.wake"}}}
+}
+
+func (a *App) wakeUpTelemetry(s core.State) (needGen, changed bool) {
+	l := &a.rt.live
+	seq := l.telemetrySeq.Load()
+	if seq == l.telemetryDrawn {
+		return false, false
+	}
+	// Every tick may let a queued prompt go; only one the page shows redraws.
+	l.telemetryDrawn = seq
+	a.syncTelemetryScope(s)
+	if a.flushAllQueuedPrompts() > 0 {
+		needGen, changed = true, true
+	}
+	if l.telView.seq != l.telView.drawn {
+		l.telView.drawn, changed = l.telView.seq, true
+	}
+	return needGen, changed
 }
 
 // wakeUp applies posted results and redraws when they, the store or the shown
@@ -221,43 +238,34 @@ func (a *App) wakeUp(s core.State, c core.Command) core.StepResult {
 	todo := l.inbox
 	l.inbox = nil
 	l.inboxMu.Unlock()
-	changed := a.focusTick(s, c) || len(todo) > 0
+	needGen := a.focusTick(s, c) || len(todo) > 0
+	changed := needGen
 	for _, fn := range todo {
 		s = fn(s)
 	}
-	if n, err := a.Store.LatestChangeSetNumber(); err == nil {
+	if a.Store != nil {
+		n := a.refreshStoreRev()
 		l.seen.Store(n)
 		if n != l.drawn {
 			l.drawn, changed = n, true
 		}
 	}
 	if moved, exited := a.screenMoved(s); moved {
-		changed = true
+		needGen, changed = true, true
 		for _, ex := range exited {
 			s = a.handlePaneExited(s, ex.id, ex.code)
 		}
 	}
-	if seq := l.telemetrySeq.Load(); seq != l.telemetryDrawn {
-		// Every tick may let a queued prompt go; only one the page shows redraws.
-		l.telemetryDrawn = seq
-		a.syncTelemetryScope(s)
-		if a.flushAllQueuedPrompts() > 0 || l.telView.seq != l.telView.drawn {
-			l.telView.drawn, changed = l.telView.seq, true
-		}
+	if telGen, telChanged := a.wakeUpTelemetry(s); telChanged {
+		needGen, changed = needGen || telGen, true
 	}
-	chromeOnly := false
+	chromeOnly := a.tickToasts() || a.tickEscapeGuard()
 	if seq := l.sysStatsSeq.Load(); seq != l.sysStatsDrawn {
 		l.sysStatsDrawn, chromeOnly = seq, true
 	}
-	if a.tickToasts() {
-		chromeOnly = true
-	}
-	if a.tickEscapeGuard() {
-		chromeOnly = true
-	}
 	var extraEffects []core.Effect
 	if animChanged, eff := a.tickArchiveAnim(); animChanged {
-		changed = true
+		needGen, changed = true, true
 		if eff != nil {
 			extraEffects = append(extraEffects, eff)
 		}
@@ -270,7 +278,9 @@ func (a *App) wakeUp(s core.State, c core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	l.refreshes++
-	a.viewMemo.gen++
+	if needGen {
+		a.viewMemo.gen++
+	}
 	return core.StepResult{State: a.settle(s), Effects: extraEffects}
 }
 

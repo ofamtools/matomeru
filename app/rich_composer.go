@@ -799,7 +799,7 @@ func (a *App) contextRecordCompletions(contextTaskID string) []composerCompletio
 	if a == nil || a.Store == nil {
 		return nil
 	}
-	rev, _ := a.Store.LatestChangeSetNumber()
+	rev := a.storeRev()
 	idx := a.ensureContextIndex()
 	idx.mu.RLock()
 	if idx.compLoaded && idx.compRev == rev && idx.compTaskID == contextTaskID {

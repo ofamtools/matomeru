@@ -82,11 +82,11 @@ func (pc *ProjectController) homeTarget(projKey, focusID string) (projectHomeTar
 }
 
 func (a *App) projectHomeCacheKey(ws projectWorkspaceData, interactive bool) string {
-	return fmt.Sprintf("%s|%d|%d|%d|%t|%d|%s|%t|%t|%t|%d",
-		ws.projectKey, ws.cacheRev, ws.cacheCtxGen, a.telemetryViewSeq(),
+	return fmt.Sprintf("%s|%d|%d|%s|%t|%d|%s|%t|%t|%t|%d",
+		ws.projectKey, ws.cacheRev, ws.cacheCtxGen, a.projectPanesHomeTelemetryFP(ws.panes),
 		a.nav.showArchived, a.navUnreadCutoff.UnixNano(), ws.cacheRailKey,
 		a.projectHomeDashboardEnabled(), a.projectHomeQueueProgressEnabled(),
-		interactive, a.now().Unix(),
+		interactive, a.now().Unix()/60,
 	)
 }
 
@@ -191,8 +191,8 @@ func (a *App) projectHomeMetaLines(ws projectWorkspaceData) (desc, meta string) 
 	}
 	desc = strings.TrimSpace(ws.projRec.Text("description"))
 	var parts []string
-	if _, repoLabels := data.RecordRepos(a.Store, *ws.projRec); len(repoLabels) > 0 {
-		parts = append(parts, "repo: "+strings.Join(repoLabels, ", "))
+	if len(ws.projRepoLabels) > 0 {
+		parts = append(parts, "repo: "+strings.Join(ws.projRepoLabels, ", "))
 	}
 	if dir := strings.TrimSpace(ws.projRec.Text("defaultDir")); dir != "" {
 		parts = append(parts, "dir: "+dir)
@@ -290,11 +290,7 @@ func (a *App) homeNewGroup(ws projectWorkspaceData, now time.Time, interactive b
 		return r.Text("runStatus")
 	})
 	collect(data.KindCommand, "[cmd]", ws.commands, nil)
-	if len(ws.contextRecords) > 0 {
-		ctxRecs := make([]data.Record, 0, len(ws.contextRecords))
-		for _, rec := range ws.contextRecords {
-			ctxRecs = append(ctxRecs, rec)
-		}
+	if ctxRecs := unreadContextRecordsForHome(ws); len(ctxRecs) > 0 {
 		collect(data.KindContext, "[ctx]", ctxRecs, fieldSub("contextKind"))
 	}
 	if len(all) == 0 {
@@ -636,6 +632,19 @@ func (a *App) homeActiveLanesGroup(ws projectWorkspaceData, interactive bool) vi
 
 func homeSingleLine(s string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
+}
+
+func unreadContextRecordsForHome(ws projectWorkspaceData) []data.Record {
+	if len(ws.reviewContext) == 0 || len(ws.contextRecords) == 0 {
+		return nil
+	}
+	out := make([]data.Record, 0, len(ws.reviewContext))
+	for _, it := range ws.reviewContext {
+		if rec, ok := ws.contextRecords[it.RecordID]; ok {
+			out = append(out, rec)
+		}
+	}
+	return out
 }
 
 // --- Interactive Home item commands (enter, r, R) ------------------------------

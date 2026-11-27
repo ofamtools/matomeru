@@ -182,6 +182,7 @@ func (a *App) searchStart(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) searchEdit(s core.State, c core.Command) core.StepResult {
+	root := a.View(s)
 	ps := a.pageSearch()
 	ps.line.Sync(ps.query)
 	switch {
@@ -194,8 +195,7 @@ func (a *App) searchEdit(s core.State, c core.Command) core.StepResult {
 	}
 	ps.query = ps.line.Value()
 	ps.index = 0
-	s = a.recomputeAndJumpPageSearch(s)
-	a.viewMemo.gen++
+	s = a.recomputeAndJumpPageSearchOn(s, root)
 	return core.Next(s)
 }
 
@@ -252,12 +252,12 @@ func (a *App) searchClear(s core.State, _ core.Command) core.StepResult {
 }
 
 func (a *App) searchModeCycle(s core.State, _ core.Command) core.StepResult {
+	root := a.View(s)
 	ps := a.pageSearch()
 	ps.mode = traits.CycleMatchMode(ps.effectiveMode(a.matchMode), traits.FilterConfig{})
 	ps.index = 0
-	s = a.recomputeAndJumpPageSearch(s)
+	s = a.recomputeAndJumpPageSearchOn(s, root)
 	a.say("search matches by %s · %s", ps.mode, ps.countLabel())
-	a.viewMemo.gen++
 	return core.Next(s)
 }
 
@@ -281,7 +281,7 @@ func (a *App) searchStep(delta int) func(core.State, core.Command) core.StepResu
 	}
 }
 
-func (a *App) recomputePageSearch(s core.State) {
+func (a *App) recomputePageSearchOn(root ui.ViewNode) {
 	ps := a.pageSearch()
 	q := strings.TrimSpace(ps.query)
 	if q == "" {
@@ -297,7 +297,6 @@ func (a *App) recomputePageSearch(s core.State) {
 		ps.index = 0
 		return
 	}
-	root := a.View(s)
 	ps.matches = collectPageSearchMatches(root, mm)
 	if len(ps.matches) == 0 {
 		ps.index = 0
@@ -306,8 +305,12 @@ func (a *App) recomputePageSearch(s core.State) {
 	}
 }
 
-func (a *App) recomputeAndJumpPageSearch(s core.State) core.State {
-	a.recomputePageSearch(s)
+func (a *App) recomputePageSearch(s core.State) {
+	a.recomputePageSearchOn(a.View(s))
+}
+
+func (a *App) recomputeAndJumpPageSearchOn(s core.State, root ui.ViewNode) core.State {
+	a.recomputePageSearchOn(root)
 	ps := a.pageSearch()
 	if len(ps.matches) == 0 {
 		if ps.errMsg != "" {
@@ -320,6 +323,10 @@ func (a *App) recomputeAndJumpPageSearch(s core.State) core.State {
 	s = a.jumpToPageSearchMatch(s, ps.matches[ps.index])
 	a.say("search %q · %s", ps.query, ps.countLabel())
 	return s
+}
+
+func (a *App) recomputeAndJumpPageSearch(s core.State) core.State {
+	return a.recomputeAndJumpPageSearchOn(s, a.View(s))
 }
 
 func (a *App) selectTreeSearchMatch(s core.State, m pageSearchMatch) {

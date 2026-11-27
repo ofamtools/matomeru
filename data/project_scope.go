@@ -177,6 +177,12 @@ func (scope ProjectScope) contains(ref core.Ref) bool {
 	return false
 }
 
+// RelatedIDs returns the set of record IDs of kind linked to the project's
+// tasks or panes through scope.Relations.
+func (scope ProjectScope) RelatedIDs(kind string) map[string]bool {
+	return scope.related[kind]
+}
+
 func (scope *ProjectScope) indexRelations(rels []Relation) {
 	scope.related = map[string]map[string]bool{}
 	add := func(ref core.Ref) {

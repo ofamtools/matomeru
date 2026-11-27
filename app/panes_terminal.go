@@ -22,38 +22,45 @@ type termBuf struct {
 // pane pages, zoom/escape state, rail grouping cache, project overview context,
 // hints, composer completions/queue, and staged batch question answers.
 type PaneController struct {
-	Host               ptyhost.Host
-	Term               *ptyhost.Controller
-	term               map[string]*termBuf
-	activePage         map[string]string
-	sideSplit          map[string]string
-	pageScroll         map[string]int
-	canvasState        map[string]*canvasState
-	tocCollapsed       map[string]bool
-	zoom               bool
-	escapes            int
-	railCacheKey       string
-	railProjectRefs    map[string]core.Ref
-	railGroupPanes     map[string][]data.Record
-	railCustomGroup    string
-	railGroupSet       bool
-	projectCtxRows     map[string]CollectedContextItem
-	projectCtxGroup    string
-	projectCtxRef      *core.Ref
-	hints              *hintsState
-	composerFilesMu    sync.RWMutex
-	composerFiles      map[string]cachedFileList
-	aiSkillsMu         sync.RWMutex
-	aiSkills           []composerCompletion
-	aiSkillsLoaded     bool
-	aiSkillsLoading    bool
-	queuedMu           sync.Mutex
-	queuedPrompts      map[string][]string
-	interruptDelay     time.Duration
-	stagedAnswers      map[string]map[string]map[string]any
-	searchCache        *panesearch.Cache
-	searchGen          uint64
-	activePinnedPaneID string
+	Host                ptyhost.Host
+	Term                *ptyhost.Controller
+	term                map[string]*termBuf
+	activePage          map[string]string
+	sideSplit           map[string]string
+	pageScroll          map[string]int
+	canvasState         map[string]*canvasState
+	tocCollapsed        map[string]bool
+	zoom                bool
+	escapes             int
+	railCacheKey        string
+	railDurableValid    bool
+	railDurableRev      int64
+	railDurableArch     bool
+	railDurableAnim     string
+	railDurablePanes    []data.Record
+	railDurableTasks    map[string]data.Record
+	railDurablePageAttn map[string]bool
+	railProjectRefs     map[string]core.Ref
+	railGroupPanes      map[string][]data.Record
+	railCustomGroup     string
+	railGroupSet        bool
+	projectCtxRows      map[string]CollectedContextItem
+	projectCtxGroup     string
+	projectCtxRef       *core.Ref
+	hints               *hintsState
+	composerFilesMu     sync.RWMutex
+	composerFiles       map[string]cachedFileList
+	aiSkillsMu          sync.RWMutex
+	aiSkills            []composerCompletion
+	aiSkillsLoaded      bool
+	aiSkillsLoading     bool
+	queuedMu            sync.Mutex
+	queuedPrompts       map[string][]string
+	interruptDelay      time.Duration
+	stagedAnswers       map[string]map[string]map[string]any
+	searchCache         *panesearch.Cache
+	searchGen           uint64
+	activePinnedPaneID  string
 }
 
 func newPaneController() *PaneController {
@@ -291,11 +298,26 @@ func (a *App) termInput(s core.State, c core.Command) core.StepResult {
 			}
 		}
 	}
+	writeSeqBefore := a.Store.LocalWriteSeq()
+	ctxGenBefore := a.contextIndexGen()
 	next, effects, sent := a.act(s, *pane, action)
 	if sent {
 		a.typed(*pane, key, text, false)
+		if a.canSkipTermInputRebuild(pane.ID, s, next, effects, writeSeqBefore, ctxGenBefore) {
+			a.viewMemo.skipPostHandle = true
+		}
 	}
 	return core.Next(next, effects...)
+}
+
+func (a *App) canSkipTermInputRebuild(paneID string, before, after core.State, effects []core.Effect, writeSeqBefore, ctxGenBefore uint64) bool {
+	if len(effects) > 0 || !sameFrameShallow(before, after) {
+		return false
+	}
+	if a.panes.Term != nil && a.panes.Term.Mode(paneID) == ptyhost.ModeCopy {
+		return false
+	}
+	return a.Store.LocalWriteSeq() == writeSeqBefore && a.contextIndexGen() == ctxGenBefore
 }
 
 // typed keeps the line being typed into a pane and records a submitted one as

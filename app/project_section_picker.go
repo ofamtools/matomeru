@@ -649,8 +649,10 @@ func (a *App) sectionDocumentPickItems(ws projectWorkspaceData) []picker.Item {
 }
 
 func (a *App) sectionNotePickItems(ws projectWorkspaceData) []picker.Item {
+	refTitles := a.projectWorkspaceRefTitles(ws)
+	aboutByNote := firstOutgoingRelByFrom(ws.relations, data.RelAbout, data.KindNote)
 	return a.sectionChronoRecordPickItems(ws, "notes", data.KindNote, ws.notes, func(r data.Record) (string, []string) {
-		target := a.projectNoteTargetLabel(r)
+		target := a.projectNoteTargetLabelFrom(r, refTitles, aboutByNote)
 		excerpt := clip(strings.ReplaceAll(strings.TrimSpace(r.Text("body")), "\n", " "), 44)
 		return joinNonEmpty(" · ", target, excerpt), []string{target, r.Text("authorKind"), excerpt}
 	})

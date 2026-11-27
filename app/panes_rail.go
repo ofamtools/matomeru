@@ -236,7 +236,7 @@ func pageHasUnansweredQuestion(page data.Record) bool {
 // tone. When panes.group == "project-pane", rows are grouped under their root
 // project (or "Unassigned") while preserving stable promptedAt order within
 // every group and across groups.
-func (a *App) buildRail() *table.Model {
+func (a *App) loadRailDurablePanes() []data.Record {
 	res, err := a.Store.Query(data.Query{Kind: data.KindPane, IncludeArchived: a.nav.showArchived})
 	if err != nil {
 		a.fail("read panes", err)
@@ -248,6 +248,78 @@ func (a *App) buildRail() *table.Model {
 	slices.SortStableFunc(panes, func(x, y data.Record) int {
 		return y.Time("promptedAt").Compare(x.Time("promptedAt"))
 	})
+	return panes
+}
+
+func (a *App) loadRailDurableTasks() map[string]data.Record {
+	taskByID := map[string]data.Record{}
+	if a.Store == nil {
+		return taskByID
+	}
+	if tres, terr := a.Store.Query(data.Query{Kind: data.KindTask, IncludeArchived: true}); terr == nil {
+		taskByID = make(map[string]data.Record, len(tres.Items))
+		for _, t := range tres.Items {
+			taskByID[t.ID] = t
+		}
+	}
+	return taskByID
+}
+
+func (a *App) loadRailDurablePageAttention() map[string]bool {
+	paneAttention := map[string]bool{}
+	if a.Store == nil {
+		return paneAttention
+	}
+	if pres, perr := a.Store.Query(data.Query{Kind: data.KindPage, IncludeArchived: false}); perr == nil {
+		for _, p := range pres.Items {
+			paneRef, ok := p.RefField("pane")
+			if !ok || paneRef.Kind != data.KindPane || paneRef.ID == "" || paneAttention[paneRef.ID] {
+				continue
+			}
+			if p.IsUnread() || pageHasUnansweredQuestion(p) {
+				paneAttention[paneRef.ID] = true
+			}
+		}
+	}
+	return paneAttention
+}
+
+func (a *App) railDurableData() ([]data.Record, map[string]data.Record, map[string]bool) {
+	if a.Store == nil {
+		return nil, map[string]data.Record{}, map[string]bool{}
+	}
+	rev := a.storeRev()
+	anim := a.archiveAnimCacheKey()
+	p := a.panes
+	if p.railDurableValid && p.railDurableArch == a.nav.showArchived && p.railDurableAnim == anim {
+		if p.railDurableRev == rev {
+			return p.railDurablePanes, p.railDurableTasks, p.railDurablePageAttn
+		}
+		if rev > p.railDurableRev {
+			if delta, err := a.Store.ChangedKindsSince(p.railDurableRev); err == nil && !delta.FullRebuild {
+				if delta.Kinds[data.KindPane] {
+					p.railDurablePanes = a.loadRailDurablePanes()
+				}
+				if delta.Kinds[data.KindTask] {
+					p.railDurableTasks = a.loadRailDurableTasks()
+				}
+				if delta.Kinds[data.KindPage] {
+					p.railDurablePageAttn = a.loadRailDurablePageAttention()
+				}
+				p.railDurableRev = rev
+				return p.railDurablePanes, p.railDurableTasks, p.railDurablePageAttn
+			}
+		}
+	}
+	p.railDurablePanes = a.loadRailDurablePanes()
+	p.railDurableTasks = a.loadRailDurableTasks()
+	p.railDurablePageAttn = a.loadRailDurablePageAttention()
+	p.railDurableRev, p.railDurableArch, p.railDurableAnim, p.railDurableValid = rev, a.nav.showArchived, anim, true
+	return p.railDurablePanes, p.railDurableTasks, p.railDurablePageAttn
+}
+
+func (a *App) buildRail() *table.Model {
+	panes, taskByID, paneAttention := a.railDurableData()
 
 	paneSchema := a.schema(data.KindPane)
 	taskSchema := a.schema(data.KindTask)
@@ -262,30 +334,6 @@ func (a *App) buildRail() *table.Model {
 	} else {
 		fresh.Columns = []table.Column{
 			{Key: "rail", Title: "Pane"},
-		}
-	}
-
-	// Preload tasks and active pages once so the pane loop does zero per-pane
-	// Store.Get / Router.ListPages round-trips.
-	taskByID := map[string]data.Record{}
-	paneAttention := map[string]bool{}
-	if a.Store != nil {
-		if tres, terr := a.Store.Query(data.Query{Kind: data.KindTask, IncludeArchived: true}); terr == nil {
-			taskByID = make(map[string]data.Record, len(tres.Items))
-			for _, t := range tres.Items {
-				taskByID[t.ID] = t
-			}
-		}
-		if pres, perr := a.Store.Query(data.Query{Kind: data.KindPage, IncludeArchived: false}); perr == nil {
-			for _, p := range pres.Items {
-				paneRef, ok := p.RefField("pane")
-				if !ok || paneRef.Kind != data.KindPane || paneRef.ID == "" || paneAttention[paneRef.ID] {
-					continue
-				}
-				if p.IsUnread() || pageHasUnansweredQuestion(p) {
-					paneAttention[paneRef.ID] = true
-				}
-			}
 		}
 	}
 

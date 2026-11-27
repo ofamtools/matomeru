@@ -598,6 +598,19 @@ func firstFocusableID(n ui.ViewNode) string {
 	return ""
 }
 
+func (a *App) isSelfContainedFilterWidget(filterID string) bool {
+	if filterID == "" {
+		return false
+	}
+	if a.nav != nil && a.nav.tables[filterID] != nil {
+		return true
+	}
+	if a.proj != nil && a.proj.trees[filterID] != nil {
+		return true
+	}
+	return filterID == outlineTree || filterID == projectOutlineTree || filterID == workTable
+}
+
 // repairFilterFocus keeps focus inside the container declaring filterID when
 // filtering hides the previously focused child item, preventing generic focus
 // repair from ejecting focus to an unrelated earlier widget on the page.
@@ -605,8 +618,12 @@ func (a *App) repairFilterFocus(s core.State, filterID string) core.State {
 	if filterID == "" {
 		return s
 	}
+	focusID := s.ActiveFrame().FocusID
+	if focusID == filterID && a.isSelfContainedFilterWidget(filterID) {
+		return s
+	}
 	root := a.View(s)
-	if focusID := s.ActiveFrame().FocusID; focusID != "" {
+	if focusID != "" {
 		if spec, id := ui.ResolveFilterSpec(root, focusID); spec != nil && id == filterID {
 			return s
 		}

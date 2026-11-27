@@ -100,10 +100,7 @@ func (a *App) chromeSysStatsKey() string {
 }
 
 func (a *App) tabsMemoKey(s core.State) string {
-	var rev int64
-	if a.Store != nil {
-		rev, _ = a.Store.LatestChangeSetNumber()
-	}
+	rev := a.storeRev()
 	telSeq := a.telemetryViewSeq()
 	f := s.Pages[s.ActivePage]
 	var b strings.Builder
@@ -662,7 +659,7 @@ func (a *App) panesSpace(s core.State) ui.ViewNode {
 	}
 	node.Facts["railEnterLive"] = railEnterLive
 	node.Facts["onPane"] = onPane
-	badges := []ui.Badge{{Text: fmt.Sprint(len(tbl.Filtered()))}}
+	badges := []ui.Badge{{Text: fmt.Sprint(tableFilteredCount(node, tbl))}}
 	if tbl.Query != "" {
 		badges = append(badges, ui.Badge{Text: "/" + tbl.Query, Tone: "accent"})
 	}

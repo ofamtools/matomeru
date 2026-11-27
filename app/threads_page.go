@@ -78,7 +78,7 @@ func (a *App) threadsSnapshot(projectID string) []data.AgentThread {
 	if a.Store == nil {
 		return nil
 	}
-	rev, _ := a.Store.LatestChangeSetNumber()
+	rev := a.storeRev()
 	key := fmt.Sprintf("%d", rev)
 	if snap, ok := a.threads.snapshots[projectID]; ok && snap.key == key {
 		return snap.threads

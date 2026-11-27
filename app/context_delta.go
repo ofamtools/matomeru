@@ -32,7 +32,7 @@ func (a *App) loadPersistedContextIndex(idx *ContextController) {
 	if a.Store == nil {
 		return
 	}
-	rev, _ := a.Store.LatestChangeSetNumber()
+	rev := a.storeRev()
 	idx.mu.RLock()
 	prevLoaded, prevRev := idx.loadedStored, idx.storedRev
 	idx.mu.RUnlock()

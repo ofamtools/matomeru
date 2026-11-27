@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" database/sql driver
@@ -101,6 +102,10 @@ type Store struct {
 	pres      *PresentationRegistry
 	dsn       string
 	filesRoot string
+	memory    bool
+
+	localWriteSeq  atomic.Uint64
+	lastWrittenRev atomic.Int64
 
 	wmu  sync.Mutex
 	last time.Time
@@ -155,7 +160,7 @@ func Open(dsn string) (*Store, error) {
 			return nil, fmt.Errorf("data: add snoozed_until to %s: %w", dsn, err)
 		}
 	}
-	s := &Store{db: db, reg: DefaultSchemas(), dsn: dsn}
+	s := &Store{db: db, reg: DefaultSchemas(), dsn: dsn, memory: memory}
 	if err := s.ensureUniqueIndexes(); err != nil {
 		db.Close()
 		return nil, err
@@ -756,6 +761,8 @@ func (s *Store) write(actor core.Actor, action, summary string, undoOf int64, ch
 		return nil, err
 	}
 	s.last = now
+	s.lastWrittenRev.Store(cs.Number)
+	s.localWriteSeq.Add(1)
 	return cs, nil
 }
 

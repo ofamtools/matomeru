@@ -17,6 +17,7 @@ var queryIndexes = []string{
 	`CREATE INDEX IF NOT EXISTS idx_records_kind_parent_lane_id ON records (kind, json_extract(fields, '$.parentLane.id'))`,
 	`CREATE INDEX IF NOT EXISTS idx_records_kind_changeset ON records (kind, change_set)`,
 	`CREATE INDEX IF NOT EXISTS records_kind_archive_updated ON records (kind, archive_status, updated_at DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_records_kind_read_at ON records (kind, archive_status) WHERE json_extract(fields, '$.readAt') IS NOT NULL`,
 }
 
 var indexedParentFields = map[string]bool{
