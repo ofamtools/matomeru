@@ -22,37 +22,38 @@ type termBuf struct {
 // pane pages, zoom/escape state, rail grouping cache, project overview context,
 // hints, composer completions/queue, and staged batch question answers.
 type PaneController struct {
-	Host            ptyhost.Host
-	Term            *ptyhost.Controller
-	term            map[string]*termBuf
-	activePage      map[string]string
-	sideSplit       map[string]string
-	pageScroll      map[string]int
-	canvasState     map[string]*canvasState
-	tocCollapsed    map[string]bool
-	zoom            bool
-	escapes         int
-	railCacheKey    string
-	railProjectRefs map[string]core.Ref
-	railGroupPanes  map[string][]data.Record
-	railCustomGroup string
-	railGroupSet    bool
-	projectCtxRows  map[string]CollectedContextItem
-	projectCtxGroup string
-	projectCtxRef   *core.Ref
-	hints           *hintsState
-	composerFilesMu sync.RWMutex
-	composerFiles   map[string]cachedFileList
-	aiSkillsMu      sync.RWMutex
-	aiSkills        []composerCompletion
-	aiSkillsLoaded  bool
-	aiSkillsLoading bool
-	queuedMu        sync.Mutex
-	queuedPrompts   map[string][]string
-	interruptDelay  time.Duration
-	stagedAnswers   map[string]map[string]map[string]any
-	searchCache     *panesearch.Cache
-	searchGen       uint64
+	Host               ptyhost.Host
+	Term               *ptyhost.Controller
+	term               map[string]*termBuf
+	activePage         map[string]string
+	sideSplit          map[string]string
+	pageScroll         map[string]int
+	canvasState        map[string]*canvasState
+	tocCollapsed       map[string]bool
+	zoom               bool
+	escapes            int
+	railCacheKey       string
+	railProjectRefs    map[string]core.Ref
+	railGroupPanes     map[string][]data.Record
+	railCustomGroup    string
+	railGroupSet       bool
+	projectCtxRows     map[string]CollectedContextItem
+	projectCtxGroup    string
+	projectCtxRef      *core.Ref
+	hints              *hintsState
+	composerFilesMu    sync.RWMutex
+	composerFiles      map[string]cachedFileList
+	aiSkillsMu         sync.RWMutex
+	aiSkills           []composerCompletion
+	aiSkillsLoaded     bool
+	aiSkillsLoading    bool
+	queuedMu           sync.Mutex
+	queuedPrompts      map[string][]string
+	interruptDelay     time.Duration
+	stagedAnswers      map[string]map[string]map[string]any
+	searchCache        *panesearch.Cache
+	searchGen          uint64
+	activePinnedPaneID string
 }
 
 func newPaneController() *PaneController {

@@ -82,6 +82,8 @@ const (
 	KindQueue = "queue"
 	// KindRepo is a tracked git repository linked to tasks and lanes via RelRepo.
 	KindRepo = "repo"
+	// KindCapture is a persistent dictation or composed prompt capture record.
+	KindCapture = "capture"
 )
 
 // Pane roles. A pane with no role is a normal one.
@@ -676,11 +678,17 @@ func DefaultSchemas() *Registry {
 				{Name: FieldWatchMode, Type: core.ParamString, Enum: WatchModes, Description: "when the pane takes the next queued item: on_done, schedule, or manual"},
 				str(FieldWatchQueues, `queues the pane watches: "any" or comma-separated queue names`),
 				{Name: FieldWatchIntervalSec, Type: core.ParamInt, Description: "seconds between polls when watchMode is schedule"},
+				{Name: "pinned", Type: core.ParamBool, Default: false, Description: "pinned/bookmarked agent pane for quick anywhere jump, cycling, and prompt send"},
+				str("pinnedAt", "when the pane was pinned (RFC 3339)"),
 			},
 			StatusColumns:  []StatusColumn{paneRun},
 			DefaultColumns: []string{"title", "runStatus", "harness", "cwd", "task"},
 			Relations:      universalRelations(),
 			Hierarchy:      &HierarchySpec{ParentField: "parentPane", DefaultView: "table"},
+			FactFields:     []string{"pinned"},
+			BadgeRules: []BadgeRule{
+				{When: `fields.pinned == true`, Text: "★ pinned", Tone: "accent"},
+			},
 		},
 		Schema{
 			Kind: KindPage, Title: "Page", Plural: "Pages", SummaryField: "title",
@@ -922,6 +930,7 @@ func DefaultSchemas() *Registry {
 		conceptSchema(),
 		queueSchema(),
 		repoSchema(),
+		captureSchema(),
 	)
 	return r
 }

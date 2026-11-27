@@ -154,18 +154,24 @@ func newRichComposerModal(a *App, spec richComposerSpec) *richComposerModal {
 	return m
 }
 
+type richComposerHolder interface {
+	richComposer() *richComposerModal
+}
+
+func (m *richComposerModal) richComposer() *richComposerModal { return m }
+
 func (a *App) activeRichComposer() *richComposerModal {
 	if a == nil || a.modals == nil {
 		return nil
 	}
-	if top, ok := a.modals.Top().(*richComposerModal); ok {
-		return top
+	if h, ok := a.modals.Top().(richComposerHolder); ok {
+		return h.richComposer()
 	}
-	if m, ok := a.modals.Get("composer").(*richComposerModal); ok {
-		return m
+	if h, ok := a.modals.Get("composer").(richComposerHolder); ok {
+		return h.richComposer()
 	}
-	if m, ok := a.modals.Get(taskNoteComposerModalID).(*richComposerModal); ok {
-		return m
+	if h, ok := a.modals.Get(taskNoteComposerModalID).(richComposerHolder); ok {
+		return h.richComposer()
 	}
 	return nil
 }

@@ -79,6 +79,7 @@ var standalonePages = map[string]standalonePageDef{
 	SpaceThreads:  {title: "Threads", focus: views.ThreadsListID, render: (*App).threadsSpace},
 	SpaceSessions: {title: "AI Sessions", focus: views.SessionsDeskTableID, render: (*App).sessionsSpace},
 	SpaceFocus:    {title: "Focus & Pomodoro", focus: views.FocusProjectsID, render: (*App).focusSpace},
+	SpaceCaptures: {title: "Captures", focus: views.CapturesListID, render: (*App).capturesSpace},
 }
 
 // Node IDs the app gives focus to.
@@ -207,6 +208,7 @@ type App struct {
 	threads           *threadsController
 	sessions          *sessionsController
 	focus             *focusController
+	captures          *capturesController
 	rt                *RuntimeController
 	ext               *ExtensionController
 	ctx               *ContextController
@@ -258,6 +260,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.initThreads()
 	a.initSessions()
 	a.initFocus()
+	a.initCaptures()
 	a.loadPresets()
 	a.initToasts()
 	a.loadHandlers(opts.ConfigDir)
@@ -886,6 +889,8 @@ func (a *App) register() {
 	a.registerThreads()
 	a.registerSessions()
 	a.registerFocus()
+	a.registerCaptures()
+	a.registerPinnedAgents()
 	a.handle(CmdFDSearch, a.fdSearch)
 	a.handle(CmdFDSearchAgain, a.fdSearchAgain)
 	for _, id := range []string{CmdFDResultYank, CmdFDResultOpenWith, CmdFDResultAttach, CmdFDResultRefine} {
