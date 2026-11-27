@@ -106,8 +106,10 @@ func CommandSpecs() []core.CommandSpec {
 		recordSpec(views.CmdRestore, "Restore the focused record", nil, "facts.archiveStatus == \"archived\"", "editing"),
 		recordSpec(views.CmdSnooze, "Snooze the focused record", nil, "!facts.snoozed", "editing"),
 		recordSpec(views.CmdUnsnooze, "Unsnooze the focused record", nil, "facts.snoozed", "editing"),
-		spec(CmdUndo, "Undo my last change", "editing"),
-		spec(CmdRedo, "Redo my last undone change", "editing"),
+		spec(CmdUndo, "Undo my last change on this page", "editing"),
+		spec(CmdRedo, "Redo my last undone change on this page", "editing"),
+		spec(CmdUndoGlobal, "Undo my last change globally across any page", "editing"),
+		spec(CmdRedoGlobal, "Redo my last undone change globally across any page", "editing"),
 		{ID: CmdHistoryBack, Description: "Go back in jump history (or Work Show stack)", Params: []core.ParamSpec{
 			{Name: "scope", Type: core.ParamString, Enum: []string{"global", "work"}, Default: "global", Description: "jump scope: global or work"},
 		}},

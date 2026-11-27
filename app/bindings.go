@@ -51,6 +51,8 @@ const (
 	CmdHistoryForward        = "history.forward"
 	CmdUndo                  = "store.undo"
 	CmdRedo                  = "store.redo"
+	CmdUndoGlobal            = "undo.global"
+	CmdRedoGlobal            = "redo.global"
 	CmdSiteFocus             = "site.focus"
 	CmdPaneEnterLive         = "pane.enter.live"
 	CmdSideSplitSwitch       = "pane.side.switch"
@@ -442,6 +444,7 @@ func DefaultBindings() []core.Binding {
 		when(bind(n, all, "Z", views.CmdSnooze, "snooze"), "!facts.snoozed"),
 		when(bind(n, all, "Z", views.CmdUnsnooze, "unsnooze"), "facts.snoozed"),
 		bind(n, all, "u", CmdUndo, "undo"),
+		bind(n, all, "U", CmdUndoGlobal, "undo globally"),
 		bind(n, all, "ctrl+r", CmdRedo, "redo"),
 		bind(n, data.KindRun, "r", CmdRunRerun, "rerun"),
 		bind(n, data.KindRun, "x", CmdRunCancel, "cancel"),

@@ -221,6 +221,7 @@ type App struct {
 	rt                *RuntimeController
 	ext               *ExtensionController
 	ctx               *ContextController
+	undoCtrl          *UndoController
 	genericPresets    *data.PresetStore
 	zeroFieldSpecs    map[string]data.QuerySpec
 	lastFieldPickWhat string
@@ -251,6 +252,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 		rt:              newRuntimeController(),
 		ext:             newExtensionController(),
 		ctx:             newContextController(),
+		undoCtrl:        newUndoController(),
 		navUnreadCutoff: time.Now().UTC(),
 	}
 	a.actionLog = a.newActionLog()
@@ -542,6 +544,7 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 		prevStatus := a.status
 		prevModal := a.Modal()
 		prevMode := a.Engine.Mode(s)
+		beforeRev := a.beforeCommandUndoRev()
 		a.syncEscapeGuardModal(prevModal)
 		unreadNavTarget, hasUnreadNav := a.unreadNavTargetAt(s)
 		out, intercepted := a.interceptMissingRequiredArgs(s, c)
@@ -570,6 +573,7 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 			a.viewMemo.gen++
 		}
 		out.State = a.settle(out.State)
+		a.recordCommandUndoOrigins(beforeRev, out.State)
 		a.syncPath(out.State)
 		if len(a.effects) > 0 {
 			out.Effects = append(out.Effects, a.effects...)
@@ -643,6 +647,7 @@ func (a *App) register() {
 	a.handle(views.CmdUnsnooze, a.onRecord("unsnooze", a.Store.Unsnooze))
 	a.handle(CmdUndo, a.undo(false))
 	a.handle(CmdRedo, a.undo(true))
+	a.registerContextualUndoHandlers()
 	a.handle(CmdRunRerun, a.rerun)
 	a.handle(CmdRunCancel, a.runCancel)
 	a.handle(CmdRunNew, a.runNew)
