@@ -358,7 +358,11 @@ func TestEditView(t *testing.T) {
 
 func tocIDs(root ui.ViewNode) []string {
 	var out []string
-	for _, entry := range root.Find("site.toc").Children[0].Children {
+	body := root.Find("site.toc").Children[0]
+	if body.Kind == ui.KindScroll && len(body.Children) > 0 {
+		body = body.Children[0]
+	}
+	for _, entry := range body.Children {
 		out = append(out, entry.ID)
 	}
 	return out

@@ -272,19 +272,19 @@ func tightCardTOCRow(page data.Record, isActive, isUnread bool) ui.ViewNode {
 	}
 }
 
-func resolveTOCStyle(opts SiteOptions) (string, bool) {
+func resolveTOCStyle(opts SiteOptions) string {
 	switch opts.TOCStyle {
 	case TOCStyleCompact:
-		return TOCStyleCompact, true
+		return TOCStyleCompact
 	case TOCStyleTight:
-		return TOCStyleTight, true
+		return TOCStyleTight
 	case TOCStyleSpacious:
-		return TOCStyleSpacious, true
+		return TOCStyleSpacious
 	default:
 		if opts.CompactTOC {
-			return TOCStyleCompact, true
+			return TOCStyleCompact
 		}
-		return TOCStyleSpacious, false
+		return TOCStyleSpacious
 	}
 }
 
@@ -399,7 +399,7 @@ func buildTOCEntries(style string, matched []data.Record, active data.Record, op
 	}
 }
 
-func buildTOCPanel(pane data.Record, style string, wrapScroll bool, entries []ui.ViewNode, tocFilter, filter string, unread int) ui.ViewNode {
+func buildTOCPanel(pane data.Record, style string, entries []ui.ViewNode, tocFilter, filter string, unread int) ui.ViewNode {
 	tocBadges := []ui.Badge{}
 	if unread > 0 {
 		tocBadges = append(tocBadges, ui.Badge{Text: itoa(unread) + " unread", Tone: "warning"})
@@ -417,14 +417,11 @@ func buildTOCPanel(pane data.Record, style string, wrapScroll bool, entries []ui
 			}}
 		}
 	}
-	tocBody := ui.ViewNode{Kind: ui.KindVStack, Children: entries}
-	if wrapScroll {
-		tocBody = ui.ViewNode{
-			ID:       "site.toc.scroll",
-			Kind:     ui.KindScroll,
-			Props:    map[string]any{"scrollKey": data.RefText(pane.Ref())},
-			Children: []ui.ViewNode{tocBody},
-		}
+	tocBody := ui.ViewNode{
+		ID:       "site.toc.scroll",
+		Kind:     ui.KindScroll,
+		Props:    map[string]any{"scrollKey": data.RefText(pane.Ref())},
+		Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: entries}},
 	}
 	return ui.ViewNode{ID: "site.toc", Kind: ui.KindPanel, Scope: ScopeTOC,
 		Filter: &ui.FilterSpec{ID: "toc", Prefix: "pages "},
@@ -526,9 +523,9 @@ func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string
 
 	filter := strings.TrimSpace(tocFilter)
 	matched, unread := filterTOCPages(sorted, tocFilter, opts.MatchMode)
-	style, wrapScroll := resolveTOCStyle(opts)
+	style := resolveTOCStyle(opts)
 	entries := buildTOCEntries(style, matched, active, opts, filter, hasLaneTOC, laneRow)
-	toc := buildTOCPanel(pane, style, wrapScroll, entries, tocFilter, filter, unread)
+	toc := buildTOCPanel(pane, style, entries, tocFilter, filter, unread)
 	content := buildSiteContent(pane, active, opts)
 
 	tocRatio := 0.28
