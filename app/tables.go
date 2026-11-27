@@ -261,6 +261,9 @@ func (a *App) readlineCommand(s core.State, c core.Command) core.StepResult {
 	if a.Engine.Mode(s) == ModeFilter {
 		return a.filterEdit(s, c)
 	}
+	if a.Engine.Mode(s) == ModeSearch {
+		return a.screenSearchReadline(s, c)
+	}
 	if a.modals != nil {
 		if top := a.modals.Top(); top != nil {
 			res := top.Handle(c)

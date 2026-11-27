@@ -388,6 +388,18 @@ func formatListContent(v any) string {
 	return strings.Join(lines, "\n")
 }
 
+func isPathContentField(schema data.Schema, name string) bool {
+	if name == "path" || name == "filePath" {
+		return true
+	}
+	for _, f := range schema.Fields {
+		if f.Name == name && f.Type == core.ParamPath {
+			return true
+		}
+	}
+	return false
+}
+
 func buildContentPanel(schema data.Schema, name, format, raw string) ui.ViewNode {
 	var child ui.ViewNode
 	switch format {
@@ -417,14 +429,26 @@ func buildContentPanel(schema data.Schema, name, format, raw string) ui.ViewNode
 			Props: map[string]any{"text": raw, "wrap": true},
 		}
 	}
+	title := fieldTitle(schema, name)
+	facts := map[string]any{
+		"contentField": name,
+		"showFormat":   format,
+		"label":        strings.ToLower(title),
+		"crumb":        title,
+		"copy":         raw,
+	}
+	if isPathContentField(schema, name) {
+		facts["tokenType"] = "path"
+		facts["path"] = strings.TrimSpace(raw)
+	}
 	return ui.ViewNode{
 		ID:        "show.content." + name,
 		Kind:      ui.KindPanel,
 		Scope:     "show.content",
 		Focusable: true,
-		Title:     fieldTitle(schema, name),
+		Title:     title,
 		Border:    true,
-		Facts:     map[string]any{"contentField": name, "showFormat": format},
+		Facts:     facts,
 		Children:  []ui.ViewNode{child},
 	}
 }

@@ -36,6 +36,7 @@ type hintsState struct {
 	session       *hints.Session
 	paneID        string
 	focusJump     bool
+	contentMode   bool
 	screenOverlay bool
 	focusStack    []focusHintFrame
 	returnMode    string
@@ -65,24 +66,7 @@ func (a *App) screenVisibleLines(s core.State) []string {
 }
 
 func (a *App) screenHintsOverlay(w, h int) ui.ViewNode {
-	if w <= 0 {
-		w = 120
-	}
-	if h <= 0 {
-		h = 36
-	}
-	lines := a.hintsRenderLines(a.panes.hints.lines, w, h)
-	ov := modal.BuildOverlay(modal.Frame{
-		ID:        "screen.hints",
-		WidthPct:  100,
-		HeightPct: 100,
-	}, ui.ViewNode{
-		ID:    "screen.hints.raw",
-		Kind:  ui.KindRaw,
-		Props: map[string]any{"lines": lines},
-	})
-	ov.ID = "screen.hints.overlay"
-	return ov
+	return a.buildScreenHintsOverlay(w, h)
 }
 
 func (a *App) hintsModifierActionsEnabled() bool {
@@ -389,6 +373,13 @@ func (a *App) hintsCancel(s core.State, _ core.Command) core.StepResult {
 	return core.Next(s)
 }
 
+func (a *App) hintsModeStatusLine(hs *hintsState) string {
+	if hs != nil && hs.contentMode {
+		return contentHintsStatusLine(hs.session)
+	}
+	return hintsStatusLine(hs.session)
+}
+
 func (a *App) cycleHintsActionDir(s core.State, dir int) (core.StepResult, bool) {
 	hs := a.panes.hints
 	if hs == nil || hs.focusJump || hs.session == nil || !hs.session.Active() {
@@ -397,7 +388,7 @@ func (a *App) cycleHintsActionDir(s core.State, dir int) (core.StepResult, bool)
 	next, _ := traits.Cycle(hintsCycleOrder, hs.session.ActiveAction(), dir, true)
 	hs.session.SetAction(next)
 	a.viewMemo.gen++
-	a.say("%s", hintsStatusLine(hs.session))
+	a.say("%s", a.hintsModeStatusLine(hs))
 	return core.Next(s), true
 }
 
@@ -422,7 +413,7 @@ func (a *App) hintsActionSet(s core.State, c core.Command) core.StepResult {
 	}
 	hs.session.SetAction(act)
 	a.viewMemo.gen++
-	a.say("%s", hintsStatusLine(hs.session))
+	a.say("%s", a.hintsModeStatusLine(hs))
 	return core.Next(s)
 }
 
@@ -562,6 +553,9 @@ func (a *App) executeHintAction(s core.State, hs *hintsState, pane *data.Record,
 	case hints.ActionMeta:
 		return a.revealContextValue(s, target.Kind, target.Value, pane)
 	case hints.ActionAlt:
+		if next, opened := a.tryOpenHintRecordRef(s, target.Kind, target.Value); opened {
+			return core.Next(next)
+		}
 		return a.systemOpenTarget(s, contextTargetPath(target.Kind, target.Value, pane))
 	case hints.ActionSecondary:
 		return core.Next(a.insertHintTarget(s, hs, pane, target.Kind, target.Value))
@@ -694,6 +688,24 @@ func (a *App) insertIntoTopModal(s core.State, top modal.Modal, value string) (c
 	return s, "", false
 }
 
+func (a *App) insertIntoInlineInput(s core.State, returnMode, value string) (core.State, string, bool) {
+	switch returnMode {
+	case ModeFilter:
+		return a.filterEdit(s, core.Command{ID: CmdFilterInsert, Args: map[string]any{"text": value}}).State, "filter", true
+	case ModeSearch:
+		return a.searchEdit(s, core.Command{ID: CmdSearchInsert, Args: map[string]any{"text": value}}).State, "search", true
+	case ModeOutlineEdit:
+		return a.outlineEditInsert(s, core.Command{ID: CmdOutlineEditInsert, Args: map[string]any{"text": value}}).State, "outline", true
+	case ModeFeaturesNote:
+		a.featuresNoteInsertText(value)
+		return s, "features note", true
+	case ModeThreadsCompose:
+		a.threadsComposeInsertText(value)
+		return s, "thread reply", true
+	}
+	return s, "", false
+}
+
 // insertHintTarget inserts a matched hint value into the currently active
 // input field (modal input, inline filter/outline edit, or active terminal pane),
 // falling back to copying to the clipboard when no input target is active.
@@ -715,25 +727,11 @@ func (a *App) insertHintTarget(s core.State, hs *hintsState, pane *data.Record, 
 		}
 	}
 
-	// 2. Inline view inputs (filter bar or inline outline edit).
+	// 2. Inline view inputs (filter bar, search bar, or inline outline edit).
 	if hs != nil {
-		switch hs.returnMode {
-		case ModeFilter:
-			s = a.filterEdit(s, core.Command{ID: CmdFilterInsert, Args: map[string]any{"text": value}}).State
-			notifyInsert("filter")
-			return s
-		case ModeOutlineEdit:
-			s = a.outlineEditInsert(s, core.Command{ID: CmdOutlineEditInsert, Args: map[string]any{"text": value}}).State
-			notifyInsert("outline")
-			return s
-		case ModeFeaturesNote:
-			a.featuresNoteInsertText(value)
-			notifyInsert("features note")
-			return s
-		case ModeThreadsCompose:
-			a.threadsComposeInsertText(value)
-			notifyInsert("thread reply")
-			return s
+		if nextState, label, ok := a.insertIntoInlineInput(s, hs.returnMode, value); ok {
+			notifyInsert(label)
+			return nextState
 		}
 	}
 

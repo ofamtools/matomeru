@@ -101,6 +101,7 @@ var knownExtensions = map[string]bool{
 	"proto": true, "graphql": true, "gql": true, "tf": true, "hcl": true,
 	"log": true, "diff": true, "patch": true, "lock": true,
 	"png": true, "jpg": true, "jpeg": true, "gif": true, "webp": true,
+	"mp4": true, "mov": true, "webm": true, "mkv": true, "mp3": true, "wav": true,
 }
 
 var knownBasenames = map[string]bool{

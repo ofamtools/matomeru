@@ -464,6 +464,18 @@ func stampTextHint(n *ui.ViewNode, label string) {
 	n.Props = props
 }
 
+func stampDefaultHintTarget(node *ui.ViewNode, label string) {
+	if node.Kind == ui.KindVStack && !node.Border && len(node.Children) > 0 && node.Children[0].Kind == ui.KindText {
+		stampTextHint(&node.Children[0], label)
+		return
+	}
+	badge := "[" + label + "]"
+	if strings.TrimSpace(node.Title) != "" {
+		node.Title = badge + " " + node.Title
+	}
+	node.Badges = append([]ui.Badge{{Text: badge, Tone: "match"}}, slices.Clone(node.Badges)...)
+}
+
 // applyFocusHintBadges stamps [label] badges directly onto the rendered nodes
 // in root corresponding to sess.Placements(). Typing a prefix automatically
 // hides non-matching badges on screen in real time.
@@ -510,11 +522,7 @@ func applyFocusHintBadges(root *ui.ViewNode, sess *hints.Session) {
 				stampedPanels[anc] = true
 				bumpPathCacheKeys(path, salt)
 			} else {
-				badge := "[" + p.Target.Label + "]"
-				if strings.TrimSpace(node.Title) != "" {
-					node.Title = badge + " " + node.Title
-				}
-				node.Badges = append([]ui.Badge{{Text: badge, Tone: "match"}}, slices.Clone(node.Badges)...)
+				stampDefaultHintTarget(node, p.Target.Label)
 				bumpPathCacheKeys(path, salt)
 			}
 		}

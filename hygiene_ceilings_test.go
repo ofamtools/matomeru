@@ -191,7 +191,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/features_capture.go:(App).probeMatomeruDir":                            15,
 	"app/features_note.go:(App).saveFeaturesRawThought":                         17,
 	"app/focus_guard.go:(App).focusBeat":                                        18,
-	"app/focus_hints.go:applyFocusHintBadges":                                   18,
+	"app/focus_hints.go:applyFocusHintBadges":                                   17,
 	"app/focus_hints.go:focusHintsLegend":                                       15,
 	"app/git_hub.go:(App).gitActionTarget":                                      18,
 	"app/git_hub.go:(App).gitTargetForRef":                                      18,

@@ -250,6 +250,7 @@ const (
 	SetRepoAutoHarvestPanes            = "repo.autoHarvestPanes"
 	SetRichAddToQueue                  = "ui.richAddToQueue"
 	SetTOCStyle                        = "panes.tocStyle"
+	SetSearchHighlight                 = "ui.searchHighlight"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -442,6 +443,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetRepoAutoHarvestPanes, true, "automatically register git repositories discovered from pane working directories"),
 		flag(SetRichAddToQueue, true, "open the named-queue picker (Add / Add & Start / Add with Preset) when adding a task to the queue (off: instant enqueue to default queue)"),
 		enum(SetTOCStyle, views.TOCStyleAuto, "pane Pages TOC style: auto (follows panes.compactTOC), compact (1-line rows), tight (compact bordered cards), or spacious (full bordered cards)", views.TOCStyleAuto, views.TOCStyleCompact, views.TOCStyleTight, views.TOCStyleSpacious),
+		flag(SetSearchHighlight, true, "highlight matching spans inline during non-destructive in-page search (\\)"),
 	}
 }
 
