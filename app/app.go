@@ -153,6 +153,7 @@ type Options struct {
 
 type viewMemoState struct {
 	gen        uint64
+	overlayGen uint64
 	chromeGen  uint64
 	builds     uint64
 	tabsBuilds uint64
@@ -486,6 +487,13 @@ func (a *App) subject(s core.State, c core.Command) (core.Ref, bool) {
 
 // --- registration ---------------------------------------------------------------
 
+func sameTopOverlay(before, after core.State) bool {
+	if len(before.Modals) == 0 || len(after.Modals) == 0 {
+		return false
+	}
+	return before.Modals[len(before.Modals)-1].ID == after.Modals[len(after.Modals)-1].ID
+}
+
 // handle registers fn as the handler of id. Every handler bumps the view
 // generation after running and is followed by settle, so the view never shows
 // stale data and the focus never points at a node that is gone.
@@ -504,7 +512,11 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 			}
 		}
 		a.afterCommandEscapeGuard(prevModal, prevMode, c, &out)
-		a.viewMemo.gen++
+		if sameTopOverlay(s, out.State) {
+			a.viewMemo.overlayGen++
+		} else {
+			a.viewMemo.gen++
+		}
 		out.State = a.settle(out.State)
 		a.syncPath(out.State)
 		if len(a.effects) > 0 {

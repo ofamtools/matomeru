@@ -47,10 +47,9 @@ func (a *App) View(s core.State) ui.ViewNode {
 	if key == a.viewMemo.memoKey && key != "" {
 		return a.viewMemo.memo
 	}
-	prevStatus := a.status
-	prevGen := a.viewMemo.gen
+	prevStatus, prevGen, prevOverlayGen := a.status, a.viewMemo.gen, a.viewMemo.overlayGen
 	root := a.build(s)
-	if a.status == prevStatus && a.viewMemo.gen == prevGen {
+	if a.status == prevStatus && a.viewMemo.gen == prevGen && a.viewMemo.overlayGen == prevOverlayGen {
 		// Save under the post-build key so harmless projection sync (such as
 		// renderProjectWorkspace updating pc.activeSection for the new focus)
 		// lets the subsequent render hit the memoized tree instead of rebuilding.
@@ -62,7 +61,7 @@ func (a *App) View(s core.State) ui.ViewNode {
 func (a *App) viewKey(s core.State) string {
 	var b strings.Builder
 	b.WriteString(a.tabsMemoKey(s))
-	fmt.Fprintf(&b, "|cg:%d|st:%s|", a.viewMemo.chromeGen, a.status)
+	fmt.Fprintf(&b, "|cg:%d|og:%d|st:%s|", a.viewMemo.chromeGen, a.viewMemo.overlayGen, a.status)
 	for _, m := range s.Modals {
 		fmt.Fprintf(&b, "%s:%s:%s|", m.ID, m.FocusID, m.Mode)
 	}
@@ -153,10 +152,8 @@ func (a *App) tabsMemoKey(s core.State) string {
 		if a.panes != nil && a.panes.tocCollapsed["pages"] {
 			b.WriteString("|toc:collapsed")
 		}
-		if pane, ok := a.activePane(s); ok && pane != nil && a.panes != nil {
-			if sideID := a.panes.sideSplit[pane.ID]; sideID != "" {
-				b.WriteString("|side:" + sideID)
-			}
+		if sideID := a.activeSideSplitID(s); sideID != "" {
+			b.WriteString("|side:" + sideID)
 		}
 		if a.proj != nil && a.proj.activeProjectKey != "" {
 			sec := a.proj.activeSection(a.proj.activeProjectKey)
@@ -246,11 +243,11 @@ func (a *App) build(s core.State) ui.ViewNode {
 			}
 			if tb.id == SpacePanes {
 				tab.Unread = slices.ContainsFunc(a.rail().Rows, func(r table.Row) bool { return r.Unread })
-				if pane, ok := a.SelectedPane(); ok && len(a.pendingApprovalsFor(pane.ID)) > 0 {
+				if paneID := a.selectedRailPaneID(); paneID != "" && len(a.pendingApprovalsFor(paneID)) > 0 {
 					tab.Facts = map[string]any{"hasPendingApproval": true}
 				}
 			} else if tb.dynamic && tb.projectID != "" {
-				tab.Unread = a.projectTabHasUnread(tb.projectID, tb.title)
+				tab.Unread = a.projectTabHasUnread(tb.projectID, tb.projectTitle())
 			}
 			tabs.Children = append(tabs.Children, tab)
 		}
@@ -624,7 +621,7 @@ func (a *App) hintLine(s core.State, chain []core.ContextFrame) string {
 
 func (a *App) spaceForTab(s core.State, tb topTabDef) ui.ViewNode {
 	if tb.dynamic {
-		return a.projectTabSpace(s, tb.projectID)
+		return a.projectTabSpaceWithTitle(s, tb.projectID, tb.projectTitle())
 	}
 	switch tb.id {
 	case SpacePanes:

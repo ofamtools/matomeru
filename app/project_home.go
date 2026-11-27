@@ -82,6 +82,17 @@ type cachedProjectNav struct {
 	targets  map[string]projectNavTarget
 }
 
+type cachedProjectHome struct {
+	key     string
+	node    ui.ViewNode
+	targets map[string]projectHomeTarget
+}
+
+type cachedShowSnap struct {
+	rev  int64
+	snap data.ShowSnapshot
+}
+
 // ProjectController owns per-project workspace navigation state: active left
 // nav section, expandable nav tree state, locked/previewed right-pane target,
 // open inline ui.page, and per-section table/tree models.
@@ -98,6 +109,8 @@ type ProjectController struct {
 	homeTargets          map[string]map[string]projectHomeTarget
 	ownerCreated         map[core.Ref]bool
 	openTabs             []string
+	topTabsCache         []topTabDef
+	topTabsCacheKey      string
 	lastUsedAt           map[string]time.Time
 	lastUsedGen          uint64
 	tables               map[string]*table.Model
@@ -108,6 +121,9 @@ type ProjectController struct {
 	liveBuilds           uint64
 	navCache             map[string]cachedProjectNav
 	navBuilds            uint64
+	homeCache            map[string]cachedProjectHome
+	homeBuilds           uint64
+	showSnapCache        map[core.Ref]cachedShowSnap
 	dirCache             []projectDirEntry
 	dirCacheRev          int64
 	dirCacheArch         bool
@@ -452,6 +468,7 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 		ProjectID: ws.projectID, Title: groupName, Subtitle: strings.Join(subParts, " · "),
 		Ref: projRef, Badges: badges, NavRatio: navRatio, NavTitle: navTitle, HideHeader: hideHeader,
 		UnreadDotOnly: &dotOnly,
+		NavOptions:    views.ProjectNavOptions{Compact: a.projectNavCompactEnabled()},
 		ActiveKey:     activeKey,
 		NavItems:      navItems,
 		ActiveBody:    activeBody,

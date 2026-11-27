@@ -104,11 +104,11 @@ func (a *App) activeSitePageIDFor(s core.State) string {
 	if pid := a.activeProjectPageID(s); pid != "" {
 		return pid
 	}
-	pane, ok := a.activePane(s)
-	if !ok {
+	paneID := a.activePaneID(s)
+	if paneID == "" {
 		return ""
 	}
-	id := a.panes.activePage[pane.ID]
+	id := a.panes.activePage[paneID]
 	if id == "" {
 		return views.ScreenPageID
 	}

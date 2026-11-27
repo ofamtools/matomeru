@@ -35,6 +35,40 @@ func (a *App) activeChildPaneID(s core.State) string {
 	return ""
 }
 
+// selectedRailPaneID returns the focused rail pane ID without querying SQLite.
+func (a *App) selectedRailPaneID() string {
+	if a == nil || a.nav == nil {
+		return ""
+	}
+	if tbl := a.nav.tables[railTable]; tbl != nil {
+		if row, ok := tbl.FocusedRow(); ok && row.Ref != nil {
+			return row.Ref.ID
+		}
+	}
+	return ""
+}
+
+// activePaneID resolves the active pane ID without hitting SQLite.
+func (a *App) activePaneID(s core.State) string {
+	if paneID := a.activeChildPaneID(s); paneID != "" {
+		return paneID
+	}
+	return a.selectedRailPaneID()
+}
+
+// activeSideSplitID returns the side-split pane ID for the active pane without
+// hitting SQLite.
+func (a *App) activeSideSplitID(s core.State) string {
+	if a == nil || a.panes == nil || len(a.panes.sideSplit) == 0 {
+		return ""
+	}
+	paneID := a.activePaneID(s)
+	if paneID == "" {
+		return ""
+	}
+	return a.panes.sideSplit[paneID]
+}
+
 // activePane resolves the pane currently targeted by pane site operations:
 // when an open Project Tab or 1 Panes Project Page is showing an embedded child
 // pane, it loads that pane from the store; otherwise it delegates to SelectedPane.

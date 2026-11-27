@@ -10,7 +10,6 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
-	"ofam.dev/ochazuke/ui"
 )
 
 type projectNavTarget struct {
@@ -234,6 +233,25 @@ func (a *App) projectTaskNavNodes(ws projectWorkspaceData, focusID, lockedFocus 
 	return a.projectTreeNavNodes(ws, "tasks", data.KindTask, ws.taskTree, focusID, lockedFocus, expanded, allowPeek)
 }
 
+func applyLaneNavPresentation(nd data.TreeNode, showProgressBar bool, node *views.ProjectNavNode) {
+	switch data.LaneProgressOf(nd.Record) {
+	case data.LaneProgressDone:
+		node.Icon = "✓"
+		node.IconTone = "muted"
+		node.Tone = "muted"
+		node.Dim = true
+	case data.LaneProgressExcluded:
+		node.Icon = "×"
+		node.IconTone = "muted"
+		node.Tone = "muted"
+		node.Dim = true
+	}
+	if showProgressBar {
+		done, activeCnt, planned := views.LaneTreeRollupCounts(nd)
+		node.ProgressBar = views.CompactLaneBarRuns(done, activeCnt, planned, 4)
+	}
+}
+
 func (a *App) projectTreeNavNodes(ws projectWorkspaceData, secKey, kind string, nodes []data.TreeNode, focusID, lockedFocus string, sectionExpanded, allowPeek bool) ([]views.ProjectNavNode, int) {
 	pc := a.projectCtrl()
 	projKey := ws.projectKey
@@ -285,42 +303,33 @@ func (a *App) projectTreeNavNodes(ws projectWorkspaceData, secKey, kind string, 
 					badge = st
 				}
 			}
-			var progressBar []ui.InlineRun
-			unreadTone := ""
-			if kind == data.KindLane {
-				if data.LaneProgressOf(rec) == data.LaneProgressDone {
-					unreadTone = "success"
-				}
-				if a.projectNavLaneProgressBarEnabled() {
-					done, activeCnt, planned := views.LaneTreeRollupCounts(nd)
-					progressBar = views.CompactLaneBarRuns(done, activeCnt, planned, 4)
-				}
-			}
 			active := focusID == nodeFocusID || lockedFocus == nodeFocusID
 			if a.archiveAnimActive(ref) {
 				children, expandable, nodeExpanded = nil, false, false
 			}
-			out = append(out, views.ProjectNavNode{
-				ID:          rec.ID,
-				Section:     secKey,
-				ParentID:    parentID,
-				Label:       title,
-				Icon:        rs.Icon,
-				IconTone:    rs.IconTone,
-				Badge:       badge,
-				Tone:        rs.RowTone,
-				UnreadTone:  unreadTone,
-				ProgressBar: progressBar,
-				Ref:         &ref,
-				Unread:      selfUnread,
-				Peeked:      peekOnly,
-				HasUnread:   hasUnread,
-				Active:      active,
-				Expandable:  expandable,
-				Expanded:    nodeExpanded,
-				Children:    children,
-				Facts:       a.projectNavRecordFacts(schema, rec),
-			})
+			node := views.ProjectNavNode{
+				ID:         rec.ID,
+				Section:    secKey,
+				ParentID:   parentID,
+				Label:      title,
+				Icon:       rs.Icon,
+				IconTone:   rs.IconTone,
+				Badge:      badge,
+				Tone:       rs.RowTone,
+				Ref:        &ref,
+				Unread:     selfUnread,
+				Peeked:     peekOnly,
+				HasUnread:  hasUnread,
+				Active:     active,
+				Expandable: expandable,
+				Expanded:   nodeExpanded,
+				Children:   children,
+				Facts:      a.projectNavRecordFacts(schema, rec),
+			}
+			if kind == data.KindLane {
+				applyLaneNavPresentation(nd, a.projectNavLaneProgressBarEnabled(), &node)
+			}
+			out = append(out, node)
 			a.applyArchiveAnimToNavNode(ref, &out[len(out)-1])
 		}
 		return out, totalUnread
@@ -920,7 +929,7 @@ func (a *App) projectNavViewKey(s core.State) string {
 	}
 	pc := a.proj
 	var b strings.Builder
-	fmt.Fprintf(&b, "|pnt:%t:%t:%t", a.projectNavTreeEnabled(), a.projectNavSurfaceUnreadEnabled(), a.projectNavShowNewItemsEnabled())
+	fmt.Fprintf(&b, "|pnt:%t:%t:%t:%t", a.projectNavTreeEnabled(), a.projectNavSurfaceUnreadEnabled(), a.projectNavShowNewItemsEnabled(), a.projectNavCompactEnabled())
 	if secs := pc.expandedSections[projKey]; len(secs) > 0 {
 		keys := make([]string, 0, len(secs))
 		for k, v := range secs {

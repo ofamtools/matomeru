@@ -66,6 +66,40 @@ func findProjectTreeNode(nodes []data.TreeNode, projectID string) (data.TreeNode
 	return data.TreeNode{}, false
 }
 
+func (a *App) cachedEditingTree(tm *tree.Model, treeID string) ([]data.TreeNode, bool) {
+	if tm == nil || !tm.Editing() || a.trees == nil {
+		return nil, false
+	}
+	entry, ok := a.trees.syncCache[tm]
+	if !ok {
+		return nil, false
+	}
+	tm.ScrollOff, tm.PageSize = a.scrollOff(), a.treeViewportHeight(treeID)
+	return entry.nodes, true
+}
+
+func (a *App) syncScopedTaskTree(tm *tree.Model, treeID string) (data.Schema, []data.TreeNode, bool) {
+	if a.trees == nil {
+		return data.Schema{}, nil, false
+	}
+	projID := a.trees.projectIDForModel(tm)
+	if treeID == featuresCaptureTree || projID != "" {
+		if wid := a.featuresWishlistTaskID(); wid != "" && (treeID == featuresCaptureTree || projID == wid) {
+			s, n := a.syncFeaturesCaptureTree(tm, wid)
+			return s, n, true
+		}
+		if projID != "" {
+			s, n := a.syncProjectTaskTree(tm, projID, projectOutlineTree)
+			return s, n, true
+		}
+	}
+	if treeID == projectOutlineTree && a.trees.activeProjectID != "" {
+		s, n := a.syncProjectTaskTree(tm, a.trees.activeProjectID, projectOutlineTree)
+		return s, n, true
+	}
+	return data.Schema{}, nil, false
+}
+
 // syncProjectTaskTree synchronizes tm with the task subtree rooted at
 // projectID, sharing fold state and inline note threads with 2 Work and T
 // Outline while pinning the base hoist to projectID so inline adds (`o`/`O`)

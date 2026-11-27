@@ -80,7 +80,7 @@ func (a *App) queueSnapshot(projectID string) queueSnapshot {
 		return queueSnapshot{}
 	}
 	rev, _ := a.Store.LatestChangeSetNumber()
-	key := fmt.Sprintf("%d|%d|%t", rev, a.rt.live.telemetrySeq.Load(), a.nav.showArchived)
+	key := fmt.Sprintf("%d|%d|%t", rev, a.telemetryViewSeq(), a.nav.showArchived)
 	if snap, ok := q.snapshots[projectID]; ok && snap.key == key {
 		return snap
 	}

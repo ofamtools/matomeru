@@ -31,7 +31,8 @@ type ProjectNavNode struct {
 	Badge       string
 	BadgeTone   string
 	Tone        string
-	UnreadTone  string // optional tone for the left-gutter ● indicator (default "warning"; e.g. "success" for done lanes)
+	Dim         bool   // true: dim label/icon/bar for completed/inactive items while preserving unread dot tone
+	UnreadTone  string // optional tone for the left-gutter ● indicator (default "warning")
 	ProgressBar []ui.InlineRun
 	Ref         *core.Ref
 	Unread      bool
@@ -62,6 +63,11 @@ type ProjectNavSection struct {
 	Children    []ProjectNavNode
 }
 
+// ProjectNavOptions declaratively controls Project Page left-nav density and spacing.
+type ProjectNavOptions struct {
+	Compact bool // true: omit zero-only badges and add breathing room between section groups
+}
+
 // ProjectWorkspaceSpec is the pure data contract for ProjectWorkspaceView.
 // Callers resolve store queries and section bodies before passing this value.
 type ProjectWorkspaceSpec struct {
@@ -71,6 +77,7 @@ type ProjectWorkspaceSpec struct {
 	NavTitle      string
 	HideHeader    bool
 	UnreadDotOnly *bool // nil or true: color only the leading ● ball on unread nav rows; false: legacy whole-row warning tint
+	NavOptions    ProjectNavOptions
 	Ref           *core.Ref
 	Badges        []ui.Badge
 	NavItems      []ProjectNavSection
@@ -116,21 +123,14 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 
 	unreadDotOnly := spec.UnreadDotOnly == nil || *spec.UnreadDotOnly
 
-	navRows := make([]ui.ViewNode, 0, len(spec.NavItems)+4)
+	navRows := make([]ui.ViewNode, 0, len(spec.NavItems)+8)
 	lastGroup := ""
 	for _, item := range spec.NavItems {
 		if item.Group != "" && item.Group != lastGroup {
+			navRows = appendProjectNavGroupHeader(navRows, item.Group, lastGroup != "", spec.NavOptions)
 			lastGroup = item.Group
-			groupKey := strings.ToLower(strings.ReplaceAll(item.Group, " ", "_"))
-			navRows = append(navRows, ui.ViewNode{
-				ID:    "project.nav.group." + groupKey,
-				Kind:  ui.KindText,
-				Tone:  "muted",
-				Box:   layout.Constraints{FixedH: 1},
-				Props: map[string]any{"text": "  " + strings.ToUpper(item.Group)},
-			})
 		}
-		navRows = append(navRows, projectNavRow(item, spec.ActiveKey, unreadDotOnly))
+		navRows = append(navRows, projectNavRow(item, spec.ActiveKey, unreadDotOnly, spec.NavOptions))
 		if len(item.Children) > 0 {
 			navRows = appendProjectNavChildren(navRows, item.Children, 1, unreadDotOnly)
 		}
@@ -283,7 +283,34 @@ func (b *navSpanBuilder) write(s, tone string) {
 	b.runes += n
 }
 
-func projectNavRow(item ProjectNavSection, activeKey string, unreadDotOnly bool) ui.ViewNode {
+func appendProjectNavGroupHeader(dst []ui.ViewNode, group string, hasPrev bool, opts ProjectNavOptions) []ui.ViewNode {
+	groupKey := strings.ToLower(strings.ReplaceAll(group, " ", "_"))
+	if opts.Compact && hasPrev {
+		dst = append(dst, ui.ViewNode{
+			ID:    "project.nav.gap." + groupKey,
+			Kind:  ui.KindText,
+			Box:   layout.Constraints{FixedH: 1},
+			Props: map[string]any{"text": ""},
+		})
+	}
+	return append(dst, ui.ViewNode{
+		ID:    "project.nav.group." + groupKey,
+		Kind:  ui.KindText,
+		Tone:  "muted",
+		Box:   layout.Constraints{FixedH: 1},
+		Props: map[string]any{"text": "  " + strings.ToUpper(group)},
+	})
+}
+
+func effectiveNavSectionBadge(badge string, opts ProjectNavOptions) string {
+	s := strings.TrimSpace(badge)
+	if opts.Compact && s == "0" {
+		return ""
+	}
+	return s
+}
+
+func projectNavRow(item ProjectNavSection, activeKey string, unreadDotOnly bool, opts ProjectNavOptions) ui.ViewNode {
 	isActive := item.Active || (activeKey != "" && item.Key == activeKey)
 	isUnread := item.Unread || item.UnreadCount > 0
 	icon := strings.TrimSpace(item.Icon)
@@ -325,7 +352,7 @@ func projectNavRow(item ProjectNavSection, activeKey string, unreadDotOnly bool)
 		focusedText = fmt.Sprintf("%s▸ %s %s", gutterPlain, icon, item.Label)
 	}
 
-	badgeStr := strings.TrimSpace(item.Badge)
+	badgeStr := effectiveNavSectionBadge(item.Badge, opts)
 	if item.UnreadCount > 0 {
 		unreadPart := fmt.Sprintf("●%d", item.UnreadCount)
 		unreadTone := ""
@@ -397,6 +424,61 @@ func projectNavRow(item ProjectNavSection, activeKey string, unreadDotOnly bool)
 	}
 }
 
+func navChildIconTone(child ProjectNavNode, unreadDotOnly bool) string {
+	if !unreadDotOnly && child.Unread {
+		return ""
+	}
+	if child.Dim {
+		return "muted"
+	}
+	return child.IconTone
+}
+
+func navChildLabelTone(child ProjectNavNode, unreadDotOnly bool) string {
+	if !unreadDotOnly {
+		return ""
+	}
+	if child.Dim {
+		return "muted"
+	}
+	if child.Active {
+		return "accent"
+	}
+	return child.Tone
+}
+
+func navChildRowTone(child ProjectNavNode, unreadDotOnly bool) string {
+	if !unreadDotOnly && child.Unread {
+		return "warning"
+	}
+	if child.Tone != "" {
+		return child.Tone
+	}
+	if child.Dim {
+		return "muted"
+	}
+	if child.Active {
+		return "accent"
+	}
+	return ""
+}
+
+func appendNavProgressBar(b *navSpanBuilder, focusedBody *strings.Builder, runs []ui.InlineRun, dim bool) {
+	if len(runs) == 0 {
+		return
+	}
+	for _, run := range runs {
+		tone := run.Tone
+		if dim {
+			tone = "muted"
+		}
+		b.write(run.Text, tone)
+		focusedBody.WriteString(run.Text)
+	}
+	b.write(" ", "")
+	focusedBody.WriteString(" ")
+}
+
 func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, depth int, unreadDotOnly bool) []ui.ViewNode {
 	// Section text starts 4 cols past the fixed 2-col gutter (chev + space + icon + space).
 	// Indenting depth-1 children by 4 spaces (and +2 per deeper level) aligns the child's
@@ -440,32 +522,13 @@ func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, dept
 		b.write(" ", "")
 		var focusedBody strings.Builder
 		if icon := strings.TrimSpace(child.Icon); icon != "" {
-			iconTone := child.IconTone
-			if !unreadDotOnly && child.Unread {
-				iconTone = ""
-			}
-			b.write(icon, iconTone)
+			b.write(icon, navChildIconTone(child, unreadDotOnly))
 			b.write(" ", "")
 			focusedBody.WriteString(icon + " ")
 		}
-		if len(child.ProgressBar) > 0 {
-			for _, run := range child.ProgressBar {
-				b.write(run.Text, run.Tone)
-				focusedBody.WriteString(run.Text)
-			}
-			b.write(" ", "")
-			focusedBody.WriteString(" ")
-		}
+		appendNavProgressBar(&b, &focusedBody, child.ProgressBar, child.Dim)
 
-		labelTone := ""
-		if unreadDotOnly {
-			if child.Active {
-				labelTone = "accent"
-			} else if child.Tone != "" {
-				labelTone = child.Tone
-			}
-		}
-		b.write(child.Label, labelTone)
+		b.write(child.Label, navChildLabelTone(child, unreadDotOnly))
 		focusedBody.WriteString(child.Label)
 
 		focusedText := focusedPrefix + " " + focusedBody.String()
@@ -489,12 +552,7 @@ func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, dept
 			focusedText += "  " + badge
 		}
 
-		tone := child.Tone
-		if !unreadDotOnly && child.Unread {
-			tone = "warning"
-		} else if tone == "" && child.Active {
-			tone = "accent"
-		}
+		tone := navChildRowTone(child, unreadDotOnly)
 
 		var refCopy *core.Ref
 		if child.Ref != nil {
@@ -512,6 +570,9 @@ func appendProjectNavChildren(dst []ui.ViewNode, children []ProjectNavNode, dept
 			"active":        child.Active,
 			"unread":        child.Unread,
 			"peeked":        child.Peeked,
+		}
+		if child.Dim {
+			facts["dim"] = true
 		}
 		if child.HasUnread {
 			facts["hasUnread"] = true

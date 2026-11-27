@@ -81,6 +81,15 @@ func (pc *ProjectController) homeTarget(projKey, focusID string) (projectHomeTar
 	return t, ok
 }
 
+func (a *App) projectHomeCacheKey(ws projectWorkspaceData, interactive bool) string {
+	return fmt.Sprintf("%s|%d|%d|%d|%t|%d|%s|%t|%t|%t|%d",
+		ws.projectKey, ws.cacheRev, ws.cacheCtxGen, a.telemetryViewSeq(),
+		a.nav.showArchived, a.navUnreadCutoff.UnixNano(), ws.cacheRailKey,
+		a.projectHomeDashboardEnabled(), a.projectHomeQueueProgressEnabled(),
+		interactive, a.now().Unix(),
+	)
+}
+
 // buildProjectHomeSection projects Project Page Home either as the interactive
 // important-info dashboard (default) or as the compact legacy summary when
 // project.homeDashboard is false.
@@ -88,6 +97,32 @@ func (a *App) buildProjectHomeSection(ws projectWorkspaceData, interactive bool)
 	if !a.projectHomeDashboardEnabled() {
 		return a.projectSectionHomeLegacy(ws, interactive)
 	}
+	pc := a.projectCtrl()
+	slot := fmt.Sprintf("%s|%t", ws.projectKey, interactive)
+	key := a.projectHomeCacheKey(ws, interactive)
+	if cached, ok := pc.homeCache[slot]; ok && cached.key == key {
+		if interactive {
+			if pc.homeTargets == nil {
+				pc.homeTargets = map[string]map[string]projectHomeTarget{}
+			}
+			pc.homeTargets[ws.projectKey] = cached.targets
+		}
+		return cached.node
+	}
+	node := a.buildProjectHomeSectionUncached(ws, interactive)
+	if pc.homeCache == nil {
+		pc.homeCache = map[string]cachedProjectHome{}
+	}
+	pc.homeCache[slot] = cachedProjectHome{
+		key:     key,
+		node:    node,
+		targets: pc.homeTargets[ws.projectKey],
+	}
+	pc.homeBuilds++
+	return node
+}
+
+func (a *App) buildProjectHomeSectionUncached(ws projectWorkspaceData, interactive bool) ui.ViewNode {
 	if interactive {
 		a.projectCtrl().resetHomeTargets(ws.projectKey)
 	}

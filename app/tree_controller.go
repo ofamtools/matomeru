@@ -54,6 +54,7 @@ type treeController struct {
 	threadsCache       map[string][]data.Record
 	nodeCache          map[string]cachedRecordTree
 	syncCache          map[*tree.Model]treeSyncEntry
+	syncBuilds         uint64
 }
 
 func newTreeController() *treeController {
@@ -479,21 +480,15 @@ func (a *App) treeSyncKey(rev int64, kind, treeID string, cs *cleanSlateState) s
 }
 
 func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, []data.TreeNode) {
-	if kind == data.KindTask && a.trees != nil {
-		projID := a.trees.projectIDForModel(tm)
-		if treeID == featuresCaptureTree || projID != "" {
-			if wid := a.featuresWishlistTaskID(); wid != "" && (treeID == featuresCaptureTree || projID == wid) {
-				return a.syncFeaturesCaptureTree(tm, wid)
-			}
-			if projID != "" {
-				return a.syncProjectTaskTree(tm, projID, projectOutlineTree)
-			}
-		}
-		if treeID == projectOutlineTree && a.trees.activeProjectID != "" {
-			return a.syncProjectTaskTree(tm, a.trees.activeProjectID, projectOutlineTree)
+	if kind == data.KindTask {
+		if schema, nodes, ok := a.syncScopedTaskTree(tm, treeID); ok {
+			return schema, nodes
 		}
 	}
 	schema := a.schema(kind)
+	if nodes, ok := a.cachedEditingTree(tm, treeID); ok {
+		return schema, nodes
+	}
 	cs := a.activeCleanSlate(kind, treeID)
 	syncKey := ""
 	if !a.isExternalKind(kind) && a.Store != nil && a.trees != nil {
@@ -535,6 +530,7 @@ func (a *App) syncTreeModel(tm *tree.Model, kind, treeID string) (data.Schema, [
 			a.trees.syncCache = map[*tree.Model]treeSyncEntry{}
 		}
 		a.trees.syncCache[tm] = treeSyncEntry{key: syncKey, nodes: nodes}
+		a.trees.syncBuilds++
 	}
 	return schema, nodes
 }
