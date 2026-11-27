@@ -550,7 +550,7 @@ func (a *App) syncWorkTreeToTable(kind string, tm *tree.Model) {
 
 func (a *App) workTreeView() ui.ViewNode {
 	kind := a.workKind()
-	tbl := a.nav.tables[workTable]
+	tbl := a.records(workTable, kind)
 	tm := a.trees.workModel(kind)
 	csActive := a.isCleanSlateActive(kind, workTable)
 

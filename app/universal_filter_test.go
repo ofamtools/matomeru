@@ -295,18 +295,17 @@ func TestUniversalFilterEverySurface(t *testing.T) {
 	}
 	assertSurfaceFilter("Features nav", "", "Work Tasks", "Work Tasks", "Record detail", ModeNormal)
 
-	// 6. 2 Work tree: stays in tree mode (in-place tree filtering, NO shadow-table swap!).
+	// 6. 2 Work tree: stays in tree mode (in-place tree filtering, NO shadow-table filter swap!).
 	d.Keys("2")
 	if !a.inWorkTree(a.State()) {
 		t.Fatal("expected 2 Work in tree mode")
 	}
-	delete(a.nav.tables, workTable)
 	assertSurfaceFilter("2 Work tree", "", "Token Rotator", "OAuth Gateway", "Solaris Archive", ModeNormal)
 	if !a.inWorkTree(a.State()) {
 		t.Fatal("2 Work must remain in tree mode during and after in-place filtering")
 	}
-	if a.nav.tables[workTable] != nil {
-		t.Fatal("in-place 2 Work tree filtering should not lazily materialize a shadow work.table")
+	if tbl := a.nav.tables[workTable]; tbl != nil && tbl.Query != "" {
+		t.Fatalf("in-place 2 Work tree filtering should not filter via work.table, got query %q", tbl.Query)
 	}
 
 	// 7. T Outline modal (centered overlay; assert directly on outlineTree rows

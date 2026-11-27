@@ -36,7 +36,7 @@ func keep(old, fresh *table.Model) *table.Model {
 
 // selectRow moves the selection to the row with the given ID, when it is shown.
 func selectRow(tbl *table.Model, id string) bool {
-	if id == "" {
+	if tbl == nil || id == "" {
 		return false
 	}
 	for i, it := range tbl.Items() {
@@ -73,6 +73,7 @@ func (a *App) records(id, kind string) *table.Model {
 			key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t|%s|%t|%s", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog(), a.archiveAnimCacheKey(), styleOpts.FlagsOnLeft, styleOpts.ColorByRecency)
 			if a.nav.recCacheKeys != nil && a.nav.recCacheKeys[id] == key && a.nav.tables[id] != nil {
 				a.pageSize(a.nav.tables[id], id)
+				a.registerTableFilterable(id, a.nav.tables[id])
 				return a.nav.tables[id]
 			}
 			defer func() {
@@ -207,6 +208,7 @@ func (a *App) rail() *table.Model {
 			)
 			if key == a.panes.railCacheKey && a.nav.tables[railTable] != nil {
 				a.pageSize(a.nav.tables[railTable], railTable)
+				a.registerTableFilterable(railTable, a.nav.tables[railTable])
 				return a.nav.tables[railTable]
 			}
 			tbl := a.buildRail()
