@@ -117,16 +117,27 @@ func TestStandardCycleDirectionWrappingAndTargeting(t *testing.T) {
 		if !a.cfg.Settings.Bool(SetShowTOC, true) {
 			t.Fatal("expected TOC initially shown")
 		}
+		if got := a.effectiveTOCStyle(); got != views.TOCStyleCompact {
+			t.Fatalf("initial effectiveTOCStyle = %q, want %q", got, views.TOCStyleCompact)
+		}
 		execCmd(d, CmdStandardCycle, map[string]any{"target": views.SiteTOCID})
-		if a.cfg.Settings.Bool(SetShowTOC, true) {
-			t.Fatal("cycle target=site.toc while focused on rail did not hide TOC")
+		if got := a.tocStyleSetting(); got != views.TOCStyleTight {
+			t.Fatalf("cycle target=site.toc while focused on rail: tocStyle=%q, want %q", got, views.TOCStyleTight)
 		}
 		if a.Focus() != railTable {
 			t.Fatalf("focus drifted to %q, want %q", a.Focus(), railTable)
 		}
+		execCmd(d, CmdStandardCycle, map[string]any{"target": views.SiteTOCID, "dir": "prev"})
+		if got := a.tocStyleSetting(); got != views.TOCStyleCompact {
+			t.Fatalf("cycle prev target=site.toc: tocStyle=%q, want %q", got, views.TOCStyleCompact)
+		}
+		execCmd(d, CmdStandardCycle, map[string]any{"target": "site"})
+		if a.cfg.Settings.Bool(SetShowTOC, true) {
+			t.Fatal("cycle target=site did not hide TOC")
+		}
 		execCmd(d, CmdStandardCycle, map[string]any{"target": "site"})
 		if !a.cfg.Settings.Bool(SetShowTOC, true) {
-			t.Fatal("cycle target=site did not restore TOC")
+			t.Fatal("second cycle target=site did not restore TOC")
 		}
 
 		// Now focus site.toc and explicitly target panes.rail.table to cycle rail grouping!

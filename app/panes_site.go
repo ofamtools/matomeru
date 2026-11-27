@@ -155,6 +155,7 @@ func (a *App) buildPaneSiteNode(s core.State, pane data.Record, embedded bool) u
 		LaneSuffixTone:    laneSuffixTone,
 		LaneInTOC:         laneInTOC,
 		CompactTOC:        a.cfg.Settings.Bool(SetCompactTOC, true),
+		TOCStyle:          a.tocStyleSetting(),
 		TOCGrouped:        a.cfg.Settings.Bool(SetTOCGrouped, true),
 		TOCCollapsed:      a.panes.tocCollapsed,
 		MatchMode:         a.filterMode("toc"),

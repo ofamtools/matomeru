@@ -323,6 +323,46 @@ func (a *App) cycleModalView(s core.State, dir int) core.StepResult {
 	return core.Next(s)
 }
 
+var tocStyleCycle = []string{views.TOCStyleCompact, views.TOCStyleTight, views.TOCStyleSpacious}
+
+func (a *App) tocStyleSetting() string {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return views.TOCStyleAuto
+	}
+	switch v := a.cfg.Settings.String(SetTOCStyle, views.TOCStyleAuto); v {
+	case views.TOCStyleAuto, views.TOCStyleCompact, views.TOCStyleTight, views.TOCStyleSpacious:
+		return v
+	default:
+		return views.TOCStyleAuto
+	}
+}
+
+func (a *App) effectiveTOCStyle() string {
+	if style := a.tocStyleSetting(); style != views.TOCStyleAuto {
+		return style
+	}
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetCompactTOC, true) {
+		return views.TOCStyleCompact
+	}
+	return views.TOCStyleSpacious
+}
+
+func (a *App) cycleTOCStyle(s core.State, dir int) core.StepResult {
+	cur := a.effectiveTOCStyle()
+	if !slices.Contains(tocStyleCycle, cur) {
+		cur = tocStyleCycle[0]
+	}
+	nextStyle, _ := traits.Cycle(tocStyleCycle, cur, dir, true)
+	a.cfg.userSettings[SetTOCStyle] = nextStyle
+	a.reloadSettings()
+	a.applySettings()
+	if _, err := a.writeConfig(settingsFileName, a.cfg.userSettings); err != nil {
+		a.fail("save "+SetTOCStyle, err)
+	}
+	a.say("pages TOC: %s", nextStyle)
+	return core.Next(s)
+}
+
 func (a *App) viewCycle(s core.State, c core.Command) core.StepResult {
 	if a.cfg.Settings != nil && !a.cfg.Settings.Bool(SetViewCycle, true) {
 		a.say("view cycling is disabled (ui.viewCycle)")
