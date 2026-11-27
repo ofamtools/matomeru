@@ -917,6 +917,7 @@ func (a *App) register() {
 	a.registerFocus()
 	a.registerCaptures()
 	a.registerPinnedAgents()
+	a.registerPaste()
 	a.handle(CmdFDSearch, a.fdSearch)
 	a.handle(CmdFDSearchAgain, a.fdSearchAgain)
 	for _, id := range []string{CmdFDResultYank, CmdFDResultOpenWith, CmdFDResultAttach, CmdFDResultRefine} {

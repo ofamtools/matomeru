@@ -78,8 +78,8 @@ func TestYankPicker(t *testing.T) {
 			t.Errorf("the yank picker of a task has no %q: %v", want, ids)
 		}
 	}
-	if ids[0] != "title" {
-		t.Fatalf("the main value is not first: %v", ids)
+	if ids[0] != "ref" {
+		t.Fatalf("ref is not first by default: %v", ids)
 	}
 	if frame := d.Frame(); !strings.Contains(frame, "Yank from ochazuke-v2") || !strings.Contains(frame, "~/proj/ochazuke-next") {
 		t.Fatalf("the picker does not show what it copies:\n%s", frame)
@@ -105,8 +105,10 @@ func TestYankPicker(t *testing.T) {
 	}
 
 	d.Keys("y", "y")
-	if a.Modal() != "" || a.Register(core.RegUnnamed) != "ochazuke-v2" || !strings.Contains(a.Status(), "yanked title") {
-		t.Fatalf("y y yanked %q (modal %q, status %q)", a.Register(core.RegUnnamed), a.Modal(), a.Status())
+	wantRef := data.RefText(task.Ref())
+	regVal, _ := a.RegisterValue(core.RegUnnamed)
+	if a.Modal() != "" || a.Register(core.RegUnnamed) != wantRef || !regVal.HasRefs() || !strings.Contains(a.Status(), "yanked task") {
+		t.Fatalf("y y yanked %q (refs=%v, modal %q, status %q)", a.Register(core.RegUnnamed), regVal.Refs, a.Modal(), a.Status())
 	}
 	d.Keys("y", "/")
 	d.Type("json")

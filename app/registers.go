@@ -56,15 +56,38 @@ func (a *App) Program() tea.Model { return program{a} }
 // effect queues an effect for the command being handled.
 func (a *App) effect(e core.Effect) { a.effects = append(a.effects, e) }
 
-// yank puts text into the registers and onto the system clipboard. what
+// yankValue stores a typed RegisterValue into the unnamed register, "0, and
+// "+, mirrors its text onto the system clipboard, and reports status.
+func (a *App) yankValue(v core.RegisterValue, status string) {
+	a.nav.Registers.YankValue(0, v)
+	a.nav.Registers.SetSpecialValue(core.RegClipboard, v)
+	a.rt.live.clipboard = v.Text
+	a.effect(core.CustomEffect{Kind: effectClipboard, Data: v.Text})
+	a.say("%s", status)
+}
+
+func yankTextKind(what string) string {
+	low := strings.ToLower(what)
+	switch {
+	case strings.Contains(low, "code"):
+		return "code"
+	case low == "path" || low == "filepath":
+		return "path"
+	default:
+		return "text"
+	}
+}
+
+// yank puts raw text into the registers and onto the system clipboard. what
 // names it in the status line.
 func (a *App) yank(text, what string) {
-	a.nav.Registers.Yank(0, text, strings.Contains(text, "\n"))
-	a.nav.Registers.SetSpecial(core.RegClipboard, text)
-	a.rt.live.clipboard = text
-	a.effect(core.CustomEffect{Kind: effectClipboard, Data: text})
 	shown := clip(strings.ReplaceAll(text, "\n", "⏎"), 48)
-	a.say("yanked %s: %s", what, shown)
+	v := core.RegisterValue{
+		Text:     text,
+		Linewise: strings.Contains(text, "\n"),
+		Kind:     yankTextKind(what),
+	}
+	a.yankValue(v, fmt.Sprintf("yanked %s: %s", what, shown))
 }
 
 // Register returns the text of a register: '"' the last yank, '0' the same,
@@ -113,6 +136,11 @@ func (a *App) resolveRecordFilePath(ref core.Ref) string {
 	}
 	a.nav.syncPathRef, a.nav.syncPathRev, a.nav.syncPathVal, a.nav.syncPathValid = ref, rev, path, true
 	return path
+}
+
+// RegisterValue returns the full typed value stored in reg.
+func (a *App) RegisterValue(reg rune) (core.RegisterValue, bool) {
+	return a.nav.Registers.Get(reg)
 }
 
 // syncPath keeps "% on the focused record: its file when it has one,
@@ -231,40 +259,29 @@ func (a *App) yankPick(s core.State, c core.Command) core.StepResult {
 		return core.Next(s)
 	}
 	schema := a.schema(ref.Kind)
-	primary := PrimaryYank(schema, *rec)
-	var items []picker.Item
-	for _, v := range YankValues(schema, *rec) {
-		item := picker.Item{ID: v.Name, Title: v.Name, Subtitle: clip(strings.ReplaceAll(v.Text, "\n", "⏎"), 60), Data: v.Text}
-		if v.Name == primary.Name {
-			item.Badges = []ui.Badge{{Text: "y", Tone: "accent"}}
-		}
-		items = append(items, item)
-	}
-	// The primary value first: "y enter" and "y y" copy the same thing.
-	slices.SortStableFunc(items, func(x, y picker.Item) int {
-		return map[bool]int{true: 0, false: 1}[x.ID == primary.Name] - map[bool]int{true: 0, false: 1}[y.ID == primary.Name]
-	})
+	defaultName := a.defaultYankPickerField(schema, *rec)
+	items := buildYankPickerItems(schema, *rec, defaultName)
 	pm := picker.New("Yank from "+a.title(ref), items)
-	pm.Placeholder = "a value · y copies the " + primary.Name
+	pm.Placeholder = "a value · y copies the " + defaultName
 	pm.PreviewFn = func(it picker.Item) *ui.ViewNode {
 		text, _ := it.Data.(string)
 		return &ui.ViewNode{ID: "yank.preview.text", Kind: ui.KindText, Props: map[string]any{"text": text}}
 	}
 	yankTargets := slices.Clone(refs)
 	yankFromSel := fromSel
+	originScope := a.currentScope(s)
 	m := a.newPickerModal(pm, modal.PickerOptions{
 		ID:       "yank",
 		PageSize: 10,
 		OnConfirm: func(picked picker.Item) modal.Result {
-			text, _ := picked.Data.(string)
-			a.yank(text, picked.ID)
+			a.confirmYankPick(picked, yankTargets, originScope)
 			return modal.Result{Handled: true, Close: true, CloseReason: modal.CloseSubmit}
 		},
 		OnCommand: func(_ *picker.Model, cmd core.Command) (modal.Result, bool) {
 			if cmd.ID != CmdYankPrimary {
 				return modal.Result{}, false
 			}
-			a.yankPrimaryRefs(yankTargets)
+			a.yankPrimaryRefs(yankTargets, originScope)
 			if yankFromSel {
 				a.afterModal(func(st core.State) core.State {
 					a.clearActiveVisual(st)
@@ -277,34 +294,153 @@ func (a *App) yankPick(s core.State, c core.Command) core.StepResult {
 	return core.Next(a.pushModal(s, m))
 }
 
-func (a *App) yankPrimaryRefs(refs []core.Ref) {
-	if len(refs) == 0 {
-		a.say("nothing here to yank")
-		return
+func (a *App) defaultYankPickerField(schema data.Schema, rec data.Record) string {
+	if a.yankDefaultFormat() == YankFormatRef {
+		return "ref"
 	}
-	if len(refs) == 1 {
-		rec, err := a.Store.Get(refs[0])
-		if err != nil {
-			a.fail("yank", err)
-			return
+	return PrimaryYank(schema, rec).Name
+}
+
+func buildYankPickerItems(schema data.Schema, rec data.Record, defaultName string) []picker.Item {
+	var items []picker.Item
+	for _, v := range YankValues(schema, rec) {
+		item := picker.Item{ID: v.Name, Title: v.Name, Subtitle: clip(strings.ReplaceAll(v.Text, "\n", "⏎"), 60), Data: v.Text}
+		if v.Name == defaultName {
+			item.Badges = []ui.Badge{{Text: "y", Tone: "accent"}}
 		}
-		v := PrimaryYank(a.schema(refs[0].Kind), *rec)
-		a.yank(v.Text, v.Name)
+		items = append(items, item)
+	}
+	// The default value first: "y enter" and "y y" copy the same thing.
+	slices.SortStableFunc(items, func(x, y picker.Item) int {
+		return map[bool]int{true: 0, false: 1}[x.ID == defaultName] - map[bool]int{true: 0, false: 1}[y.ID == defaultName]
+	})
+	return items
+}
+
+func (a *App) confirmYankPick(picked picker.Item, targets []core.Ref, source string) {
+	text, _ := picked.Data.(string)
+	if picked.ID == "ref" && len(targets) > 0 {
+		a.yankRefValues(targets, source)
 		return
 	}
+	shown := clip(strings.ReplaceAll(text, "\n", "⏎"), 48)
+	v := core.RegisterValue{
+		Text:     text,
+		Linewise: strings.Contains(text, "\n"),
+		Kind:     "field",
+		Field:    picked.ID,
+		Source:   source,
+	}
+	a.yankValue(v, fmt.Sprintf("yanked %s: %s", picked.ID, shown))
+}
+
+func (a *App) currentScope(s core.State) string {
+	for _, f := range ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, nil) {
+		if f.Scope != "" {
+			return f.Scope
+		}
+	}
+	return s.ActivePage
+}
+
+func joinRefTexts(refs []core.Ref) string {
+	parts := make([]string, len(refs))
+	for i, r := range refs {
+		parts[i] = data.RefText(r)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func (a *App) yankPluralLabel(refs []core.Ref) string {
+	if len(refs) == 0 {
+		return "items"
+	}
+	kind := refs[0].Kind
+	for _, r := range refs[1:] {
+		if r.Kind != kind {
+			return "items"
+		}
+	}
+	sc := a.schema(kind)
+	if len(refs) == 1 {
+		if sc.Title != "" {
+			return strings.ToLower(sc.Title)
+		}
+		return kind
+	}
+	if sc.Plural != "" {
+		return strings.ToLower(sc.Plural)
+	}
+	return kind + "s"
+}
+
+func (a *App) yankRefValues(refs []core.Ref, source string) {
+	text := joinRefTexts(refs)
+	v := core.RegisterValue{
+		Text:     text,
+		Linewise: len(refs) > 1,
+		Kind:     "refs",
+		Refs:     slices.Clone(refs),
+		Source:   source,
+	}
+	label := a.yankPluralLabel(refs)
+	var status string
+	if len(refs) == 1 {
+		status = fmt.Sprintf("yanked %s (%s) · p pastes contextually · y picks field", label, text)
+	} else {
+		status = fmt.Sprintf("yanked %d %s (refs) · p pastes contextually · y picks field", len(refs), label)
+	}
+	a.yankValue(v, status)
+}
+
+func (a *App) yankTitleValues(refs []core.Ref, source string) {
 	vals := make([]string, 0, len(refs))
+	validRefs := make([]core.Ref, 0, len(refs))
+	firstField := "title"
 	for _, ref := range refs {
 		rec, err := a.Store.Get(ref)
 		if err != nil {
 			continue
 		}
-		vals = append(vals, PrimaryYank(a.schema(ref.Kind), *rec).Text)
+		pv := PrimaryYank(a.schema(ref.Kind), *rec)
+		if len(vals) == 0 {
+			firstField = pv.Name
+		}
+		vals = append(vals, pv.Text)
+		validRefs = append(validRefs, ref)
 	}
 	if len(vals) == 0 {
 		a.say("nothing here to yank")
 		return
 	}
-	a.yank(strings.Join(vals, "\n"), fmt.Sprintf("%d items", len(vals)))
+	text := strings.Join(vals, "\n")
+	v := core.RegisterValue{
+		Text:     text,
+		Linewise: len(validRefs) > 1 || strings.Contains(text, "\n"),
+		Kind:     "refs",
+		Refs:     validRefs,
+		Source:   source,
+	}
+	var status string
+	if len(validRefs) == 1 {
+		shown := clip(strings.ReplaceAll(text, "\n", "⏎"), 48)
+		status = fmt.Sprintf("yanked %s: %s · p pastes contextually · y picks field", firstField, shown)
+	} else {
+		status = fmt.Sprintf("yanked %d %s · p pastes contextually · y picks field", len(validRefs), a.yankPluralLabel(validRefs))
+	}
+	a.yankValue(v, status)
+}
+
+func (a *App) yankPrimaryRefs(refs []core.Ref, source string) {
+	if len(refs) == 0 {
+		a.say("nothing here to yank")
+		return
+	}
+	if a.yankDefaultFormat() == YankFormatTitle {
+		a.yankTitleValues(refs, source)
+		return
+	}
+	a.yankRefValues(refs, source)
 }
 
 // yankPrimary copies the primary value of the record the yank picker is
@@ -321,7 +457,7 @@ func (a *App) yankPrimary(s core.State, c core.Command) core.StepResult {
 	if fromSel {
 		a.clearActiveVisual(s)
 	}
-	a.yankPrimaryRefs(refs)
+	a.yankPrimaryRefs(refs, a.currentScope(s))
 	return core.Next(s)
 }
 

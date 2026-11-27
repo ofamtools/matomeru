@@ -505,7 +505,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("y lists every value of the focused record, each shown as it is copied", a.Modal() == "yank" && k.has("Yank from "+topTitle, "workStatus", "ref", "json", "markdown"))
 	k.keep("Yank picker")
 	k.Keys("y")
-	k.check("y y yanks the title into the registers and the clipboard", a.Modal() == "" && a.Register(core.RegUnnamed) == topTitle && a.Register(core.RegClipboard) == topTitle && a.rt.live.clipboard == topTitle)
+	k.check("y y yanks the canonical ref into the registers and the clipboard", a.Modal() == "" && a.Register(core.RegUnnamed) == top.ID && a.Register(core.RegClipboard) == top.ID && a.rt.live.clipboard == top.ID)
 	k.check("\"% is the focused record", a.Register(core.RegPath) == top.ID)
 	workPos := func() int {
 		if a.inWorkTree(a.State()) {

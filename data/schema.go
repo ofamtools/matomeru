@@ -34,6 +34,7 @@ const (
 	RelMarked    = "marked"
 	RelTag       = "tag"
 	RelAbout     = "about"
+	RelRelated   = "related"
 	RelDirectory = "directory"
 	RelContext   = "context"
 	RelPage      = "page"
