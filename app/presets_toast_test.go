@@ -478,17 +478,17 @@ func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
 		t.Fatalf("esc did not cancel focus hints cleanly: mode=%q focus=%q", a.Mode(), a.Focus())
 	}
 
-	// Re-open with g f, pick the Screen panel (single-focus rail), and type its label.
+	// Re-open with g f, pick the direct Screen focus target, and type its label.
 	d.Keys("g", "f")
 	var pickLabel string
 	for _, tgt := range a.panes.hints.session.Targets() {
-		if tgt.ID == "site.content" {
+		if tgt.ID == siteScreen {
 			pickLabel = tgt.Label
 			break
 		}
 	}
 	if pickLabel == "" {
-		t.Fatalf("site.content target not found among %+v", a.panes.hints.session.Targets())
+		t.Fatalf("%s target not found among %+v", siteScreen, a.panes.hints.session.Targets())
 	}
 	d.Type(pickLabel)
 	if a.Mode() != ModeNormal || a.panes.hints != nil {

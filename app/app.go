@@ -301,19 +301,19 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.Shell.AppFacts = func(s core.State) map[string]any {
 		_, recording := a.nav.Macros.Recording()
 		return map[string]any{
-			"space":              s.ActivePage,
-			"recording":          recording,
-			"enterOpensShow":     a.enterOpensShow(),
-			"hlFolds":            a.treeHLFolds(),
-			"isProjectTab":       isProjectTab(s.ActivePage),
-			"inChildPaneView":    a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
+			"space":               s.ActivePage,
+			"recording":           recording,
+			"enterOpensShow":      a.enterOpensShow(),
+			"hlFolds":             a.treeHLFolds(),
+			"isProjectTab":        isProjectTab(s.ActivePage),
+			"inChildPaneView":     a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
 			"featuresPageActive":  a.featuresPageActive(),
 			"readlinePriority":    a.inputReadlinePriorityEnabled(),
 			"filterScrollMotions": a.inputFilterScrollMotionsEnabled(),
 			"splitResize":         a.splitResizeEnabled(),
 			factListTarget:        a.listTargetFact(s),
-			factTreeTarget:       a.treeTargetFact(),
-			factSelectTarget:     a.selectTargetFact(s),
+			factTreeTarget:        a.treeTargetFact(),
+			factSelectTarget:      a.selectTargetFact(s),
 		}
 	}
 	a.Shell.OnPassThrough = func(e core.PassToWidgetEffect) tea.Cmd {
