@@ -127,7 +127,7 @@ func newStandardVerbRegistry() standardVerbRegistry {
 				standardTargetShow:           (*App).stdCycleShowCompact,
 				standardTargetWorkShow:       (*App).stdCycleShowCompact,
 				standardTargetSite:           (*App).stdToggleSiteTOC,
-				views.SiteTOCID:              (*App).stdToggleSiteTOC,
+				views.SiteTOCID:              (*App).stdCycleTOCStyle,
 				standardTargetSiteContent:    (*App).stdToggleSiteTOC,
 				siteScreen:                   (*App).stdToggleSiteTOC,
 				views.QueueListID:            (*App).stdCycleQueueTabs,
@@ -146,7 +146,7 @@ func newStandardVerbRegistry() standardVerbRegistry {
 				ScopeProjectContext: (*App).stdCycleProjectContext,
 				views.ScopeShow:     (*App).stdCycleShowCompact,
 				views.ScopeSite:     (*App).stdToggleSiteTOC,
-				views.ScopeTOC:      (*App).stdToggleSiteTOC,
+				views.ScopeTOC:      (*App).stdCycleTOCStyle,
 				views.ScopeQueue:    (*App).stdCycleQueueTabs,
 				views.ScopeFiles:    (*App).stdCycleFilesTabs,
 				views.ScopeJobs:     (*App).stdCycleJobsTabs,
@@ -419,6 +419,10 @@ func (a *App) stdCycleProjectContext(ctx standardVerbContext, _ *ui.ViewNode) (c
 
 func (a *App) stdCycleShowCompact(ctx standardVerbContext, _ *ui.ViewNode) (core.StepResult, bool) {
 	return a.toggleShowCompact(ctx.state), true
+}
+
+func (a *App) stdCycleTOCStyle(ctx standardVerbContext, _ *ui.ViewNode) (core.StepResult, bool) {
+	return a.cycleTOCStyle(ctx.state, ctx.dir), true
 }
 
 func (a *App) stdCycleQueueTabs(ctx standardVerbContext, _ *ui.ViewNode) (core.StepResult, bool) {

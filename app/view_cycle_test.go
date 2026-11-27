@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/form"
@@ -185,21 +186,44 @@ func TestViewCyclePanesRailProjectContextSiteAndTables(t *testing.T) {
 		t.Fatalf("projectContextTable wrap: active=%q query=%q", a.nav.activePreset[projectContextTable], a.nav.tables[projectContextTable].Query)
 	}
 
-	// 4. Pane Site focused: ) delegates to siteTOCToggle.
+	// 4. Pane Site TOC focused: ) and ( cycle TOC style (compact -> tight -> spacious -> compact);
+	//    targeting site still delegates to siteTOCToggle.
 	d.Keys("h", "j", "l") // select first pane, enter its site TOC
-	if !strings.HasPrefix(a.Focus(), "site.") {
-		t.Fatalf("expected site.* focus, got %q", a.Focus())
+	if !strings.HasPrefix(a.Focus(), "site.toc.") {
+		t.Fatalf("expected site.toc.* focus, got %q", a.Focus())
 	}
 	if !a.cfg.Settings.Bool(SetShowTOC, true) {
 		t.Fatal("expected TOC initially shown")
 	}
-	d.Keys(")")
-	if a.cfg.Settings.Bool(SetShowTOC, true) {
-		t.Fatal(") on pane site did not hide TOC")
+	for _, want := range []string{"tight", "spacious", "compact"} {
+		d.Keys(")")
+		if got := a.tocStyleSetting(); got != want {
+			t.Fatalf(") on site.toc: tocStyle=%q, want %q (status=%q)", got, want, a.Status())
+		}
+		if !strings.Contains(a.Status(), want) {
+			t.Fatalf(") on site.toc status %q did not report %q", a.Status(), want)
+		}
 	}
-	d.Keys(")")
+	d.Keys("(")
+	if got := a.tocStyleSetting(); got != "spacious" {
+		t.Fatalf("( on site.toc: tocStyle=%q, want spacious", got)
+	}
+	d.Keys("(")
+	if got := a.tocStyleSetting(); got != "tight" {
+		t.Fatalf("second ( on site.toc: tocStyle=%q, want tight", got)
+	}
+	d.Keys("(")
+	if got := a.tocStyleSetting(); got != "compact" {
+		t.Fatalf("third ( on site.toc: tocStyle=%q, want compact", got)
+	}
+	// Focus site.screen (normal mode) or target site: ) still toggles TOC visibility.
+	execCmd(d, CmdStandardCycle, map[string]any{"target": "site"})
+	if a.cfg.Settings.Bool(SetShowTOC, true) {
+		t.Fatal("cycle target=site did not hide TOC")
+	}
+	execCmd(d, CmdStandardCycle, map[string]any{"target": "site"})
 	if !a.cfg.Settings.Bool(SetShowTOC, true) {
-		t.Fatal("second ) on pane site did not restore TOC")
+		t.Fatal("second cycle target=site did not restore TOC")
 	}
 
 	// 5. Runs and Extensions tables: no presets message + preset cycling + wrap reset.
@@ -453,5 +477,76 @@ func TestReactiveAndRepeatableLaunchFormEndToEnd(t *testing.T) {
 	wantTags := []string{"alpha", "beta"}
 	if !slices.Equal(gotTags, wantTags) {
 		t.Fatalf("submitted tags = %v, want %v", gotTags, wantTags)
+	}
+}
+
+func TestTOCStyleSettingAndViewCycle(t *testing.T) {
+	dir := t.TempDir()
+	a, d := configured(t, dir)
+	d.Keys("1", "l")
+	if !strings.HasPrefix(a.Focus(), tocPrefix) {
+		t.Fatalf("expected focus on site.toc.*, got %q", a.Focus())
+	}
+
+	// Default panes.tocStyle="auto" + panes.compactTOC=true -> compact 1-line rows.
+	if got := a.tocStyleSetting(); got != views.TOCStyleAuto {
+		t.Fatalf("default panes.tocStyle = %q, want %q", got, views.TOCStyleAuto)
+	}
+	root := a.View(a.State())
+	if node := root.Find("site.toc.screen"); node == nil || node.Kind != ui.KindText {
+		t.Fatalf("auto+compactTOC=true site.toc.screen = %+v, want KindText", node)
+	}
+
+	// panes.tocStyle="auto" + panes.compactTOC=false -> spacious bordered cards;
+	// cycling backward with ( steps straight from spacious -> tight!
+	a.cfg.userSettings[SetCompactTOC] = false
+	a.cfg.userSettings[SetDensity] = ui.DensitySpacious
+	a.reloadSettings()
+	a.applySettings()
+	root = a.View(a.State())
+	if node := root.Find("site.toc.screen"); node == nil || node.Kind != ui.KindCard || node.Padding != ([4]int{}) {
+		t.Fatalf("auto+compactTOC=false site.toc.screen = %+v, want default KindCard", node)
+	}
+	d.Keys("(")
+	if got := a.tocStyleSetting(); got != views.TOCStyleTight {
+		t.Fatalf("( from auto+spacious: tocStyle=%q, want %q", got, views.TOCStyleTight)
+	}
+	root = a.View(a.State())
+	tightNode := root.Find("site.toc.screen")
+	if tightNode == nil || tightNode.Kind != ui.KindCard || tightNode.Padding != ([4]int{0, 1, 0, 1}) {
+		t.Fatalf("tight site.toc.screen = %+v, want KindCard Padding=[0 1 0 1]", tightNode)
+	}
+
+	// Verify each explicit setting value renders the expected TOC representation.
+	cases := []struct {
+		style   string
+		kind    string
+		padding [4]int
+		scroll  bool
+	}{
+		{views.TOCStyleCompact, ui.KindText, [4]int{}, true},
+		{views.TOCStyleTight, ui.KindCard, [4]int{0, 1, 0, 1}, true},
+		{views.TOCStyleSpacious, ui.KindCard, [4]int{}, true},
+	}
+	for _, tc := range cases {
+		a.cfg.userSettings[SetTOCStyle] = tc.style
+		a.reloadSettings()
+		a.applySettings()
+		root := a.View(a.State())
+		node := root.Find("site.toc.screen")
+		if node == nil || node.Kind != tc.kind || node.Padding != tc.padding {
+			t.Fatalf("panes.tocStyle=%q site.toc.screen = %+v, want kind=%q padding=%v", tc.style, node, tc.kind, tc.padding)
+		}
+		if (root.Find("site.toc.scroll") != nil) != tc.scroll {
+			t.Fatalf("panes.tocStyle=%q scroll wrapper present=%v, want %v", tc.style, root.Find("site.toc.scroll") != nil, tc.scroll)
+		}
+	}
+
+	// Cycling on site.toc persists panes.tocStyle into settings.json.
+	d.Keys(")") // spacious -> compact
+	d.Keys(")") // compact -> tight
+	a2, _ := configured(t, dir)
+	if got := a2.tocStyleSetting(); got != views.TOCStyleTight {
+		t.Fatalf("reloaded panes.tocStyle = %q, want %q", got, views.TOCStyleTight)
 	}
 }

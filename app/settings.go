@@ -249,6 +249,7 @@ const (
 	SetProjectNavCompact               = "ui.projectNavCompact"
 	SetRepoAutoHarvestPanes            = "repo.autoHarvestPanes"
 	SetRichAddToQueue                  = "ui.richAddToQueue"
+	SetTOCStyle                        = "panes.tocStyle"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -440,6 +441,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectNavCompact, true, "use a less dense Project Portal left nav: hide zero-count badges, cap auto-expanded unread previews, and add group spacing"),
 		flag(SetRepoAutoHarvestPanes, true, "automatically register git repositories discovered from pane working directories"),
 		flag(SetRichAddToQueue, true, "open the named-queue picker (Add / Add & Start / Add with Preset) when adding a task to the queue (off: instant enqueue to default queue)"),
+		enum(SetTOCStyle, views.TOCStyleAuto, "pane Pages TOC style: auto (follows panes.compactTOC), compact (1-line rows), tight (compact bordered cards), or spacious (full bordered cards)", views.TOCStyleAuto, views.TOCStyleCompact, views.TOCStyleTight, views.TOCStyleSpacious),
 	}
 }
 

@@ -26,6 +26,14 @@ const TOCGroupPrefix = "site.toc.group."
 // SiteTOCID is the ViewNode ID of the pane Pages table-of-contents panel.
 const SiteTOCID = "site.toc"
 
+// Pane TOC visual styles for SiteOptions.TOCStyle and panes.tocStyle.
+const (
+	TOCStyleAuto     = "auto"
+	TOCStyleCompact  = "compact"
+	TOCStyleTight    = "tight"
+	TOCStyleSpacious = "spacious"
+)
+
 func isScreen(page data.Record) bool { return page.Text("pageKind") == "screen" }
 
 // pageRoot decodes the ViewNode tree stored in a page's root field.
@@ -87,6 +95,11 @@ type SiteOptions struct {
 	// CompactTOC renders TOC entries as crisp 1-line scannable rows instead of
 	// multi-line bordered cards so 15+ agent pages fit cleanly.
 	CompactTOC bool
+	// TOCStyle overrides TOC presentation: "auto" (follows CompactTOC),
+	// "compact" (1-line borderless rows), "tight" (bordered cards with explicit
+	// [0,1,0,1] padding and inline badges in a scroll view), or "spacious"
+	// (full bordered cards inheriting ui.density in a scroll view).
+	TOCStyle string
 	// TOCGrouped groups compact TOC entries into Pinned / Active / collapsible
 	// Pages sections when no TOC filter is active.
 	TOCGrouped bool
@@ -196,6 +209,258 @@ func cardTOCRow(page data.Record, isActive, isUnread bool) ui.ViewNode {
 	return entry
 }
 
+func tightCardTOCRow(page data.Record, isActive, isUnread bool) ui.ViewNode {
+	ref := page.Ref()
+	title := page.Text("title")
+	var tags []string
+	if isActive {
+		tags = append(tags, "open")
+	}
+	if isUnread {
+		tags = append(tags, "unread")
+	}
+	if page.Bool("pinned") {
+		tags = append(tags, "pin")
+	}
+	if page.IsStarred() {
+		tags = append(tags, "★")
+	}
+	if len(tags) > 0 {
+		title += " · " + strings.Join(tags, " ")
+	}
+	tone := ""
+	if isActive {
+		tone = "accent"
+	}
+	return ui.ViewNode{
+		ID:        "site.toc." + page.ID,
+		Kind:      ui.KindCard,
+		Scope:     data.KindPage,
+		Ref:       &ref,
+		Focusable: true,
+		Border:    true,
+		Padding:   [4]int{0, 1, 0, 1},
+		Title:     title,
+		Unread:    isUnread,
+		Tone:      tone,
+		Facts: map[string]any{
+			"pageKind":            page.Text("pageKind"),
+			"unread":              isUnread,
+			"active":              isActive,
+			"pinned":              page.Bool("pinned"),
+			data.ColArchiveStatus: page.ArchiveStatus,
+			data.ColStarStatus:    page.StarStatus,
+			"snoozed":             page.IsSnoozed(time.Now()),
+		},
+	}
+}
+
+func resolveTOCStyle(opts SiteOptions) (string, bool) {
+	switch opts.TOCStyle {
+	case TOCStyleCompact:
+		return TOCStyleCompact, true
+	case TOCStyleTight:
+		return TOCStyleTight, true
+	case TOCStyleSpacious:
+		return TOCStyleSpacious, true
+	default:
+		if opts.CompactTOC {
+			return TOCStyleCompact, true
+		}
+		return TOCStyleSpacious, false
+	}
+}
+
+func sortSitePages(pane data.Record, pages []data.Record, activePageID string) ([]data.Record, data.Record) {
+	sorted := slices.Clone(pages)
+	slices.SortStableFunc(sorted, func(a, b data.Record) int { return tocRank(a) - tocRank(b) })
+	if !slices.ContainsFunc(sorted, isScreen) {
+		screen := data.Record{Kind: data.KindPage, ID: ScreenPageID, CreatedAt: pane.CreatedAt, UpdatedAt: pane.CreatedAt,
+			ArchiveStatus: data.ArchiveActive, StarStatus: data.StarUnstarred,
+			Fields: map[string]any{"title": "Screen", "slug": "screen", "pageKind": "screen", "pinned": true,
+				"viewedAt": pane.CreatedAt.Format(data.TimeFormat)}}
+		sorted = append([]data.Record{screen}, sorted...)
+	}
+	active := sorted[0]
+	for _, page := range sorted {
+		if page.ID == activePageID {
+			active = page
+		}
+	}
+	return sorted, active
+}
+
+func activeLaneTOCEntry(opts SiteOptions) (ui.ViewNode, string, bool) {
+	if !opts.LaneInTOC {
+		return ui.ViewNode{}, "", false
+	}
+	activeLane := slices.IndexFunc(opts.LaneBars, func(e data.LaneBarEntry) bool { return !e.Completed })
+	if activeLane < 0 {
+		return ui.ViewNode{}, "", false
+	}
+	roll := opts.LaneBars[activeLane].Roll
+	return LaneTOCEntry(roll), roll.Root.ID, true
+}
+
+func compactTOCSection(page data.Record, isActive, isUnread bool) string {
+	switch {
+	case isScreen(page):
+		return "screen"
+	case page.Text("pageKind") == "questions" || page.Bool("pinned"):
+		return "pinned"
+	case isUnread || isActive:
+		return "active"
+	default:
+		return "older"
+	}
+}
+
+func buildGroupedCompactTOCEntries(matched []data.Record, active data.Record, opts SiteOptions, hasLaneTOC bool, laneRow ui.ViewNode) []ui.ViewNode {
+	var pinnedNodes, activeNodes, olderNodes []ui.ViewNode
+	for _, page := range matched {
+		isActive := page.ID == active.ID
+		isUnread := !isScreen(page) && page.IsUnread()
+		node := compactTOCRow(page, isActive, isUnread)
+		switch compactTOCSection(page, isActive, isUnread) {
+		case "screen":
+			pinnedNodes = append(pinnedNodes, node)
+			if hasLaneTOC {
+				pinnedNodes = append(pinnedNodes, laneRow)
+				hasLaneTOC = false
+			}
+		case "pinned":
+			pinnedNodes = append(pinnedNodes, node)
+		case "active":
+			activeNodes = append(activeNodes, node)
+		default:
+			olderNodes = append(olderNodes, node)
+		}
+	}
+	if hasLaneTOC {
+		pinnedNodes = append(pinnedNodes, laneRow)
+	}
+	entries := append(pinnedNodes, activeNodes...)
+	if len(olderNodes) > 0 {
+		collapsed := opts.TOCCollapsed["pages"]
+		entries = append(entries, tocGroupHeader("pages", "Pages", len(olderNodes), collapsed))
+		if !collapsed {
+			entries = append(entries, olderNodes...)
+		}
+	}
+	return entries
+}
+
+func buildFlatTOCEntries(matched []data.Record, active data.Record, rowFn func(data.Record, bool, bool) ui.ViewNode, filter string, hasLaneTOC bool, laneRow ui.ViewNode) []ui.ViewNode {
+	var entries []ui.ViewNode
+	for _, page := range matched {
+		isActive := page.ID == active.ID
+		isUnread := !isScreen(page) && page.IsUnread()
+		entries = append(entries, rowFn(page, isActive, isUnread))
+		if isScreen(page) && hasLaneTOC && filter == "" {
+			entries = append(entries, laneRow)
+			hasLaneTOC = false
+		}
+	}
+	if hasLaneTOC && filter == "" {
+		entries = append(entries, laneRow)
+	}
+	return entries
+}
+
+func buildTOCEntries(style string, matched []data.Record, active data.Record, opts SiteOptions, filter string, hasLaneTOC bool, laneRow ui.ViewNode) []ui.ViewNode {
+	switch style {
+	case TOCStyleCompact:
+		if opts.TOCGrouped && filter == "" {
+			return buildGroupedCompactTOCEntries(matched, active, opts, hasLaneTOC, laneRow)
+		}
+		return buildFlatTOCEntries(matched, active, compactTOCRow, filter, hasLaneTOC, laneRow)
+	case TOCStyleTight:
+		return buildFlatTOCEntries(matched, active, tightCardTOCRow, filter, hasLaneTOC, laneRow)
+	default:
+		return buildFlatTOCEntries(matched, active, cardTOCRow, filter, hasLaneTOC, laneRow)
+	}
+}
+
+func buildTOCPanel(pane data.Record, style string, wrapScroll bool, entries []ui.ViewNode, tocFilter, filter string, unread int) ui.ViewNode {
+	tocBadges := []ui.Badge{}
+	if unread > 0 {
+		tocBadges = append(tocBadges, ui.Badge{Text: itoa(unread) + " unread", Tone: "warning"})
+	}
+	if filter != "" {
+		tocBadges = append(tocBadges, ui.Badge{Text: "/" + tocFilter, Tone: "accent"})
+		if len(entries) == 0 {
+			entries = []ui.ViewNode{{
+				ID:        "site.toc.empty",
+				Kind:      ui.KindText,
+				Scope:     ScopeTOC,
+				Focusable: true,
+				Tone:      "muted",
+				Props:     map[string]any{"text": "no page matches"},
+			}}
+		}
+	}
+	tocBody := ui.ViewNode{Kind: ui.KindVStack, Children: entries}
+	if wrapScroll {
+		tocBody = ui.ViewNode{
+			ID:       "site.toc.scroll",
+			Kind:     ui.KindScroll,
+			Props:    map[string]any{"scrollKey": data.RefText(pane.Ref())},
+			Children: []ui.ViewNode{tocBody},
+		}
+	}
+	return ui.ViewNode{ID: "site.toc", Kind: ui.KindPanel, Scope: ScopeTOC,
+		Filter: &ui.FilterSpec{ID: "toc", Prefix: "pages "},
+		Title:  "Pages", Border: true, Badges: tocBadges,
+		Facts:    map[string]any{"siteTOC": true, "tocStyle": style, "filter": tocFilter, "hasFilter": filter != "", "unread": unread},
+		Children: []ui.ViewNode{tocBody}}
+}
+
+func buildSiteContent(pane, active data.Record, opts SiteOptions) ui.ViewNode {
+	activeRef := active.Ref()
+	content := ui.ViewNode{ID: "site.content", Kind: ui.KindPanel, Scope: data.KindPage, Ref: &activeRef, Border: true,
+		Title: active.Text("title"), Facts: map[string]any{"siteContent": true, "pageKind": active.Text("pageKind"), "screen": isScreen(active)}}
+	if isScreen(active) {
+		content.Children = []ui.ViewNode{{ID: "site.screen", Kind: ui.KindTerminal, Scope: "terminal", Focusable: true,
+			Props: map[string]any{"streamId": pane.ID}}}
+		content.Badges = []ui.Badge{{Text: "live", Tone: "success"}}
+		return content
+	}
+	root, err := pageRoot(active)
+	if err != nil {
+		content.Children = []ui.ViewNode{text("", "This page's tree cannot be read: "+err.Error(), "error")}
+		return content
+	}
+	if !opts.WrapPageScroll {
+		content.Children = []ui.ViewNode{root}
+		return content
+	}
+	if opts.PageScrollLocked {
+		content.Badges = append(content.Badges, ui.Badge{Text: "reading · esc leaves", Tone: "accent"})
+	}
+	if root.Kind == ui.KindScroll {
+		root.ID = PageScrollID
+		root.Focusable = true
+		if root.Scope == "" {
+			root.Scope = data.KindPage
+		}
+		if root.Props == nil {
+			root.Props = map[string]any{}
+		}
+		root.Props["offset"] = opts.PageScrollOffset
+		content.Children = []ui.ViewNode{root}
+		return content
+	}
+	content.Children = []ui.ViewNode{{
+		ID:        PageScrollID,
+		Kind:      ui.KindScroll,
+		Scope:     data.KindPage,
+		Focusable: true,
+		Props:     map[string]any{"offset": opts.PageScrollOffset},
+		Children:  []ui.ViewNode{root},
+	}}
+	return content
+}
+
 func tocGroupHeader(groupKey, label string, count int, collapsed bool) ui.ViewNode {
 	glyph := "▾"
 	if collapsed {
@@ -234,177 +499,22 @@ func filterTOCPages(sorted []data.Record, tocFilter string, mode traits.MatchMod
 }
 
 // PaneSiteViewWith is PaneSiteView with options: lane bar / lane-in-TOC,
-// compact grouped TOC, and scrollable ui.page wrapping.
+// compact/tight/spacious TOC, and scrollable ui.page wrapping.
 func PaneSiteViewWith(pane data.Record, pages []data.Record, activePageID string, tocFilter string, opts SiteOptions) ui.ViewNode {
 	paneRef := pane.Ref()
 	paneTitle := Title(data.Schema{SummaryField: "title"}, pane)
-
-	sorted := slices.Clone(pages)
-	slices.SortStableFunc(sorted, func(a, b data.Record) int { return tocRank(a) - tocRank(b) })
-	if !slices.ContainsFunc(sorted, isScreen) {
-		screen := data.Record{Kind: data.KindPage, ID: ScreenPageID, CreatedAt: pane.CreatedAt, UpdatedAt: pane.CreatedAt,
-			ArchiveStatus: data.ArchiveActive, StarStatus: data.StarUnstarred,
-			Fields: map[string]any{"title": "Screen", "slug": "screen", "pageKind": "screen", "pinned": true,
-				"viewedAt": pane.CreatedAt.Format(data.TimeFormat)}}
-		sorted = append([]data.Record{screen}, sorted...)
-	}
-	active := sorted[0]
-	for _, page := range sorted {
-		if page.ID == activePageID {
-			active = page
-		}
-	}
-
-	var laneRow ui.ViewNode
-	laneID := ""
-	activeLane := slices.IndexFunc(opts.LaneBars, func(e data.LaneBarEntry) bool { return !e.Completed })
-	hasLaneTOC := opts.LaneInTOC && activeLane >= 0
-	if hasLaneTOC {
-		roll := opts.LaneBars[activeLane].Roll
-		laneRow, laneID = LaneTOCEntry(roll), roll.Root.ID
-	}
+	sorted, active := sortSitePages(pane, pages, activePageID)
+	laneRow, laneID, hasLaneTOC := activeLaneTOCEntry(opts)
 
 	filter := strings.TrimSpace(tocFilter)
 	matched, unread := filterTOCPages(sorted, tocFilter, opts.MatchMode)
-
-	var entries []ui.ViewNode
-	if opts.CompactTOC {
-		if opts.TOCGrouped && filter == "" {
-			var pinnedNodes, activeNodes, olderNodes []ui.ViewNode
-			for _, page := range matched {
-				isActive := page.ID == active.ID
-				isUnread := !isScreen(page) && page.IsUnread()
-				node := compactTOCRow(page, isActive, isUnread)
-				switch {
-				case isScreen(page):
-					pinnedNodes = append(pinnedNodes, node)
-					if hasLaneTOC {
-						pinnedNodes = append(pinnedNodes, laneRow)
-						hasLaneTOC = false
-					}
-				case page.Text("pageKind") == "questions" || page.Bool("pinned"):
-					pinnedNodes = append(pinnedNodes, node)
-				case isUnread || isActive:
-					activeNodes = append(activeNodes, node)
-				default:
-					olderNodes = append(olderNodes, node)
-				}
-			}
-			if hasLaneTOC {
-				pinnedNodes = append(pinnedNodes, laneRow)
-			}
-			entries = append(entries, pinnedNodes...)
-			if len(activeNodes) > 0 {
-				entries = append(entries, activeNodes...)
-			}
-			if len(olderNodes) > 0 {
-				collapsed := opts.TOCCollapsed["pages"]
-				entries = append(entries, tocGroupHeader("pages", "Pages", len(olderNodes), collapsed))
-				if !collapsed {
-					entries = append(entries, olderNodes...)
-				}
-			}
-		} else {
-			for _, page := range matched {
-				isActive := page.ID == active.ID
-				isUnread := !isScreen(page) && page.IsUnread()
-				entries = append(entries, compactTOCRow(page, isActive, isUnread))
-				if isScreen(page) && hasLaneTOC && filter == "" {
-					entries = append(entries, laneRow)
-					hasLaneTOC = false
-				}
-			}
-			if hasLaneTOC && filter == "" {
-				entries = append(entries, laneRow)
-			}
-		}
-	} else {
-		for _, page := range matched {
-			isActive := page.ID == active.ID
-			isUnread := !isScreen(page) && page.IsUnread()
-			entries = append(entries, cardTOCRow(page, isActive, isUnread))
-			if isScreen(page) && hasLaneTOC && filter == "" {
-				entries = append(entries, laneRow)
-				hasLaneTOC = false
-			}
-		}
-		if hasLaneTOC && filter == "" {
-			entries = append(entries, laneRow)
-		}
-	}
-
-	tocBadges := []ui.Badge{}
-	if unread > 0 {
-		tocBadges = append(tocBadges, ui.Badge{Text: itoa(unread) + " unread", Tone: "warning"})
-	}
-	if filter != "" {
-		tocBadges = append(tocBadges, ui.Badge{Text: "/" + tocFilter, Tone: "accent"})
-		if len(entries) == 0 {
-			entries = []ui.ViewNode{{
-				ID:        "site.toc.empty",
-				Kind:      ui.KindText,
-				Scope:     ScopeTOC,
-				Focusable: true,
-				Tone:      "muted",
-				Props:     map[string]any{"text": "no page matches"},
-			}}
-		}
-	}
-	tocBody := ui.ViewNode{Kind: ui.KindVStack, Children: entries}
-	if opts.CompactTOC {
-		tocBody = ui.ViewNode{
-			ID:       "site.toc.scroll",
-			Kind:     ui.KindScroll,
-			Props:    map[string]any{"scrollKey": data.RefText(paneRef)},
-			Children: []ui.ViewNode{tocBody},
-		}
-	}
-	toc := ui.ViewNode{ID: "site.toc", Kind: ui.KindPanel, Scope: ScopeTOC,
-		Filter: &ui.FilterSpec{ID: "toc", Prefix: "pages "},
-		Title:  "Pages", Border: true, Badges: tocBadges,
-		Facts:    map[string]any{"siteTOC": true, "filter": tocFilter, "hasFilter": filter != "", "unread": unread},
-		Children: []ui.ViewNode{tocBody}}
-
-	activeRef := active.Ref()
-	content := ui.ViewNode{ID: "site.content", Kind: ui.KindPanel, Scope: data.KindPage, Ref: &activeRef, Border: true,
-		Title: active.Text("title"), Facts: map[string]any{"siteContent": true, "pageKind": active.Text("pageKind"), "screen": isScreen(active)}}
-	if isScreen(active) {
-		content.Children = []ui.ViewNode{{ID: "site.screen", Kind: ui.KindTerminal, Scope: "terminal", Focusable: true,
-			Props: map[string]any{"streamId": pane.ID}}}
-		content.Badges = []ui.Badge{{Text: "live", Tone: "success"}}
-	} else if root, err := pageRoot(active); err != nil {
-		content.Children = []ui.ViewNode{text("", "This page's tree cannot be read: "+err.Error(), "error")}
-	} else if opts.WrapPageScroll {
-		if opts.PageScrollLocked {
-			content.Badges = append(content.Badges, ui.Badge{Text: "reading · esc leaves", Tone: "accent"})
-		}
-		if root.Kind == ui.KindScroll {
-			root.ID = PageScrollID
-			root.Focusable = true
-			if root.Scope == "" {
-				root.Scope = data.KindPage
-			}
-			if root.Props == nil {
-				root.Props = map[string]any{}
-			}
-			root.Props["offset"] = opts.PageScrollOffset
-			content.Children = []ui.ViewNode{root}
-		} else {
-			content.Children = []ui.ViewNode{{
-				ID:        PageScrollID,
-				Kind:      ui.KindScroll,
-				Scope:     data.KindPage,
-				Focusable: true,
-				Props:     map[string]any{"offset": opts.PageScrollOffset},
-				Children:  []ui.ViewNode{root},
-			}}
-		}
-	} else {
-		content.Children = []ui.ViewNode{root}
-	}
+	style, wrapScroll := resolveTOCStyle(opts)
+	entries := buildTOCEntries(style, matched, active, opts, filter, hasLaneTOC, laneRow)
+	toc := buildTOCPanel(pane, style, wrapScroll, entries, tocFilter, filter, unread)
+	content := buildSiteContent(pane, active, opts)
 
 	tocRatio := 0.28
-	if opts.CompactTOC {
+	if style == TOCStyleCompact {
 		tocRatio = 0.24
 	}
 	paneBody := ui.ViewNode{ID: "site.pane", Kind: ui.KindSplit, Scope: data.KindPane, Ref: &paneRef, Ratio: tocRatio, Gap: 1,
