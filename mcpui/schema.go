@@ -22,10 +22,11 @@ func nodeSchema(desc string) props {
 	return props{
 		"type": "object", "description": desc, "required": []string{"kind"},
 		"properties": props{
-			"kind":      oneOf("node kind", nodeKinds),
+			"kind":      oneOf("node kind (use \"record.card\", \"ref.card\", or \"card\" with ref + props.recordCard=true for live 3-line noun deep-link cards)", nodeKinds),
 			"id":        text("node ID, unique on the page; needed to patch or answer the node later"),
 			"title":     text("title"),
 			"scope":     text("keymap scope when focused"),
+			"ref":       props{"type": "object", "description": "optional noun record reference {kind, id} for live-hydrating record cards and deep links", "properties": props{"kind": text("noun kind"), "id": text("record ID")}},
 			"focusable": flag("whether the node takes focus"),
 			"unread":    flag("highlight as unread"),
 			"props":     props{"type": "object", "description": "kind-specific payload"},

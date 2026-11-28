@@ -270,6 +270,7 @@ const (
 	SetReminderToasts                  = "ui.reminderToasts"
 	SetOutlineRescoping                = "ui.outlineRescoping"
 	SetShowLegacyPanesWorkPages        = "ui.showLegacyPanesWorkPages"
+	SetPageHydrateRefCards             = "pages.hydrateRefCards"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -480,6 +481,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetReminderToasts, true, "show top-right Matomeru reminder notifications (temporary 30s toasts and persistent alerts)"),
 		flag(SetOutlineRescoping, true, "allow re-scoping outlines onto any subtask root, stepping up one level, and jumping back to root"),
 		flag(SetShowLegacyPanesWorkPages, false, "show legacy Panes and Work spaces in the top navigation bar (off hides them from default chrome; still reachable via commands/palette)"),
+		flag(SetPageHydrateRefCards, true, "hydrate noun/record reference cards inside ui.page views with live store data (off: render raw fallback cards)"),
 	}
 }
 

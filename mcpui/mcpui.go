@@ -55,7 +55,7 @@ var pageKinds = []string{"screen", "questions", "decisions", "plan", "response",
 var nodeKinds = []string{
 	ui.KindVStack, ui.KindHStack, ui.KindSplit, ui.KindGrid, ui.KindTabs, ui.KindPanel, ui.KindScroll, ui.KindOverlay,
 	ui.KindCard, ui.KindText, ui.KindMarkdown, ui.KindTable, ui.KindTree, ui.KindInput, ui.KindForm, ui.KindPicker,
-	ui.KindTerminal, ui.KindRaw,
+	ui.KindTerminal, ui.KindRaw, KindRecordCard, KindRefCard,
 }
 
 // ToolSpec describes one tool for an MCP tools/list reply.
