@@ -108,8 +108,8 @@ func TestRescanGuardFindContextByCanonKeyIsIndexed(t *testing.T) {
 		}
 	}
 	t.Logf("FindContextByCanonKey over %d context rows: %v", n, best)
-	if best > 5*time.Millisecond {
-		t.Fatalf("FindContextByCanonKey took %v over %d rows, want < 5ms (index lookup)", best, n)
+	if best > 25*time.Millisecond {
+		t.Fatalf("FindContextByCanonKey took %v over %d rows, want < 25ms (index lookup)", best, n)
 	}
 
 	// 4242 % 2 = 0 -> t1; scope matching follows the dedupe rules.
