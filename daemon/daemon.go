@@ -109,6 +109,8 @@ type Server struct {
 	// queueWatch hands queued work to agent panes that watch a queue; nil
 	// without a Store.
 	queueWatch *queueWatcher
+	// titles gives a pane its one automatic title from its first prompt.
+	titles *paneTitleSummarizer
 
 	subsMu sync.Mutex
 	subs   map[*frameSubscriber]struct{}
@@ -176,6 +178,7 @@ func New(cfg Config) (*Server, error) {
 		subs:       map[*frameSubscriber]struct{}{},
 	}
 	srv.wireMailbox()
+	srv.titles = newPaneTitleSummarizer(cfg.Store)
 	srv.telemetry.onDone = srv.onAgentEdge
 	if cfg.Store != nil {
 		srv.callbacks.enrich = srv.enrichAgentDone
@@ -844,6 +847,7 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 		if s.cfg.Store != nil {
 			s.indexHookEvent(ev)
 		}
+		s.summarizePaneTitle(ev)
 		return Response{OK: true}, false
 
 	case OpResolveApproval:
