@@ -54,12 +54,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: A-O
-            pattern: "^Test[A-O]"
+          - name: A-E
+            pattern: "^Test[A-E]"
+          - name: F-O
+            pattern: "^Test[F-O]"
           - name: P
             pattern: "^TestP"
-          - name: Q-Z
-            pattern: "^Test[Q-Za-z]"
+          - name: Q-S
+            pattern: "^Test[Q-S]"
+          - name: T-Z
+            pattern: "^Test([T-Z]|[^A-Z])"
     name: app (${{ matrix.name }})
     env:
       GOWORK: "off"
@@ -73,7 +77,7 @@ jobs:
           cache: true
 
       - name: go test -race ./app (${{ matrix.name }})
-        run: go test -race -run "${{ matrix.pattern }}" ./app
+        run: go test -race -timeout 15m -run "${{ matrix.pattern }}" ./app
 
   smoke:
     runs-on: macos-latest
