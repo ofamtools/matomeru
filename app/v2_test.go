@@ -80,7 +80,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetProjectsNavTree: true, SetOutlineGutter: true, SetChromeSystemStats: true, SetProjectsNavSurfaceUnread: true,
 		SetHintsDefaultAction: HintsActionCopy, SetProjectHomeDashboard: true, SetPanesCompactTopArea: true, SetFilterInPlaceTree: true,
 		SetAttachmentsEnabled: true, SetAttachmentsDir: "",
-		SetProjectsNavSurfaceContextUnread: false, SetProjectsNavUnreadDotOnly: true, SetProjectsNavLaneProgressBar: true,
+		SetProjectsNavSurfaceContextUnread: false, SetProjectsNavUnreadDotOnly: true, SetProjectsNavLaneProgressBar: true, SetProjectsNavSectionMaxItems: 7,
 		SetFilterBarBottomLeft: true, SetProjectContextReview: true,
 		SetShowLayout: views.ShowLayoutLedger, SetShowHideEmptyRelations: true,
 		SetFilesScanDepth: 3, SetFilesDefaultSort: "recent",

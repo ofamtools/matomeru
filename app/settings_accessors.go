@@ -288,3 +288,12 @@ func ExportConfig(configDir string, jsonl bool) ([]byte, error) {
 	}
 	return append(b, '\n'), nil
 }
+
+// projectNavSectionMaxItems is the number of rows a Project left-nav section
+// shows before it scrolls inside itself; 0 means unlimited.
+func (a *App) projectNavSectionMaxItems() int {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return 7
+	}
+	return max(0, a.cfg.Settings.Int(SetProjectsNavSectionMaxItems, 7))
+}
