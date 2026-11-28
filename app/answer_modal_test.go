@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -62,5 +63,66 @@ func TestAnswerModalShowsQuestionOutsideQuestionsPage(t *testing.T) {
 	root = a.View(a.State())
 	if root.Find("answer.question") != nil || root.Find("answer.details") != nil {
 		t.Fatal("questions.answerShowQuestion off still renders the question header")
+	}
+}
+
+// A question taller than the modal keeps every line of its prompt and details
+// in a scrolling viewport above the fields: the choices and the send row stay
+// on screen, choice descriptions are listed, and ctrl+e scrolls the question.
+func TestAnswerModalLongQuestionScrollsAboveFields(t *testing.T) {
+	a, d := demo(t)
+	pane := titled(t, a, data.KindPane, "claude: wave 5B")
+	var paras []string
+	for i := 0; i < 30; i++ {
+		paras = append(paras, fmt.Sprintf("Paragraph %d of the context: %s", i, strings.Repeat("word ", 30)))
+	}
+	prompt := "Ship the release?\nSecond prompt line with more to say"
+	if _, err := a.Router.Ask(seedAgent, mcpui.AskArgs{
+		Pane: pane.ID, ID: "q-long", Title: prompt, Details: strings.Join(paras, "\n\n"),
+		Choices: []mcpui.Choice{{ID: "ship", Label: "Ship it", Description: "tag and release today"}, {ID: "hold", Label: "Hold"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	q, err := a.Store.GetByField(data.KindQuestion, "cardId", "q-long")
+	if err != nil {
+		t.Fatal(err)
+	}
+	browseTo(t, a, d, *q)
+	d.Keys("E", "a")
+	if a.Modal() != "answer" {
+		t.Fatalf("answer modal did not open: %q", a.Modal())
+	}
+	root := a.View(a.State())
+	if qn := root.Find("answer.question"); qn == nil || !strings.Contains(data.Text(qn.Props["text"]), "Second prompt line") {
+		t.Fatalf("question node lost the prompt's second line: %+v", qn)
+	}
+	if cn := root.Find("answer.choices"); cn == nil || !strings.Contains(data.Text(cn.Props["text"]), "ship — Ship it tag and release today") {
+		t.Fatalf("choice descriptions missing: %+v", cn)
+	}
+	frame := d.Frame()
+	for _, want := range []string{"Question: Ship the release?", "Second prompt line", "Paragraph 0", "(•) ship", "send answer"} {
+		if !strings.Contains(frame, want) {
+			t.Fatalf("frame is missing %q:\n%s", want, frame)
+		}
+	}
+	if strings.Contains(frame, "Ship the release?Second") {
+		t.Fatalf("modal title joins the prompt's lines:\n%s", frame)
+	}
+	info, ok := a.State().Layout.Scrolls["answer.questionScroll"]
+	if !ok || info.MaxOff <= 0 {
+		t.Fatalf("question viewport does not scroll: %+v %v", info, ok)
+	}
+	d.Keys("ctrl+e", "ctrl+e", "ctrl+e")
+	d.Frame()
+	if got := a.State().Layout.Scrolls["answer.questionScroll"].Offset; got != 3 {
+		t.Fatalf("ctrl+e x3 scrolled the question to %d, want 3", got)
+	}
+	if frame := d.Frame(); !strings.Contains(frame, "(•) ship") {
+		t.Fatalf("choices left the screen after scrolling:\n%s", frame)
+	}
+	d.Keys("ctrl+y")
+	d.Frame()
+	if got := a.State().Layout.Scrolls["answer.questionScroll"].Offset; got != 2 {
+		t.Fatalf("ctrl+y scrolled the question to %d, want 2", got)
 	}
 }

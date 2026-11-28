@@ -179,14 +179,15 @@ type recordFormOptions struct {
 // answerFormModal wraps modal.FormModal with question/batch metadata for the answer modal.
 type answerFormModal struct {
 	*modal.FormModal
-	ref        core.Ref // KindQuestion ref when answering a global KindQuestion record
-	pageID     string
-	cardID     string
-	questionID string
-	batch      *batchQuestionInfo
-	batchPos   int
-	draftKey   string
-	question   views.AnswerQuestion // what is being answered, shown above the fields
+	ref         core.Ref // KindQuestion ref when answering a global KindQuestion record
+	pageID      string
+	cardID      string
+	questionID  string
+	batch       *batchQuestionInfo
+	batchPos    int
+	draftKey    string
+	question    views.AnswerQuestion // what is being answered, shown above the fields
+	questionOff *int                 // explicit scroll offset of the question viewport; nil follows the renderer
 }
 
 func (a *App) activeForm(id string) *modal.FormModal {

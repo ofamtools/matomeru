@@ -383,12 +383,7 @@ func (a *App) newAnswerFormModal(fm *form.Model, am *answerFormModal) *answerFor
 		ID:          "answer",
 		Scope:       "answer",
 		DraftBadges: true,
-		RenderBody: func(m *form.Model, focusID string) ui.ViewNode {
-			if am.question.Empty() || !a.cfg.Settings.Bool(SetAnswerShowQuestion, true) {
-				return m.View(focusID)
-			}
-			return views.AnswerBody("answer", m.Title, am.question, m.View(focusID))
-		},
+		RenderBody:  func(m *form.Model, focusID string) ui.ViewNode { return a.answerBody(am, m, focusID) },
 		Badges: func(*form.Model) []ui.Badge {
 			if am.batch != nil && len(am.batch.cards) > 1 {
 				return []ui.Badge{{
@@ -398,50 +393,15 @@ func (a *App) newAnswerFormModal(fm *form.Model, am *answerFormModal) *answerFor
 			}
 			return nil
 		},
-		Facts: func(*form.Model) map[string]any {
-			if am.batch != nil && len(am.batch.cards) > 1 {
-				return map[string]any{
-					"isBatch":    true,
-					"batchPos":   am.batchPos,
-					"batchTotal": len(am.batch.cards),
-				}
-			}
-			return nil
-		},
+		Facts:          func(*form.Model) map[string]any { return a.answerFormFacts(am) },
 		OnPickPath:     a.formPickPath(func() *modal.FormModal { return mod }),
 		OnPickRef:      a.formPickRef(func() *modal.FormModal { return mod }),
 		OnDraftDiscard: a.formDraftDiscard(am.draftKey),
 		OnCommand: func(m *form.Model, cmd core.Command) (modal.Result, bool) {
-			var delta int
-			switch cmd.ID {
-			case CmdAnswerBatchNext:
-				delta = 1
-			case CmdAnswerBatchPrev:
-				delta = -1
-			default:
-				return modal.Result{}, false
+			if res, ok := a.answerQuestionScroll(am, m, cmd); ok {
+				return res, true
 			}
-			if am.batch == nil || len(am.batch.cards) < 2 {
-				return modal.Result{Handled: true}, true
-			}
-			if m.Editing {
-				_, _ = m.HandleCommand(core.Command{ID: form.CmdStop})
-			}
-			vals := m.TypedValues()
-			if len(vals) > 0 && hasNonEmptyAnswer(vals) {
-				a.setStagedAnswer(am.pageID, am.cardID, vals)
-			}
-			nextPos := (am.batchPos + delta + len(am.batch.cards)) % len(am.batch.cards)
-			nextCard := am.batch.cards[nextPos]
-			nextMod, status := a.newAnswerCardModal(am.pageID, &nextCard, am.batch, nextPos)
-			return modal.Result{
-				Handled:     true,
-				Close:       true,
-				CloseReason: modal.CloseSubmit,
-				Push:        nextMod,
-				Status:      status,
-				SetStatus:   true,
-			}, true
+			return a.answerBatchStep(am, m, cmd)
 		},
 		OnSubmit: func(values map[string]any) modal.Result {
 			if a.submitAnswerModal(am, values) {
@@ -462,10 +422,10 @@ func (a *App) newAnswerCardModal(pageID string, card *ui.ViewNode, batch *batchQ
 			values[k] = v
 		}
 	}
-	title := card.Title
+	title := firstLine(card.Title) // the full prompt is in the body; the border holds one line
 	submitLabel := "Send answer"
 	if batch != nil && len(batch.cards) > 1 {
-		title = fmt.Sprintf("[%d/%d] %s", batchPos+1, len(batch.cards), card.Title)
+		title = fmt.Sprintf("[%d/%d] %s", batchPos+1, len(batch.cards), firstLine(card.Title))
 		remainingOther := 0
 		for _, c := range batch.cards {
 			if c.ID == card.ID || cardIsAnswered(&c) {
@@ -724,7 +684,7 @@ func (a *App) openAnswerFormForQuestionRecord(s core.State, rec data.Record) cor
 			values["answer"] = existing
 		}
 	}
-	promptTitle := rec.Text("prompt")
+	promptTitle := firstLine(rec.Text("prompt"))
 	if promptTitle == "" {
 		promptTitle = rec.ID
 	}
@@ -735,7 +695,7 @@ func (a *App) openAnswerFormForQuestionRecord(s core.State, rec data.Record) cor
 		ref:        rec.Ref(),
 		questionID: rec.ID,
 		draftKey:   "answer:question:" + rec.ID,
-		question:   views.AnswerQuestion{Prompt: rec.Text("prompt"), Details: rec.Text("details")},
+		question:   views.AnswerQuestion{Prompt: rec.Text("prompt"), Details: rec.Text("details"), Choices: questionChoiceHelp(rec)},
 	})
 	a.say("space/h/l choose · i types · ctrl+s sends and syncs to pane")
 	return a.pushModal(s, am)
