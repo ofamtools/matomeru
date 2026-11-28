@@ -93,6 +93,7 @@ type Server struct {
 	host       *ptyhost.LocalHost
 	telemetry  *telemetryStore
 	callbacks  *callbackBus
+	wakes      *wakeQueue
 	scheduler  *Scheduler
 	clock      func() time.Time
 	startedAt  time.Time
@@ -174,7 +175,8 @@ func New(cfg Config) (*Server, error) {
 		panes:      map[string]*paneMeta{},
 		subs:       map[*frameSubscriber]struct{}{},
 	}
-	srv.telemetry.onDone = srv.callbacks.publish
+	srv.wireMailbox()
+	srv.telemetry.onDone = srv.onAgentEdge
 	if cfg.Store != nil {
 		srv.callbacks.enrich = srv.enrichAgentDone
 		disp := cfg.QueueDispatcher
@@ -182,10 +184,6 @@ func New(cfg Config) (*Server, error) {
 			disp = NewServerQueueDispatcher(srv)
 		}
 		srv.queueWatch = newQueueWatcher(cfg.Store, disp, clock, srv.paneReadyForQueue)
-		srv.telemetry.onDone = func(ev AgentDoneEvent) {
-			srv.callbacks.publish(ev)
-			srv.queueWatch.publish(ev)
-		}
 		srv.scheduler = NewScheduler(SchedulerConfig{
 			Store:      cfg.Store,
 			Notifier:   cfg.Notifier,
@@ -783,7 +781,7 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 		delete(s.panes, id)
 		s.mu.Unlock()
 		s.telemetry.clearPane(id)
-		s.callbacks.forgetPane(id)
+		s.forgetPaneHooks(id)
 		s.notifyPaneChanged(id)
 		if err != nil {
 			return Response{OK: false, Error: err.Error()}, false
@@ -801,7 +799,7 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 		s.host.CloseAll()
 		s.telemetry.reset("daemon reset")
 		for _, pid := range closedIDs {
-			s.callbacks.forgetPane(pid)
+			s.forgetPaneHooks(pid)
 			s.notifyPaneChanged(pid)
 		}
 		return Response{OK: true}, false
@@ -856,6 +854,9 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 
 	case OpHookRegister, OpHookUnregister, OpHookList, OpHookLog:
 		return s.handleHookRequest(req), false
+
+	case OpMailNotify:
+		return s.handleMailRequest(req), false
 
 	case OpTelemetry:
 		tel, pending := s.telemetry.snapshot(id)

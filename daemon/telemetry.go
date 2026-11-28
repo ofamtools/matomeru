@@ -111,7 +111,8 @@ type telemetryStore struct {
 	panes   map[string]*PaneTelemetry
 	pending map[string]*pendingEntry
 	seq     atomic.Uint64
-	// onDone receives edge-triggered agent.done events; called without ts.mu held.
+	// onDone receives edge-triggered agent.done and agent.needs_input events;
+	// called without ts.mu held.
 	onDone func(AgentDoneEvent)
 	// transcripts remembers the mtime+size of each pane's transcript at its
 	// last checklist read, so an unchanged file is never read again.
@@ -205,15 +206,27 @@ func (ts *telemetryStore) applyEventLocked(ev HookEvent, now time.Time) *AgentDo
 		}
 		pt.SubagentCount = len(pt.ActiveSubagents)
 	}
-	if !isActiveState(prevState) || !isRestState(pt.State) {
+	return stateEdgeEvent(pt, prevState, sanitizeTurnText(ev.Response), now)
+}
+
+// stateEdgeEvent returns the bus event of pt's state change from prevState:
+// agent.done when an active pane comes to rest, agent.needs_input when a pane
+// starts waiting on a person, nil otherwise.
+func stateEdgeEvent(pt *PaneTelemetry, prevState, resp string, now time.Time) *AgentDoneEvent {
+	event := ""
+	switch {
+	case isActiveState(prevState) && isRestState(pt.State):
+		event = EventAgentDone
+	case pt.State == StateNeedsYou && prevState != StateNeedsYou:
+		event = EventAgentNeedsInput
+	default:
 		return nil
 	}
-	resp := sanitizeTurnText(ev.Response)
 	if resp == "" && len(pt.RecentTurns) > 0 {
 		resp = pt.RecentTurns[len(pt.RecentTurns)-1].Response
 	}
 	return &AgentDoneEvent{
-		Event:          EventAgentDone,
+		Event:          event,
 		PaneID:         pt.PaneID,
 		Harness:        pt.Harness,
 		PrevState:      prevState,
@@ -249,26 +262,12 @@ func (ts *telemetryStore) waitApproval(ctx context.Context, ev HookEvent, timeou
 
 	ts.mu.Lock()
 	ts.pending[reqID] = entry
-	if ev.PaneID != "" {
-		pt := ts.ensurePaneLocked(ev.PaneID)
-		if ev.Harness != "" {
-			pt.Harness = ev.Harness
-		}
-		pt.State = StateNeedsYou
-		pt.LastKind = HookKindApproval
-		pt.LastEventAt = now
-		if ev.Tool != "" {
-			pt.Tool = ev.Tool
-		}
-		if ev.Summary != "" {
-			pt.Summary = ev.Summary
-		}
-		if ev.Payload != nil {
-			pt.Payload = cloneMap(ev.Payload)
-			updateStickyMetadata(pt, ev.Payload)
-		}
-	}
+	edge := ts.markApprovalPaneLocked(ev, now)
+	onDone := ts.onDone
 	ts.mu.Unlock()
+	if edge != nil && onDone != nil {
+		onDone(*edge)
+	}
 
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
@@ -283,6 +282,33 @@ func (ts *telemetryStore) waitApproval(ctx context.Context, ev HookEvent, timeou
 		ts.removePending(reqID, ev.PaneID)
 		return approvalResult{Decision: DecisionDeny, Reason: "daemon shutting down"}
 	}
+}
+
+// markApprovalPaneLocked moves ev's pane into needs_you for a pending
+// approval and returns the agent.needs_input edge, if it is one.
+func (ts *telemetryStore) markApprovalPaneLocked(ev HookEvent, now time.Time) *AgentDoneEvent {
+	if ev.PaneID == "" {
+		return nil
+	}
+	pt := ts.ensurePaneLocked(ev.PaneID)
+	prevState := pt.State
+	if ev.Harness != "" {
+		pt.Harness = ev.Harness
+	}
+	pt.State = StateNeedsYou
+	pt.LastKind = HookKindApproval
+	pt.LastEventAt = now
+	if ev.Tool != "" {
+		pt.Tool = ev.Tool
+	}
+	if ev.Summary != "" {
+		pt.Summary = ev.Summary
+	}
+	if ev.Payload != nil {
+		pt.Payload = cloneMap(ev.Payload)
+		updateStickyMetadata(pt, ev.Payload)
+	}
+	return stateEdgeEvent(pt, prevState, "", now)
 }
 
 func (ts *telemetryStore) removePending(reqID, paneID string) {

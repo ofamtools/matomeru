@@ -23,7 +23,7 @@ var hookSocketParam = oden.Parameter{
 
 var hookAddParams = []oden.Parameter{
 	{Name: "id", Type: "string", Description: "Rule ID (generated when omitted; an existing ID is replaced)"},
-	{Name: "on", Type: "string", Default: daemon.EventAgentDone, Description: "Event name to match (* for any)"},
+	{Name: "on", Type: "string", Default: daemon.EventAgentDone, Description: "Event to match: agent.done, agent.needs_input, agent.blocked, mail.received, a comma list, or * for any"},
 	{Name: "once", Type: "bool", Description: "Remove the rule after it fires once"},
 	{Name: "harness", Type: "string", Description: "Match only this harness (claude, codex, ...)"},
 	{Name: "pane", Type: "string", Description: "Match only this pane ID"},
@@ -32,6 +32,7 @@ var hookAddParams = []oden.Parameter{
 	{Name: "run", Type: "string", Description: "Shell command run via /bin/sh -c; event JSON on stdin"},
 	{Name: "argv", Type: "string", Repeatable: true, Description: "Exact command argv element (repeat in order); event JSON on stdin"},
 	{Name: "webhook", Type: "string", Description: "URL that receives the event JSON as an HTTP POST body"},
+	{Name: "notify-pane", Type: "string", Description: "Pane ID that gets a mailbox message per event and a wake notice once idle"},
 	{Name: "header", Type: "string", Repeatable: true, Description: "Webhook header Name=Value (${VAR} expands from the daemon environment)"},
 	{Name: "timeout-sec", Type: "int", Default: "0", Description: "Per-attempt timeout in seconds (0 = 15s)"},
 	{Name: "memory", Type: "bool", Description: "Register in the running daemon only instead of hooks.json"},
@@ -177,6 +178,7 @@ func hookRuleFromParams(p oden.Parsed) (daemon.HookRule, error) {
 		Run: daemon.HookRun{
 			Command:    p.Strings("argv"),
 			Webhook:    strings.TrimSpace(p.String("webhook")),
+			NotifyPane: strings.TrimSpace(p.String("notify-pane")),
 			TimeoutSec: p.Int("timeout-sec"),
 		},
 	}
@@ -294,6 +296,9 @@ func hookTargetText(r daemon.HookRun) string {
 	}
 	if r.Webhook != "" {
 		parts = append(parts, "POST "+r.Webhook)
+	}
+	if r.NotifyPane != "" {
+		parts = append(parts, "notify "+r.NotifyPane)
 	}
 	return strings.Join(parts, " + ")
 }

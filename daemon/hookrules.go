@@ -11,9 +11,24 @@ import (
 	"time"
 )
 
-// EventAgentDone is emitted when a pane moves from an active state
-// (running, needs_you) into done or idle.
-const EventAgentDone = "agent.done"
+// Callback bus events.
+const (
+	// EventAgentDone is emitted when a pane moves from an active state
+	// (running, needs_you) into done or idle.
+	EventAgentDone = "agent.done"
+	// EventAgentNeedsInput is emitted when a pane enters needs_you (an
+	// approval or question waits on a person).
+	EventAgentNeedsInput = "agent.needs_input"
+	// EventAgentBlocked is emitted when a pane sends a msgKind=blocked
+	// mailbox message.
+	EventAgentBlocked = "agent.blocked"
+	// EventMailReceived is emitted for every mailbox message; its PaneID is
+	// the recipient pane.
+	EventMailReceived = "mail.received"
+)
+
+// AgentEvents lists every event the callback bus emits.
+var AgentEvents = []string{EventAgentDone, EventAgentNeedsInput, EventAgentBlocked, EventMailReceived}
 
 // HooksFileName is the declarative callback rules file inside the config dir.
 const HooksFileName = "hooks.json"
@@ -21,7 +36,9 @@ const HooksFileName = "hooks.json"
 // DefaultHookTimeout bounds one callback delivery attempt.
 const DefaultHookTimeout = 15 * time.Second
 
-// AgentDoneEvent describes one edge-triggered agent completion.
+// AgentDoneEvent describes one callback bus event: an edge-triggered agent
+// completion (agent.done), a needs_you edge (agent.needs_input), or a mailbox
+// message (mail.received, agent.blocked) whose Message* fields are set.
 type AgentDoneEvent struct {
 	Event          string    `json:"event"`
 	PaneID         string    `json:"paneId"`
@@ -35,6 +52,12 @@ type AgentDoneEvent struct {
 	TaskID         string    `json:"taskId,omitempty"`
 	LaneID         string    `json:"laneId,omitempty"`
 	ProjectID      string    `json:"projectId,omitempty"`
+	MessageID      string    `json:"messageId,omitempty"`
+	FromPane       string    `json:"fromPane,omitempty"`
+	ToPane         string    `json:"toPane,omitempty"`
+	MsgKind        string    `json:"msgKind,omitempty"`
+	Subject        string    `json:"subject,omitempty"`
+	Thread         string    `json:"thread,omitempty"`
 	At             time.Time `json:"at"`
 }
 
@@ -47,12 +70,14 @@ type HookMatch struct {
 }
 
 // HookRun describes what a callback does: run a command (event JSON on
-// stdin) and/or POST the event JSON to a webhook.
+// stdin), POST the event JSON to a webhook, and/or record a mailbox message
+// to NotifyPane and wake it once it is idle.
 type HookRun struct {
 	Command    []string          `json:"command,omitempty"`
 	Webhook    string            `json:"webhook,omitempty"`
 	Headers    map[string]string `json:"headers,omitempty"`
 	TimeoutSec int               `json:"timeoutSec,omitempty"`
+	NotifyPane string            `json:"notifyPane,omitempty"`
 }
 
 // HookRule is one declarative callback rule from hooks.json or registered in
@@ -90,8 +115,8 @@ func (r HookRule) Validate() error {
 	if strings.TrimSpace(r.ID) == "" {
 		return errors.New("hook rule: id is required")
 	}
-	if len(r.Run.Command) == 0 && strings.TrimSpace(r.Run.Webhook) == "" {
-		return fmt.Errorf("hook rule %q: run.command or run.webhook is required", r.ID)
+	if len(r.Run.Command) == 0 && strings.TrimSpace(r.Run.Webhook) == "" && strings.TrimSpace(r.Run.NotifyPane) == "" {
+		return fmt.Errorf("hook rule %q: run.command, run.webhook or run.notifyPane is required", r.ID)
 	}
 	if r.Run.TimeoutSec < 0 {
 		return fmt.Errorf("hook rule %q: run.timeoutSec must be >= 0", r.ID)
@@ -107,15 +132,30 @@ func (r HookRule) Timeout() time.Duration {
 	return DefaultHookTimeout
 }
 
-// Matches reports whether rule fires for ev. An empty or "*" On matches every event.
+// Matches reports whether rule fires for ev. On is one event, a
+// comma-separated list, or "*" for every event; an empty On means agent.done
+// (the only event older rules knew).
 func (r HookRule) Matches(ev AgentDoneEvent) bool {
-	if on := strings.TrimSpace(r.On); on != "" && on != "*" && on != ev.Event {
+	if !matchesOn(r.On, ev.Event) {
 		return false
 	}
 	return matchField(r.Match.Harness, ev.Harness) &&
 		matchField(r.Match.Pane, ev.PaneID) &&
 		matchField(r.Match.Lane, ev.LaneID) &&
 		matchField(r.Match.Project, ev.ProjectID)
+}
+
+func matchesOn(on, event string) bool {
+	on = strings.TrimSpace(on)
+	if on == "" {
+		on = EventAgentDone
+	}
+	for _, want := range strings.Split(on, ",") {
+		if want = strings.TrimSpace(want); want == "*" || want == event {
+			return true
+		}
+	}
+	return false
 }
 
 func matchField(want, got string) bool {

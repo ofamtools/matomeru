@@ -64,6 +64,7 @@ func mtmPaneOpsCommands(g globalOpts) []oden.Command {
 		{Name: "on-done-run", Type: "string", Description: "One-shot shell command run when the pane first emits agent.done (event JSON on stdin)"},
 		{Name: "on-done-argv", Type: "string", Repeatable: true, Description: "One-shot exact argv element (repeat in order) run on agent.done"},
 		{Name: "on-done-webhook", Type: "string", Description: "One-shot URL that receives the agent.done event JSON as a POST body"},
+		{Name: "on-done-notify", Type: "string", Description: "Pane ID (e.g. your $MTM_PANE_ID) mailed on agent.done/needs_input/blocked and woken only once idle"},
 	}
 	snapParams := []oden.Parameter{
 		{Name: "lines", Type: "int", Default: "0", Description: "Optional tail line limit (0 = all rows)"},
@@ -242,7 +243,11 @@ func mtmPaneOpsCommands(g globalOpts) []oden.Command {
 
 // paneOnDoneFromParams maps --on-done-* flags to a pane.spawn onDone callback (nil when unset).
 func paneOnDoneFromParams(p oden.Parsed) *mcpui.PaneOnDone {
-	od := &mcpui.PaneOnDone{Command: p.Strings("on-done-argv"), Webhook: strings.TrimSpace(p.String("on-done-webhook"))}
+	od := &mcpui.PaneOnDone{
+		Command:    p.Strings("on-done-argv"),
+		Webhook:    strings.TrimSpace(p.String("on-done-webhook")),
+		NotifyPane: strings.TrimSpace(p.String("on-done-notify")),
+	}
 	if run := strings.TrimSpace(p.String("on-done-run")); run != "" && len(od.Command) == 0 {
 		od.Command = []string{"/bin/sh", "-c", run}
 	}

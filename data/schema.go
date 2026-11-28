@@ -931,6 +931,7 @@ func DefaultSchemas() *Registry {
 		queueSchema(),
 		repoSchema(),
 		captureSchema(),
+		messageSchema(),
 	)
 	return r
 }

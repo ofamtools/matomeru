@@ -43,6 +43,7 @@ func Tools(router *Router, dataTools *DataTools) []ToolSpec {
 	out = append(out, NewTriageTools(nil).ToolSpecs()...)
 	out = append(out, NewPaneSearchTools(nil).ToolSpecs()...)
 	out = append(out, NewPaneTools(nil).ToolSpecs()...)
+	out = append(out, NewMailTools(nil).ToolSpecs()...)
 	out = append(out, NewTaskTools(nil).ToolSpecs()...)
 	return append(out, NewContextTools(nil).ToolSpecs()...)
 }
@@ -58,6 +59,7 @@ type Toolbox struct {
 	Triage     *TriageTools
 	PaneSearch *PaneSearchTools
 	Panes      *PaneTools
+	Mail       *MailTools
 	Tasks      *TaskTools
 	Context    *ContextTools
 	Getenv     func(string) string
@@ -68,13 +70,17 @@ func NewToolbox(store *data.Store, router *Router) *Toolbox {
 	if router == nil {
 		router = New(store)
 	}
+	panes := NewPaneTools(store)
+	mail := NewMailTools(store)
+	mail.Panes = panes
 	return &Toolbox{
 		Router:     router,
 		Lanes:      NewLaneTools(store),
 		Data:       NewDataTools(store),
 		Triage:     NewTriageTools(store),
 		PaneSearch: NewPaneSearchTools(store),
-		Panes:      NewPaneTools(store),
+		Panes:      panes,
+		Mail:       mail,
 		Tasks:      NewTaskTools(store),
 		Context:    NewContextTools(store),
 	}
@@ -92,6 +98,9 @@ func (b *Toolbox) ToolSpecs() []ToolSpec {
 	}
 	if b.Panes != nil {
 		out = append(out, b.Panes.ToolSpecs()...)
+	}
+	if b.Mail != nil {
+		out = append(out, b.Mail.ToolSpecs()...)
 	}
 	if b.Tasks != nil {
 		out = append(out, b.Tasks.ToolSpecs()...)
@@ -212,25 +221,7 @@ func (b *Toolbox) envDefaults(getenv func(string) string, name string, raw json.
 // Call runs one tool by name with JSON arguments.
 func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw json.RawMessage) (any, error) {
 	getenv := b.envFunc(ctx)
-	lanes := *b.Lanes
-	if lanes.Getenv == nil {
-		lanes.Getenv = getenv
-	} else if PaneIDFromContext(ctx) != "" || TaskIDFromContext(ctx) != "" {
-		orig := lanes.Getenv
-		lanes.Getenv = func(k string) string {
-			if k == EnvPaneID {
-				if v := PaneIDFromContext(ctx); v != "" {
-					return v
-				}
-			}
-			if k == EnvTaskID {
-				if v := TaskIDFromContext(ctx); v != "" {
-					return v
-				}
-			}
-			return orig(k)
-		}
-	}
+	lanes := b.lanesFor(ctx, getenv)
 	switch {
 	case b.Data.HasTool(name):
 		dataTools := *b.Data
@@ -244,6 +235,10 @@ func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw j
 		return b.PaneSearch.Call(ctx, actor, name, raw)
 	case b.Panes != nil && b.Panes.HasTool(name):
 		return b.Panes.Call(ctx, actor, name, raw)
+	case b.Mail != nil && b.Mail.HasTool(name):
+		mail := *b.Mail
+		mail.Getenv = getenv
+		return mail.Call(ctx, actor, name, raw)
 	case b.Tasks != nil && b.Tasks.HasTool(name):
 		return b.Tasks.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
 	case b.Context != nil && b.Context.HasTool(name):
@@ -252,6 +247,29 @@ func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw j
 		return ctxTools.Call(ctx, actor, name, raw)
 	}
 	return b.Router.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
+}
+
+// lanesFor returns a copy of the lane tools whose environment prefers the
+// pane and task bound into ctx.
+func (b *Toolbox) lanesFor(ctx context.Context, getenv func(string) string) LaneTools {
+	lanes := *b.Lanes
+	if lanes.Getenv == nil {
+		lanes.Getenv = getenv
+		return lanes
+	}
+	ctxPane, ctxTask := PaneIDFromContext(ctx), TaskIDFromContext(ctx)
+	if ctxPane == "" && ctxTask == "" {
+		return lanes
+	}
+	orig := lanes.Getenv
+	bound := map[string]string{EnvPaneID: ctxPane, EnvTaskID: ctxTask}
+	lanes.Getenv = func(k string) string {
+		if v := bound[k]; v != "" {
+			return v
+		}
+		return orig(k)
+	}
+	return lanes
 }
 
 type rpcRequest struct {

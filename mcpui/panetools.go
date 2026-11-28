@@ -68,17 +68,20 @@ type PaneRuntime interface {
 
 // PaneOnDone is a one-shot callback fired the first time a spawned pane
 // emits agent.done: Command gets the event JSON on stdin, Webhook gets it as
-// a POST body.
+// a POST body. NotifyPane gets a mailbox message on every agent.done,
+// agent.needs_input and agent.blocked of the pane, and a wake notice pasted
+// only once NotifyPane is idle.
 type PaneOnDone struct {
 	Command    []string          `json:"command,omitempty"`
 	Webhook    string            `json:"webhook,omitempty"`
 	Headers    map[string]string `json:"headers,omitempty"`
 	TimeoutSec int               `json:"timeoutSec,omitempty"`
+	NotifyPane string            `json:"notifyPane,omitempty"`
 }
 
 // Empty reports whether no callback target is set.
 func (o *PaneOnDone) Empty() bool {
-	return o == nil || (len(o.Command) == 0 && strings.TrimSpace(o.Webhook) == "")
+	return o == nil || (len(o.Command) == 0 && strings.TrimSpace(o.Webhook) == "" && strings.TrimSpace(o.NotifyPane) == "")
 }
 
 // PaneCallbackRuntime is an optional PaneRuntime extension that registers a
@@ -227,6 +230,7 @@ func (p *PaneTools) ToolSpecs() []ToolSpec {
 						"webhook":    text("URL that receives the agent.done event JSON as an HTTP POST body"),
 						"headers":    props{"type": "object", "description": "extra webhook headers; ${VAR} expands from the daemon environment"},
 						"timeoutSec": count("per-attempt timeout in seconds (default 15; one retry on failure)"),
+						"notifyPane": text("pane ID (e.g. the orchestrator's MTM_PANE_ID) that gets a mailbox message on agent.done, agent.needs_input and agent.blocked, plus a wake notice pasted only once it is idle"),
 					},
 				},
 				"by": by,

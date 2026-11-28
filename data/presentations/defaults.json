@@ -125,6 +125,13 @@
       "row":    {"titleFields": ["title", "body"], "metaFields": ["source"], "badgeFields": ["captureStatus"]},
       "card":   {"titleFields": ["title", "body"], "subtitleFields": ["body"], "metaFields": ["source", "sentAt"], "badgeFields": ["captureStatus"]},
       "detail": {"titleFields": ["title", "body"], "subtitleFields": ["body"], "metaFields": ["source", "sentAt", "error"], "badgeFields": ["captureStatus"]}
+    }},
+    {"kind": "message", "forms": {
+      "chip":   {"icon": "✉", "titleFields": ["subject", "body"], "maxLen": 32},
+      "inline": {"icon": "✉", "titleFields": ["subject", "body"], "maxLen": 48},
+      "row":    {"titleFields": ["subject", "body"], "metaFields": ["msgKind", "fromPane", "toPane"]},
+      "card":   {"titleFields": ["subject", "body"], "subtitleFields": ["body"], "metaFields": ["msgKind", "fromPane", "toPane", "lane", "readAt"]},
+      "detail": {"titleFields": ["subject", "body"], "subtitleFields": ["body"], "metaFields": ["msgKind", "fromPane", "toPane", "lane", "thread", "readAt"]}
     }}
   ]
 }

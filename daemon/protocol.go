@@ -121,6 +121,9 @@ type Request struct {
 	// Callback hooks (hook_register, hook_unregister, hook_log)
 	Rule  *HookRule `json:"rule,omitempty"`
 	Limit int       `json:"limit,omitempty"`
+
+	// Mailbox (mail_notify)
+	Mail *MailNotice `json:"mail,omitempty"`
 }
 
 // Response is one newline-delimited JSON RPC response returned over the Unix socket.
