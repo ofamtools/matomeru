@@ -893,6 +893,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, fdSearchBindings()...)
 	out = append(out, filesBindings()...)
 	out = append(out, queueBindings()...)
+	out = append(out, ideasBindings()...)
 	out = append(out, threadsBindings()...)
 	out = append(out, sessionsBindings()...)
 	out = append(out, focusBindings()...)
