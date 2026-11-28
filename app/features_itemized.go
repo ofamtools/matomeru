@@ -89,26 +89,6 @@ func featuresPendingConcept(rec data.Record, kind, target, qualified string) boo
 		featuresConceptTargets(rec, target, qualified)
 }
 
-func featuresPropRows(sc data.Schema, kind string, concepts []data.Record) []views.FeaturesPropRow {
-	rows := make([]views.FeaturesPropRow, 0, len(sc.Fields))
-	for _, field := range sc.Fields {
-		rows = append(rows, views.FeaturesPropRow{
-			Name:        field.Name,
-			Type:        string(field.Type),
-			Role:        field.EffectiveRole(sc.SummaryField),
-			Default:     data.Text(field.Default),
-			Enum:        strings.Join(field.Enum, ", "),
-			Description: field.Description,
-		})
-	}
-	for _, rec := range concepts {
-		if featuresPendingConcept(rec, data.ConceptKindProp, kind, featureNounKey(kind).String()) {
-			rows = append(rows, views.FeaturesPropRow{Name: rec.Text("title"), Description: rec.Text("summary"), Suggested: true})
-		}
-	}
-	return rows
-}
-
 func (a *App) featuresItemizedNouns(kinds []string, concepts []data.Record) []views.FeaturesItemizedNoun {
 	if a.Store == nil || !a.featuresItemizationEnabled() {
 		return nil
@@ -121,8 +101,8 @@ func (a *App) featuresItemizedNouns(kinds []string, concepts []data.Record) []vi
 			continue
 		}
 		seen[kind] = true
-		schema, _ := a.Store.Registry().Get(kind)
-		rows := featuresPropRows(schema, kind, concepts)
+		schema, isLive := a.Store.Registry().Get(kind)
+		rows := featuresNounPropRows(schema, isLive, kind, concepts, false)
 		if len(rows) == 0 {
 			continue
 		}

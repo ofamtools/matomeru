@@ -217,6 +217,8 @@ type featuresOutlineBuilder struct {
 	taskSchema  data.Schema
 	allTasks    []data.TreeNode
 	viewMode    string
+	// propSubgroups are the per-noun props subsections, folded by default.
+	propSubgroups []string
 }
 
 func (b *featuresOutlineBuilder) recordMeta(id string, m featuresOutlineNodeMeta) {
@@ -409,6 +411,7 @@ func (b *featuresOutlineBuilder) buildPropsSection() (tree.Node, bool) {
 		for i, row := range noun.Props {
 			subKids = append(subKids, b.propRowNode("featitem.prop."+noun.Kind, noun.Kind, i, row))
 		}
+		b.propSubgroups = append(b.propSubgroups, subID)
 		b.recordMeta(subID, featuresOutlineNodeMeta{section: "props", label: noun.Title + " props", isSection: true, nounKind: noun.Kind})
 		kids = append(kids, tree.Node{
 			ID:       subID,
@@ -425,6 +428,17 @@ func (b *featuresOutlineBuilder) buildPropsSection() (tree.Node, bool) {
 		return tree.Node{}, false
 	}
 	return b.sectionNode(featSecProps, "props", "⊞", "Props", kids), true
+}
+
+// defaultFolded is the fold state of an item opened for the first time. The
+// Props section is open so the item's own props are read at once; the props
+// of each related noun stay folded under it, one line per noun.
+func (b *featuresOutlineBuilder) defaultFolded() map[string]bool {
+	folded := make(map[string]bool, len(b.propSubgroups))
+	for _, id := range b.propSubgroups {
+		folded[id] = true
+	}
+	return folded
 }
 
 func (b *featuresOutlineBuilder) linkedItemNode(section, icon string, item views.FeaturesLinkedItem, isConcept, isTask bool) tree.Node {
@@ -663,7 +677,7 @@ func (a *App) syncFeaturesOutlineTree(snap featuresSnapshot, activeKey string, d
 	}
 
 	if fo.folded[activeKey] == nil {
-		fo.folded[activeKey] = map[string]bool{featSecProps: true}
+		fo.folded[activeKey] = b.defaultFolded()
 	}
 	tm.DefaultFolded = false
 	tm.Folded = fo.folded[activeKey]

@@ -1,0 +1,323 @@
+package app
+
+import (
+	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/views"
+)
+
+// Named repeated-concept domain groups: concepts that recur across pages and
+// nouns (traits, chrome, pickers, gutters, theme tokens). Every group is pure
+// data: a catalog row plus its occurrences. Nothing in views/ switches on a
+// group key.
+const (
+	DomainTraitsKey  = "traits"
+	DomainChromeKey  = "chrome"
+	DomainPickersKey = "pickers"
+	DomainGuttersKey = "gutters"
+	DomainThemesKey  = "themes"
+)
+
+var namedDomainGroupCatalog = []domainGroupMeta{
+	{
+		Key:     DomainTraitsKey,
+		Title:   "Traits",
+		Icon:    "⚙",
+		Summary: "Shared ochazuke/traits behaviours every list reuses: Select, Filter, Sort, Nav and Scroll, Cycle, Fold, and the escape guard.",
+	},
+	{
+		Key:     DomainChromeKey,
+		Title:   "Chrome",
+		Icon:    "▔",
+		Summary: "App frame around every page: top tabs, context and mode separator, status bar, hint badges, pending-key indicator, chips, and system stats.",
+	},
+	{
+		Key:     DomainPickersKey,
+		Title:   "Pickers / Modals",
+		Icon:    "⌕",
+		Summary: "Overlays that ask for one thing: path picker, record picker, confirm, command palette, answer modal, outline modal, and the picker of pickers.",
+	},
+	{
+		Key:     DomainGuttersKey,
+		Title:   "Gutters",
+		Icon:    "▏",
+		Summary: "Left-edge marks on rows: record flags, tree fold chevrons, row icons, recency markers, note-thread rails, and code line marks.",
+	},
+	{
+		Key:     DomainThemesKey,
+		Title:   "Themes / Tokens",
+		Icon:    "◐",
+		Summary: "themes.json roles and tones: semantic tones, focus contrast, badge tones, and the settings that pick and override a theme.",
+	},
+}
+
+func staticDomainTraits() []views.DomainOccurrence {
+	lists := []string{SpaceWork, "outline", SpaceRuns, SpaceExtensions, "project_pages", SpaceFeatures}
+	return []views.DomainOccurrence{
+		domOcc("trait.filter.registry", DomainTraitsKey, "Filter Trait Registry", "⌕", "accent",
+			"Registers a list as traits.Filterable so one filter bar, match mode and kept query work on every table, tree and picker.",
+			"app/filter.go", 193, 197, "registerFilterable", lists,
+			[]string{data.KindTask, data.KindRun, data.KindExtension, "work.tasks"},
+			[]string{"trait", "filter"}),
+		domOcc("trait.filter.tree", DomainTraitsKey, "Tree Filter Adapter", "⌕", "info",
+			"Adapts a tree model to the Filter trait, filtering in place or as a flat match list.",
+			"app/filter.go", 199, 207, "registerTreeFilterable",
+			[]string{"outline", SpaceWork, "project_pages", SpaceFeatures},
+			[]string{data.KindTask, data.KindLane, "project.tasks", "features.itemization"},
+			[]string{"trait", "filter", "tree"}),
+		domOcc("trait.filter.mode", DomainTraitsKey, "Filter Match Mode", "≈", "info",
+			"Resolves the traits.MatchMode (substring, fuzzy, regex) a filter target uses.",
+			"app/filter.go", 94, 101, "filterMode", lists,
+			[]string{data.KindTask, "work.tasks"},
+			[]string{"trait", "filter", "match"}),
+		domOcc("trait.select.command", DomainTraitsKey, "Select Trait (Visual & Marks)", "▮", "accent",
+			"Routes the traits.SelectCmd* verbs (visual range, mark toggle, invert, all, clear) to the focused table or tree.",
+			"app/selection.go", 78, 97, "selectCommand", lists,
+			[]string{data.KindTask, data.KindLane, data.KindRun, "work.tasks"},
+			[]string{"trait", "select", "visual", "mark"}),
+		domOcc("trait.select.targets", DomainTraitsKey, "Selection Target Refs", "▮", "info",
+			"Turns the visual range, the marks or the focused row into the record refs a batch verb acts on.",
+			"app/selection.go", 167, 214, "targetRefs", lists,
+			[]string{data.KindTask, data.KindLane, data.KindNote, "work.tasks"},
+			[]string{"trait", "select", "batch"}),
+		domOcc("trait.sort.query", DomainTraitsKey, "Sort Trait (Query Sort)", "⇅", "info",
+			"Applies a query's sort field and direction to a table model.",
+			"app/zero_field.go", 355, 368, "applyQuerySort",
+			[]string{SpaceWork, SpaceRuns, "project_pages"},
+			[]string{data.KindTask, data.KindRun, data.KindSignal, "work.tasks"},
+			[]string{"trait", "sort"}),
+		domOcc("trait.nav.scroll", DomainTraitsKey, "Nav Trait (Scroll Config)", "↕", "accent",
+			"Builds the traits.ScrollConfig (scrolloff, half-page step, long-jump policy) every scroll container shares.",
+			"app/scroll_config.go", 24, 34, "scrollConfig",
+			[]string{"show", "reader", SpacePanes, SpaceFeatures},
+			[]string{data.KindDocument, data.KindPage, "work.show"},
+			[]string{"trait", "nav", "scroll"}),
+		domOcc("trait.nav.spill", DomainTraitsKey, "Nav Trait (Edge Focus Spill)", "↧", "info",
+			"Lets j and k at a list's top or bottom edge move focus into the neighbouring list.",
+			"app/nav.go", 385, 390, "edgeFocusSpillEnabled",
+			[]string{"project_pages", SpacePanes, SpaceWork},
+			[]string{data.KindTask, data.KindPane, "project.home"},
+			[]string{"trait", "nav", "spill"}),
+		domOcc("trait.cycle.view", DomainTraitsKey, "Cycle Trait (View Cycle)", "↻", "info",
+			"Steps forward or back through a view's variants with traits.Cycle.",
+			"app/view_cycle.go", 369, 375, "viewCycle",
+			[]string{SpaceWork, "outline", "show"},
+			[]string{data.KindTask, "work.tasks", "work.show"},
+			[]string{"trait", "cycle"}),
+		domOcc("trait.fold.standard", DomainTraitsKey, "Fold Trait (Standard Fold)", "▾", "info",
+			"One fold verb that opens, closes or toggles whatever is focused: tree node, table group, nav section.",
+			"app/standard_verbs.go", 380, 392, "standardFold",
+			[]string{"outline", SpaceWork, "project_pages", SpacePanes},
+			[]string{data.KindTask, data.KindLane, "project.tasks", "panes.toc"},
+			[]string{"trait", "fold"}),
+		domOcc("trait.escape.guard", DomainTraitsKey, "Escape Guard Trait", "⛨", "warning",
+			"Builds the traits.EscapeGuardConfig that stops a stray Escape from closing a modal with typed text.",
+			"app/modal_escape.go", 16, 25, "escapeGuardConfig",
+			[]string{"settings", SpaceWork, SpacePanes},
+			[]string{data.KindTask, data.KindNote},
+			[]string{"trait", "escape", "modal"}),
+	}
+}
+
+func staticDomainChrome() []views.DomainOccurrence {
+	everywhere := []string{SpacePanes, SpaceWork, SpaceProjects, "project_pages", SpaceFeatures}
+	return []views.DomainOccurrence{
+		domOcc("chrome.top.tabs", DomainChromeKey, "Top Tab Bar", "▔", "accent",
+			"Lists the numbered page tabs and the dynamic project tabs shown at the top of the app.",
+			"app/project_tabs.go", 125, 144, "topTabs", everywhere,
+			[]string{data.KindTask, data.KindPane},
+			[]string{"chrome", "tabs", "top bar"}),
+		domOcc("chrome.separator", DomainChromeKey, "Top Bar Separator", "─", "accent",
+			"Rule under the tabs carrying the context chain, the mode, chips and system stats.",
+			"app/chrome.go", 18, 68, "chromeSeparatorNode", everywhere,
+			[]string{data.KindPane},
+			[]string{"chrome", "top bar"}),
+		domOcc("chrome.context.mode", DomainChromeKey, "Context, Mode & Pending-Key Indicator", "⌨", "info",
+			"Shows the scope chain, the mode, the active layer and the keys typed so far in a pending sequence.",
+			"app/chrome.go", 97, 115, "chromeContextAndMode", everywhere,
+			[]string{data.KindPane},
+			[]string{"chrome", "mode", "keycap", "indicator"}),
+		domOcc("chrome.status.bar", DomainChromeKey, "Bottom Status Bar", "▁", "accent",
+			"Compact bottom-left line with the kept filter and the latest status message.",
+			"app/chrome.go", 119, 151, "bottomStatusLine", everywhere,
+			[]string{data.KindTask},
+			[]string{"chrome", "status bar", "filter"}),
+		domOcc("chrome.status.line", DomainChromeKey, "Status Line & Key Hints", "▁", "info",
+			"Builds the status line: the message, then key hints ranked by the focused scope.",
+			"app/view.go", 359, 397, "statusLine", everywhere,
+			[]string{data.KindTask, data.KindPane},
+			[]string{"chrome", "status bar", "hints"}),
+		domOcc("chrome.hint.badge", DomainChromeKey, "Focus Hint Keycap Badge", "⌗", "info",
+			"Stamps a [key] badge on a panel title so one key jumps focus to it.",
+			"app/focus_hints.go", 422, 430, "stampChromeHint", everywhere,
+			[]string{data.KindPane, "panes.rail"},
+			[]string{"chrome", "hints", "keycap"}),
+		domOcc("chrome.chips", DomainChromeKey, "Chrome Chips", "⬭", "info",
+			"Joins the pinned-agent chip and the focus countdown chip shown in the top bar.",
+			"app/chrome.go", 86, 95, "chromeChips",
+			[]string{SpacePanes, "focus", "sessions"},
+			[]string{data.KindPane, data.KindTask},
+			[]string{"chrome", "chips"}),
+		domOcc("chrome.sysstats", DomainChromeKey, "System Stats Segment", "▮", "muted",
+			"Formats CPU, memory and disk use to fit the width left in the top bar.",
+			"app/sysstats.go", 187, 208, "FormatChromeSysStats", everywhere,
+			nil,
+			[]string{"chrome", "sysstats"}),
+	}
+}
+
+func staticDomainPickers() []views.DomainOccurrence {
+	return []views.DomainOccurrence{
+		domOcc("pick.path", DomainPickersKey, "Path Picker", "⌂", "accent",
+			"Modal that walks directories and picks a file or a folder, with a pick mode per caller.",
+			"app/modals.go", 516, 578, "newPathPickerModalFor",
+			[]string{SpaceWork, SpacePanes, SpaceProjects, "project_pages"},
+			[]string{"directory", data.KindTask, data.KindPane},
+			[]string{"picker", "path", "modal"}),
+		domOcc("pick.record", DomainPickersKey, "Record Picker", "⌕", "accent",
+			"Modal that picks one or many records of the kinds a form field allows, and can create one on the spot.",
+			"app/ref_picker.go", 163, 193, "newRefPickerModalWith",
+			[]string{SpaceWork, "project_pages", "questions", SpaceFeatures},
+			[]string{data.KindTask, data.KindLane, data.KindDocument, data.KindConcept},
+			[]string{"picker", "record", "modal"}),
+		domOcc("pick.confirm", DomainPickersKey, "Confirm Modal", "?", "warning",
+			"Modal that names what an action will do and waits for a yes or a no.",
+			"app/modals.go", 466, 478, "openConfirm",
+			[]string{SpaceWork, SpacePanes, "settings", SpaceRuns},
+			[]string{data.KindTask, data.KindPane, data.KindRun},
+			[]string{"modal", "confirm"}),
+		domOcc("pick.palette", DomainPickersKey, "Command Palette", "⌘", "accent",
+			"Filterable list of every command that can run in the current context.",
+			"app/modals.go", 724, 795, "paletteOpen",
+			[]string{SpacePanes, SpaceWork, "inspector", "bindings"},
+			[]string{data.KindCommand},
+			[]string{"picker", "palette", "modal"}),
+		domOcc("pick.answer", DomainPickersKey, "Answer Modal", "✎", "warning",
+			"Form that answers an agent's question card with a choice or free text.",
+			"app/panes_questions.go", 503, 507, "openAnswerFormForCard",
+			[]string{"questions", SpacePanes, "project_pages"},
+			[]string{data.KindQuestion, data.KindPage},
+			[]string{"modal", "answer", "question"}),
+		domOcc("pick.outline", DomainPickersKey, "Outline Modal", "↳", "info",
+			"Task outline opened over any page, with the same editing keys as the Outline page.",
+			"app/outline_modal.go", 24, 26, "newOutlineModal",
+			[]string{"outline", SpaceWork, "project_pages"},
+			[]string{data.KindTask, "project.tasks"},
+			[]string{"modal", "outline"}),
+		domOcc("pick.picker.picker", DomainPickersKey, "Picker of Pickers", "⌕", "info",
+			"One modal that lists every picker and verb form, to open any of them by name.",
+			"app/picker_picker.go", 69, 100, "openPickerPicker",
+			[]string{SpacePanes, SpaceWork, "inspector"},
+			[]string{data.KindCommand},
+			[]string{"picker", "modal"}),
+		domOcc("pick.insert", DomainPickersKey, "Insert Picker", "⊕", "info",
+			"Picks a file, record or context item and inserts it into the text being typed.",
+			"app/insert_picker.go", 131, 133, "insertPickerOpen",
+			[]string{SpacePanes, "threads", "project_pages"},
+			[]string{data.KindContext, data.KindPane, "panes.composer"},
+			[]string{"picker", "insert", "composer"}),
+	}
+}
+
+func staticDomainGutters() []views.DomainOccurrence {
+	return []views.DomainOccurrence{
+		domOcc("gut.record.flags", DomainGuttersKey, "Left-Edge Record Flags", "●", "accent",
+			"Resolves the unread, star and archive marks and the row tone drawn at a row's left edge.",
+			"views/style.go", 220, 349, "ResolveRecordStyle",
+			[]string{SpaceWork, "outline", SpaceRuns, "project_pages"},
+			[]string{data.KindTask, data.KindNote, data.KindDocument, "work.tasks"},
+			[]string{"gutter", "flags"}),
+		domOcc("gut.row.icon", DomainGuttersKey, "Row Status Icon", "◆", "info",
+			"Picks the icon and tone a status value shows in front of a row.",
+			"views/style.go", 193, 216, "StatusIndicator",
+			[]string{SpaceWork, "outline", SpaceRuns, SpaceExtensions},
+			[]string{data.KindTask, data.KindLane, data.KindRun, "work.tasks"},
+			[]string{"gutter", "icon", "status"}),
+		domOcc("gut.fold.chevron", DomainGuttersKey, "Tree Fold Chevron", "▸", "accent",
+			"Opens and closes tree nodes; the chevron and the folded-children count follow the fold state.",
+			"app/tree_controller.go", 718, 770, "runTreeFold",
+			[]string{"outline", SpaceWork, "project_pages", SpaceFeatures},
+			[]string{data.KindTask, data.KindLane, "project.tasks"},
+			[]string{"gutter", "fold", "tree"}),
+		domOcc("gut.outline.queue", DomainGuttersKey, "Outline Queue & Agent Gutter", "▸", "info",
+			"Turns on the one-character outline gutter that marks queued, dispatched and agent-owned tasks.",
+			"app/task_threads.go", 52, 54, "outlineGutterEnabled",
+			[]string{"outline", "project_pages", SpaceWork},
+			[]string{data.KindTask, "project.tasks", "work.tasks"},
+			[]string{"gutter", "queue", "agent"}),
+		domOcc("gut.recency.marker", DomainGuttersKey, "Recency Marker", "◷", "info",
+			"Sorts a record's age into today, this week, last week or older for recency marks and colours.",
+			"views/style.go", 42, 64, "RecencyBucket",
+			[]string{SpaceWork, SpaceRuns, "show"},
+			[]string{data.KindTask, data.KindRun, data.KindNote, "work.tasks"},
+			[]string{"gutter", "recency"}),
+		domOcc("gut.note.rail", DomainGuttersKey, "Note Thread Rail", "│", "info",
+			"Draws attached notes under a row with a │ gutter rail and a note-count mark.",
+			"app/features_outline.go", 172, 205, "attachFeaturesComments",
+			[]string{SpaceFeatures, "outline"},
+			[]string{data.KindNote, data.KindConcept, "features.itemization"},
+			[]string{"gutter", "notes", "thread"}),
+		domOcc("gut.code.line", DomainGuttersKey, "Code Line Gutter", "▌", "accent",
+			"Marks highlighted and annotated lines in the code viewer's left gutter.",
+			"views/code_viewer.go", 218, 237, "codeLineGutter",
+			[]string{SpaceFeatures, "reader"},
+			[]string{data.KindConcept},
+			[]string{"gutter", "code"}),
+	}
+}
+
+func staticDomainThemes() []views.DomainOccurrence {
+	return []views.DomainOccurrence{
+		domOcc("theme.build", DomainThemesKey, "Effective Theme Builder", "◐", "accent",
+			"Builds the theme in use: the named preset, then density and border settings, then the user's themes.json.",
+			"app/settings.go", 545, 569, "theme",
+			[]string{"settings", SpacePanes, SpaceWork},
+			[]string{data.KindTask},
+			[]string{"theme", "tokens", "themes.json"}),
+		domOcc("theme.presets", DomainThemesKey, "Theme Preset Names", "◐", "info",
+			"Lists the theme presets the ui.theme setting can pick.",
+			"app/settings.go", 305, 311, "ThemeNames",
+			[]string{"settings"},
+			nil,
+			[]string{"theme", "preset"}),
+		domOcc("theme.apply", DomainThemesKey, "Live Theme Apply", "◐", "info",
+			"Applies changed settings and theme to everything already open, without a restart.",
+			"app/settings.go", 573, 587, "applySettings",
+			[]string{"settings", SpacePanes, SpaceWork},
+			nil,
+			[]string{"theme", "settings", "live"}),
+		domOcc("theme.project", DomainThemesKey, "Per-Project Theme Picker", "◈", "info",
+			"Picks a theme for one project, used while its tab is open.",
+			"app/project_portal.go", 267, 296, "projectPickTheme",
+			[]string{"project_pages", SpaceProjects},
+			[]string{data.KindTask, "project.home"},
+			[]string{"theme", "project"}),
+		domOcc("theme.status.tone", DomainThemesKey, "Status-to-Tone Mapping", "●", "accent",
+			"Maps a work status to a semantic tone (success, warning, info, muted).",
+			"app/features_capture.go", 679, 692, "statusToneFor",
+			[]string{SpaceFeatures, SpaceWork},
+			[]string{data.KindTask, data.KindLane, data.KindConcept},
+			[]string{"theme", "tone", "semantic"}),
+		domOcc("theme.recency.tone", DomainThemesKey, "Recency Tone Tokens", "◷", "info",
+			"Maps a recency bucket to the theme tone that colours it.",
+			"views/style.go", 67, 80, "RecencyTone",
+			[]string{SpaceWork, SpaceRuns, "show"},
+			[]string{data.KindTask, data.KindRun, "work.tasks"},
+			[]string{"theme", "tone", "recency"}),
+		domOcc("theme.badge.tones", DomainThemesKey, "Badge Tone Tokens", "◈", "accent",
+			"Turns schema enum values and record flags into badges coloured by the badge.* tones.",
+			"views/views.go", 157, 195, "StatusBadges",
+			[]string{SpaceWork, "show", "project_pages", SpaceFeatures},
+			[]string{data.KindTask, data.KindLane, data.KindQuestion, "work.show"},
+			[]string{"theme", "badge", "tone"}),
+	}
+}
+
+func namedDomainOccurrences() []views.DomainOccurrence {
+	out := make([]views.DomainOccurrence, 0, 48)
+	out = append(out, staticDomainTraits()...)
+	out = append(out, staticDomainChrome()...)
+	out = append(out, staticDomainPickers()...)
+	out = append(out, staticDomainGutters()...)
+	out = append(out, staticDomainThemes()...)
+	return out
+}

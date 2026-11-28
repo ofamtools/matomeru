@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 )
 
@@ -281,6 +282,121 @@ func TestDomainVerbsForNounDeduplicatesPlannedWhenImplemented(t *testing.T) {
 	for _, pv := range planned {
 		if pv.ID == "schedule.run_now" {
 			t.Fatalf("schedule.run_now must drop out of planned verbs once implemented")
+		}
+	}
+}
+
+func assertPropRows(t *testing.T, what string, rows []views.FeaturesPropRow) {
+	t.Helper()
+	if len(rows) == 0 {
+		t.Errorf("%s: Props are empty", what)
+	}
+	for _, row := range rows {
+		if row.Name == "" || row.Type == "" || row.Role == "" || row.Description == "" {
+			t.Errorf("%s: incomplete prop row %+v", what, row)
+		}
+	}
+}
+
+// TestFeaturesPropsCatalogNeverEmpty covers the declared props data: every
+// existing and planned noun, page, component and domain group resolves to
+// complete rows, and every settings key named is a real setting.
+func TestFeaturesPropsCatalogNeverEmpty(t *testing.T) {
+	declared := 0
+	for _, entry := range defaultFeaturesNounCatalog() {
+		if entry.Status == NounStatusLive {
+			continue
+		}
+		declared++
+		rows := featuresDeclaredNounPropRows(entry.Kind)
+		assertPropRows(t, entry.Status+" noun "+entry.Kind, rows)
+		wantRole := featuresPropRoleCurrent
+		if entry.Status == NounStatusPlanned {
+			wantRole = featuresPropRolePlanned
+		}
+		if len(rows) < 3 || rows[0].Role != wantRole {
+			t.Errorf("%s noun %q: want at least 3 props with role %q, got %+v", entry.Status, entry.Kind, wantRole, rows)
+		}
+	}
+	if declared != len(featuresDeclaredNounProps) {
+		t.Errorf("featuresDeclaredNounProps has %d entries, the catalog has %d existing and planned nouns", len(featuresDeclaredNounProps), declared)
+	}
+
+	entries := map[string]featuresPropsEntry{"universal page": featuresUniversalPageProps}
+	for _, page := range defaultFeaturesPageCatalog() {
+		entry, ok := featuresPagePropsCatalog[page.Key]
+		if !ok || len(entry.Settings) == 0 || len(entry.Facts) == 0 || len(entry.Surfaces) == 0 {
+			t.Errorf("page %q declares no settings, facts or surfaces: %+v", page.Key, entry)
+		}
+		entries["page "+page.Key] = entry
+		assertPropRows(t, "page "+page.Key, featuresPagePropRows(page.Key))
+	}
+	for _, component := range featuresComponentCatalog {
+		entry, ok := featuresComponentPropsCatalog[component.Key]
+		if !ok {
+			t.Errorf("component %q declares no props", component.Key)
+		}
+		entries["component "+component.Key] = entry
+		assertPropRows(t, "component "+component.Key, featuresComponentPropRows(component.Key))
+	}
+	for _, meta := range domainGroupMetas() {
+		entry, ok := featuresDomainPropsCatalog[meta.Key]
+		if !ok {
+			t.Errorf("domain group %q declares no props", meta.Key)
+		}
+		entries["domain "+meta.Key] = entry
+		assertPropRows(t, "domain "+meta.Key, featuresDomainPropRows(meta.Key))
+	}
+	assertPropRows(t, "domain everything", featuresDomainPropRows(DomainEverythingKey))
+	assertPropRows(t, "unlisted page", featuresPagePropRows("not-a-page"))
+	assertPropRows(t, "universal record fields", featuresUniversalRecordProps)
+
+	settings := featuresSettingSpecIndex()
+	for what, entry := range entries {
+		for _, key := range entry.Settings {
+			if _, ok := settings[key]; !ok {
+				t.Errorf("%s names setting %q, which SettingSpecs does not declare", what, key)
+			}
+		}
+	}
+}
+
+// TestFeaturesNamedDomainGroupsAreGroundedData covers the five named
+// repeated-concept groups: each is a catalog row with occurrences, and every
+// occurrence names a symbol that exists at that file in this repo.
+func TestFeaturesNamedDomainGroupsAreGroundedData(t *testing.T) {
+	symbols := map[string]bool{}
+	for _, sym := range scanRepoGoSymbols("..") {
+		symbols[sym.File+"::"+sym.Symbol] = true
+	}
+	if len(symbols) == 0 {
+		t.Fatal("AST scan of the repo found no symbols")
+	}
+	byClass := map[string][]views.DomainOccurrence{}
+	ids := map[string]bool{}
+	for _, occ := range staticDomainOccurrences() {
+		if ids[occ.ID] {
+			t.Errorf("duplicate domain occurrence id %q", occ.ID)
+		}
+		ids[occ.ID] = true
+		byClass[occ.Classification] = append(byClass[occ.Classification], occ)
+	}
+	for _, key := range []string{DomainTraitsKey, DomainChromeKey, DomainPickersKey, DomainGuttersKey, DomainThemesKey} {
+		meta, ok := lookupDomainGroupMeta(key)
+		if !ok || meta.Title == "" || meta.Icon == "" || meta.Summary == "" {
+			t.Errorf("domain group %q is missing from the catalog or incomplete: %+v", key, meta)
+		}
+		if len(byClass[key]) < 5 {
+			t.Errorf("domain group %q has %d occurrences, want at least 5", key, len(byClass[key]))
+		}
+		for _, occ := range byClass[key] {
+			loc := occ.Location
+			if occ.Name == "" || occ.Summary == "" || loc.StartLine <= 0 || loc.EndLine < loc.StartLine || len(occ.RelatedPages) == 0 {
+				t.Errorf("incomplete occurrence %+v", occ)
+			}
+			if !symbols[loc.File+"::"+loc.Symbol] {
+				t.Errorf("occurrence %q: symbol %s is not in %s", occ.ID, loc.Symbol, loc.File)
+			}
 		}
 	}
 }
