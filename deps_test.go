@@ -167,6 +167,10 @@ var policies = map[string]policy{
 	mod + "/setup": {
 		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke}, noUI...),
 	},
+	// Pre-update backup zips with a version manifest: pure stdlib.
+	mod + "/internal/backup": {
+		forbidDeps: append([]string{mod + "/data", sqlite, ochazuke}, noUI...),
+	},
 	// User-defined actions.json loader and namespace action grouping: core only, no UI.
 	mod + "/actions": {
 		allow:      []string{ochazuke + "/core"},
@@ -191,7 +195,7 @@ var policies = map[string]policy{
 	},
 	// The binary: oden + ochazuke/cli around app, data, mcpui, mdweb, daemon, agenthook, harness, ptyhost, setup and migrate.
 	mod + "/cmd/mtm": {
-		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/mdweb", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", mod + "/setup", mod + "/panesearch", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", ochazuke + "/traits", oden, bubbletea},
+		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/mdweb", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", mod + "/setup", mod + "/panesearch", mod + "/internal/backup", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", ochazuke + "/traits", oden, bubbletea},
 	},
 }
 

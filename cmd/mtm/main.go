@@ -97,6 +97,11 @@ mtm daemon upgrade [--binary PATH] [--socket PATH] [--json]
 mtm daemon stop [--socket PATH] [--json] stop the local daemon
 mtm harness list [--json]                list available harnesses and configured launch commands
 mtm setup [machine|agents|skills|hooks|mcp|check] [--home DIR] [--dry-run] [--check] [--force] [--json]
+mtm backup [--out FILE] [--dir DIR] [--bin-dir DIR] [--only NAME] [--bins-only] [--json]
+                                         zip the installed binaries, config and data before an update;
+                                         MANIFEST.md in the zip lists every version and commit SHA
+mtm backup inspect ZIP | list [--dir DIR] [--json]
+                                         print a backup's MANIFEST.md, or list the backups
 mtm migrate --from V1_DB [--dry-run | --apply]
                                          import a v1 mtm.db; prints a JSON report. The v1
                                          file is only read. Nothing is written without --apply.
