@@ -72,6 +72,7 @@ func CommandSpecs() []core.CommandSpec {
 	)
 	base = append(base, chipSpecs()...)
 	base = append(base, gitHubSpecs()...)
+	base = append(base, clipboardExchangeSpecs()...)
 	base = append(base, repoSyncSpecs()...)
 	base = append(base, zeroFieldSpecs()...)
 	base = append(base, pickerPickerSpecs()...)

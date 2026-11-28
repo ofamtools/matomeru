@@ -903,6 +903,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, composerContextBindings()...)
 	out = append(out, insertPickerBindings()...)
 	out = append(out, clipboardAttachBindings()...)
+	out = append(out, clipboardExchangeBindings()...)
 	out = append(out, gitHubBindings()...)
 	out = append(out, zeroFieldBindings()...)
 	out = append(out, pickerPickerBindings()...)

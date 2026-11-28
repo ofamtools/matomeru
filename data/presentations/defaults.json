@@ -132,6 +132,13 @@
       "row":    {"titleFields": ["subject", "body"], "metaFields": ["msgKind", "fromPane", "toPane"]},
       "card":   {"titleFields": ["subject", "body"], "subtitleFields": ["body"], "metaFields": ["msgKind", "fromPane", "toPane", "lane", "readAt"]},
       "detail": {"titleFields": ["subject", "body"], "subtitleFields": ["body"], "metaFields": ["msgKind", "fromPane", "toPane", "lane", "thread", "readAt"]}
+    }},
+    {"kind": "clip", "forms": {
+      "chip":   {"icon": "⧉", "titleFields": ["title", "content"], "maxLen": 32},
+      "inline": {"icon": "⧉", "titleFields": ["title", "content"], "maxLen": 48},
+      "row":    {"titleFields": ["title", "content"], "metaFields": ["clipKind", "authorKind", "fromPane"]},
+      "card":   {"titleFields": ["title", "content"], "subtitleFields": ["content"], "metaFields": ["clipKind", "authorKind", "fromPane", "project"]},
+      "detail": {"titleFields": ["title", "content"], "subtitleFields": ["content"], "metaFields": ["clipKind", "authorKind", "fromPane", "project", "copiedAt"]}
     }}
   ]
 }

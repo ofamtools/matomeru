@@ -933,6 +933,7 @@ func DefaultSchemas() *Registry {
 		repoSchema(),
 		captureSchema(),
 		messageSchema(),
+		clipSchema(),
 	)
 	return r
 }

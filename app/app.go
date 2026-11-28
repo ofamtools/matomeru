@@ -883,6 +883,7 @@ func (a *App) register() {
 	a.registerComposerContextHandlers()
 	a.registerInsertPickerHandlers()
 	a.registerClipboardAttachHandlers()
+	a.registerClipboardExchangeHandlers()
 	a.registerChipHandlers()
 	a.registerGitHubHandlers()
 	a.handle(CmdRepoSync, a.repoSyncCmd)
