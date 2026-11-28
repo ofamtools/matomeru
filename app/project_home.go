@@ -485,7 +485,7 @@ func (a *App) renderProjectWorkspace(s core.State, groupName string, projRef *co
 		ProjectID: ws.projectID, Title: groupName, Subtitle: strings.Join(subParts, " · "),
 		Ref: projRef, Badges: badges, NavRatio: navRatio, NavTitle: navTitle, NavMode: navMode, HideHeader: hideHeader,
 		UnreadDotOnly: &dotOnly,
-		NavOptions:    views.ProjectNavOptions{Compact: a.projectNavCompactEnabled()},
+		NavOptions:    views.ProjectNavOptions{Compact: a.projectNavCompactEnabled(), SectionMaxItems: a.projectNavSectionMaxItems()},
 		ActiveKey:     activeKey,
 		NavItems:      navItems,
 		ActiveBody:    activeBody,

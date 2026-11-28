@@ -220,10 +220,18 @@ func collectNavRowIDs(root ui.ViewNode) []string {
 	if list == nil {
 		return nil
 	}
-	ids := make([]string, 0, len(list.Children))
-	for _, ch := range list.Children {
-		ids = append(ids, ch.ID)
+	// Rows in drawing order; a capped section holds its rows in a scroll viewport.
+	var ids []string
+	var walk func(nodes []ui.ViewNode)
+	walk = func(nodes []ui.ViewNode) {
+		for _, ch := range nodes {
+			if ch.Kind == ui.KindText {
+				ids = append(ids, ch.ID)
+			}
+			walk(ch.Children)
+		}
 	}
+	walk(list.Children)
 	return ids
 }
 

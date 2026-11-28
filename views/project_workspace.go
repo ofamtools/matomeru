@@ -82,8 +82,9 @@ var ProjectNavPriorityKeys = []string{
 // ProjectNavOptions declaratively controls Project Page left-nav density,
 // spacing, and optional priority section ordering.
 type ProjectNavOptions struct {
-	Compact       bool     // true: omit zero-only badges and add breathing room between section groups
-	PriorityOrder []string // optional section keys promoted to the top ("Core") group; nil keeps caller order
+	Compact         bool     // true: omit zero-only badges and add breathing room between section groups
+	PriorityOrder   []string // optional section keys promoted to the top ("Core") group; nil keeps caller order
+	SectionMaxItems int      // > 0: a section with more child rows scrolls inside a viewport this many rows high; 0: unlimited
 }
 
 // OrderProjectNavSections returns items ordered with any section matching
@@ -185,7 +186,8 @@ func ProjectWorkspaceView(spec ProjectWorkspaceSpec) ui.ViewNode {
 		}
 		navRows = append(navRows, projectNavRow(item, spec.ActiveKey, unreadDotOnly, spec.NavOptions))
 		if len(item.Children) > 0 {
-			navRows = appendProjectNavChildren(navRows, item.Children, 1, unreadDotOnly)
+			childRows := appendProjectNavChildren(nil, item.Children, 1, unreadDotOnly)
+			navRows = append(navRows, capProjectNavSectionRows(spec.ProjectID, item.Key, childRows, spec.NavOptions.SectionMaxItems)...)
 		}
 	}
 	if len(navRows) == 0 {

@@ -213,6 +213,7 @@ const (
 	SetProjectsNavSurfaceContextUnread = "projects.navSurfaceContextUnread"
 	SetProjectsNavUnreadDotOnly        = "projects.navUnreadDotOnly"
 	SetProjectsNavLaneProgressBar      = "projects.navLaneProgressBar"
+	SetProjectsNavSectionMaxItems      = "projects.navSectionMaxItems"
 	SetFilterBarBottomLeft             = "ui.filterBarBottomLeft"
 	SetShowLayout                      = "show.layout"
 	SetShowHideEmptyRelations          = "show.hideEmptyRelations"
@@ -417,6 +418,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetProjectsNavSurfaceContextUnread, false, "surface unread context items underneath the collapsed Context section in the Project left nav"),
 		flag(SetProjectsNavUnreadDotOnly, true, "color only the unread dot (●) on unread Project left-nav rows instead of tinting the whole row"),
 		flag(SetProjectsNavLaneProgressBar, true, "show a compact 4-character colored progress bar on lane rows in the Project left nav"),
+		{Name: SetProjectsNavSectionMaxItems, Type: core.ParamInt, Default: 7, Description: "rows a Project left-nav section shows before it scrolls inside itself (0: unlimited)"},
 		flag(SetFilterBarBottomLeft, true, "anchor the active filter input in a fixed bottom-left bar instead of inline in the status breadcrumb"),
 		flag(SetProjectContextReview, true, "show new Context items in a review block above the full Project Context table"),
 		enum(SetShowLayout, views.ShowLayoutLedger, "Show page layout: borderless single-column ledger outline, narrow stacked, or classic 2-column opt-out", views.ShowLayoutLedger, views.ShowLayoutStacked, views.ShowLayoutClassic),
