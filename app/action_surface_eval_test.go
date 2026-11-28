@@ -543,6 +543,7 @@ func TestActionSurfaceConsistencyMatrix(t *testing.T) {
 		CmdSessionSandboxOpen: true,
 		CmdOpenTarget:         true,
 		CmdOpenWith:           true,
+		CmdUpgradePreview:     true,
 	}
 
 	// Build ONE shared demo app + project tab fixture and switch contexts in-place
