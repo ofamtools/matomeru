@@ -30,7 +30,8 @@ func TestFeaturesPageViewSplitNavCollapseAndNounDetail(t *testing.T) {
 				Title: "By Noun",
 				Items: []FeaturesNavItem{
 					{Key: "noun:schedule", Section: "nouns", Label: "Schedule", Icon: "◷", Count: 2, Active: true},
-					{Key: "noun:pr", Section: "nouns", Label: "Pull Request", Icon: "⎇", Planned: true},
+					{Key: "noun:preset", Section: "nouns", Label: "Preset", Icon: "❖", Badge: "existing", Tone: "success", Status: "existing"},
+					{Key: "noun:pr", Section: "nouns", Label: "Pull Request", Icon: "⎇", Badge: "planned", Tone: "warning", Status: "planned", Planned: true},
 				},
 			},
 			{
@@ -109,8 +110,17 @@ func TestFeaturesPageViewSplitNavCollapseAndNounDetail(t *testing.T) {
 		t.Fatalf("unexpected schedule nav node: %+v", schedNav)
 	}
 	prNav := root.Find(FeaturesNavPrefix + "noun:pr")
-	if prNav == nil || !prNav.Focusable || prNav.Facts["planned"] != true {
+	if prNav == nil || !prNav.Focusable || prNav.Facts["planned"] != true || prNav.Facts["nounStatus"] != "planned" ||
+		prNav.Facts["existing"] != false || prNav.Tone != "warning" || !strings.Contains(prNav.Props["text"].(string), "[planned]") {
 		t.Fatalf("unexpected planned pr nav node: %+v", prNav)
+	}
+	presetNav := root.Find(FeaturesNavPrefix + "noun:preset")
+	if presetNav == nil || presetNav.Facts["nounStatus"] != "existing" || presetNav.Facts["existing"] != true ||
+		presetNav.Facts["planned"] != false || presetNav.Tone != "success" || !strings.Contains(presetNav.Props["text"].(string), "[existing]") {
+		t.Fatalf("unexpected existing preset nav node: %+v", presetNav)
+	}
+	if schedNav.Facts["nounStatus"] != "" || schedNav.Facts["existing"] != false {
+		t.Fatalf("live noun must carry an empty nounStatus: %+v", schedNav.Facts)
 	}
 
 	// Linked items carry recordRef facts.

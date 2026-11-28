@@ -10,6 +10,7 @@ import (
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
+	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/pathpicker"
 )
 
@@ -330,6 +331,61 @@ func TestFeaturesPageByNounDomainVerbFiltering(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// By Noun shows three groups in order: live nouns, existing in-app nouns
+// (green) and planned nouns (yellow).
+func TestFeaturesPageByNounExistingAndPlannedStatuses(t *testing.T) {
+	fs := matomeruCheckoutFS("/home/dev", "/home/dev/proj/matomeru")
+	a, _ := newFeaturesTestApp(t, Options{FS: fs})
+	snap := a.collectFeaturesSnapshot()
+	items := a.buildFeaturesNounNavItems(snap, "", map[string]bool{})
+	byKey := map[string]views.FeaturesNavItem{}
+	lastRank := 0
+	for _, it := range items {
+		byKey[it.Key] = it
+		if rank := nounStatusRank(it.Status); rank < lastRank {
+			t.Fatalf("%s (%q) is out of order: live, existing, planned", it.Key, it.Status)
+		} else {
+			lastRank = rank
+		}
+	}
+
+	for _, kind := range []string{"project", "preset", "macro", "harness"} {
+		it := byKey["noun:"+kind]
+		if it.Badge != "existing" || it.Tone != "success" || it.Planned || it.Status != NounStatusExisting {
+			t.Fatalf("existing noun %q nav item = %+v", kind, it)
+		}
+	}
+	for _, kind := range []string{"pr", "worktree", "tag", "idea", "host", "mark"} {
+		it := byKey["noun:"+kind]
+		if it.Badge != "planned" || it.Tone != "warning" || !it.Planned || it.Status != NounStatusPlanned {
+			t.Fatalf("planned noun %q nav item = %+v", kind, it)
+		}
+	}
+	for _, kind := range []string{"concept", "queue", "repo", "capture"} {
+		if it := byKey["noun:"+kind]; it.Status != NounStatusLive || it.Planned || it.Badge != "" {
+			t.Fatalf("live noun %q nav item = %+v", kind, it)
+		}
+	}
+	if byKey["noun:session"].Count == 0 {
+		t.Fatal("session should count its implemented sessions.* verbs")
+	}
+
+	hasBadge := func(det views.FeaturesDetailSpec, text, tone string) bool {
+		return slices.ContainsFunc(det.Badges, func(b ui.Badge) bool { return b.Text == text && b.Tone == tone })
+	}
+	existing := a.buildFeaturesDetail(snap, "noun:preset")
+	if !hasBadge(existing, "existing · needs schema", "success") || hasBadge(existing, "planned", "warning") {
+		t.Fatalf("existing noun detail badges = %+v", existing.Badges)
+	}
+	if !slices.ContainsFunc(existing.Highlights, func(h string) bool { return strings.Contains(h, "data/preset.go") }) {
+		t.Fatalf("existing noun detail should name where it lives: %+v", existing.Highlights)
+	}
+	planned := a.buildFeaturesDetail(snap, "noun:idea")
+	if !hasBadge(planned, "planned", "warning") || hasBadge(planned, "existing · needs schema", "success") {
+		t.Fatalf("planned noun detail badges = %+v", planned.Badges)
 	}
 }
 

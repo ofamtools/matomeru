@@ -86,12 +86,26 @@ type featuresPlannedVerb struct {
 	MCP         string
 }
 
+// Noun catalog statuses: a live noun has a registered data.Schema, an existing
+// noun is in use in the app today without one, and a planned noun is not built.
+const (
+	NounStatusLive     = ""
+	NounStatusExisting = "existing"
+	NounStatusPlanned  = "planned"
+)
+
 type featuresNounCatalogEntry struct {
-	Kind           string
-	Title          string
-	Icon           string
-	Summary        string
-	Planned        bool
+	Kind    string
+	Title   string
+	Icon    string
+	Summary string
+	// Status is one of the NounStatus* constants; Planned mirrors
+	// Status == NounStatusPlanned.
+	Status  string
+	Planned bool
+	// Sources are the repo paths an existing noun lives in today, or the
+	// note/task refs a planned noun was requested in.
+	Sources        []string
 	DomainPrefixes []string
 	ExcludeIDs     []string
 	Highlights     []string
@@ -104,7 +118,11 @@ func pageEntry(key, title, icon, summary string, highlights, keywords []string) 
 }
 
 func nounEntry(kind, title, icon, summary string, planned bool, prefixes, highlights, keywords []string, plannedVerbs ...featuresPlannedVerb) featuresNounCatalogEntry {
-	return featuresNounCatalogEntry{Kind: kind, Title: title, Icon: icon, Summary: summary, Planned: planned, DomainPrefixes: prefixes, Highlights: highlights, Keywords: keywords, PlannedVerbs: plannedVerbs}
+	status := NounStatusLive
+	if planned {
+		status = NounStatusPlanned
+	}
+	return featuresNounCatalogEntry{Kind: kind, Title: title, Icon: icon, Summary: summary, Status: status, Planned: planned, DomainPrefixes: prefixes, Highlights: highlights, Keywords: keywords, PlannedVerbs: plannedVerbs}
 }
 
 func pv(id, cat, desc string) featuresPlannedVerb {
@@ -162,7 +180,9 @@ func defaultFeaturesPageCatalog() []featuresPageCatalogEntry {
 	}
 }
 
-func defaultFeaturesNounCatalog() []featuresNounCatalogEntry {
+// coreFeaturesNounCatalog lists the original live nouns followed by the first
+// three planned nouns (pr, worktree, tag).
+func coreFeaturesNounCatalog() []featuresNounCatalogEntry {
 	return []featuresNounCatalogEntry{
 		nounEntry("task", "Task / Project", "☐", "Hierarchical work unit spanning root projects, feature groups, tasks, and subtasks.", false,
 			[]string{"task.", "outline.", "project.page.", "project.note.", "project.section.", "project.content.", "project.child_pane."},
@@ -416,13 +436,8 @@ func lookupFeaturesPageCatalog(key string) (featuresPageCatalogEntry, bool) {
 }
 
 func lookupFeaturesNounCatalog(kind string) (featuresNounCatalogEntry, bool) {
-	k := strings.TrimSpace(kind)
-	for _, entry := range defaultFeaturesNounCatalog() {
-		if entry.Kind == k {
-			return entry, true
-		}
-	}
-	return featuresNounCatalogEntry{}, false
+	entry, ok := featuresNounCatalogIndex()[strings.TrimSpace(kind)]
+	return entry, ok
 }
 
 var globalChromeCommandPrefixes = []string{
@@ -435,11 +450,16 @@ var globalChromeCommandPrefixes = []string{
 }
 
 func isGlobalChromeCommand(spec core.CommandSpec) bool {
-	if isMetaBool(spec.Meta, "internal") || isMetaBool(spec.Meta, "selfHosted") {
-		return true
-	}
-	for _, prefix := range globalChromeCommandPrefixes {
-		if strings.HasPrefix(spec.ID, prefix) {
+	return isHiddenCommand(spec) || hasAnyPrefix(spec.ID, globalChromeCommandPrefixes)
+}
+
+func isHiddenCommand(spec core.CommandSpec) bool {
+	return isMetaBool(spec.Meta, "internal") || isMetaBool(spec.Meta, "selfHosted")
+}
+
+func hasAnyPrefix(id string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if prefix != "" && strings.HasPrefix(id, prefix) {
 			return true
 		}
 	}
@@ -455,10 +475,7 @@ func domainVerbsForNoun(kind string, specs []core.CommandSpec, keysByID map[stri
 
 	seen := make(map[string]bool)
 	for _, sp := range specs {
-		if sp.ID == "" || seen[sp.ID] || excluded[sp.ID] || isGlobalChromeCommand(sp) {
-			continue
-		}
-		if !specMatchesNoun(sp, kind, entry.DomainPrefixes) {
+		if sp.ID == "" || seen[sp.ID] || excluded[sp.ID] || !nounOwnsCommand(sp, kind, entry.DomainPrefixes) {
 			continue
 		}
 		seen[sp.ID] = true
@@ -491,6 +508,19 @@ func domainVerbsForNoun(kind string, specs []core.CommandSpec, keysByID map[stri
 	return implemented, planned
 }
 
+// nounOwnsCommand reports whether a command is a domain verb of the noun. A
+// chrome command counts only for the noun whose catalog entry claims its
+// prefix (macro, binding, setting, scratch, ...).
+func nounOwnsCommand(sp core.CommandSpec, kind string, domainPrefixes []string) bool {
+	if isHiddenCommand(sp) {
+		return false
+	}
+	if hasAnyPrefix(sp.ID, globalChromeCommandPrefixes) && !hasAnyPrefix(sp.ID, domainPrefixes) {
+		return false
+	}
+	return specMatchesNoun(sp, kind, domainPrefixes)
+}
+
 func specMatchesNoun(sp core.CommandSpec, kind string, domainPrefixes []string) bool {
 	if metaString(sp.Meta, "domainNoun") == kind || metaString(sp.Meta, "noun") == kind {
 		return true
@@ -501,12 +531,7 @@ func specMatchesNoun(sp core.CommandSpec, kind string, domainPrefixes []string) 
 	if kind != "" && strings.HasPrefix(sp.ID, kind+".") {
 		return true
 	}
-	for _, pref := range domainPrefixes {
-		if pref != "" && strings.HasPrefix(sp.ID, pref) {
-			return true
-		}
-	}
-	return false
+	return hasAnyPrefix(sp.ID, domainPrefixes)
 }
 
 func isMetaBool(meta map[string]any, key string) bool {
