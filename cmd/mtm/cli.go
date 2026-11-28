@@ -85,6 +85,7 @@ func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.
 		mtmWebCommand(),
 		mtmHarnessCommand(),
 		mtmSetupCommand(),
+		mtmBackupCommand(g),
 		mtmMigrateCommand(g),
 		mtmUndoCommand(g),
 		mtmRedoCommand(g),
