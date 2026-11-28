@@ -1,7 +1,6 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -720,17 +719,13 @@ func (a *App) persistCanvasMarkdown(pageID, targetNodeID, newMarkdown string) er
 	if err != nil {
 		return err
 	}
-	rawRoot, ok := page.Value("root")
-	if !ok || rawRoot == nil {
-		return fmt.Errorf("page %s has no root", pageID)
-	}
-	b, err := json.Marshal(rawRoot)
+	root, err := mcpui.PageRoot(*page)
 	if err != nil {
 		return err
 	}
-	var root ui.ViewNode
-	if err := json.Unmarshal(b, &root); err != nil {
-		return err
+	markdown, _ := root.Props["markdown"].(string)
+	if len(root.Children) == 0 && (root.Kind != ui.KindMarkdown || strings.TrimSpace(markdown) == "") {
+		return fmt.Errorf("page %s has no markdown content", pageID)
 	}
 	replaced := false
 	var walk func(n *ui.ViewNode, path string)

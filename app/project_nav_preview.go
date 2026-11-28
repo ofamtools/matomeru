@@ -105,26 +105,8 @@ func (a *App) buildProjectInteractivePageNode(s core.State, page data.Record, pr
 	root, err := mcpui.PageRoot(page)
 	if err != nil {
 		content.Children = []ui.ViewNode{text("project.page.err", "This page cannot be rendered: "+err.Error(), "error")}
-	} else if root.Kind == ui.KindScroll {
-		root.ID = views.PageScrollID
-		root.Focusable = true
-		if root.Scope == "" {
-			root.Scope = data.KindPage
-		}
-		if root.Props == nil {
-			root.Props = map[string]any{}
-		}
-		root.Props["offset"] = a.pageScrollOffset(page.ID)
-		content.Children = []ui.ViewNode{root}
 	} else {
-		content.Children = []ui.ViewNode{{
-			ID:        views.PageScrollID,
-			Kind:      ui.KindScroll,
-			Scope:     data.KindPage,
-			Focusable: true,
-			Props:     map[string]any{"offset": a.pageScrollOffset(page.ID)},
-			Children:  []ui.ViewNode{root},
-		}}
+		content.Children = []ui.ViewNode{views.PageViewport(root, a.pageScrollOffset(page.ID))}
 	}
 
 	wrapper := ui.ViewNode{

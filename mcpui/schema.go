@@ -63,7 +63,7 @@ func (r *Router) ToolSpecs() []ToolSpec {
 	return []ToolSpec{
 		{
 			Name:        ToolCreatePage,
-			Description: "Create a page (a ViewNode tree) in a pane's interactive site. Whenever an output, explanation, or context block exceeds 10 lines of text, put it on its own dedicated page with ui.create_page (using kind \"markdown\" for rich text) rather than packing it into a card or Questions page. Returns {id, ref, slug, updatedAt}.",
+			Description: "Create a page (a ViewNode tree) in a pane's interactive site. Whenever an output, explanation, or context block exceeds 10 lines of text, put it on its own dedicated page with ui.create_page (put rich text in root.props.markdown with root.kind set to \"markdown\") rather than packing it into a card or Questions page. Returns {id, ref, slug, updatedAt}.",
 			InputSchema: object([]string{"title", "root"}, props{
 				"pane":     pane,
 				"task":     text("task ID the page belongs to; defaults to the pane's task"),

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/internal/pageview"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 )
@@ -265,21 +266,9 @@ func ValidateNode(root ui.ViewNode) error {
 	return walk(&root, "root")
 }
 
-// PageRoot decodes the ViewNode tree of a ui.page record.
+// PageRoot decodes the canvas of a ui.page record.
 func PageRoot(page data.Record) (ui.ViewNode, error) {
-	var root ui.ViewNode
-	v, ok := page.Value("root")
-	if !ok || v == nil {
-		return ui.ViewNode{Kind: ui.KindVStack}, nil
-	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return root, err
-	}
-	if err := json.Unmarshal(b, &root); err != nil {
-		return root, fmt.Errorf("mcpui: root of %s: %w", data.RefText(page.Ref()), err)
-	}
-	return root, nil
+	return pageview.Root(page)
 }
 
 // rootValue turns a tree into the plain value stored in the root field.

@@ -89,15 +89,20 @@ var policies = map[string]policy{
 		allow:      []string{sqlite, ochazuke + "/core"},
 		forbidDeps: noUI,
 	},
+	// Authored ViewNode decoding is shared by MCP and the pure presenters.
+	mod + "/internal/pageview": {
+		allow:      []string{mod + "/data", ochazuke + "/ui"},
+		forbidDeps: noTea,
+	},
 	// MCP Open UI: ViewNode data over the store.
 	mod + "/mcpui": {
-		allow:      []string{mod + "/data", mod + "/triage", mod + "/panesearch", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/traits"},
+		allow:      []string{mod + "/data", mod + "/internal/pageview", mod + "/triage", mod + "/panesearch", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/traits"},
 		forbidDeps: noTea,
 	},
 	// ViewNode generators.
 	mod + "/views": {
 		allow: []string{
-			mod + "/data", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/traits",
+			mod + "/data", mod + "/internal/pageview", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/traits",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/tree", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/modal",
 		},
 		forbidDeps: noTea,
