@@ -507,6 +507,9 @@ func (m *bindingsModal) FocusID() string {
 	if m.mode == ModeBindingsFilter {
 		return bindingsFilter
 	}
+	if bindingsKeyboardOn(m.a.bind.bindEd) {
+		return bindingsKeyboard
+	}
 	return bindingsTable
 }
 
@@ -523,7 +526,7 @@ func (a *App) bindingsOpen(s core.State, _ core.Command) core.StepResult {
 	}
 	a.bind.bindEd.SetMatchMode(a.matchMode())
 	a.bind.bindEd.SetQuery("")
-	a.say("/ filters (key: verb: mode: scope: conflict:) · r rebinds · x unbinds · R resets · u undoes · each change is live")
+	a.say("/ filters (key: verb: mode: scope: conflict:) · r rebinds · x unbinds · R resets · u undoes · v keyboard view · each change is live")
 	return core.Next(a.pushModal(s, &bindingsModal{a: a, mode: ModeBindings}))
 }
 
@@ -661,6 +664,9 @@ func (m *bindingsModal) Handle(c core.Command) modal.Result {
 			return modal.Result{Handled: true}
 		}
 		return modal.Result{Handled: true, Status: fmt.Sprintf("nothing to %s", strings.TrimPrefix(c.ID, "bindings.")), SetStatus: true}
+	case bindings.CmdViewToggle:
+		ed.HandleCommand(c)
+		return modal.Result{Handled: true, Mode: m.Mode(), FocusID: m.FocusID()}
 	case CmdBindingsMatchMode:
 		ed.HandleCommand(core.Command{ID: "table.filter.mode.cycle"})
 		return modal.Result{Handled: true, Status: "the filter's match mode changed", SetStatus: true}
@@ -709,6 +715,7 @@ func (m *bindingsModal) View(_, _ int) ui.ViewNode {
 	badges := []ui.Badge{
 		{Text: fmt.Sprintf("%d of %d", len(ed.Filtered()), len(rows))},
 		{Text: fmt.Sprintf("%d overrides", len(m.a.bind.userBindings))},
+		bindingsViewBadge(ed),
 	}
 	if m.conflicts > 0 {
 		badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d with notes · conflict: filters", m.conflicts), Tone: "warning"})

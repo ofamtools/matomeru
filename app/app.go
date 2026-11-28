@@ -602,6 +602,9 @@ func (a *App) register() {
 		"bindings.filter.append", "bindings.filter.backspace"} {
 		a.handle(id, a.handleModal)
 	}
+	for _, id := range bindingsKeyboardCommands {
+		a.handle(id, a.handleModal)
+	}
 	a.handle(CmdPaneZoom, a.paneZoom)
 	a.handle(CmdPaneAttention, a.nextAttention)
 	a.handle(CmdPaneApprove, a.paneResolveApproval(daemon.DecisionAllow))

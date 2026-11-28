@@ -405,7 +405,7 @@ func CommandSpecs() []core.CommandSpec {
 		spec(tree.CmdHoistOut, "Zoom out one level from the hoisted subtree"),
 		spec(tree.CmdHoistClear, "Clear all hoisting and return to the full tree"),
 		spec(CmdWorkLayoutToggle, "Toggle 2 Work between tree and table layout for hierarchical nouns"),
-	}...), append(append(append(append(append(append(append(append(append(append(append(append(sessionRecorderSpecs(), uxNotesSpecs()...), pageModeSpecs()...), fdSearchSpecs()...), paneSearchSpecs()...), projectHomeSpecs()...), projectTabsSpecs()...), featuresPageSpecs()...), composerContextSpecs()...), insertPickerSpecs()...), clipboardAttachSpecs()...), projectPortalSpecs()...), append(append(append(noteDeckSpecs(), laneBarSpecs()...), outlineSuggestSpecs()...), outlineViewCommandSpecs()...)...)...)
+	}...), append(append(append(append(append(append(append(append(append(append(append(append(sessionRecorderSpecs(), uxNotesSpecs()...), pageModeSpecs()...), fdSearchSpecs()...), paneSearchSpecs()...), projectHomeSpecs()...), projectTabsSpecs()...), featuresPageSpecs()...), composerContextSpecs()...), insertPickerSpecs()...), clipboardAttachSpecs()...), projectPortalSpecs()...), append(append(append(append(noteDeckSpecs(), laneBarSpecs()...), bindingsKeyboardSpecs()...), outlineSuggestSpecs()...), outlineViewCommandSpecs()...)...)...)
 }
 
 // readerSpecs are the Markdown widget's own commands. They only make sense

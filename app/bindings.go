@@ -683,10 +683,10 @@ func DefaultBindings() []core.Binding {
 		bind(ModeBindings, all, "ctrl+y", "motion.scroll.up", "scroll viewport up"),
 		bind(ModeBindings, all, "/", CmdBindingsFilter, "filter"),
 		bind(ModeBindings, all, "tab", CmdBindingsMatchMode, "match mode"),
-		bind(ModeBindings, all, "r", CmdBindingsRebind, "rebind"),
-		hidden(bind(ModeBindings, all, "enter", CmdBindingsRebind, "rebind")),
-		bind(ModeBindings, all, "x", "bindings.unbind", "unbind"),
-		bind(ModeBindings, all, "R", "bindings.reset", "reset"),
+		when(bind(ModeBindings, all, "r", CmdBindingsRebind, "rebind"), whenBindingsRows),
+		hidden(when(bind(ModeBindings, all, "enter", CmdBindingsRebind, "rebind"), whenBindingsRows)),
+		when(bind(ModeBindings, all, "x", "bindings.unbind", "unbind"), whenBindingsRows),
+		when(bind(ModeBindings, all, "R", "bindings.reset", "reset"), whenBindingsRows),
 		bind(ModeBindings, all, "u", "bindings.undo", "undo"),
 		bind(ModeBindings, all, "ctrl+r", "bindings.redo", "redo"),
 		with(bind(ModeBindings, all, "esc", CmdModalCancel, "close"), map[string]any{"via": "esc"}),
@@ -890,6 +890,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, viewCycleBindings()...)
 	out = append(out, uxNotesBindings()...)
 	out = append(out, pageModeBindings()...)
+	out = append(out, bindingsKeyboardBindings()...)
 	out = append(out, fdSearchBindings()...)
 	out = append(out, filesBindings()...)
 	out = append(out, queueBindings()...)
