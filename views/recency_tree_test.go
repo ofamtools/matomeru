@@ -10,20 +10,23 @@ import (
 )
 
 func TestColorByRecencyAndFlagsOnLeft(t *testing.T) {
-	now := time.Now()
-	if got := RecencyBucket(now.Add(-10*time.Minute), now); got != "today" {
+	// Pure bucket checks use a pinned mid-afternoon (local) reference so a run
+	// just after midnight never sees now-10m fall on yesterday.
+	refNow := time.Date(2026, 11, 27, 15, 0, 0, 0, time.Local)
+	if got := RecencyBucket(refNow.Add(-10*time.Minute), refNow); got != "today" {
 		t.Fatalf("today bucket = %q", got)
 	}
-	if got := RecencyBucket(now.Add(-3*24*time.Hour), now); got != "this_week" {
+	if got := RecencyBucket(refNow.Add(-3*24*time.Hour), refNow); got != "this_week" {
 		t.Fatalf("this_week bucket = %q", got)
 	}
-	if got := RecencyBucket(now.Add(-10*24*time.Hour), now); got != "last_week" {
+	if got := RecencyBucket(refNow.Add(-10*24*time.Hour), refNow); got != "last_week" {
 		t.Fatalf("last_week bucket = %q", got)
 	}
-	if got := RecencyBucket(now.Add(-60*24*time.Hour), now); got != "older" {
+	if got := RecencyBucket(refNow.Add(-60*24*time.Hour), refNow); got != "older" {
 		t.Fatalf("older bucket = %q", got)
 	}
 
+	now := time.Now()
 	w := build(t)
 	schema, _ := w.store.Registry().Get(data.KindTask)
 	rec := data.Record{

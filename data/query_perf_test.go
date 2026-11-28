@@ -51,6 +51,7 @@ func seedBulkContext(t *testing.T, s *Store, n int, taskIDs, paneIDs []string) {
 		fields := map[string]any{
 			"title":       fmt.Sprintf("Noise Context %d", i),
 			"value":       fmt.Sprintf("https://example.com/ctx/%d", i),
+			"canonKey":    fmt.Sprintf("url:https://example.com/ctx/%d", i),
 			"contextKind": "url",
 			"source":      "screen",
 			"task":        core.Ref{Kind: KindTask, ID: taskIDs[i%len(taskIDs)]},

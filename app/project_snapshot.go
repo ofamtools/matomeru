@@ -195,7 +195,8 @@ func (a *App) refreshProjectDurableDelta(prev cachedProjectDurable, projRef *cor
 		applyScopeAnchors(&snap, scope, paneSeeds)
 	}
 	a.refreshDurableScopeSlices(&snap, prev.scope, scope, projRef, delta, anchorsChanged)
-	needCtx := shouldRefreshDurableContext(prev.scope, scope, delta, anchorsChanged, reqKey.ctxGen != prev.key.ctxGen)
+	paneTitlesChanged := delta.Kinds[data.KindPane] && !maps.Equal(a.durablePaneTitles(prev.snap.panes), a.durablePaneTitles(snap.panes))
+	needCtx := shouldRefreshDurableContext(prev.scope, scope, delta, anchorsChanged || paneTitlesChanged, reqKey.ctxGen != prev.key.ctxGen)
 	if needCtx {
 		a.populateDurableContext(&snap, scope)
 	}
@@ -204,8 +205,12 @@ func (a *App) refreshProjectDurableDelta(prev cachedProjectDurable, projRef *cor
 	return snap, finalKey, scope, true
 }
 
+// shouldRefreshDurableContext reports whether the project's context list must
+// be rebuilt. A pane write alone does not: the list depends on panes only
+// through the scope anchors and the scoped pane titles, which the caller folds
+// into anchorsChanged, so runStatus/promptedAt churn never rescans context.
 func shouldRefreshDurableContext(prevScope, scope data.ProjectScope, delta data.ChangeDelta, anchorsChanged, ctxGenChanged bool) bool {
-	if anchorsChanged || ctxGenChanged || delta.Kinds[data.KindContext] || delta.Kinds[data.KindPane] {
+	if anchorsChanged || ctxGenChanged || delta.Kinds[data.KindContext] {
 		return true
 	}
 	return delta.HasRelation && !maps.Equal(prevScope.RelatedIDs(data.KindContext), scope.RelatedIDs(data.KindContext))
@@ -365,11 +370,7 @@ func (a *App) populateDurableScopeRecords(snap *projectDurableSnapshot, scope da
 func (a *App) populateDurableContext(snap *projectDurableSnapshot, scope data.ProjectScope) {
 	snap.officialCount = 0
 	snap.officialItems, snap.pinnedItems, snap.prItems = nil, nil, nil
-	paneSchema := a.schema(data.KindPane)
-	paneTitles := make(map[string]string, len(snap.panes))
-	for _, p := range snap.panes {
-		paneTitles[p.ID] = views.Title(paneSchema, p)
-	}
+	paneTitles := a.durablePaneTitles(snap.panes)
 	wsView := projectWorkspaceData{projectDurableSnapshot: *snap}
 	snap.contextItems, snap.reviewContext, snap.contextRecords = a.projectUnifiedContextItems(wsView, scope, paneTitles)
 	for _, it := range snap.contextItems {
@@ -385,6 +386,16 @@ func (a *App) populateDurableContext(snap *projectDurableSnapshot, scope data.Pr
 		}
 	}
 	a.projectCtrl().contextBuilds++
+}
+
+// durablePaneTitles maps each scoped pane's ID to the title context rows show.
+func (a *App) durablePaneTitles(panes []data.Record) map[string]string {
+	paneSchema := a.schema(data.KindPane)
+	titles := make(map[string]string, len(panes))
+	for _, p := range panes {
+		titles[p.ID] = views.Title(paneSchema, p)
+	}
+	return titles
 }
 
 func (a *App) effectivePaneLiveStatus(p data.Record) (status string, running, needsYou bool) {

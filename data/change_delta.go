@@ -74,15 +74,21 @@ func (s *Store) changeSetFlagsSince(sinceRev int64) (hasUndo, hasRel bool, err e
 	var undoFlag, relFlag int
 	err = s.db.QueryRow(
 		`SELECT
-			EXISTS(SELECT 1 FROM change_sets WHERE number > ? AND undo_of > 0),
+			EXISTS(SELECT 1 FROM change_sets WHERE number > ? AND +undo_of > 0),
 			EXISTS(SELECT 1 FROM change_sets WHERE number > ? AND (instr(changes, '"op":"relate"') > 0 OR instr(changes, '"op":"unrelate"') > 0))`,
 		sinceRev, sinceRev,
 	).Scan(&undoFlag, &relFlag)
 	return undoFlag != 0, relFlag != 0, err
 }
 
+// changedKindsSQL reads the targets of the recent change sets by a range seek
+// on change_set. It has no DISTINCT on purpose: DISTINCT kind lets SQLite
+// prefer change_targets_ref and scan every target ever written; the caller
+// is bounded by maxDeltaChangeSets, so de-duplicating in Go is cheap.
+const changedKindsSQL = "SELECT kind FROM change_targets WHERE change_set > ?"
+
 func (s *Store) queryChangedKinds(sinceRev int64) (map[string]bool, error) {
-	rows, err := s.db.Query("SELECT DISTINCT kind FROM change_targets WHERE change_set > ?", sinceRev)
+	rows, err := s.db.Query(changedKindsSQL, sinceRev)
 	if err != nil {
 		return nil, err
 	}

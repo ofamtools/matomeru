@@ -17,6 +17,8 @@ var queryIndexes = []string{
 	`CREATE INDEX IF NOT EXISTS idx_records_kind_parent_lane_id ON records (kind, json_extract(fields, '$.parentLane.id'))`,
 	`CREATE INDEX IF NOT EXISTS idx_records_kind_changeset ON records (kind, change_set)`,
 	`CREATE INDEX IF NOT EXISTS records_kind_archive_updated ON records (kind, archive_status, updated_at DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_change_targets_cs_kind ON change_targets (change_set, kind)`,
+	contextCanonKeyIndex,
 	`CREATE INDEX IF NOT EXISTS idx_records_kind_read_at ON records (kind, archive_status) WHERE json_extract(fields, '$.readAt') IS NOT NULL`,
 }
 
@@ -323,7 +325,21 @@ func buildQuerySQL(q Query, parentField string, pushParent bool) (string, []any)
 	if len(conds) > 0 {
 		sqlText += " WHERE " + strings.Join(conds, " AND ")
 	}
-	return sqlText + " ORDER BY created_at, seq", args
+	return sqlText + queryOrderAsc, args
+}
+
+// canPushParent reports whether q's Parent/Roots filter can run in SQL: no
+// local override rewrites parentField, which only Go can see.
+func canPushParent(q Query, parentField string, local map[core.Ref]map[string]any) bool {
+	if q.Parent == nil && !q.Roots {
+		return true
+	}
+	for _, fields := range local {
+		if _, ok := fields[parentField]; ok {
+			return false
+		}
+	}
+	return true
 }
 
 // Query returns the records matching q.
@@ -333,16 +349,11 @@ func (s *Store) Query(q Query) (QueryResult, error) {
 	if err != nil {
 		return res, err
 	}
-	parentField := s.resolveParentField(q)
-	pushParent := true
-	if (q.Parent != nil || q.Roots) && len(local) > 0 {
-		for _, fields := range local {
-			if _, ok := fields[parentField]; ok {
-				pushParent = false
-				break
-			}
-		}
+	if canPushLimit(q) {
+		return s.queryPushedLimit(q, local)
 	}
+	parentField := s.resolveParentField(q)
+	pushParent := canPushParent(q, parentField, local)
 	sqlText, args := buildQuerySQL(q, parentField, pushParent)
 	rows, err := s.db.Query(sqlText, args...)
 	if err != nil {
