@@ -172,8 +172,8 @@ func TestProjectTabWorkspaceSectionsOutlineAndQuickNote(t *testing.T) {
 
 	root := a.View(a.State())
 	tabsNode := root.Find("spaces")
-	if tabsNode == nil || len(tabsNode.Children) != 6 {
-		t.Fatalf("expected 6 top-bar tabs (1..5 + 6 Apollo), got %d", len(tabsNode.Children))
+	if tabsNode == nil || len(tabsNode.Children) != 7 {
+		t.Fatalf("expected 7 top-bar tabs (1..5 + Apollo + Reminders), got %d", len(tabsNode.Children))
 	}
 	tab6 := tabsNode.Children[5]
 	if tab6.Scope != wantSpace || !strings.Contains(tab6.Title, "Apollo") {
