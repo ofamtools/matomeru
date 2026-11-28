@@ -97,6 +97,7 @@ type Server struct {
 	scheduler  *Scheduler
 	clock      func() time.Time
 	startedAt  time.Time
+	generation int // exec generation: 1 fresh, handoff+1 after an upgrade
 
 	mu        sync.Mutex
 	panes     map[string]*paneMeta
@@ -278,8 +279,12 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.ctx, s.cancel = context.WithCancel(ctx)
 	s.startedAt = s.clock()
-	if handoff != nil && !handoff.StartedAt.IsZero() {
-		s.startedAt = handoff.StartedAt
+	s.generation = 1
+	if handoff != nil {
+		s.generation = handoff.Generation + 1
+		if !handoff.StartedAt.IsZero() {
+			s.startedAt = handoff.StartedAt
+		}
 	}
 	s.unixLn = unixLn
 	s.callbacks.start(s.ctx, &s.wg)
@@ -488,7 +493,7 @@ func (s *Server) serveConn(conn net.Conn) {
 				PID:       os.Getpid(),
 				Socket:    s.socketPath,
 				MCPURL:    s.MCPURL(),
-				PaneCount: paneCount,
+				PaneCount: paneCount, Generation: s.generation,
 			})
 			_ = conn.Close()
 			go s.execUpgrade(bin, handoffPath, keepFiles)
@@ -692,7 +697,7 @@ func (s *Server) handleRequest(req Request) (Response, bool) {
 			PID:       os.Getpid(),
 			Socket:    s.socketPath,
 			MCPURL:    mcpURL,
-			PaneCount: count,
+			PaneCount: count, Generation: s.generation,
 			Uptime:    up.Round(time.Millisecond).String(),
 			UptimeSec: up.Seconds(),
 			Version:   bi.Version,

@@ -797,6 +797,16 @@ func TestDaemonZeroDowntimeExecUpgrade(t *testing.T) {
 		t.Fatalf("HookEvent: %v", err)
 	}
 
+	// Write over the adapter's persistent write connection BEFORE the upgrade
+	// so the post-upgrade Write must recover from a connection the exec closed.
+	if err := host.Write("live1", []byte("PRE_UPGRADE_WRITE\n")); err != nil {
+		t.Fatalf("Write before upgrade: %v", err)
+	}
+	waitSnapshotContains(t, host, "live1", "PRE_UPGRADE_WRITE", 4*time.Second)
+	if stBefore.Generation != 1 {
+		t.Fatalf("fresh daemon generation = %d, want 1", stBefore.Generation)
+	}
+
 	// Trigger a REAL syscall.Exec zero-downtime upgrade of the daemon process!
 	upRes, err := client.Upgrade(context.Background(), exe)
 	if err != nil {
@@ -804,6 +814,10 @@ func TestDaemonZeroDowntimeExecUpgrade(t *testing.T) {
 	}
 	if upRes.PID != stBefore.PID {
 		t.Fatalf("upgraded PID = %d, want same PID %d", upRes.PID, stBefore.PID)
+	}
+	// Upgrade must have waited for the NEW exec'd process, not the old one.
+	if upRes.Generation != stBefore.Generation+1 {
+		t.Fatalf("upgraded Generation = %d, want %d", upRes.Generation, stBefore.Generation+1)
 	}
 	if upRes.MCPURL != stBefore.MCPURL {
 		t.Fatalf("upgraded MCPURL = %q, want unchanged %q", upRes.MCPURL, stBefore.MCPURL)

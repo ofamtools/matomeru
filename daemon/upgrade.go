@@ -31,6 +31,9 @@ type daemonHandoff struct {
 	Sessions  []ptyhost.HandoffSession  `json:"sessions,omitempty"`
 	Telemetry map[string]*PaneTelemetry `json:"telemetry,omitempty"`
 	Hooks     []HookRule                `json:"hooks,omitempty"`
+	// Generation is the exporting server's exec generation; the adopting
+	// process serves Generation+1 so clients can tell old from new.
+	Generation int `json:"generation,omitempty"`
 }
 
 // UpgradeResult describes a successful zero-downtime daemon exec upgrade.
@@ -40,6 +43,9 @@ type UpgradeResult struct {
 	Socket    string `json:"socket"`
 	MCPURL    string `json:"mcpURL,omitempty"`
 	PaneCount int    `json:"paneCount"`
+	// Generation is the exec generation of the daemon that answered after the
+	// upgrade (0 when the daemon predates the generation handshake).
+	Generation int `json:"generation,omitempty"`
 }
 
 func resolveUpgradeBinary(requested string) (string, error) {
@@ -137,6 +143,8 @@ func (s *Server) ExportHandoff() (handoffPath string, keepFiles []*os.File, pane
 		Sessions:  sessions,
 		Telemetry: tel,
 		Hooks:     s.callbacks.memoryRules(),
+
+		Generation: s.generation,
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

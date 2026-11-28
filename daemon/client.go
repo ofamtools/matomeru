@@ -20,6 +20,12 @@ const (
 	DefaultClientTimeout = 5 * time.Second
 	// DefaultEnsureTimeout bounds waiting for a newly launched daemon to answer.
 	DefaultEnsureTimeout = 5 * time.Second
+	// upgradeWaitTimeout bounds waiting for a re-exec'd daemon to answer with
+	// a new generation; generous because a cold (race-built) start is slow.
+	upgradeWaitTimeout = 15 * time.Second
+	// legacyUpgradeSettle is how long Upgrade lets a daemon without the
+	// generation handshake get past syscall.Exec before trusting Status.
+	legacyUpgradeSettle = 300 * time.Millisecond
 )
 
 // Client speaks the newline-delimited JSON RPC protocol to a local daemon over
@@ -181,6 +187,8 @@ func (c *Client) Status(ctx context.Context) (*StatusResult, error) {
 		Dirty:     resp.Dirty,
 		BuiltAt:   resp.BuiltAt,
 		Binary:    resp.Binary,
+
+		Generation: resp.Generation,
 	}, nil
 }
 
@@ -250,8 +258,11 @@ func (c *Client) Shutdown(ctx context.Context) error {
 }
 
 // Upgrade re-execs the running daemon binary in place without killing any live
-// PTY panes, child processes, or subagents, and waits until the upgraded daemon
-// responds to Status again.
+// PTY panes, child processes, or subagents, and waits until the NEW process
+// answers Status. The daemon acknowledges the request before it execs, so a
+// plain Status success can still come from the old process: Upgrade waits for
+// the exec generation to advance past the one that acknowledged. A daemon that
+// predates the handshake (generation 0) gets a short settle delay instead.
 func (c *Client) Upgrade(ctx context.Context, binary string) (*UpgradeResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -260,6 +271,7 @@ func (c *Client) Upgrade(ctx context.Context, binary string) (*UpgradeResult, er
 	if err != nil {
 		return nil, err
 	}
+	beforeGen := resp.Generation
 	res := &UpgradeResult{
 		PID:       resp.PID,
 		Binary:    binary,
@@ -267,21 +279,31 @@ func (c *Client) Upgrade(ctx context.Context, binary string) (*UpgradeResult, er
 		MCPURL:    resp.MCPURL,
 		PaneCount: resp.PaneCount,
 	}
-	// Wait briefly for the newly exec'd daemon to start accepting connections.
-	waitCtx, cancel := context.WithTimeout(ctx, DefaultEnsureTimeout)
+	waitCtx, cancel := context.WithTimeout(ctx, max(DefaultEnsureTimeout, upgradeWaitTimeout))
 	defer cancel()
+	settled := time.Now().Add(legacyUpgradeSettle)
 	backoff := 20 * time.Millisecond
+	var lastErr error
 	for {
-		if st, serr := c.Status(waitCtx); serr == nil {
+		st, serr := c.Status(waitCtx)
+		lastErr = serr
+		// A legacy daemon never reports a generation; after the settle delay
+		// its first Status success is the best signal there is.
+		legacyOK := beforeGen == 0 && !time.Now().Before(settled)
+		if serr == nil && (st.Generation > beforeGen || legacyOK) {
 			res.PID = st.PID
 			res.Socket = st.Socket
 			res.MCPURL = st.MCPURL
 			res.PaneCount = st.PaneCount
+			res.Generation = st.Generation
 			return res, nil
 		}
 		select {
 		case <-waitCtx.Done():
-			return res, nil
+			if lastErr != nil {
+				return nil, fmt.Errorf("daemon upgrade: upgraded daemon did not answer (generation %d): %w", beforeGen, lastErr)
+			}
+			return nil, fmt.Errorf("daemon upgrade: daemon still at generation %d after exec request: %w", beforeGen, waitCtx.Err())
 		case <-time.After(backoff):
 			if backoff < 100*time.Millisecond {
 				backoff += 20 * time.Millisecond
