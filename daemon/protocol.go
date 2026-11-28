@@ -143,6 +143,9 @@ type Response struct {
 	Dirty     bool    `json:"dirty,omitempty"`
 	BuiltAt   string  `json:"builtAt,omitempty"`
 	Binary    string  `json:"binary,omitempty"`
+	// Generation counts in-place exec upgrades of this daemon: 1 on a fresh
+	// start, +1 per upgrade, 0 from a daemon that predates the handshake.
+	Generation int `json:"generation,omitempty"`
 
 	// snapshot / subscribe
 	PaneID              string         `json:"paneId,omitempty"`
@@ -181,6 +184,8 @@ type StatusResult struct {
 	Dirty     bool    `json:"dirty,omitempty"`
 	BuiltAt   string  `json:"builtAt,omitempty"`
 	Binary    string  `json:"binary,omitempty"`
+	// Generation counts in-place exec upgrades (see Response.Generation).
+	Generation int `json:"generation,omitempty"`
 }
 
 // OpenRequest describes a PTY pane to launch inside the daemon.
