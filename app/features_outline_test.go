@@ -184,12 +184,16 @@ func TestFeaturesUnifiedInteractiveOutlineFeaturesConceptsViewsAndRawIdeas(t *te
 
 	// 7. Alternate view cycling (`)` / `(`) works on features.outline.tree.
 	d.Keys(")")
-	if got := a.outlineViewMode(featuresOutlineTree); got != OutlineViewActive {
-		t.Fatalf(") on features.outline.tree got %q, want %q", got, OutlineViewActive)
+	if got := a.outlineViewMode(featuresOutlineTree); got != OutlineViewHideFinal {
+		t.Fatalf(") on features.outline.tree got %q, want %q", got, OutlineViewHideFinal)
+	}
+	d.Keys(")")
+	if got := a.outlineViewMode(featuresOutlineTree); got != OutlineViewOnlyFinal {
+		t.Fatalf("second ) on features.outline.tree got %q, want %q", got, OutlineViewOnlyFinal)
 	}
 	d.Keys(")")
 	if got := a.outlineViewMode(featuresOutlineTree); got != OutlineViewAgentThreads {
-		t.Fatalf("second ) on features.outline.tree got %q, want %q", got, OutlineViewAgentThreads)
+		t.Fatalf("third ) on features.outline.tree got %q, want %q", got, OutlineViewAgentThreads)
 	}
 	rows := a.trees.featuresOutlineState().model.Flatten()
 	if !slices.ContainsFunc(rows, func(r tree.VisibleRow) bool { return r.ID == "featitem.highlight.0" }) {
@@ -197,7 +201,7 @@ func TestFeaturesUnifiedInteractiveOutlineFeaturesConceptsViewsAndRawIdeas(t *te
 	}
 	d.Keys(")")
 	if got := a.outlineViewMode(featuresOutlineTree); got != OutlineViewAll {
-		t.Fatalf("third ) did not wrap back to all: %q", got)
+		t.Fatalf("fourth ) did not wrap back to all: %q", got)
 	}
 
 	// 8. Open Concept record in Show (`E`).

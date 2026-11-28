@@ -6,14 +6,18 @@ import (
 	"strings"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
+	"ofam.dev/ochazuke/widgets/tree"
 )
 
 const (
-	OutlineViewAll          = "all"
-	OutlineViewActive       = "active"
+	OutlineViewAll          = string(data.FinalViewAll)
+	OutlineViewHideFinal    = string(data.FinalViewHideFinal)
+	OutlineViewOnlyFinal    = string(data.FinalViewOnlyFinal)
+	OutlineViewActive       = "active" // backward-compatible alias for hide-final
 	OutlineViewAgentThreads = "agent-threads"
 
 	CmdOutlineViewCycle = "outline.view.cycle"
@@ -29,35 +33,48 @@ type outlineViewSpec struct {
 
 var outlineViewSpecs = []outlineViewSpec{
 	{ID: OutlineViewAll, Label: "all"},
-	{ID: OutlineViewActive, Label: "active (no done)", Badge: "view: active (no done)", Tone: "accent"},
+	{ID: OutlineViewHideFinal, Label: "hide-final", Badge: "view: hide-final", Tone: "accent"},
+	{ID: OutlineViewOnlyFinal, Label: "only-final", Badge: "view: only-final", Tone: "warning"},
 	{ID: OutlineViewAgentThreads, Label: "agent threads", Badge: "view: agent threads", Tone: "info"},
 }
 
-var outlineViewOrder = []string{OutlineViewAll, OutlineViewActive, OutlineViewAgentThreads}
+var (
+	outlineViewOrderFull  = []string{OutlineViewAll, OutlineViewHideFinal, OutlineViewOnlyFinal, OutlineViewAgentThreads}
+	outlineViewOrderFinal = []string{OutlineViewAll, OutlineViewHideFinal, OutlineViewOnlyFinal}
+	outlineViewSetEnum    = []string{OutlineViewAll, OutlineViewHideFinal, OutlineViewOnlyFinal, OutlineViewActive, OutlineViewAgentThreads}
+)
 
-var doneOutlineStatuses = map[string]bool{
-	"done":      true,
-	"cancelled": true,
-	"canceled":  true,
-	"completed": true,
-	"merged":    true,
-	"closed":    true,
+var outlineViewPanelToTree = map[string]string{
+	projectOutlinePanel:  projectOutlineTree,
+	featuresCapturePanel: featuresCaptureTree,
+	featuresOutlinePanel: featuresOutlineTree,
+	"project.lanes":      projectLanesTree,
+	"project.panes":      projectPanesTree,
+}
+
+var outlineViewTreeKinds = map[string]string{
+	outlineTree:         data.KindTask,
+	projectOutlineTree:  data.KindTask,
+	featuresCaptureTree: data.KindTask,
+	featuresOutlineTree: data.KindTask,
+	projectLanesTree:    data.KindLane,
+	projectPanesTree:    data.KindPane,
 }
 
 func outlineViewCommandSpecs() []core.CommandSpec {
 	return []core.CommandSpec{
 		{
 			ID:          CmdOutlineViewCycle,
-			Description: "Cycle the active outline view mode (all, active / no done, agent threads)",
+			Description: "Cycle the active tree or outline view mode (all, hide-final, only-final, agent-threads)",
 			Params: []core.ParamSpec{
 				{Name: "dir", Type: core.ParamString, Enum: []string{"next", "prev"}, Default: "next", Description: "Cycle direction"},
 			},
 		},
 		{
 			ID:          CmdOutlineViewSet,
-			Description: "Set the active outline view mode directly",
+			Description: "Set the active tree or outline view mode directly (active is accepted as an alias for hide-final)",
 			Params: []core.ParamSpec{
-				{Name: "view", Type: core.ParamString, Enum: outlineViewOrder, Default: OutlineViewAll, Description: "Outline view mode"},
+				{Name: "view", Type: core.ParamString, Enum: outlineViewSetEnum, Default: OutlineViewAll, Description: "Tree or outline view mode"},
 			},
 		},
 	}
@@ -68,7 +85,32 @@ func (a *App) registerOutlineViewHandlers() {
 	a.handle(CmdOutlineViewSet, a.outlineViewSetCmd)
 }
 
+func normalizeOutlineViewMode(raw string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case OutlineViewAll, "":
+		return OutlineViewAll, true
+	case OutlineViewHideFinal, OutlineViewActive:
+		return OutlineViewHideFinal, true
+	case OutlineViewOnlyFinal, "final", "finished":
+		return OutlineViewOnlyFinal, true
+	case OutlineViewAgentThreads:
+		return OutlineViewAgentThreads, true
+	default:
+		return "", false
+	}
+}
+
+func outlineViewOrderForSchema(schema data.Schema) []string {
+	if _, hasAgentQueue := schema.Field("forAgent"); hasAgentQueue {
+		return outlineViewOrderFull
+	}
+	return outlineViewOrderFinal
+}
+
 func lookupOutlineViewSpec(mode string) outlineViewSpec {
+	if norm, ok := normalizeOutlineViewMode(mode); ok {
+		mode = norm
+	}
 	for _, sp := range outlineViewSpecs {
 		if sp.ID == mode {
 			return sp
@@ -81,7 +123,7 @@ func (a *App) outlineViewMode(treeID string) string {
 	if a == nil || a.trees == nil || len(a.trees.outlineViews) == 0 {
 		return OutlineViewAll
 	}
-	if mode := a.trees.outlineViews[treeID]; slices.Contains(outlineViewOrder, mode) {
+	if mode, ok := normalizeOutlineViewMode(a.trees.outlineViews[treeID]); ok {
 		return mode
 	}
 	return OutlineViewAll
@@ -91,116 +133,103 @@ func (a *App) setOutlineViewMode(treeID, mode string) {
 	if a == nil || a.trees == nil || treeID == "" {
 		return
 	}
-	if !slices.Contains(outlineViewOrder, mode) {
-		mode = OutlineViewAll
+	norm, ok := normalizeOutlineViewMode(mode)
+	if !ok {
+		norm = OutlineViewAll
 	}
 	if a.trees.outlineViews == nil {
 		a.trees.outlineViews = map[string]string{}
 	}
-	if mode == OutlineViewAll {
+	if norm == OutlineViewAll {
 		delete(a.trees.outlineViews, treeID)
 	} else {
-		a.trees.outlineViews[treeID] = mode
+		a.trees.outlineViews[treeID] = norm
 	}
 	clear(a.trees.syncCache)
 	a.viewMemo.gen++
 }
 
 func (a *App) cycleOutlineView(s core.State, treeID string, dir int) core.StepResult {
+	kind := outlineViewTreeKinds[normalizeOutlineViewTreeID(treeID)]
+	if kind == "" {
+		kind = data.KindTask
+	}
+	return a.cycleOutlineViewForSchema(s, treeID, a.schema(kind), dir)
+}
+
+func (a *App) cycleOutlineViewForSchema(s core.State, treeID string, schema data.Schema, dir int) core.StepResult {
+	order := outlineViewOrderForSchema(schema)
 	cur := a.outlineViewMode(treeID)
-	next, _ := traits.Cycle(outlineViewOrder, cur, dir, true)
+	if !slices.Contains(order, cur) {
+		cur = OutlineViewAll
+	}
+	next, _ := traits.Cycle(order, cur, dir, true)
 	a.setOutlineViewMode(treeID, next)
 	sp := lookupOutlineViewSpec(next)
-	idx := slices.Index(outlineViewOrder, next) + 1
-	a.say("outline view: %s (%d/%d) · ( / ) cycles", sp.Label, idx, len(outlineViewOrder))
+	idx := slices.Index(order, next) + 1
+	a.say("view: %s (%d/%d) · ( / ) cycles", sp.Label, idx, len(order))
 	return core.Next(s)
 }
 
 func (a *App) stdCycleOutlineView(ctx standardVerbContext, nd *ui.ViewNode) (core.StepResult, bool) {
-	treeID := a.resolveOutlineCycleTreeID(ctx, nd)
+	treeID, schema := a.resolveOutlineCycleTarget(ctx, nd)
 	if treeID == "" {
 		return core.StepResult{}, false
 	}
-	return a.cycleOutlineView(ctx.state, treeID, ctx.dir), true
+	return a.cycleOutlineViewForSchema(ctx.state, treeID, schema, ctx.dir), true
 }
 
-func (a *App) resolveOutlineCycleTreeID(ctx standardVerbContext, nd *ui.ViewNode) string {
+func (a *App) resolveOutlineCycleTarget(ctx standardVerbContext, nd *ui.ViewNode) (string, data.Schema) {
 	if a.activeOutline() != nil {
-		return outlineTree
+		return outlineTree, a.schema(data.KindTask)
 	}
 	if nd != nil {
-		switch nd.ID {
-		case outlineTree, projectOutlineTree, projectOutlinePanel, featuresCaptureTree, featuresCapturePanel, featuresOutlineTree, featuresOutlinePanel:
-			return normalizeOutlineViewTreeID(nd.ID)
+		id := normalizeOutlineViewTreeID(nd.ID)
+		if kind, ok := outlineViewTreeKinds[id]; ok {
+			return id, a.schema(kind)
 		}
 	}
-	if _, _, treeID, _, ok := a.activeTree(ctx.state); ok {
-		return treeID
+	if _, kind, treeID, _, ok := a.activeTree(ctx.state); ok {
+		return treeID, a.schema(kind)
 	}
-	return ""
+	return "", data.Schema{}
+}
+
+func (a *App) resolveOutlineCmdTarget(s core.State) (string, data.Schema) {
+	if _, kind, treeID, _, ok := a.activeTree(s); ok {
+		return treeID, a.schema(kind)
+	}
+	focusID := normalizeOutlineViewTreeID(s.ActiveFrame().FocusID)
+	if kind, ok := outlineViewTreeKinds[focusID]; ok {
+		return focusID, a.schema(kind)
+	}
+	return outlineTree, a.schema(data.KindTask)
 }
 
 func normalizeOutlineViewTreeID(id string) string {
-	switch id {
-	case projectOutlinePanel:
-		return projectOutlineTree
-	case featuresCapturePanel:
-		return featuresCaptureTree
-	case featuresOutlinePanel:
-		return featuresOutlineTree
-	default:
-		return id
+	if mapped, ok := outlineViewPanelToTree[id]; ok {
+		return mapped
 	}
+	return id
 }
 
 func (a *App) outlineViewCycleCmd(s core.State, c core.Command) core.StepResult {
-	_, _, treeID, _, ok := a.activeTree(s)
-	if !ok {
-		treeID = outlineTree
-	}
-	return a.cycleOutlineView(s, treeID, parseCycleDir(c.Args))
+	treeID, schema := a.resolveOutlineCmdTarget(s)
+	return a.cycleOutlineViewForSchema(s, treeID, schema, parseCycleDir(c.Args))
 }
 
 func (a *App) outlineViewSetCmd(s core.State, c core.Command) core.StepResult {
-	_, _, treeID, _, ok := a.activeTree(s)
-	if !ok {
-		treeID = outlineTree
-	}
-	mode := strings.TrimSpace(c.Arg("view"))
-	if !slices.Contains(outlineViewOrder, mode) {
-		a.say("unknown outline view %q (use all, active, or agent-threads)", mode)
+	treeID, schema := a.resolveOutlineCmdTarget(s)
+	raw := strings.TrimSpace(c.Arg("view"))
+	mode, ok := normalizeOutlineViewMode(raw)
+	if !ok || !slices.Contains(outlineViewOrderForSchema(schema), mode) {
+		a.say("unknown view %q (use all, hide-final, only-final, or agent-threads)", raw)
 		return core.Next(s)
 	}
 	a.setOutlineViewMode(treeID, mode)
 	sp := lookupOutlineViewSpec(mode)
-	a.say("outline view: %s", sp.Label)
+	a.say("view: %s", sp.Label)
 	return core.Next(s)
-}
-
-func isRecordDone(schema data.Schema, rec data.Record) bool {
-	status := strings.ToLower(strings.TrimSpace(outlinePrimaryStatus(schema, rec)))
-	if doneOutlineStatuses[status] {
-		return true
-	}
-	for _, field := range []string{"workStatus", "laneStatus", "runStatus"} {
-		if doneOutlineStatuses[strings.ToLower(strings.TrimSpace(rec.Text(field)))] {
-			return true
-		}
-	}
-	return false
-}
-
-func filterActiveTreeNodes(schema data.Schema, nodes []data.TreeNode) []data.TreeNode {
-	var out []data.TreeNode
-	for _, nd := range nodes {
-		if isRecordDone(schema, nd.Record) {
-			continue
-		}
-		cp := nd
-		cp.Children = filterActiveTreeNodes(schema, nd.Children)
-		out = append(out, cp)
-	}
-	return out
 }
 
 func isAgentThreadRecord(rec data.Record, threads map[string][]data.Record) bool {
@@ -211,48 +240,101 @@ func isAgentThreadRecord(rec data.Record, threads map[string][]data.Record) bool
 	return st != "" && st != data.AgentStatusNone
 }
 
-func filterAgentThreadTreeNodes(nodes []data.TreeNode, threads map[string][]data.Record) []data.TreeNode {
-	var out []data.TreeNode
-	for _, nd := range nodes {
-		kids := filterAgentThreadTreeNodes(nd.Children, threads)
-		if isAgentThreadRecord(nd.Record, threads) || len(kids) > 0 {
-			cp := nd
-			cp.Children = kids
-			out = append(out, cp)
-		}
-	}
-	return out
-}
-
-func (a *App) applyOutlineViewMode(nodes []data.TreeNode, kind, treeID string) []data.TreeNode {
-	mode := a.outlineViewMode(treeID)
+func (a *App) filterOutlineNodes(nodes []data.TreeNode, schema data.Schema, mode string) []data.FilteredTreeNode {
 	switch mode {
-	case OutlineViewActive:
-		return filterActiveTreeNodes(a.schema(kind), nodes)
+	case OutlineViewHideFinal:
+		return data.FilterTreeByFinalState(nodes, schema, data.FinalViewHideFinal)
+	case OutlineViewOnlyFinal:
+		return data.FilterTreeByFinalState(nodes, schema, data.FinalViewOnlyFinal)
 	case OutlineViewAgentThreads:
 		threads, _ := a.taskNoteThreads()
-		return filterAgentThreadTreeNodes(nodes, threads)
+		return data.FilterTreeByPredicate(nodes, func(rec data.Record) bool {
+			return isAgentThreadRecord(rec, threads)
+		})
 	default:
-		return nodes
+		return data.TreeNodesToFiltered(nodes)
 	}
 }
 
-func (a *App) applyOutlineViewToProjectRoot(nodes []data.TreeNode, kind, treeID string) []data.TreeNode {
+func (a *App) recordMatchesOutlineView(schema data.Schema, rec data.Record, mode string) bool {
+	switch mode {
+	case OutlineViewHideFinal:
+		return !data.IsFinalRecord(schema, rec)
+	case OutlineViewOnlyFinal:
+		return data.IsFinalRecord(schema, rec)
+	case OutlineViewAgentThreads:
+		threads, _ := a.taskNoteThreads()
+		return isAgentThreadRecord(rec, threads)
+	default:
+		return true
+	}
+}
+
+func (a *App) filterViewStyleOptions(mode, recordScope string) views.FilterViewStyleOptions {
+	return views.FilterViewStyleOptions{
+		Filtered:            mode != OutlineViewAll,
+		DimAncestors:        a.finalViewDimAncestorsEnabled(),
+		PromoteFinalMatches: mode == OutlineViewOnlyFinal,
+		RecordScope:         recordScope,
+	}
+}
+
+func (a *App) buildFilteredTreeNodes(schema data.Schema, kind, treeID string, raw []data.TreeNode) ([]data.TreeNode, []tree.Node, views.TreeOptions) {
 	mode := a.outlineViewMode(treeID)
-	if mode == OutlineViewAll || len(nodes) == 0 {
-		return nodes
+	filtered := a.filterOutlineNodes(raw, schema, mode)
+	plain := data.FilteredToTreeNodes(filtered)
+	builtNodes, opts := a.buildTreeNodes(schema, kind, plain)
+	if mode != OutlineViewAll {
+		views.ApplyFilterViewStyling(builtNodes, data.CollectContextOnlyIDs(filtered), a.filterViewStyleOptions(mode, schema.Kind))
 	}
-	out := slices.Clone(nodes)
-	out[0].Children = a.applyOutlineViewMode(out[0].Children, kind, treeID)
-	return out
+	return plain, builtNodes, opts
 }
 
-func (a *App) outlineViewBadges(treeID string) []ui.Badge {
-	sp := lookupOutlineViewSpec(a.outlineViewMode(treeID))
+func (a *App) buildProjectFilteredTreeNodes(schema data.Schema, kind, treeID string, rootNodes []data.TreeNode) ([]data.TreeNode, []tree.Node, views.TreeOptions) {
+	mode := a.outlineViewMode(treeID)
+	if mode == OutlineViewAll || len(rootNodes) == 0 {
+		builtNodes, opts := a.buildTreeNodes(schema, kind, rootNodes)
+		return rootNodes, builtNodes, opts
+	}
+	root := rootNodes[0]
+	filteredKids := a.filterOutlineNodes(root.Children, schema, mode)
+	wrapped := []data.FilteredTreeNode{{
+		Record:      root.Record,
+		Depth:       root.Depth,
+		ContextOnly: !a.recordMatchesOutlineView(schema, root.Record, mode),
+		Children:    filteredKids,
+	}}
+	plain := data.FilteredToTreeNodes(wrapped)
+	builtNodes, opts := a.buildTreeNodes(schema, kind, plain)
+	views.ApplyFilterViewStyling(builtNodes, data.CollectContextOnlyIDs(wrapped), a.filterViewStyleOptions(mode, schema.Kind))
+	return plain, builtNodes, opts
+}
+
+func (a *App) buildProjectSectionFilteredTree(schema data.Schema, treeID string, nodes []data.TreeNode, opts views.TreeOptions) *tree.Model {
+	mode := a.outlineViewMode(treeID)
+	if mode == OutlineViewAll {
+		return views.TreeFromNodes(schema, nodes, opts)
+	}
+	filtered := a.filterOutlineNodes(nodes, schema, mode)
+	return views.TreeFromFilteredNodes(schema, filtered, opts, a.filterViewStyleOptions(mode, schema.Kind))
+}
+
+func (a *App) outlineViewBadgesFor(treeID string, tm *tree.Model) []ui.Badge {
+	mode := a.outlineViewMode(treeID)
+	sp := lookupOutlineViewSpec(mode)
 	if sp.Badge == "" {
 		return nil
 	}
-	return []ui.Badge{{Text: sp.Badge, Tone: sp.Tone}}
+	badges := []ui.Badge{{Text: sp.Badge, Tone: sp.Tone}}
+	if tm != nil {
+		matched, total := views.CountTreeFilterMatches(tm)
+		if total > matched {
+			badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d matched · %d ctx", matched, total-matched), Tone: "muted"})
+		} else {
+			badges = append(badges, ui.Badge{Text: fmt.Sprintf("%d matched", matched), Tone: "muted"})
+		}
+	}
+	return badges
 }
 
 func (a *App) applyOutlineViewFacts(panel *ui.ViewNode, treeID string) {
@@ -277,5 +359,5 @@ func (a *App) outlineViewSyncSuffix(treeID string) string {
 	if mode == OutlineViewAll {
 		return ""
 	}
-	return fmt.Sprintf("|view:%s", mode)
+	return fmt.Sprintf("|view:%s|dim:%v", mode, a.finalViewDimAncestorsEnabled())
 }

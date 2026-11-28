@@ -145,12 +145,12 @@ func (a *App) syncProjectTaskTree(tm *tree.Model, projectID, treeID string) (dat
 	}
 	a.initTreeFoldState(data.KindTask, allNodes)
 
-	var nodes []data.TreeNode
+	var rootNodes []data.TreeNode
 	if projNode, ok := findProjectTreeNode(allNodes, projectID); ok {
-		nodes = a.applyOutlineViewToProjectRoot([]data.TreeNode{projNode}, data.KindTask, treeID)
+		rootNodes = []data.TreeNode{projNode}
 	}
 
-	builtNodes, opts := a.buildTreeNodes(schema, data.KindTask, nodes)
+	nodes, builtNodes, opts := a.buildProjectFilteredTreeNodes(schema, data.KindTask, treeID, rootNodes)
 
 	prevSelected := tm.SelectedID
 	tm.DefaultFolded = false
@@ -206,7 +206,7 @@ func (a *App) projectOutlineView(s *core.State, projectID string) ui.ViewNode {
 	schema, _ := a.syncProjectTaskTree(tm, projectID, projectOutlineTree)
 	a.registerTreeFilterable(projectOutlineTree, tm)
 
-	extra := a.outlineViewBadges(projectOutlineTree)
+	extra := a.outlineViewBadgesFor(projectOutlineTree, tm)
 	if a.nav.showArchived {
 		extra = append(extra, ui.Badge{Text: "archived", Tone: "muted"})
 	}

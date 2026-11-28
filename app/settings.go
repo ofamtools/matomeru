@@ -272,6 +272,7 @@ const (
 	SetOutlineRescoping                = "ui.outlineRescoping"
 	SetShowLegacyPanesWorkPages        = "ui.showLegacyPanesWorkPages"
 	SetPageHydrateRefCards             = "pages.hydrateRefCards"
+	SetFinalViewDimAncestors           = "ui.finalViewDimAncestors"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -484,6 +485,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetShowLegacyPanesWorkPages, false, "show legacy Panes and Work spaces in the top navigation bar (off hides them from default chrome; still reachable via commands/palette)"),
 		flag(SetPageHydrateRefCards, true, "hydrate noun/record reference cards inside ui.page views with live store data (off: render raw fallback cards)"),
 		flag(SetBuiltinCustomActions, true, "include built-in parameterized custom action recipes (Google Search, MTM Web Viewer, g U Upgrade Preview) in the Custom Actions picker (g a)"),
+		flag(SetFinalViewDimAncestors, true, "dim non-matching ancestor rows kept as hierarchy scaffolding in hide-final and only-final views"),
 	}
 }
 

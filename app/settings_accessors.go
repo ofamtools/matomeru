@@ -325,3 +325,7 @@ func (a *App) projectsHomeCardMaxHeight() int {
 	}
 	return defaultHomeCardMaxHeight
 }
+
+func (a *App) finalViewDimAncestorsEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFinalViewDimAncestors, true)
+}

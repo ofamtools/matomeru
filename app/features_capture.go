@@ -358,7 +358,7 @@ func (a *App) featuresCaptureNode(wishlistRoot *data.Record) ui.ViewNode {
 	a.registerTreeFilterable(featuresCaptureTree, tm)
 	csActive := a.isCleanSlateActive(data.KindTask, featuresCaptureTree)
 
-	extra := a.outlineViewBadges(featuresCaptureTree)
+	extra := a.outlineViewBadgesFor(featuresCaptureTree, tm)
 	if csActive {
 		extra = append(extra, ui.Badge{Text: "clean slate", Tone: "accent"})
 	}

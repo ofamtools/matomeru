@@ -150,6 +150,10 @@ func newStandardVerbRegistry() standardVerbRegistry {
 				featuresCapturePanel:         (*App).stdCycleOutlineView,
 				featuresOutlineTree:          (*App).stdCycleOutlineView,
 				featuresOutlinePanel:         (*App).stdCycleOutlineView,
+				projectLanesTree:             (*App).stdCycleOutlineView,
+				"project.lanes":              (*App).stdCycleOutlineView,
+				projectPanesTree:             (*App).stdCycleOutlineView,
+				"project.panes":              (*App).stdCycleOutlineView,
 			},
 			byScope: map[string]standardVerbHandler{
 				ScopeRail:             (*App).stdCycleRail,

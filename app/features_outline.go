@@ -563,8 +563,7 @@ func (b *featuresOutlineBuilder) buildIdeasSection() tree.Node {
 			}
 		}
 	}
-	rootIdeas = b.a.applyOutlineViewMode(rootIdeas, data.KindTask, featuresOutlineTree)
-	built, _ := b.a.buildTreeNodes(b.taskSchema, data.KindTask, rootIdeas)
+	_, built, _ := b.a.buildFilteredTreeNodes(b.taskSchema, data.KindTask, featuresOutlineTree, rootIdeas)
 	for _, nd := range built {
 		b.registerTaskSubtreeMeta(nd)
 	}
@@ -600,45 +599,51 @@ func (b *featuresOutlineBuilder) buildCleanSlateNodes(cs *cleanSlateState) []tre
 	return built
 }
 
-func filterFeaturesOutlineNodesByView(nodes []tree.Node, mode string) []tree.Node {
+func featuresOutlineNodeIsFinal(nd tree.Node) bool {
+	if arch, _ := nd.Facts[data.ColArchiveStatus].(string); arch == data.ArchiveArchived {
+		return true
+	}
+	for _, key := range []string{"status", "workStatus", "laneStatus", "runStatus"} {
+		if st, _ := nd.Facts[key].(string); data.IsTerminalStatusName(st) {
+			return true
+		}
+	}
+	return false
+}
+
+func featuresOutlineNodeMatches(nd tree.Node, mode string) bool {
+	if matched, has := nd.Facts[views.FactMatchesViewFilter].(bool); has {
+		return matched
+	}
+	switch mode {
+	case OutlineViewHideFinal:
+		return !featuresOutlineNodeIsFinal(nd)
+	case OutlineViewOnlyFinal:
+		return featuresOutlineNodeIsFinal(nd)
+	case OutlineViewAgentThreads:
+		return nd.Facts["hasNotes"] == true || nd.Facts["forAgent"] == true || nd.Facts["isFeatureComment"] == true
+	default:
+		return true
+	}
+}
+
+func filterFeaturesOutlineNodesByView(nodes []tree.Node, mode string, styleOpts views.FilterViewStyleOptions) []tree.Node {
 	if mode == OutlineViewAll {
 		return nodes
 	}
 	var out []tree.Node
 	for _, nd := range nodes {
-		kids := filterFeaturesOutlineNodesByView(nd.Children, mode)
-		if keepFeaturesOutlineNode(nd, mode, len(kids) > 0) {
-			cp := nd
-			cp.Children = kids
-			out = append(out, cp)
+		kids := filterFeaturesOutlineNodesByView(nd.Children, mode, styleOpts)
+		selfMatch := featuresOutlineNodeMatches(nd, mode)
+		if !selfMatch && len(kids) == 0 {
+			continue
 		}
+		cp := nd
+		cp.Children = kids
+		views.StyleFilteredTreeNode(&cp, !selfMatch, styleOpts)
+		out = append(out, cp)
 	}
 	return out
-}
-
-func keepFeaturesOutlineNode(nd tree.Node, mode string, hasKeptChild bool) bool {
-	if mode == OutlineViewActive {
-		if st, _ := nd.Facts["status"].(string); doneOutlineStatuses[strings.ToLower(strings.TrimSpace(st))] {
-			return false
-		}
-		if st, _ := nd.Facts["workStatus"].(string); doneOutlineStatuses[strings.ToLower(strings.TrimSpace(st))] {
-			return false
-		}
-		return true
-	}
-	if mode == OutlineViewAgentThreads {
-		if hasNotes, _ := nd.Facts["hasNotes"].(bool); hasNotes {
-			return true
-		}
-		if forAgent, _ := nd.Facts["forAgent"].(bool); forAgent {
-			return true
-		}
-		if isComment, _ := nd.Facts["isFeatureComment"].(bool); isComment {
-			return true
-		}
-		return hasKeptChild
-	}
-	return true
 }
 
 func (a *App) syncFeaturesOutlineTree(snap featuresSnapshot, activeKey string, detail views.FeaturesDetailSpec) *tree.Model {
@@ -673,7 +678,7 @@ func (a *App) syncFeaturesOutlineTree(snap featuresSnapshot, activeKey string, d
 		roots = b.buildCleanSlateNodes(&fo.cleanSlate)
 	} else {
 		roots = b.buildFullOutlineRoots()
-		roots = filterFeaturesOutlineNodesByView(roots, b.viewMode)
+		roots = filterFeaturesOutlineNodesByView(roots, b.viewMode, a.filterViewStyleOptions(b.viewMode, ""))
 	}
 
 	if fo.folded[activeKey] == nil {
@@ -789,7 +794,7 @@ func (a *App) featuresOutlineNode(snap featuresSnapshot, activeKey string, detai
 	a.registerTreeFilterable(featuresOutlineTree, tm)
 	fo := a.trees.featuresOutlineState()
 
-	extra := a.outlineViewBadges(featuresOutlineTree)
+	extra := a.outlineViewBadgesFor(featuresOutlineTree, tm)
 	if fo.cleanSlate.active {
 		extra = append(extra, ui.Badge{Text: "clean slate", Tone: "accent"})
 	}
