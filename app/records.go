@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -199,27 +198,7 @@ func (a *App) restoreRecord(s core.State, c core.Command) core.StepResult {
 
 func (a *App) undo(redo bool) func(core.State, core.Command) core.StepResult {
 	return func(s core.State, _ core.Command) core.StepResult {
-		do, word := a.Store.UndoLast, "undid"
-		if redo {
-			do, word = a.Store.RedoLast, "redid"
-		}
-		cs, err := do(User)
-		switch {
-		case errors.Is(err, data.ErrNotFound):
-			a.say("nothing to %s", map[bool]string{false: "undo", true: "redo"}[redo])
-		case err != nil:
-			a.fail(word, err)
-		case cs == nil:
-			a.say("%s: nothing left to change", word)
-		default:
-			a.say("%s", strings.Replace(cs.Summary, cs.Action, word, 1))
-			if n := len(cs.Conflicts); n > 0 {
-				a.say("%s · %s", a.status, cs.Conflicts[0].Message)
-			}
-		}
-		a.reconcileArchiveAnims()
-		a.reloadForm()
-		return core.Next(s)
+		return a.contextualUndo(s, redo)
 	}
 }
 

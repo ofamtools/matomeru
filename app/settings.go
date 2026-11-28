@@ -274,6 +274,7 @@ const (
 	SetPageHydrateRefCards             = "pages.hydrateRefCards"
 	SetFinalViewDimAncestors           = "ui.finalViewDimAncestors"
 	SetOpenShowInTab                   = "ui.openShowInTab"
+	SetContextualUndo                  = "ui.contextualUndo"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -488,6 +489,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetBuiltinCustomActions, true, "include built-in parameterized custom action recipes (Google Search, MTM Web Viewer, g U Upgrade Preview) in the Custom Actions picker (g a)"),
 		flag(SetFinalViewDimAncestors, true, "dim non-matching ancestor rows kept as hierarchy scaffolding in hide-final and only-final views"),
 		flag(SetOpenShowInTab, true, "open full-page Show views in a new closable top-chrome tab (q closes back to previous page; off reuses 2 Work)"),
+		flag(SetContextualUndo, true, "scope undo (u) and redo (ctrl+r) to the current screen and region instead of undoing edits from pages you left"),
 	}
 }
 

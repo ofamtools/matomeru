@@ -142,8 +142,9 @@ func TestNewNoteIsAboutTheFocusedRecord(t *testing.T) {
 	if shown, _ := a.Showing(); shown != task.Ref() || root.Find("show.sec.note.task."+data.RefText(note.Ref())) == nil {
 		t.Fatalf("Show page of %v does not list the note", shown)
 	}
-	// One undo removes the relation, the next the note.
-	d.Keys("u", "u")
+	// Close the Show view tab back to 2 Work (where the note was created), then
+	// one contextual undo removes the relation and the next removes the note.
+	d.Keys("q", "u", "u")
 	if _, err := a.Store.Get(note.Ref()); err == nil {
 		t.Fatal("two undos left the note")
 	}

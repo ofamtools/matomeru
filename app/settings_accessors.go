@@ -329,3 +329,11 @@ func (a *App) projectsHomeCardMaxHeight() int {
 func (a *App) finalViewDimAncestorsEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetFinalViewDimAncestors, true)
 }
+
+// contextualUndoEnabled reports whether undo/redo are scoped to the current screen and region.
+func (a *App) contextualUndoEnabled() bool {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return true
+	}
+	return a.cfg.Settings.Bool(SetContextualUndo, true)
+}
