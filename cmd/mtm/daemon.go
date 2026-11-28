@@ -63,6 +63,9 @@ func mtmAgentCommand() oden.Command {
 				},
 			},
 			mtmAgentWaitCommand(),
+			mtmAgentProfilesCommand(),
+			mtmAgentSegmentsCommand(),
+			mtmAgentComposeCommand(),
 		},
 	}
 }

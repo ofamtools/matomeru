@@ -45,6 +45,7 @@ func Tools(router *Router, dataTools *DataTools) []ToolSpec {
 	out = append(out, NewPaneTools(nil).ToolSpecs()...)
 	out = append(out, NewMailTools(nil).ToolSpecs()...)
 	out = append(out, NewClipboardTools(nil).ToolSpecs()...)
+	out = append(out, (&AgentProfileTools{}).ToolSpecs()...)
 	out = append(out, NewTaskTools(nil).ToolSpecs()...)
 	return append(out, NewContextTools(nil).ToolSpecs()...)
 }
@@ -62,6 +63,7 @@ type Toolbox struct {
 	Panes      *PaneTools
 	Mail       *MailTools
 	Clipboard  *ClipboardTools
+	Agents     *AgentProfileTools
 	Tasks      *TaskTools
 	Context    *ContextTools
 	Getenv     func(string) string
@@ -86,6 +88,7 @@ func NewToolbox(store *data.Store, router *Router) *Toolbox {
 		Panes:      panes,
 		Mail:       mail,
 		Clipboard:  NewClipboardTools(store),
+		Agents:     &AgentProfileTools{},
 		Tasks:      NewTaskTools(store),
 		Context:    NewContextTools(store),
 	}
@@ -109,6 +112,9 @@ func (b *Toolbox) ToolSpecs() []ToolSpec {
 	}
 	if b.Clipboard != nil {
 		out = append(out, b.Clipboard.ToolSpecs()...)
+	}
+	if b.Agents != nil {
+		out = append(out, b.Agents.ToolSpecs()...)
 	}
 	if b.Tasks != nil {
 		out = append(out, b.Tasks.ToolSpecs()...)
@@ -252,6 +258,10 @@ func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw j
 		clips := *b.Clipboard
 		clips.Getenv = getenv
 		return clips.Call(actor, name, raw)
+	case b.Agents != nil && b.Agents.HasTool(name):
+		agents := *b.Agents
+		agents.Getenv = getenv
+		return agents.Call(name, raw)
 	case b.Tasks != nil && b.Tasks.HasTool(name):
 		return b.Tasks.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
 	case b.Context != nil && b.Context.HasTool(name):
