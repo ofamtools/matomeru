@@ -2,13 +2,11 @@ package app
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 
 	"ofam.dev/matomeru/data"
-	"ofam.dev/matomeru/handlers"
 	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/views"
 	"ofam.dev/ochazuke/core"
@@ -829,25 +827,6 @@ func tableRowValues(node *ui.ViewNode, rowIdx int) ([]string, []string) {
 		}
 	}
 	return cols, vals
-}
-
-func (a *App) openCanvasURL(s core.State, href string) core.State {
-	target := strings.TrimSpace(href)
-	if target == "" {
-		return s
-	}
-	if !handlers.IsURL(target) {
-		target = expandHome(target)
-	}
-	rules := a.cfg.Handlers.Match(target)
-	if len(rules) == 0 {
-		a.say("no handler opens %s", target)
-		return s
-	}
-	if rules[0].Kind == handlers.KindBuiltin && rules[0].Name == handlers.MarkdownReader {
-		return a.openReader(s, openTarget{path: target, title: filepath.Base(target)})
-	}
-	return a.runHandler(s, rules[0], openTarget{path: target, title: target})
 }
 
 func (a *App) canvasActivate(s core.State, c core.Command) core.StepResult {

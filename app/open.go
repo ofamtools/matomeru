@@ -37,6 +37,7 @@ type openTarget struct {
 	body  string    // Markdown kept in the record itself
 	from  *core.Ref // the record it came from
 	rules []handlers.Rule
+	link  markdownLinkLocation
 }
 
 // loadHandlers reads the user's handlers.json over the default rules.
@@ -234,14 +235,14 @@ func (a *App) runHandler(s core.State, rule handlers.Rule, t openTarget) core.St
 		if !needPath() {
 			return s
 		}
-		return a.startShell(s, rule.Name+" "+base, rule.CommandLine(t.path), filepath.Dir(t.path))
+		return a.startShell(s, rule.Name+" "+base, rule.CommandLine(t.path+t.link.suffix), filepath.Dir(t.path))
 	}
 	if rule.Kind == handlers.KindExec {
 		if !needPath() {
 			return s
 		}
 		// A tool with a screen of its own: it gets a pane.
-		return a.newPane(s, t.from, rule.Name+": "+base, rule.CommandLine(t.path), filepath.Dir(t.path), data.RoleNormal)
+		return a.newPane(s, t.from, rule.Name+": "+base, rule.CommandLine(t.path+t.link.suffix), filepath.Dir(t.path), data.RoleNormal)
 	}
 	switch rule.Name {
 	case handlers.MarkdownReader:
@@ -250,7 +251,7 @@ func (a *App) runHandler(s core.State, rule handlers.Rule, t openTarget) core.St
 		if !needPath() {
 			return s
 		}
-		return a.newPane(s, t.from, "vim: "+base, editorCommand()+" "+handlers.Quote(t.path), filepath.Dir(t.path), data.RoleSideVim)
+		return a.newPane(s, t.from, "vim: "+base, editorCommand()+t.link.editorArgs(t.path), filepath.Dir(t.path), data.RoleSideVim)
 	case handlers.PathPicker:
 		s, _ = a.modals.Close(s, "openwith", modal.CloseSubmit)
 		return a.openPath(s, "", t.from, t.path)
@@ -263,7 +264,7 @@ func (a *App) runHandler(s core.State, rule handlers.Rule, t openTarget) core.St
 		if !needPath() {
 			return s
 		}
-		return a.startShell(s, "open "+t.path, systemOpener()+" "+handlers.Quote(t.path), "")
+		return a.startShell(s, "open "+t.path, systemOpener()+" "+handlers.Quote(t.path+t.link.suffix), "")
 	}
 	a.say("no handler is named %s · the built-in ones are %s", rule.Name,
 		strings.Join([]string{handlers.MarkdownReader, handlers.SideVim, handlers.PathPicker, handlers.NewPane, handlers.SystemOpen}, ", "))
@@ -355,6 +356,7 @@ func (a *App) openReader(s core.State, t openTarget) core.State {
 	}
 	md := markdown.New(title, source)
 	md.ShowTOC = len(md.Headings) > 1
+	t.link.reveal(md)
 	var rm *modal.MarkdownModal
 	rm = modal.NewMarkdownModal(md, modal.MarkdownOptions{
 		ID:              "reader",
@@ -366,7 +368,7 @@ func (a *App) openReader(s core.State, t openTarget) core.State {
 		HeightPct:       90,
 		ShowStatsBadges: true,
 		OnOpenLink: func(href string) modal.Result {
-			return a.followLink(rm, href)
+			return a.followLink(rm, t.from, href)
 		},
 		OnYankCode: func(code string) modal.Result {
 			a.yank(code, "code block")
@@ -419,52 +421,4 @@ func jumpToAnchor(md *markdown.Model, frag string) bool {
 		}
 	}
 	return false
-}
-
-// followLink opens a link of the reader's document through the handlers: a
-// heading of this document, another Markdown file in the reader itself, and
-// anything else with the handler its rule names.
-func (a *App) followLink(rm *modal.MarkdownModal, href string) modal.Result {
-	if rm == nil {
-		return modal.Result{Handled: true}
-	}
-	md := rm.Model()
-	if strings.HasPrefix(href, "#") {
-		if !jumpToAnchor(md, href) {
-			return modal.Result{Handled: true, Status: fmt.Sprintf("no heading %s in this document", href), SetStatus: true}
-		}
-		return modal.Result{Handled: true}
-	}
-	target, frag := href, ""
-	if !handlers.IsURL(href) {
-		target, frag, _ = strings.Cut(href, "#")
-		target = cleanLocalTargetPath(target)
-		if !filepath.IsAbs(target) {
-			if rm.Path() == "" {
-				return modal.Result{Handled: true, Status: fmt.Sprintf("%s is relative, and this text has no file to be relative to", href), SetStatus: true}
-			}
-			target = filepath.Join(filepath.Dir(rm.Path()), target)
-		}
-	}
-	rules := a.cfg.Handlers.Match(target)
-	if len(rules) == 0 {
-		return modal.Result{Handled: true, Status: fmt.Sprintf("no handler opens %s", target), SetStatus: true}
-	}
-	if rules[0].Kind == handlers.KindBuiltin && rules[0].Name == handlers.MarkdownReader {
-		text, err := a.readFile(target)
-		if err != nil {
-			a.fail("read "+target, err)
-			return modal.Result{Handled: true}
-		}
-		rm.Navigate(filepath.Base(target), text, target)
-		if frag != "" {
-			jumpToAnchor(md, frag)
-		}
-		return modal.Result{Handled: true, Status: fmt.Sprintf("%s · backspace goes back", md.Title), SetStatus: true}
-	}
-	rule := rules[0]
-	a.afterModal(func(st core.State) core.State {
-		return a.runHandler(st, rule, openTarget{path: target, title: filepath.Base(target)})
-	})
-	return modal.Result{Handled: true}
 }

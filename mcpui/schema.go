@@ -72,6 +72,8 @@ func (r *Router) ToolSpecs() []ToolSpec {
 				"slug":     text("stable name within the pane; derived from the title when omitted"),
 				"pageKind": oneOf("what the page is for; default custom", pageKinds),
 				"pinned":   flag("keep at the top of the table of contents"),
+				"baseDir":  text("base directory for relative Markdown links; defaults to the pane directory"),
+				"cwd":      text("alias for baseDir"),
 				"root":     nodeSchema("the page's ViewNode tree"),
 			}),
 		},
@@ -87,6 +89,8 @@ func (r *Router) ToolSpecs() []ToolSpec {
 				"root":     nodeSchema("same as node; reads better for replace"),
 				"targetId": text("prepend/append: the container node to insert into (default the root); patch: the node to replace (default the node's own id)"),
 				"title":    text("new page title"),
+				"baseDir":  text("new base directory for relative Markdown links; empty restores fallback"),
+				"cwd":      text("alias for baseDir"),
 			}),
 		},
 		{

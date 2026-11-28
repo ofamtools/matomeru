@@ -75,32 +75,6 @@ func New(store *data.Store) *Router { return &Router{store: store} }
 
 // --- arguments and results ----------------------------------------------------
 
-// CreatePageArgs are the arguments of ui.create_page.
-type CreatePageArgs struct {
-	Pane     string      `json:"pane,omitempty"`
-	Task     string      `json:"task,omitempty"`
-	ID       string      `json:"id,omitempty"`
-	Title    string      `json:"title"`
-	Slug     string      `json:"slug,omitempty"`
-	PageKind string      `json:"pageKind,omitempty"`
-	Pinned   bool        `json:"pinned,omitempty"`
-	Root     ui.ViewNode `json:"root"`
-}
-
-// UpdatePageArgs are the arguments of ui.update_page. Page is a page ID, or
-// a slug within Pane. The content is given as node, card or root; they are
-// the same thing under the name that reads best for the mode.
-type UpdatePageArgs struct {
-	Pane     string       `json:"pane,omitempty"`
-	Page     string       `json:"page"`
-	Mode     string       `json:"mode"`
-	Node     *ui.ViewNode `json:"node,omitempty"`
-	Card     *ui.ViewNode `json:"card,omitempty"`
-	Root     *ui.ViewNode `json:"root,omitempty"`
-	TargetID string       `json:"targetId,omitempty"`
-	Title    string       `json:"title,omitempty"`
-}
-
 // Choice is one option of a pick-one question.
 type Choice struct {
 	ID          string `json:"id"`
@@ -392,14 +366,8 @@ func (r *Router) CreatePage(actor core.Actor, args CreatePageArgs) (*PageResult,
 		return nil, fmt.Errorf("pageKind %q is not one of %s", args.PageKind, strings.Join(pageKinds, ", "))
 	}
 
-	// A page inherits its pane's task, so it shows on that task's Show page.
-	if args.Task == "" && args.Pane != "" {
-		if pane, err := r.store.Get(paneRef(args.Pane)); err == nil {
-			if task, ok := pane.RefField("task"); ok {
-				args.Task = task.ID
-			}
-		}
-	}
+	pane := lookupContentPane(r.store, args.Pane)
+	args.Task = contentPaneTask(pane, args.Task)
 	siblings, err := r.panePages(args.Pane, true)
 	if err != nil {
 		return nil, err
@@ -421,6 +389,7 @@ func (r *Router) CreatePage(actor core.Actor, args CreatePageArgs) (*PageResult,
 		return nil, err
 	}
 	fields := map[string]any{"title": args.Title, "slug": slug, "pageKind": args.PageKind, "pinned": args.Pinned, "root": root}
+	setContentBaseDir(fields, args.BaseDir, args.Cwd, "", pane)
 	if args.Pane != "" {
 		fields["pane"] = paneRef(args.Pane)
 	}
@@ -537,6 +506,11 @@ func (r *Router) UpdatePage(actor core.Actor, args UpdatePageArgs) (*PageResult,
 		return nil, fmt.Errorf("mode %q is not one of prepend, append, replace, patch", args.Mode)
 	}
 	extra := map[string]any{}
+	if dir := args.BaseDir; dir != nil {
+		extra["baseDir"] = strings.TrimSpace(*dir)
+	} else if args.Cwd != nil {
+		extra["baseDir"] = strings.TrimSpace(*args.Cwd)
+	}
 	if args.Title != "" {
 		extra["title"] = args.Title
 	}
