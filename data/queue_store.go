@@ -122,6 +122,9 @@ func (s *Store) AddTaskToQueue(taskID, queueName string, queue *Record, actor co
 	if taskID == "" {
 		return nil, errors.New("data: task ID is required")
 	}
+	if err := s.guardAgentFlag(core.Ref{Kind: KindTask, ID: taskID}); err != nil {
+		return nil, err
+	}
 	fields := map[string]any{
 		FieldQueueName:        NormalizeQueueName(queueName),
 		FieldQueue:            nil,

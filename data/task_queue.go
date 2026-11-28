@@ -158,7 +158,7 @@ func (s *Store) QueryAgentQueue(filter AgentQueueFilter) ([]AgentQueueItem, erro
 		if rec.IsArchived() {
 			continue
 		}
-		if !isAgentFlaggedTask(rec) {
+		if !isAgentQueueCandidate(rec) {
 			continue
 		}
 		if !matchesAgentQueueStatus(effectiveAgentStatus(rec), statusFilter) {
@@ -220,6 +220,12 @@ func (s *Store) QueryAgentQueue(filter AgentQueueFilter) ([]AgentQueueItem, erro
 		out = append(out, item)
 	}
 	return out, nil
+}
+
+// isAgentQueueCandidate reports whether rec is flagged for agent work that
+// agents may pick up (ideas never are).
+func isAgentQueueCandidate(rec Record) bool {
+	return isAgentFlaggedTask(rec) && CanAutoDispatch(rec)
 }
 
 func isAgentFlaggedTask(rec Record) bool {
@@ -412,10 +418,8 @@ func (s *Store) SetTaskAgentFlag(taskRef core.Ref, forAgent bool, status string,
 	status = strings.TrimSpace(status)
 	assignee = strings.TrimSpace(assignee)
 
-	switch status {
-	case "", AgentStatusNone, AgentStatusQueued, AgentStatusWorking, AgentStatusNeedsYou, AgentStatusDone:
-	default:
-		return Record{}, fmt.Errorf("data: invalid agentStatus %q", status)
+	if err := s.checkAgentFlag(taskRef, forAgent, status); err != nil {
+		return Record{}, err
 	}
 
 	switch status {

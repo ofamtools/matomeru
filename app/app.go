@@ -81,6 +81,7 @@ var standalonePages = map[string]standalonePageDef{
 	SpaceFocus:     {title: "Focus & Pomodoro", focus: views.FocusProjectsID, render: (*App).focusSpace},
 	SpaceCaptures:  {title: "Captures", focus: views.CapturesListID, render: (*App).capturesSpace},
 	SpaceReminders: {title: "Reminders", focus: views.RemindersListID, render: (*App).remindersSpace},
+	SpaceIdeas:     {title: "Ideas", focus: views.IdeasListID, render: (*App).ideasSpace},
 }
 
 // Node IDs the app gives focus to.
@@ -214,6 +215,7 @@ type App struct {
 	focus             *focusController
 	captures          *capturesController
 	reminders         *remindersController
+	ideas             *ideasController
 	rt                *RuntimeController
 	ext               *ExtensionController
 	ctx               *ContextController
@@ -267,6 +269,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.initFocus()
 	a.initCaptures()
 	a.initReminders()
+	a.initIdeas()
 	a.loadPresets()
 	a.initToasts()
 	a.loadHandlers(opts.ConfigDir)
@@ -922,6 +925,7 @@ func (a *App) register() {
 	a.registerFocus()
 	a.registerCaptures()
 	a.registerReminders()
+	a.registerIdeas()
 	a.registerPinnedAgents()
 	a.registerPaste()
 	a.registerOutlineScopeHandlers()

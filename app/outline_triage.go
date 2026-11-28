@@ -310,9 +310,8 @@ func (a *App) outlineTriage(s core.State, c core.Command) core.StepResult {
 		a.fail("outline triage", err)
 		return core.Next(s)
 	}
-	subtree, ancestors, ok := findTreeSubtreeWithAncestors(nodes, targetID)
+	subtree, ancestors, ok := a.triageSubtree(schema, nodes, targetID)
 	if !ok {
-		a.say("outline item not found")
 		return core.Next(s)
 	}
 
@@ -372,4 +371,19 @@ func (a *App) outlineTriage(s core.State, c core.Command) core.StepResult {
 	})
 	a.say("pick an agent pane for read-only triage")
 	return core.Next(a.pushModal(s, m))
+}
+
+// triageSubtree finds targetID's subtree for agent triage. Ideas are refused
+// with a reason, and idea descendants are left out of the subtree.
+func (a *App) triageSubtree(schema data.Schema, nodes []data.TreeNode, targetID string) (data.TreeNode, []string, bool) {
+	subtree, ancestors, ok := findTreeSubtreeWithAncestors(nodes, targetID)
+	if !ok {
+		a.say("outline item not found")
+		return subtree, nil, false
+	}
+	if !data.CanAutoDispatch(subtree.Record) {
+		a.say("%q %s", views.Title(schema, subtree.Record), data.IdeaSkipReason)
+		return subtree, nil, false
+	}
+	return data.PruneIdeas(subtree), ancestors, true
 }

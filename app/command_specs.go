@@ -41,6 +41,7 @@ func CommandSpecs() []core.CommandSpec {
 	base := append(append(append(append(append(readerSpecs(), readlineSpecs()...), paletteSpecs()...), viewCycleSpecs()...), standardVerbSpecs()...), traits.SelectCommandSpecs()...)
 	base = append(base, filesCommandSpecs()...)
 	base = append(base, queueCommandSpecs()...)
+	base = append(base, ideasCommandSpecs()...)
 	base = append(base, threadsCommandSpecs()...)
 	base = append(base, sessionsCommandSpecs()...)
 	base = append(base, focusCommandSpecs()...)
