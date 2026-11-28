@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -202,5 +203,139 @@ func TestShowLedgerStarredRowAlignsTitlesOnOneLine(t *testing.T) {
 	}
 	if starCol != plainCol {
 		t.Fatalf("expected consistent left alignment between starred (%d) and unstarred (%d) titles:\n%s", starCol, plainCol, plain)
+	}
+}
+
+// propsFieldNames are the record fields the ledger Props region lists.
+func propsFieldNames(root ui.ViewNode) []string {
+	var out []string
+	if props := root.Find("show.props"); props != nil {
+		for _, row := range props.Children {
+			if name, ok := row.Facts["field"].(string); ok {
+				out = append(out, name)
+			}
+		}
+	}
+	return out
+}
+
+func TestShowHeaderAndPropsShowEachFieldOnce(t *testing.T) {
+	w := build(t)
+	lane, _, err := w.store.Create(data.CreateInput{Kind: data.KindLane, ID: "lane1", Fields: map[string]any{
+		"title": "Polish the Show page", "laneStatus": "running", "summary": "dedupe props", "task": w.project.Ref()}}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rec := range []data.Record{w.project, w.sub2, *lane, w.about, w.note, w.pane, w.run} {
+		schema := w.schema(rec.Kind)
+		for _, layout := range []string{ShowLayoutLedger, ShowLayoutClassic} {
+			opts := DefaultShowOptions()
+			opts.Layout, opts.Width = layout, 120
+			root, err := loadShowWith(w.store, rec.Ref(), "show.header", opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var listed []string
+			if layout == ShowLayoutLedger {
+				listed = propsFieldNames(root)
+			} else {
+				for _, row := range root.Find("show.props.table").Props["rows"].([]any) {
+					listed = append(listed, row.([]any)[0].(string))
+				}
+			}
+			header := headerFields(schema, opts)
+			for _, name := range listed {
+				if header[name] || header[fieldName(schema, name)] {
+					t.Errorf("%s %s: field %q is in the header and again in Props", layout, data.RefText(rec.Ref()), name)
+				}
+			}
+			hdr := root.Find("show.header")
+			if sum, _ := hdr.Props["summary"].(string); sum != "" {
+				t.Errorf("%s %s: header summary %q repeats a field Props lists", layout, data.RefText(rec.Ref()), sum)
+			}
+		}
+	}
+
+	// Opt-out: KeepHeaderFieldsInProps lists the status column again.
+	opts := DefaultShowOptions()
+	opts.KeepHeaderFieldsInProps = true
+	root, err := loadShowWith(w.store, lane.Ref(), "show.header", opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(propsFieldNames(root), "laneStatus") {
+		t.Fatalf("KeepHeaderFieldsInProps should list laneStatus in Props, got %v", propsFieldNames(root))
+	}
+}
+
+// fieldName maps a classic props row title back to its field name.
+func fieldName(schema data.Schema, title string) string {
+	for _, f := range schema.Fields {
+		if fieldTitle(schema, f.Name) == title {
+			return f.Name
+		}
+	}
+	return title
+}
+
+func TestShowLongRelationTitlesStayOnOneRow(t *testing.T) {
+	w := build(t)
+	long := strings.Repeat("dictated owner voice note about lanes panes and relation rows ", 4) // 248 chars
+	multi := "first line of the note\nsecond line\twith a tab\n\n  third line"
+	for id, title := range map[string]string{"long1": long, "multi1": multi} {
+		if _, _, err := w.store.Create(data.CreateInput{Kind: data.KindTask, ID: id, Fields: map[string]any{
+			"title": title, "parent": w.sub2.Ref(), "priority": "P1", "workStatus": "active"}}, owner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, size := range [][2]int{{80, 24}, {120, 36}} {
+		cols, rows := size[0], size[1]
+		opts := DefaultShowOptions()
+		opts.Width = cols
+		root, err := loadShowWith(w.store, w.sub2.Ref(), "show.header", opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn := root.Find("show.connections")
+		var longID string
+		var walk func(n *ui.ViewNode)
+		walk = func(n *ui.ViewNode) {
+			if n.Ref != nil && n.Ref.ID != "" && n.Kind == ui.KindText {
+				line, _ := n.Props["text"].(string)
+				if strings.ContainsAny(line, "\n\t\r") || runeLen(line) > cols-showRowGutter || n.Props["wrap"] != false {
+					t.Errorf("%dx%d: relation row %q is not one clean unwrapped row (len %d)", cols, rows, line, runeLen(line))
+				}
+				if n.Ref.ID == "long1" {
+					longID = n.ID
+					if !strings.Contains(line, "…") || !strings.HasSuffix(line, "long1") {
+						t.Errorf("%dx%d: long title row should end in …  and keep its id: %q", cols, rows, line)
+					}
+				}
+				if n.Ref.ID == "multi1" && !strings.Contains(line, "first line of the note second line with a tab third line") {
+					t.Errorf("%dx%d: multi-line title should collapse to one line: %q", cols, rows, line)
+				}
+			}
+			for i := range n.Children {
+				walk(&n.Children[i])
+			}
+		}
+		walk(conn)
+		if longID == "" {
+			t.Fatalf("%dx%d: no relation row for long1", cols, rows)
+		}
+		// Drawn with the long row focused, it occupies one terminal row.
+		frame, _ := ui.Render(root, ui.DefaultDarkTheme(), longID, cols, rows)
+		found := false
+		for _, line := range strings.Split(stripANSI(frame.ANSI), "\n") {
+			if strings.Contains(line, "dictated owner voice") {
+				found = true
+				if !strings.Contains(line, "long1") {
+					t.Errorf("%dx%d: long relation row wrapped:\n%s", cols, rows, stripANSI(frame.ANSI))
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%dx%d: long relation row not drawn:\n%s", cols, rows, stripANSI(frame.ANSI))
+		}
 	}
 }

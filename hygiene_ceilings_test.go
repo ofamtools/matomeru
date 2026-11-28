@@ -423,7 +423,7 @@ var cyclomaticCeilings = map[string]int{
 	"views/show.go:propsPanel":                                                  14,
 	"views/show.go:showViewClassic":                                             25,
 	"views/show_ledger.go:entrySummaryCols":                                     16,
-	"views/show_ledger.go:ledgerConnectionsRegion":                              51,
+	"views/show_ledger.go:ledgerConnectionsRegion":                              50,
 	"views/show_ledger.go:ledgerPropsRegion":                                    29,
 	"views/show_ledger.go:showViewLedger":                                       17,
 	"views/site.go:compactTOCRow":                                               14,
