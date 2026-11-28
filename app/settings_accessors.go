@@ -75,6 +75,10 @@ func (a *App) stickyTreeBreadcrumbsEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetStickyTreeBreadcrumbs, true)
 }
 
+func (a *App) outlineRescopingEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetOutlineRescoping, true)
+}
+
 func (a *App) extractCodeBlocksEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetContextExtractCodeBlocks, true)
 }

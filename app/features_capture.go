@@ -392,6 +392,7 @@ func (a *App) featuresCaptureNode(wishlistRoot *data.Record) ui.ViewNode {
 	if len(panel.Children) > 0 {
 		applyFacts(&panel.Children[0])
 	}
+	views.ApplyTreeScope(&panel, tm, featuresCaptureTree, wid)
 	a.attachOutlineSuggestions(&panel, tm, data.KindTask, featuresCaptureTree)
 	return panel
 }

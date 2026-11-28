@@ -415,7 +415,7 @@ func TreeViewWith(schema data.Schema, tm *tree.Model, panelID, treeID, panelScop
 			}}
 		}
 	}
-	return ui.ViewNode{
+	panel := ui.ViewNode{
 		ID:     panelID,
 		Kind:   ui.KindPanel,
 		Scope:  panelScope,
@@ -434,4 +434,5 @@ func TreeViewWith(schema data.Schema, tm *tree.Model, panelID, treeID, panelScop
 		},
 		Children: children,
 	}
+	return decorateTreeScope(panel, tm, treeID)
 }

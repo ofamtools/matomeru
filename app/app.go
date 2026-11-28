@@ -321,6 +321,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 			"readlinePriority":    a.inputReadlinePriorityEnabled(),
 			"filterScrollMotions": a.inputFilterScrollMotionsEnabled(),
 			"splitResize":         a.splitResizeEnabled(),
+			"outlineRescoping":    a.outlineRescopingEnabled(),
 			"hasSearch":           a.hasPageSearch(),
 			factListTarget:        a.listTargetFact(s),
 			factTreeTarget:        a.treeTargetFact(),
@@ -923,6 +924,7 @@ func (a *App) register() {
 	a.registerReminders()
 	a.registerPinnedAgents()
 	a.registerPaste()
+	a.registerOutlineScopeHandlers()
 	a.handle(CmdFDSearch, a.fdSearch)
 	a.handle(CmdFDSearchAgain, a.fdSearchAgain)
 	for _, id := range []string{CmdFDResultYank, CmdFDResultOpenWith, CmdFDResultAttach, CmdFDResultRefine} {
