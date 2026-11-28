@@ -254,7 +254,6 @@ var cyclomaticCeilings = map[string]int{
 	"app/panes_hints.go:(App).paneHints":                                        15,
 	"app/panes_questions.go:(App).answerQuestion":                               41,
 	"app/panes_questions.go:(App).enhanceQuestionsSite":                         32,
-	"app/panes_questions.go:(App).newAnswerFormModal":                           15,
 	"app/panes_questions.go:(App).questionSubmitAll":                            23,
 	"app/panes_questions.go:(App).submitAnswerModal":                            16,
 	"app/panes_questions.go:parseQuestionChoices":                               14,
