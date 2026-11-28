@@ -123,6 +123,7 @@ func TestArchiveFeedbackNamesRecordAndCursorLandsOnNeighbour(t *testing.T) {
 			a, d := f.app, f.driver
 			now := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
 			a.opts.Now = func() time.Time { return now }
+			setSettingForTest(t, a, SetShowLegacyPanesWorkPages, true)
 			setSettingForTest(t, a, SetArchiveAnimation, anim)
 			if _, _, err := a.Store.Archive(f.note.Ref(), User); err != nil {
 				t.Fatal(err)
@@ -180,6 +181,7 @@ func TestArchiveFeedbackNamesRecordAndCursorLandsOnNeighbour(t *testing.T) {
 func TestArchiveLaneInWorkTreeFeedbackAndBatchNoun(t *testing.T) {
 	f := setupNavTreeFixture(t)
 	a, d := f.app, f.driver
+	setSettingForTest(t, a, SetShowLegacyPanesWorkPages, true)
 	setSettingForTest(t, a, SetArchiveAnimation, false)
 	var lanes []data.Record
 	for _, title := range []string{"Lane one", "Lane two", "Lane three", "Lane four"} {
