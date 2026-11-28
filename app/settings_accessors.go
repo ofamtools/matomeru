@@ -216,6 +216,20 @@ func (a *App) treeHLFolds() bool {
 	return a.cfg.Settings.Bool(SetTreeHLFolds, true)
 }
 
+func (a *App) yankDefaultFormat() string {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return YankFormatRef
+	}
+	if a.cfg.Settings.String(SetYankDefaultFormat, YankFormatRef) == YankFormatTitle {
+		return YankFormatTitle
+	}
+	return YankFormatRef
+}
+
+func (a *App) pasteContextualEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetPasteContextual, true)
+}
+
 // ConfigExport is the configuration in effect: the defaults with the user's
 // files laid over them.
 type ConfigExport struct {

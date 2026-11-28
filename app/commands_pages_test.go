@@ -307,18 +307,31 @@ func TestWaveD2CommandRunEditAndYank(t *testing.T) {
 
 	browseTo(t, a, d, *cmdRec)
 
-	// 1. Yank: y y copies the literal command string, and scriptPath is in the yank picker.
+	// 1. Yank: y y copies the canonical ref by default, while command and scriptPath are selectable in the yank picker.
 	d.Keys("y")
 	if a.Modal() != "yank" {
 		t.Fatalf("y did not open yank picker: %q", a.Modal())
 	}
 	yankIDs := pickerIDs(a, "yank")
-	if len(yankIDs) == 0 || yankIDs[0] != "command" || !slices.Contains(yankIDs, "scriptPath") {
-		t.Fatalf("command yank picker expected command first + scriptPath: %v", yankIDs)
+	if len(yankIDs) == 0 || yankIDs[0] != "ref" || !slices.Contains(yankIDs, "command") || !slices.Contains(yankIDs, "scriptPath") {
+		t.Fatalf("command yank picker expected ref first + command + scriptPath: %v", yankIDs)
 	}
 	d.Keys("y")
+	if got := a.Register(core.RegUnnamed); got != data.RefText(cmdRec.Ref()) {
+		t.Fatalf("y y on KindCommand yanked %q, want %q", got, data.RefText(cmdRec.Ref()))
+	}
+	d.Keys("y")
+	// Row 0 is "ref" whose subtitle ("command:<id>") also contains "command";
+	// step directly to the "command" field row.
+	for _, id := range yankIDs {
+		if id == "command" {
+			break
+		}
+		d.Keys("j")
+	}
+	d.Keys("enter")
 	if got := a.Register(core.RegUnnamed); got != "echo hello-waved2" {
-		t.Fatalf("y y on KindCommand yanked %q, want %q", got, "echo hello-waved2")
+		t.Fatalf("picking command field yanked %q, want %q", got, "echo hello-waved2")
 	}
 
 	// 2. Run via Enter -> executes via a.Runner in 3 Runs and updates status="ran" & lastRun.

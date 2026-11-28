@@ -232,10 +232,12 @@ func TestBatchMutationsOverVisualAndMarked(t *testing.T) {
 		}
 	}
 
-	// 4. Marked set (Beta, Gamma) -> `y y` joins primary values with newlines.
+	// 4. Marked set (Beta, Gamma) -> `y y` joins canonical refs with newlines and populates typed Refs.
 	d.Keys("y", "y")
-	if got := a.Register(core.RegUnnamed); got != "Beta\nGamma" {
-		t.Fatalf("batch y y = %q, want %q", got, "Beta\nGamma")
+	wantBatchRefs := data.RefText(tasks[1].Ref()) + "\n" + data.RefText(tasks[2].Ref())
+	regVal, _ := a.RegisterValue(core.RegUnnamed)
+	if got := a.Register(core.RegUnnamed); got != wantBatchRefs || !regVal.HasRefs() || len(regVal.Refs) != 2 {
+		t.Fatalf("batch y y = %q (refs=%v), want %q", got, regVal.Refs, wantBatchRefs)
 	}
 
 	// 5. Marked set (Beta, Gamma) -> `g m` batch assigns both under Delta!

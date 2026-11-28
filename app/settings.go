@@ -259,6 +259,10 @@ const (
 	SetProjectSectionPickerNested      = "ui.projectSectionPickerNested"
 	SetCaptureComposeEnabled           = "ui.captureComposeEnabled"
 	SetPinnedAgentChrome               = "ui.pinnedAgentChrome"
+	SetYankDefaultFormat               = "yank.defaultFormat"
+	SetPasteContextual                 = "paste.contextual"
+	YankFormatRef                      = "ref"
+	YankFormatTitle                    = "title"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -460,6 +464,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetCaptureComposeEnabled, true, "enable global dictation/compose capture modal (g i / alt+c) and persistent capture log"),
 		flag(SetPinnedAgentChrome, true, "show active pinned agent indicator chip in the top chrome bar"),
 		flag(SetFeaturesDomainNav, true, "show the Domain navigation group (Everything, Indicators, Components, etc.) and related Domain sections in Features"),
+		enum(SetYankDefaultFormat, YankFormatRef, "what y y copies by default: canonical record ref (ref) or display title/primary field (title); y opens the picker for any field", YankFormatRef, YankFormatTitle),
+		flag(SetPasteContextual, true, "enable contextual paste (p / P / g p) using typed registers (off: plain-text paste only)"),
 	}
 }
 
