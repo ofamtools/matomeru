@@ -109,7 +109,7 @@ func (a *App) archiveRecord(s core.State, c core.Command) core.StepResult {
 		ref := refs[0]
 		_ = a.ensureShadow(ref)
 		_, cs, err := a.Store.Archive(ref, User)
-		a.wrote("archive "+a.title(ref), cs, err)
+		a.wroteRecord("archive", ref, cs, err)
 		if err == nil && cs != nil && a.archiveAnimEnabled() && !a.nav.showArchived {
 			if eff := a.startArchiveAnim(ref); eff != nil {
 				return core.StepResult{State: s, Effects: []core.Effect{eff}}
@@ -146,7 +146,7 @@ func (a *App) archiveRecord(s core.State, c core.Command) core.StepResult {
 		a.say("archive: nothing changed")
 		return core.Next(s)
 	}
-	a.say("archived %d items · u undoes", changed)
+	a.say("archived %d %s · u undoes", changed, a.batchNoun(refs))
 	return core.StepResult{State: s, Effects: effects}
 }
 
@@ -166,7 +166,7 @@ func (a *App) restoreRecord(s core.State, c core.Command) core.StepResult {
 		if err == nil {
 			a.cancelArchiveAnim(ref)
 		}
-		a.wrote("restore "+a.title(ref), cs, err)
+		a.wroteRecord("restore", ref, cs, err)
 		return core.Next(s)
 	}
 	changed := 0
@@ -193,7 +193,7 @@ func (a *App) restoreRecord(s core.State, c core.Command) core.StepResult {
 		a.say("restore: nothing changed")
 		return core.Next(s)
 	}
-	a.say("restored %d items · u undoes", changed)
+	a.say("restored %d %s · u undoes", changed, a.batchNoun(refs))
 	return core.Next(s)
 }
 

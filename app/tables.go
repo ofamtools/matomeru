@@ -134,19 +134,18 @@ func (a *App) tableCandidates(kind string) []data.Record {
 	if a.Store == nil || kind == "" {
 		return nil
 	}
-	// A kind with a hierarchy reads its archived records too, so the
-	// table hides what its tree hides: everything under an archived one.
-	hierarchical := a.schema(kind).EffectiveHierarchy() != nil && !a.nav.showArchived
-	res, err := a.Store.Query(data.Query{Kind: kind, IncludeArchived: a.nav.showArchived || hierarchical})
+	// A kind with a hierarchy reads its archived records too, so the table
+	// hides what its tree hides: everything under an archived one. A flat
+	// kind does while one of its rows dissolves, so that row keeps its place
+	// and the cursor lands on its neighbour when it leaves.
+	withArchived := !a.nav.showArchived && (a.schema(kind).EffectiveHierarchy() != nil || a.hasAnimatingKind(kind))
+	res, err := a.Store.Query(data.Query{Kind: kind, IncludeArchived: a.nav.showArchived || withArchived})
 	if err != nil {
 		a.fail("read "+kind, err)
 	}
 	items := res.Items
-	switch {
-	case hierarchical:
+	if withArchived {
 		items = a.activeRecords(kind, items)
-	case !a.nav.showArchived:
-		items = a.appendAnimatingRecords(kind, items)
 	}
 	return a.filterExtensionItems(kind, items)
 }
