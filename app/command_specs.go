@@ -47,6 +47,7 @@ func CommandSpecs() []core.CommandSpec {
 	base = append(base, captureCommandSpecs()...)
 	base = append(base, pinnedAgentsCommandSpecs()...)
 	base = append(base, pasteCommandSpecs()...)
+	base = append(base, remindersCommandSpecs()...)
 	base = append(base, jobsSpecs()...)
 	base = append(base, taskLineageSpecs()...)
 	base = append(base, splitResizeSpecs()...)

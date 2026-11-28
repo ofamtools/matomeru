@@ -136,6 +136,8 @@ func newStandardVerbRegistry() standardVerbRegistry {
 				views.FilesListID:            (*App).stdCycleFilesTabs,
 				standardTargetFilesPage:      (*App).stdCycleFilesTabs,
 				views.JobsListID:             (*App).stdCycleJobsTabs,
+				views.RemindersListID:        (*App).stdCycleRemindersView,
+				views.RemindersPageID:        (*App).stdCycleRemindersView,
 				standardTargetHints:          (*App).stdCycleHintsAction,
 				standardTargetScreenHints:    (*App).stdCycleHintsAction,
 				standardTargetScreenHintsOvl: (*App).stdCycleHintsAction,
@@ -159,6 +161,7 @@ func newStandardVerbRegistry() standardVerbRegistry {
 				views.ScopeQueue:      (*App).stdCycleQueueTabs,
 				views.ScopeFiles:      (*App).stdCycleFilesTabs,
 				views.ScopeJobs:       (*App).stdCycleJobsTabs,
+				views.ScopeReminders:  (*App).stdCycleRemindersView,
 				views.ScopeOutline:    (*App).stdCycleOutlineView,
 			},
 			byTrait: map[string]standardVerbHandler{
@@ -450,6 +453,10 @@ func (a *App) stdCycleFilesTabs(ctx standardVerbContext, _ *ui.ViewNode) (core.S
 
 func (a *App) stdCycleJobsTabs(ctx standardVerbContext, _ *ui.ViewNode) (core.StepResult, bool) {
 	return a.cycleJobsTabDir(ctx.state, ctx.dir*ctx.cmd.Times()), true
+}
+
+func (a *App) stdCycleRemindersView(ctx standardVerbContext, _ *ui.ViewNode) (core.StepResult, bool) {
+	return a.cycleRemindersViewDir(ctx.state, ctx.dir*ctx.cmd.Times()), true
 }
 
 func (a *App) stdCycleHintsAction(ctx standardVerbContext, _ *ui.ViewNode) (core.StepResult, bool) {

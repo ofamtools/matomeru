@@ -263,6 +263,8 @@ const (
 	SetPasteContextual                 = "paste.contextual"
 	YankFormatRef                      = "ref"
 	YankFormatTitle                    = "title"
+	SetRemindersTopNavTab              = "ui.remindersTopNavTab"
+	SetReminderToasts                  = "ui.reminderToasts"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -466,6 +468,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetFeaturesDomainNav, true, "show the Domain navigation group (Everything, Indicators, Components, etc.) and related Domain sections in Features"),
 		enum(SetYankDefaultFormat, YankFormatRef, "what y y copies by default: canonical record ref (ref) or display title/primary field (title); y opens the picker for any field", YankFormatRef, YankFormatTitle),
 		flag(SetPasteContextual, true, "enable contextual paste (p / P / g p) using typed registers (off: plain-text paste only)"),
+		flag(SetRemindersTopNavTab, true, "show top-level Reminders tab in the top navigation bar"),
+		flag(SetReminderToasts, true, "show top-right Matomeru reminder notifications (temporary 30s toasts and persistent alerts)"),
 	}
 }
 

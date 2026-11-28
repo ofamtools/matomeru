@@ -180,6 +180,7 @@ func (a *App) tabsMemoKey(s core.State) string {
 	b.WriteString(a.filterMemoKey(s))
 	b.WriteString(a.splitRatiosMemoKey())
 	b.WriteString(a.pageSearchViewKey(s))
+	b.WriteString(a.remindersMemoKey())
 	return b.String()
 }
 
@@ -210,7 +211,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 		a.viewMemo.tabsBuilds++
 		topTabs := a.topTabs()
 		active := slices.IndexFunc(topTabs, func(tb topTabDef) bool { return tb.id == s.ActivePage })
-		standalone, isStandalone := standalonePages[s.ActivePage]
+		standalone, isStandalone := standalonePageIfAbsent(s.ActivePage, active)
 		if isStandalone {
 			active = len(topTabs)
 		} else if active < 0 {
@@ -294,6 +295,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 	if toastOv, ok := a.toastOverlay(); ok {
 		overlays = append(overlays, toastOv)
 	}
+	overlays = a.appendReminderOverlay(overlays)
 	root.Children = append(root.Children, overlays...)
 
 	// The footer reads the context chain of the tree above it.
@@ -310,7 +312,7 @@ func (a *App) build(s core.State) ui.ViewNode {
 		if activeTab := slices.IndexFunc(tabs.Children, func(ch ui.ViewNode) bool { return len(ch.Children) > 0 }); activeTab >= 0 {
 			tabs.Children = slices.Clone(tabs.Children)
 			ch := tabs.Children[activeTab].Children
-			if len(ch) > 0 && ch[0].ID == "chrome.sep" {
+			if len(ch) > 0 && ch[0].ID == "chrome.sep.row" {
 				next := make([]ui.ViewNode, len(ch))
 				copy(next, ch)
 				next[0] = sep
@@ -639,6 +641,9 @@ func (a *App) spaceForTab(s core.State, tb topTabDef) ui.ViewNode {
 		if sp.id == tb.id {
 			return a.listSpace(sp)
 		}
+	}
+	if page, ok := standalonePages[tb.id]; ok && page.render != nil {
+		return page.render(a)
 	}
 	return a.panesSpace(s)
 }

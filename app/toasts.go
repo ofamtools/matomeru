@@ -39,10 +39,11 @@ func (a *App) pushToast(text string, level toast.Level, ttl ...time.Duration) {
 
 // tickToasts prunes expired notifications and reports whether any expired.
 func (a *App) tickToasts() bool {
+	expired := a.tickReminderToasts()
 	if a.rt.toasts == nil {
-		return false
+		return expired
 	}
-	return a.rt.toasts.Tick(a.now())
+	return a.rt.toasts.Tick(a.now()) || expired
 }
 
 // toastOverlay returns the floating toast overlay node when ui.toast is enabled
@@ -65,13 +66,14 @@ func (a *App) toastOverlay() (ui.ViewNode, bool) {
 }
 
 func (a *App) toastViewKey() string {
+	remKey := a.reminderNotifyViewKey()
 	if a.rt.toasts == nil || !a.cfg.Settings.Bool(SetToast, true) {
-		return ""
+		return remKey
 	}
 	now := a.now()
 	active := a.rt.toasts.Active()
 	if len(active) == 0 {
-		return ""
+		return remKey
 	}
 	var b strings.Builder
 	for _, t := range active {
@@ -79,6 +81,9 @@ func (a *App) toastViewKey() string {
 			continue
 		}
 		fmt.Fprintf(&b, "%s:%s|", t.ID, t.Text)
+	}
+	if remKey != "" {
+		b.WriteString(remKey)
 	}
 	return b.String()
 }

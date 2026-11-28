@@ -74,12 +74,13 @@ type standalonePageDef struct {
 
 // Standalone pages have no numbered tab slot in the normal navigation cycle.
 var standalonePages = map[string]standalonePageDef{
-	SpaceFiles:    {title: "Files & Directories", focus: views.FilesListID, render: (*App).filesSpace},
-	SpaceQueue:    {title: "Queues & Dispatch", focus: views.QueueListID, render: (*App).queueSpace},
-	SpaceThreads:  {title: "Threads", focus: views.ThreadsListID, render: (*App).threadsSpace},
-	SpaceSessions: {title: "AI Sessions", focus: views.SessionsDeskTableID, render: (*App).sessionsSpace},
-	SpaceFocus:    {title: "Focus & Pomodoro", focus: views.FocusProjectsID, render: (*App).focusSpace},
-	SpaceCaptures: {title: "Captures", focus: views.CapturesListID, render: (*App).capturesSpace},
+	SpaceFiles:     {title: "Files & Directories", focus: views.FilesListID, render: (*App).filesSpace},
+	SpaceQueue:     {title: "Queues & Dispatch", focus: views.QueueListID, render: (*App).queueSpace},
+	SpaceThreads:   {title: "Threads", focus: views.ThreadsListID, render: (*App).threadsSpace},
+	SpaceSessions:  {title: "AI Sessions", focus: views.SessionsDeskTableID, render: (*App).sessionsSpace},
+	SpaceFocus:     {title: "Focus & Pomodoro", focus: views.FocusProjectsID, render: (*App).focusSpace},
+	SpaceCaptures:  {title: "Captures", focus: views.CapturesListID, render: (*App).capturesSpace},
+	SpaceReminders: {title: "Reminders", focus: views.RemindersListID, render: (*App).remindersSpace},
 }
 
 // Node IDs the app gives focus to.
@@ -212,6 +213,7 @@ type App struct {
 	sessions          *sessionsController
 	focus             *focusController
 	captures          *capturesController
+	reminders         *remindersController
 	rt                *RuntimeController
 	ext               *ExtensionController
 	ctx               *ContextController
@@ -264,6 +266,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.initSessions()
 	a.initFocus()
 	a.initCaptures()
+	a.initReminders()
 	a.loadPresets()
 	a.initToasts()
 	a.loadHandlers(opts.ConfigDir)
@@ -917,6 +920,7 @@ func (a *App) register() {
 	a.registerSessions()
 	a.registerFocus()
 	a.registerCaptures()
+	a.registerReminders()
 	a.registerPinnedAgents()
 	a.registerPaste()
 	a.handle(CmdFDSearch, a.fdSearch)

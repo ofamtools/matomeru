@@ -188,7 +188,7 @@ func (a *App) WatchCheck() bool {
 	if a.rt.Daemon != nil && a.pollTelemetry() {
 		changed = true
 	}
-	if a.hiddenPanesNeedWake() || a.focusBeatDue() {
+	if a.hiddenPanesNeedWake() || a.focusBeatDue() || a.reminderToastDue() {
 		changed = true
 	}
 	if changed {

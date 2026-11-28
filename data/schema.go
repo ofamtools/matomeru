@@ -748,13 +748,18 @@ func DefaultSchemas() *Registry {
 			},
 		},
 		Schema{
-			// A schedule is a reminder, a command to run or a check, on a cron
-			// expression. Reminders are schedules of kind "remind".
+			// A schedule is a reminder, a daily check-off, a command to run or a check,
+			// on a cron expression or daily timeOfDay.
 			Kind: KindSchedule, Title: "Schedule", Plural: "Schedules", SummaryField: "title",
 			Fields: []FieldSpec{
 				{Name: "title", Type: core.ParamString, Required: true, Description: "what the schedule is for"},
-				{Name: "scheduleKind", Type: core.ParamString, Enum: []string{"remind", "run", "check", "agent_queue"}, Default: "remind", Description: "remind the owner, run a command, check something, or drain the agent queue"},
+				{Name: "scheduleKind", Type: core.ParamString, Enum: []string{ScheduleKindRemind, ScheduleKindDaily, ScheduleKindRun, ScheduleKindCheck, ScheduleKindAgentQueue}, Default: ScheduleKindRemind, Description: "remind the owner, daily check-off, run a command, check something, or drain the agent queue"},
 				str("cron", "cron expression"),
+				str("timeOfDay", "optional daily time of day (HH:MM, 24-hour local time) for daily reminders"),
+				{Name: "notifyChannel", Type: core.ParamString, Enum: []string{NotifyChannelBoth, NotifyChannelMTM, NotifyChannelOS, NotifyChannelNone}, Default: NotifyChannelBoth, Description: "notification delivery channel: both (OS+MTM), mtm, os, or none"},
+				{Name: "notifyPersistence", Type: core.ParamString, Enum: []string{NotifyPersistenceTemporary, NotifyPersistencePersistent}, Default: NotifyPersistenceTemporary, Description: "temporary (auto-dismisses after TTL) or persistent (sticks until acknowledged)"},
+				{Name: "notifyTTLSeconds", Type: core.ParamInt, Default: DefaultReminderTTLSeconds, Description: "seconds a temporary Matomeru notification stays visible (default 30)"},
+				strFmt("reminderMessage", "optional details shown in the notification", ShowFormatMarkdown),
 				strFmt("command", "command line, for run and check", ShowFormatCode),
 				str("nextDueAt", "when it is next due (RFC 3339)"),
 				{Name: "paused", Type: core.ParamBool, Default: false, Description: "paused schedules do not fire"},
@@ -778,8 +783,16 @@ func DefaultSchemas() *Registry {
 			Fields: []FieldSpec{
 				refTo("schedule", KindSchedule, "schedule this is one due time of"),
 				str("dueAt", "when it was due (RFC 3339)"),
+				str("dueDate", "local calendar day YYYY-MM-DD for daily check-off history and nightly reset"),
 				statusField(outcome, "what came of it"),
 				str("checkedAt", "when the outcome was recorded (RFC 3339)"),
+				{Name: "checkOff", Type: core.ParamBool, Default: false, Description: "true when this occurrence records a daily habit check-off"},
+				{Name: "ackRequired", Type: core.ParamBool, Default: false, Description: "true while a persistent notification awaits owner acknowledgement"},
+				str("acknowledgedAt", "when the owner acknowledged this notification (RFC 3339)"),
+				str("notifiedAt", "when the notification was fired (RFC 3339)"),
+				{Name: "ttlSeconds", Type: core.ParamInt, Default: DefaultReminderTTLSeconds, Description: "temporary notification TTL in seconds"},
+				{Name: "notifyChannel", Type: core.ParamString, Enum: []string{NotifyChannelBoth, NotifyChannelMTM, NotifyChannelOS, NotifyChannelNone}, Description: "delivery channel used when this occurrence fired"},
+				str("message", "notification message snapshot"),
 			},
 			StatusColumns:  []StatusColumn{outcome},
 			DefaultColumns: []string{"dueAt", "outcomeStatus", "checkedAt", "schedule"},
