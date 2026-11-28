@@ -145,31 +145,7 @@ func (s *Server) upsertHookContext(item extractedContext, paneID, taskID string,
 	if item.value == "" || item.canonKey == "" {
 		return
 	}
-	var existing *data.Record
-	if res, err := s.cfg.Store.Query(data.Query{Kind: data.KindContext, Query: item.canonKey, FilterField: "canonKey"}); err == nil {
-		for i := range res.Items {
-			rec := res.Items[i]
-			if rec.Text("canonKey") != item.canonKey {
-				continue
-			}
-			recTask, hasRecTask := rec.RefField("task")
-			recPane, hasRecPane := rec.RefField("pane")
-			sameScope := false
-			switch {
-			case taskID != "":
-				sameScope = (hasRecTask && recTask.ID == taskID) || (!hasRecTask && paneID != "" && hasRecPane && recPane.ID == paneID)
-			case paneID != "":
-				sameScope = !hasRecTask && hasRecPane && recPane.ID == paneID
-			default:
-				sameScope = !hasRecTask && !hasRecPane
-			}
-			if sameScope {
-				cp := rec
-				existing = &cp
-				break
-			}
-		}
-	}
+	existing, _ := s.cfg.Store.FindContextInScope(item.canonKey, taskID, paneID)
 
 	var ctxRef core.Ref
 	if existing != nil {

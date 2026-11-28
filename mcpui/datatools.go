@@ -861,31 +861,7 @@ func (d *DataTools) AddContext(actor core.Actor, args AddContextArgs) (*AddConte
 
 	// Dedupe against existing active KindContext records with the same canonKey
 	// within the same task (or same pane when no task is set).
-	var existing *data.Record
-	if qRes, err := d.store.Query(data.Query{Kind: data.KindContext, Query: canonKey, FilterField: "canonKey"}); err == nil {
-		for i := range qRes.Items {
-			rec := qRes.Items[i]
-			if rec.Text("canonKey") != canonKey {
-				continue
-			}
-			recTask, hasRecTask := rec.RefField("task")
-			recPane, hasRecPane := rec.RefField("pane")
-			sameScope := false
-			switch {
-			case taskID != "":
-				sameScope = (hasRecTask && recTask.ID == taskID) || (!hasRecTask && args.Pane != "" && hasRecPane && recPane.ID == args.Pane)
-			case args.Pane != "":
-				sameScope = !hasRecTask && hasRecPane && recPane.ID == args.Pane
-			default:
-				sameScope = !hasRecTask && !hasRecPane
-			}
-			if sameScope {
-				cp := rec
-				existing = &cp
-				break
-			}
-		}
-	}
+	existing, _ := d.store.FindContextInScope(canonKey, taskID, args.Pane)
 
 	var rec *data.Record
 	deduped := false

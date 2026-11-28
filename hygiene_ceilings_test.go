@@ -384,7 +384,7 @@ var cyclomaticCeilings = map[string]int{
 	"data/project_scope.go:(Store).ProjectRecords":                              20,
 	"data/project_scope.go:(Store).ProjectScope":                                15,
 	"data/project_scope.go:(Store).projectTasks":                                16,
-	"data/query.go:(Store).Query":                                               31,
+	"data/query.go:(Store).Query":                                               27,
 	"data/query.go:BuildTree":                                                   14,
 	"data/query.go:WithoutArchivedSubtrees":                                     13,
 	"data/query.go:buildQuerySQL":                                               15,
