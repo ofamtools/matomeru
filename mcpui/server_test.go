@@ -159,6 +159,7 @@ func TestServeStdioSession(t *testing.T) {
 		ToolTriageIngest, ToolTriageEvaluate, ToolPaneSearch, ToolPaneSpawn, ToolPaneSnapshot, ToolPaneSend, ToolPaneStatus, ToolPaneClose,
 		ToolAgentSend, ToolAgentInbox, ToolAgentAck, ToolAgentReply,
 		ToolClipboardPut, ToolClipboardList, ToolClipboardGet,
+		ToolAgentProfiles, ToolAgentSegments, ToolAgentCompose,
 		ToolTaskQueue, ToolTaskFlagAgent, ToolTaskNote, ToolTaskThread, ToolTaskDispatch,
 		ToolTaskRewrite, ToolTaskSplit, ToolTaskJoin,
 		ToolContextOfficial, ToolContextProject, ToolContextAddOfficial}

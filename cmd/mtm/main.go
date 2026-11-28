@@ -16,6 +16,7 @@
 //	mtm mcp serve                            an MCP server (JSON-RPC 2.0) on stdin and stdout
 //	mtm agent hook [harness] [flags]         forward agent hook JSON to the local daemon (fast path)
 //	mtm agent state <state> [flags]          send a manual turn state update
+//	mtm agent profiles|segments|compose      standard agent profiles, prompt segments, dispatch resolution
 //	mtm daemon serve|status|reset|stop       manage the local self-hosted daemon
 //	mtm harness list [--json]                list available harnesses and configured launch commands
 //	mtm migrate --from V1_DB [--dry-run | --apply]
@@ -86,6 +87,10 @@ mtm mcp call TOOL 'JSON'
 mtm mcp serve                            MCP server on stdin/stdout (JSON-RPC 2.0, one message per line)
 mtm agent hook [harness] [flags]         forward agent hook JSON from stdin to the local daemon (fast path)
 mtm agent state <state> [flags]          send a manual turn state update (running|needs_you|idle|done)
+mtm agent profiles [ID] [--role R]       list standard agent profiles (agent_profiles.json overlay)
+mtm agent segments [--kind type|tweak]   list prompt segment types and tweaks (prompt_segments.json)
+mtm agent compose --segment ID [--tag T]... PROMPT
+                                         resolve segment + tags to profile, instructions and final prompt
 mtm daemon serve [--socket PATH] [--mcp-addr ADDR] [--db PATH]
                                          run the local daemon (PTY host, HTTP MCP server, scheduler)
 mtm daemon status [--socket PATH] [--json]

@@ -99,7 +99,7 @@ var policies = map[string]policy{
 	},
 	// MCP Open UI: ViewNode data over the store.
 	mod + "/mcpui": {
-		allow:      []string{mod + "/data", mod + "/internal/pageview", mod + "/triage", mod + "/panesearch", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/traits"},
+		allow:      []string{mod + "/data", mod + "/internal/pageview", mod + "/triage", mod + "/panesearch", mod + "/internal/config", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/traits"},
 		forbidDeps: noTea,
 	},
 	// ViewNode generators.
