@@ -301,3 +301,23 @@ func (a *App) projectNavSectionMaxItems() int {
 func (a *App) showLegacyPanesWorkPages() bool {
 	return a != nil && a.cfg != nil && a.cfg.Settings != nil && a.cfg.Settings.Bool(SetShowLegacyPanesWorkPages, false)
 }
+
+// defaultHomeCardMaxHeight is the default row cap of a Project Portal Home
+// type card (projects.homeCardMaxHeight).
+const defaultHomeCardMaxHeight = 8
+
+func (a *App) projectsHomeStarredGridEnabled() bool {
+	return a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetProjectsHomeStarredGrid, true)
+}
+
+// projectsHomeCardMaxHeight is the row cap of each Home type card; 0 means
+// uncapped, and a negative value falls back to the default.
+func (a *App) projectsHomeCardMaxHeight() int {
+	if a.cfg == nil || a.cfg.Settings == nil {
+		return defaultHomeCardMaxHeight
+	}
+	if n := a.cfg.Settings.Int(SetProjectsHomeCardMaxHeight, defaultHomeCardMaxHeight); n >= 0 {
+		return n
+	}
+	return defaultHomeCardMaxHeight
+}

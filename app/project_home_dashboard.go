@@ -82,11 +82,11 @@ func (pc *ProjectController) homeTarget(projKey, focusID string) (projectHomeTar
 }
 
 func (a *App) projectHomeCacheKey(ws projectWorkspaceData, interactive bool) string {
-	return fmt.Sprintf("%s|%d|%d|%s|%t|%d|%s|%t|%t|%t|%d",
+	return fmt.Sprintf("%s|%d|%d|%s|%t|%d|%s|%t|%t|%t|%d|%d|%t",
 		ws.projectKey, ws.cacheRev, ws.cacheCtxGen, a.projectPanesHomeTelemetryFP(ws.panes),
 		a.nav.showArchived, a.navUnreadCutoff.UnixNano(), ws.cacheRailKey,
 		a.projectHomeDashboardEnabled(), a.projectHomeQueueProgressEnabled(),
-		interactive, a.now().Unix()/60,
+		interactive, a.now().Unix()/60, a.projectsHomeCardMaxHeight(), a.projectsHomeStarredGridEnabled(),
 	)
 }
 
@@ -135,15 +135,22 @@ func (a *App) buildProjectHomeSectionUncached(ws projectWorkspaceData, interacti
 	}
 
 	desc, meta := a.projectHomeMetaLines(ws)
-	groups := []views.ProjectHomeGroup{
-		a.homeDecisionsGroup(ws, paneTitles, now, interactive),
-		a.homeNewGroup(ws, now, interactive),
-		a.homePanesGroup(ws, now, interactive),
-		a.homePromptsGroup(ws, paneTitles, now, interactive),
-		a.homeRecentQuestionsGroup(ws, now, interactive),
-		a.homeOfficialContextGroup(ws, interactive),
-		a.homeActiveLanesGroup(ws, interactive),
-		a.homePortalSettingsGroup(ws, interactive),
+	var layout *views.ProjectHomeLayout
+	var groups []views.ProjectHomeGroup
+	if a.projectsHomeStarredGridEnabled() {
+		layout = a.homeStarredLayout(ws, interactive)
+		groups = []views.ProjectHomeGroup{a.homePortalSettingsGroup(ws, interactive)}
+	} else {
+		groups = []views.ProjectHomeGroup{
+			a.homeDecisionsGroup(ws, paneTitles, now, interactive),
+			a.homeNewGroup(ws, now, interactive),
+			a.homePanesGroup(ws, now, interactive),
+			a.homePromptsGroup(ws, paneTitles, now, interactive),
+			a.homeRecentQuestionsGroup(ws, now, interactive),
+			a.homeOfficialContextGroup(ws, interactive),
+			a.homeActiveLanesGroup(ws, interactive),
+			a.homePortalSettingsGroup(ws, interactive),
+		}
 	}
 
 	badges := make([]ui.Badge, 0, 7)
@@ -178,7 +185,7 @@ func (a *App) buildProjectHomeSectionUncached(ws projectWorkspaceData, interacti
 	return views.ProjectHomeView(views.ProjectHomeSpec{
 		Title: "Home", Description: desc, Meta: meta, ScrollKey: scrollKey,
 		CountsLine1: counts1, CountsLine2: counts2,
-		Badges: badges, Groups: groups,
+		Badges: badges, Groups: groups, Layout: layout,
 		QueueProgress: a.projectQueueProgress(ws.projectID),
 		Interactive:   interactive, ProjectUnread: ws.unreadTotal > 0,
 		Facts: map[string]any{"section": "home", "homeDashboard": true, "projectUnread": ws.unreadTotal > 0},

@@ -63,6 +63,9 @@ type ProjectHomeSpec struct {
 	// queue under the project's description.
 	QueueProgress []data.QueueProgress
 	Groups        []ProjectHomeGroup
+	// Layout, when non-nil, draws the starred grid and the per-type list
+	// cards (projects.homeStarredGrid) after the queues and before Groups.
+	Layout        *ProjectHomeLayout
 	Interactive   bool
 	ProjectUnread bool
 	EmptyFallback string
@@ -94,7 +97,7 @@ func ProjectHomeView(spec ProjectHomeSpec) ui.ViewNode {
 		)
 	}
 
-	focusableCount := 0
+	rows, focusableCount := appendProjectHomeLayout(rows, spec)
 	for gi, g := range spec.Groups {
 		if len(g.Items) == 0 && strings.TrimSpace(g.EmptyHint) == "" {
 			continue
