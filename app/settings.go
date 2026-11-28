@@ -233,6 +233,8 @@ const (
 	SetCompactTestOutput               = "runs.compactTestOutput"
 	SetZeroFieldQueryDefault           = "ui.zeroFieldQueryDefault"
 	SetProjectHomeQueueProgress        = "projects.homeQueueProgress"
+	SetProjectsHomeStarredGrid         = "projects.homeStarredGrid"
+	SetProjectsHomeCardMaxHeight       = "projects.homeCardMaxHeight"
 	SetThreadsIMessageStyle            = "threads.imessageStyle"
 	SetThreadsIndexShow                = "threads.indexShow"
 	SetSessionsDeskChecklist           = "sessions.showChecklist"
@@ -441,6 +443,8 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetCompactTestOutput, true, "summarize Go test events in Run output with one symbol per result"),
 		flag(SetZeroFieldQueryDefault, true, "open the unified Zero-Field chip view by default on f / g s / g b (cycle views with ( / ))"),
 		flag(SetProjectHomeQueueProgress, true, "show live segmented queue progress bars (queue, lanes, child lanes, AI checklist) on the Project Portal Homepage"),
+		flag(SetProjectsHomeStarredGrid, true, "Project Portal Home shows starred items grouped by type in a 3-column grid on top and one height-capped scrolling list card per type below (off: the previous Home dashboard)"),
+		{Name: SetProjectsHomeCardMaxHeight, Type: core.ParamInt, Default: defaultHomeCardMaxHeight, Description: "list rows shown in each Project Portal Home type card before it scrolls inside (0 = uncapped)"},
 		flag(SetThreadsIMessageStyle, true, "show the Threads Page as a split rail and iMessage-style chat transcript (off: one compact linear thread list)"),
 		flag(SetThreadsIndexShow, true, "show Threads as a Google-style snippet index that opens into a full-width chat Show view with an inline bottom composer (off: legacy split rail + transcript)"),
 		flag(SetSessionsDeskChecklist, true, "show each session's live AI checklist (Progress bar and Active step columns) on the AI Sessions Control Desk"),

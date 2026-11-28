@@ -160,6 +160,10 @@ func setupHomeDashboardFixture(t *testing.T) *homeDashboardFixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	// These tests cover the previous Home dashboard: opt out of the starred grid.
+	a.cfg.userSettings[SetProjectsHomeStarredGrid] = false
+	a.reloadSettings()
+	a.applySettings()
 
 	// Create a new document AFTER App startup so it passes navUnreadCutoff as unread.
 	f.newDoc = mk(data.KindDocument, map[string]any{

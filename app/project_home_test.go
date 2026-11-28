@@ -646,3 +646,84 @@ func TestProjectPortalNewestFirstSorting(t *testing.T) {
 		t.Fatalf("project.notes.table not newest-first: %+v", nTbl)
 	}
 }
+
+func homeStarredGridOn(t *testing.T, f *homeDashboardFixture, on bool) {
+	t.Helper()
+	f.app.cfg.userSettings[SetProjectsHomeStarredGrid] = on
+	f.app.reloadSettings()
+	f.app.applySettings()
+	f.driver.Send(core.CommandEvent{Command: core.Command{ID: CmdProjectSectionSelect, Args: map[string]any{"section": "home"}, Actor: User}})
+}
+
+func TestProjectHomeStarredGridAndTypeCards(t *testing.T) {
+	f := setupHomeDashboardFixture(t)
+	a, d := f.app, f.driver
+	d.Keys("5", "enter")
+	homeStarredGridOn(t, f, true)
+
+	// Nothing starred: no starred grid, one capped KindScroll card per non-empty type.
+	root := a.View(a.State())
+	if root.Find(views.ProjectHomeStarredGridID) != nil {
+		t.Fatal("starred grid drawn with nothing starred")
+	}
+	for _, key := range []string{"panes", "tasks", "lanes", "documents", "notes", "questions"} {
+		card := root.Find(views.ProjectHomeCardPrefix + key)
+		if card == nil {
+			t.Fatalf("missing %s card", key)
+		}
+		scroll := card.Find(views.ProjectHomeCardPrefix + key + ".scroll")
+		if scroll == nil || scroll.Kind != ui.KindScroll || scroll.Box.FixedH == 0 || scroll.Box.FixedH > defaultHomeCardMaxHeight {
+			t.Fatalf("%s card scroll = %+v, want a capped KindScroll", key, scroll)
+		}
+		if card.Facts["kind"] == "" || card.Facts["count"] == 0 || card.Facts["homeCard"] != true {
+			t.Fatalf("%s card facts = %v", key, card.Facts)
+		}
+	}
+	if root.Find(views.ProjectHomeCardPrefix+"commands") != nil {
+		t.Fatal("empty commands type drew a card")
+	}
+
+	// Star records of three kinds: the grid groups them by kind in 3 columns.
+	for _, rec := range []data.Record{f.paneIdle, f.lane, f.agentNote} {
+		if _, _, err := f.store.Star(rec.Ref(), User); err != nil {
+			t.Fatal(err)
+		}
+	}
+	homeStarredGridOn(t, f, true)
+	root = a.View(a.State())
+	grid := root.Find(views.ProjectHomeStarredGridID + ".grid")
+	if grid == nil || grid.Kind != ui.KindGrid || grid.Cols != views.ProjectHomeStarredColumns {
+		t.Fatalf("starred grid = %+v, want a %d-column KindGrid", grid, views.ProjectHomeStarredColumns)
+	}
+	var kinds []string
+	for _, cell := range grid.Children {
+		kinds = append(kinds, cell.Facts["kind"].(string))
+	}
+	if strings.Join(kinds, ",") != "pane,lane,note" {
+		t.Fatalf("starred grid kinds = %v, want pane,lane,note", kinds)
+	}
+	starredPane := grid.Find(views.ProjectHomeItemPrefix + "starred.panes." + f.paneIdle.ID)
+	if starredPane == nil || !starredPane.Focusable || starredPane.Facts["starred"] != true {
+		t.Fatalf("starred pane item = %+v", starredPane)
+	}
+	if !strings.Contains(d.Frame(), "Starred (3)") {
+		t.Fatalf("frame missing starred grid title:\n%s", d.Frame())
+	}
+}
+
+func TestProjectHomeStarredGridOptOut(t *testing.T) {
+	f := setupHomeDashboardFixture(t)
+	a, d := f.app, f.driver
+	d.Keys("5", "enter")
+	if _, _, err := f.store.Star(f.lane.Ref(), User); err != nil {
+		t.Fatal(err)
+	}
+	homeStarredGridOn(t, f, false)
+	root := a.View(a.State())
+	if root.Find(views.ProjectHomeStarredGridID) != nil || root.Find(views.ProjectHomeCardPrefix+"lanes") != nil {
+		t.Fatal("projects.homeStarredGrid=false still draws the starred grid or type cards")
+	}
+	if !strings.Contains(d.Frame(), "UNANSWERED DECISIONS") {
+		t.Fatalf("opt-out did not restore the previous Home dashboard:\n%s", d.Frame())
+	}
+}
