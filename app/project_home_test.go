@@ -180,6 +180,7 @@ func TestProjectWorkspaceSectionsAndOfficialContext(t *testing.T) {
 	f := setupProjectWorkspaceFixture(t)
 	a, d := f.app, f.driver
 	a.cfg.userSettings[SetProjectPortalOnP] = false
+	a.cfg.userSettings[SetProjectsHomeStarredGrid] = false
 	a.reloadSettings()
 	a.applySettings()
 

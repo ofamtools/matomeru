@@ -15,10 +15,29 @@ var homeKindRecords = map[string]func(ws projectWorkspaceData) []data.Record{
 	"tasks":     func(ws projectWorkspaceData) []data.Record { return ws.tasks },
 	"lanes":     func(ws projectWorkspaceData) []data.Record { return ws.allLanes },
 	"pages":     func(ws projectWorkspaceData) []data.Record { return ws.pages },
+	"context":   homeContextRecords,
 	"documents": func(ws projectWorkspaceData) []data.Record { return ws.documents },
 	"notes":     func(ws projectWorkspaceData) []data.Record { return ws.notes },
 	"questions": func(ws projectWorkspaceData) []data.Record { return ws.questions },
 	"commands":  func(ws projectWorkspaceData) []data.Record { return ws.commands },
+}
+
+func homeContextRecords(ws projectWorkspaceData) []data.Record {
+	if len(ws.contextRecords) == 0 {
+		return nil
+	}
+	out := make([]data.Record, 0, len(ws.contextRecords))
+	seen := make(map[string]bool, len(ws.contextRecords))
+	for _, it := range ws.contextItems {
+		if it.RecordID == "" || seen[it.RecordID] {
+			continue
+		}
+		if rec, ok := ws.contextRecords[it.RecordID]; ok {
+			seen[it.RecordID] = true
+			out = append(out, rec)
+		}
+	}
+	return out
 }
 
 // homeStarredLayout projects Portal Home's starred grid (starred records
