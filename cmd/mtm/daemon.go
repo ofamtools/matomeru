@@ -78,7 +78,7 @@ func mtmDaemonCommand(g globalOpts) oden.Command {
 	}
 	serveParams := []oden.Parameter{
 		socketParam,
-		{Name: "mcp-addr", Type: "string", Default: "127.0.0.1:0", Description: "TCP listen address for the shared HTTP MCP server"},
+		{Name: "mcp-addr", Type: "string", Description: "TCP listen address for the shared HTTP MCP server (default: " + daemon.DefaultMCPAddr + ", falling back to a free port when busy)"},
 		{Name: "db", Type: "string", Description: "Path to the SQLite database"},
 	}
 	socketOnly := []oden.Parameter{socketParam}
@@ -174,6 +174,7 @@ func mtmDaemonCommand(g globalOpts) oden.Command {
 					return werr
 				},
 			},
+			mtmDaemonURLCommand(socketOnly),
 			{
 				Name:       "reset",
 				Summary:    "drop all live panes and clear telemetry on the local daemon",

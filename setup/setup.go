@@ -49,10 +49,15 @@ type Options struct {
 	OLaneHookCmd  string
 	SkipOLaneHook bool
 	MCPCmd        string
-	DryRun        bool
-	Check         bool
-	Force         bool
-	Now           func() time.Time
+	// MCPTransport is "stdio" (default when empty) or "http".
+	MCPTransport string
+	// MCPURL is the HTTP MCP endpoint for MCPTransport "http".
+	// Default: DefaultMCPURL.
+	MCPURL string
+	DryRun bool
+	Check  bool
+	Force  bool
+	Now    func() time.Time
 }
 
 // Action describes the planned, checked, or applied state of one setup target.

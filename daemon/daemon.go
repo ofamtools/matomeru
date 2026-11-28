@@ -39,7 +39,8 @@ type Config struct {
 	// SocketPath is the Unix domain socket path. Default: DefaultSocketPath().
 	SocketPath string
 	// MCPAddr is the TCP listen address for the shared HTTP MCP server.
-	// Default: "127.0.0.1:0".
+	// Empty tries DefaultMCPAddr and falls back to an ephemeral loopback port;
+	// an explicit address binds strictly and fails when busy.
 	MCPAddr string
 	// DisableMCP disables starting the HTTP MCP server even when Store is set.
 	DisableMCP bool
@@ -162,9 +163,6 @@ func New(cfg Config) (*Server, error) {
 	}
 	if cfg.ApprovalTimeout <= 0 {
 		cfg.ApprovalTimeout = DefaultApprovalTimeout
-	}
-	if cfg.MCPAddr == "" {
-		cfg.MCPAddr = "127.0.0.1:0"
 	}
 	clock := cfg.Clock
 	if clock == nil {
@@ -315,14 +313,14 @@ func (s *Server) Start(ctx context.Context) error {
 		if handoff != nil && handoff.MCPFD >= 0 {
 			httpLn, err = adoptFileListener(handoff.MCPFD, "mcp-listener")
 		} else {
-			httpLn, err = net.Listen("tcp", s.cfg.MCPAddr)
+			httpLn, err = listenMCP(s.cfg.MCPAddr)
 		}
 		if err != nil {
 			_ = unixLn.Close()
 			if handoff == nil {
 				_ = os.Remove(s.socketPath)
 			}
-			return fmt.Errorf("daemon: listen mcp http %s: %w", s.cfg.MCPAddr, err)
+			return fmt.Errorf("daemon: listen mcp http %q: %w", s.cfg.MCPAddr, err)
 		}
 		box := mcpui.NewToolbox(s.cfg.Store, s.cfg.Router)
 		box.RefreshSchemas = s.cfg.RefreshSchemas

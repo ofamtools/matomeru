@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -15,104 +14,67 @@ const DefaultMCPCmd = "mtm"
 
 var mtmMCPArgs = []string{"mcp", "serve"}
 
-// ConfigureMCP configures the mtm MCP server ("mtm mcp serve") across Claude Code,
-// Codex, Antigravity, and Gemini CLI idempotently, preserving all unrelated settings
-// and sibling MCP servers.
+// ConfigureMCP configures the mtm MCP server across Claude Code, Codex,
+// Antigravity, and Gemini CLI idempotently, preserving all unrelated settings
+// and sibling MCP servers. Options.MCPTransport picks "stdio" (spawn
+// `mtm mcp serve`, the default) or "http" (the daemon's shared endpoint).
 func ConfigureMCP(opts Options) ([]Action, error) {
 	home, err := resolveHome(opts.Home)
 	if err != nil {
 		return nil, err
 	}
-
-	cmd := strings.TrimSpace(opts.MCPCmd)
-	if cmd == "" {
-		cmd = DefaultMCPCmd
+	spec, err := newMCPSpec(opts)
+	if err != nil {
+		return nil, err
 	}
 
 	actions := make([]Action, 0, 4)
-
-	claudeAct, err := configureJSONMCP(
-		"claude",
-		filepath.Join(home, ".claude.json"),
-		"stdio",
-		cmd,
-		opts,
-	)
-	if err != nil {
-		return actions, err
+	steps := []func() (Action, error){
+		func() (Action, error) {
+			return configureJSONMCP("claude", filepath.Join(home, ".claude.json"), spec, opts)
+		},
+		func() (Action, error) {
+			return configureCodexTOMLMCP(filepath.Join(home, ".codex", "config.toml"), spec, opts)
+		},
+		func() (Action, error) {
+			return configureJSONMCP("antigravity", filepath.Join(home, ".gemini", "config", "mcp_config.json"), spec, opts)
+		},
+		func() (Action, error) {
+			return configureJSONMCP("gemini", filepath.Join(home, ".gemini", "settings.json"), spec, opts)
+		},
 	}
-	actions = append(actions, claudeAct)
-
-	codexAct, err := configureCodexTOMLMCP(
-		filepath.Join(home, ".codex", "config.toml"),
-		cmd,
-		opts,
-	)
-	if err != nil {
-		return actions, err
+	for _, step := range steps {
+		act, err := step()
+		if err != nil {
+			return actions, err
+		}
+		actions = append(actions, act)
 	}
-	actions = append(actions, codexAct)
-
-	antigravityAct, err := configureJSONMCP(
-		"antigravity",
-		filepath.Join(home, ".gemini", "config", "mcp_config.json"),
-		"",
-		cmd,
-		opts,
-	)
-	if err != nil {
-		return actions, err
-	}
-	actions = append(actions, antigravityAct)
-
-	geminiAct, err := configureJSONMCP(
-		"gemini",
-		filepath.Join(home, ".gemini", "settings.json"),
-		"",
-		cmd,
-		opts,
-	)
-	if err != nil {
-		return actions, err
-	}
-	actions = append(actions, geminiAct)
-
 	return actions, nil
 }
 
-func configureJSONMCP(target, path, serverType, mcpCmd string, opts Options) (Action, error) {
-	var raw []byte
-	exists := false
-	if data, err := os.ReadFile(path); err == nil {
-		raw = data
-		exists = true
-	} else if !os.IsNotExist(err) {
-		return Action{}, fmt.Errorf("read %s: %w", path, err)
+func configureJSONMCP(target, path string, spec mcpSpec, opts Options) (Action, error) {
+	raw, exists, err := readOptionalFile(path)
+	if err != nil {
+		return Action{}, err
 	}
-
-	out, changed, existedEntry, err := mergeMCPSettingsJSON(raw, serverType, mcpCmd, opts.Force)
+	out, changed, existedEntry, err := mergeMCPSettingsJSON(raw, spec.jsonEntry(target), opts.Force)
 	if err != nil {
 		return Action{}, fmt.Errorf("%s: %w", path, err)
 	}
-
-	return applyMCPAction(target, path, exists, existedEntry, changed, mcpCmd, out, opts)
+	return applyMCPAction(target, path, exists, existedEntry, changed, spec.detail(), out, opts)
 }
 
-func configureCodexTOMLMCP(path, mcpCmd string, opts Options) (Action, error) {
-	var raw []byte
-	exists := false
-	if data, err := os.ReadFile(path); err == nil {
-		raw = data
-		exists = true
-	} else if !os.IsNotExist(err) {
-		return Action{}, fmt.Errorf("read %s: %w", path, err)
+func configureCodexTOMLMCP(path string, spec mcpSpec, opts Options) (Action, error) {
+	raw, exists, err := readOptionalFile(path)
+	if err != nil {
+		return Action{}, err
 	}
-
-	out, changed, existedEntry := mergeCodexMCPTOML(raw, mcpCmd, opts.Force)
-	return applyMCPAction("codex", path, exists, existedEntry, changed, mcpCmd, out, opts)
+	out, changed, existedEntry := mergeCodexMCPBlock(raw, spec.codexBlock(), opts.Force)
+	return applyMCPAction("codex", path, exists, existedEntry, changed, spec.detail(), out, opts)
 }
 
-func applyMCPAction(target, path string, fileExists, entryExisted, changed bool, mcpCmd string, out []byte, opts Options) (Action, error) {
+func applyMCPAction(target, path string, fileExists, entryExisted, changed bool, detail string, out []byte, opts Options) (Action, error) {
 	act := Action{
 		Component: "mcp",
 		Target:    target,
@@ -123,7 +85,6 @@ func applyMCPAction(target, path string, fileExists, entryExisted, changed bool,
 		return act, nil
 	}
 
-	detail := fmt.Sprintf("%s mcp serve", mcpCmd)
 	switch {
 	case opts.Check:
 		if !entryExisted {
@@ -156,7 +117,7 @@ func applyMCPAction(target, path string, fileExists, entryExisted, changed bool,
 	return act, nil
 }
 
-func mergeMCPSettingsJSON(raw []byte, serverType, mcpCmd string, force bool) (out []byte, changed bool, existed bool, err error) {
+func mergeMCPSettingsJSON(raw []byte, entry map[string]any, force bool) (out []byte, changed bool, existed bool, err error) {
 	root := map[string]any{}
 	if len(bytes.TrimSpace(raw)) > 0 {
 		if err := json.Unmarshal(raw, &root); err != nil {
@@ -180,23 +141,12 @@ func mergeMCPSettingsJSON(raw []byte, serverType, mcpCmd string, force bool) (ou
 		if !force {
 			return raw, false, true, nil
 		}
-		if equalMCPServerEntry(existingEntry, serverType, mcpCmd, mtmMCPArgs) {
+		if sameMCPEntry(existingEntry, entry) {
 			return raw, false, true, nil
 		}
 		existed = true
 	}
 
-	argsAny := make([]any, len(mtmMCPArgs))
-	for i, a := range mtmMCPArgs {
-		argsAny[i] = a
-	}
-	entry := map[string]any{
-		"command": mcpCmd,
-		"args":    argsAny,
-	}
-	if serverType != "" {
-		entry["type"] = serverType
-	}
 	servers["mtm"] = entry
 	root["mcpServers"] = servers
 
@@ -292,8 +242,7 @@ func formatCodexMTMMCPBlock(mcpCmd string) string {
 	return fmt.Sprintf("[mcp_servers.mtm]\ncommand = %s\nargs = [\"mcp\", \"serve\"]\n", strconv.Quote(mcpCmd))
 }
 
-func mergeCodexMCPTOML(raw []byte, mcpCmd string, force bool) (out []byte, changed bool, existed bool) {
-	block := formatCodexMTMMCPBlock(mcpCmd)
+func mergeCodexMCPBlock(raw []byte, block string, force bool) (out []byte, changed bool, existed bool) {
 	spans := splitTOMLLines(raw)
 
 	sectionIdx := -1
