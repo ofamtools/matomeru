@@ -20,6 +20,7 @@ import (
 	"ofam.dev/matomeru/daemon"
 	"ofam.dev/matomeru/data"
 	"ofam.dev/matomeru/ext"
+	mtmconfig "ofam.dev/matomeru/internal/config"
 	"ofam.dev/matomeru/mcpui"
 	"ofam.dev/matomeru/ptyhost"
 	"ofam.dev/matomeru/runs"
@@ -183,6 +184,7 @@ type viewMemoState struct {
 // store; View reads both.
 type App struct {
 	Store             *data.Store
+	schemaSource      *mtmconfig.SchemaSource
 	actionLog         *data.ActionLogStore
 	actionResult      *actionLogResult
 	jobs              jobsController
@@ -257,6 +259,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 	a.cfg.Settings, _ = config.LoadSettings(nil, DefaultSettings())
 
 	if dir := opts.ConfigDir; dir != "" {
+		a.loadSchemas(dir)
 		a.loadUserActions(dir)
 		a.loadConfig(dir)
 		a.loadDrafts(dir)
@@ -569,6 +572,7 @@ func (a *App) handle(id string, fn func(core.State, core.Command) core.StepResul
 }
 
 func (a *App) register() {
+	a.registerSchemaCommands()
 	a.registerJobsHandlers()
 	a.registerSplitResizeHandlers()
 	for _, id := range []string{"motion.down", "motion.up", "motion.left", "motion.right", "motion.top", "motion.bottom",

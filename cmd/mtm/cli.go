@@ -46,7 +46,7 @@ func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.
 			if dbPath == "" {
 				dbPath, _ = defaultDB()
 			}
-			store, err := openStoreWithSeed(g)
+			store, err := openSeededStore(g)
 			if err != nil {
 				return err
 			}
@@ -92,6 +92,7 @@ func newCLIApp(g globalOpts, args []string, cancel context.CancelFunc, stdin io.
 		mtmTestFormatCommand(),
 	)
 	a.Add(mtmNounCommands(g)...)
+	a.Add(mtmSchemaCommands(g)...)
 
 	baseClaims := a.Claims
 	a.Claims = func(rootArgs []string) bool {

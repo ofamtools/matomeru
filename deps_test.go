@@ -94,6 +94,9 @@ var policies = map[string]policy{
 		allow:      []string{mod + "/data", ochazuke + "/ui"},
 		forbidDeps: noTea,
 	},
+	mod + "/internal/config": {
+		allow: []string{mod + "/data", ochazuke + "/config", ochazuke + "/core"},
+	},
 	// MCP Open UI: ViewNode data over the store.
 	mod + "/mcpui": {
 		allow:      []string{mod + "/data", mod + "/internal/pageview", mod + "/triage", mod + "/panesearch", ochazuke + "/core", ochazuke + "/ui", ochazuke + "/traits"},
@@ -191,6 +194,7 @@ var policies = map[string]policy{
 	mod + "/app": {
 		allow: []string{
 			mod + "/data", mod + "/mcpui", mod + "/views", mod + "/runs", mod + "/ext", mod + "/ptyhost", mod + "/handlers", mod + "/triage",
+			mod + "/internal/config",
 			mod + "/daemon", mod + "/harness", mod + "/contextitems", mod + "/actions", mod + "/panesearch", bubbletea,
 			ochazuke + "/core", ochazuke + "/ui", ochazuke + "/layout", ochazuke + "/expr", ochazuke + "/config", ochazuke + "/tea", ochazuke + "/recorder", ochazuke + "/traits",
 			ochazuke + "/widgets/table", ochazuke + "/widgets/tree", ochazuke + "/widgets/form", ochazuke + "/widgets/picker", ochazuke + "/widgets/pathpicker",
@@ -200,7 +204,7 @@ var policies = map[string]policy{
 	},
 	// The binary: oden + ochazuke/cli around app, data, mcpui, mdweb, daemon, agenthook, harness, ptyhost, setup and migrate.
 	mod + "/cmd/mtm": {
-		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/mdweb", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", mod + "/setup", mod + "/panesearch", mod + "/internal/backup", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", ochazuke + "/traits", oden, bubbletea},
+		allow: []string{mod + "/app", mod + "/data", mod + "/mcpui", mod + "/mdweb", mod + "/migrate", mod + "/daemon", mod + "/agenthook", mod + "/harness", mod + "/ptyhost", mod + "/setup", mod + "/panesearch", mod + "/internal/backup", mod + "/internal/config", ochazuke + "/core", ochazuke + "/config", ochazuke + "/cli", ochazuke + "/traits", oden, bubbletea},
 	},
 }
 
