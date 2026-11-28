@@ -664,9 +664,6 @@ func (m *bindingsModal) Handle(c core.Command) modal.Result {
 			return modal.Result{Handled: true}
 		}
 		return modal.Result{Handled: true, Status: fmt.Sprintf("nothing to %s", strings.TrimPrefix(c.ID, "bindings.")), SetStatus: true}
-	case bindings.CmdViewToggle:
-		ed.HandleCommand(c)
-		return modal.Result{Handled: true, Mode: m.Mode(), FocusID: m.FocusID()}
 	case CmdBindingsMatchMode:
 		ed.HandleCommand(core.Command{ID: "table.filter.mode.cycle"})
 		return modal.Result{Handled: true, Status: "the filter's match mode changed", SetStatus: true}
@@ -687,10 +684,7 @@ func (m *bindingsModal) Handle(c core.Command) modal.Result {
 			}
 			return modal.Result{Handled: true}
 		}
-		if ed.HandleCommand(c) || strings.HasPrefix(c.ID, "motion.") {
-			return modal.Result{Handled: true}
-		}
-		return modal.Result{}
+		return m.handleEditorCommand(ed, c)
 	}
 }
 

@@ -1,9 +1,12 @@
 package app
 
 import (
+	"strings"
+
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 	"ofam.dev/ochazuke/widgets/bindings"
+	"ofam.dev/ochazuke/widgets/modal"
 )
 
 // The binding editor's keyboard-layout view: the editor model owns the view
@@ -59,4 +62,21 @@ func bindingsViewBadge(ed *bindings.Model) ui.Badge {
 		return ui.Badge{Text: "keyboard · [ ] layer · s shift · 0 root · v table", Tone: "accent"}
 	}
 	return ui.Badge{Text: "v keyboard"}
+}
+
+func (a *App) registerBindingsKeyboard() {
+	for _, id := range bindingsKeyboardCommands {
+		a.handle(id, a.handleModal)
+	}
+}
+
+func (m *bindingsModal) handleEditorCommand(ed *bindings.Model, c core.Command) modal.Result {
+	if c.ID == bindings.CmdViewToggle {
+		ed.HandleCommand(c)
+		return modal.Result{Handled: true, Mode: m.Mode(), FocusID: m.FocusID()}
+	}
+	if ed.HandleCommand(c) || strings.HasPrefix(c.ID, "motion.") {
+		return modal.Result{Handled: true}
+	}
+	return modal.Result{}
 }

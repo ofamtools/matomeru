@@ -349,7 +349,7 @@ var cyclomaticCeilings = map[string]int{
 	"app/ux_notes.go:(App).sessionNoteCapture":                                  17,
 	"app/ux_notes.go:formatUXNoteMarkdown":                                      13,
 	"app/v2.go:(App).assign":                                                    17,
-	"app/v2.go:(bindingsModal).Handle":                                          33,
+	"app/v2.go:(bindingsModal).Handle":                                          31,
 	"app/view.go:(App).bindingsFor":                                             19,
 	"app/view.go:(App).build":                                                   44,
 	"app/view.go:(App).compiledBindings":                                        19,
