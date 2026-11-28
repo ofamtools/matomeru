@@ -24,7 +24,8 @@ const (
 )
 
 // HTTPHandler serves MCP over HTTP JSON-RPC 2.0 on POST /mcp and
-// POST /mcp/{pane_id}, plus GET /health returning {"ok":true}.
+// POST /mcp/{pane_id}, accepts DELETE on both for client session teardown
+// (204), plus GET /health returning {"ok":true}.
 //
 // When {pane_id} is present in the URL path or the X-MTM-Pane-ID header is set,
 // HTTPHandler binds MTM_PANE_ID into the Toolbox call context so agents never
@@ -73,8 +74,14 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if r.Method == http.MethodDelete {
+		// Streamable HTTP clients send DELETE to end a session; the server is
+		// stateless, so there is nothing to tear down.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", "POST")
+		w.Header().Set("Allow", "POST, DELETE")
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}

@@ -14,7 +14,7 @@ import (
 	"ofam.dev/oden"
 )
 
-const setupUsage = "usage: mtm setup [machine|agents|skills|hooks|mcp|check|sync|purge|init-shell] [--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--dry-run] [--check] [--force] [--quiet] [--json]"
+const setupUsage = "usage: mtm setup [machine|agents|skills|hooks|mcp|check|sync|purge|init-shell] [--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--transport stdio|http] [--mcp-url URL] [--dry-run] [--check] [--force] [--quiet] [--json]"
 
 func setupStateDir(homeOverride string) string {
 	if h := strings.TrimSpace(homeOverride); h != "" {
@@ -49,6 +49,8 @@ func setupParameters() []oden.Parameter {
 		{Name: "olane-hook-cmd", Type: "string", Description: "Command invoked by o-lane Claude Code subagent hooks (default: o-lane agent-hook claude-code)"},
 		{Name: "no-olane-hook", Type: "bool", Description: "Skip wiring o-lane agent-hook on Claude Code SubagentStart/SubagentStop"},
 		{Name: "mcp-cmd", Type: "string", Description: "Command invoked by harness MCP server configs (default: mtm)"},
+		{Name: "transport", Type: "string", Default: setup.MCPTransportStdio, Description: "Harness MCP transport: stdio (spawn mtm mcp serve) or http (shared daemon endpoint)"},
+		{Name: "mcp-url", Type: "string", Description: "HTTP MCP endpoint for --transport http (default: live daemon's <url>/mcp, else " + setup.DefaultMCPURL + ")"},
 		{Name: "dry-run", Type: "bool", Description: "Preview planned changes without writing files"},
 		{Name: "check", Type: "bool", Description: "Read-only drift check; exit non-zero when not converged"},
 		{Name: "force", Type: "bool", Description: "Replace conflicting symlinks or back up and replace regular files/directories"},
@@ -65,6 +67,8 @@ func setupOptionsFromParsed(p oden.Parsed) setup.Options {
 		OLaneHookCmd:  p.String("olane-hook-cmd"),
 		SkipOLaneHook: p.Bool("no-olane-hook"),
 		MCPCmd:        p.String("mcp-cmd"),
+		MCPTransport:  p.String("transport"),
+		MCPURL:        p.String("mcp-url"),
 		DryRun:        p.Bool("dry-run"),
 		Check:         p.Bool("check"),
 		Force:         p.Bool("force"),
@@ -84,6 +88,7 @@ func mtmSetupCommand() oden.Command {
 				return errors.New(setupUsage)
 			}
 			opts := setupOptionsFromParsed(p)
+			opts.MCPURL = resolveSetupMCPURL(c.Context, opts)
 			if forceCheck {
 				opts.Check = true
 				opts.DryRun = false
@@ -133,7 +138,7 @@ func mtmSetupCommand() oden.Command {
 				oden.Command{
 					Name:       "machine",
 					Summary:    "configure agent instruction files, OFAM skills, harness hooks, and MCP",
-					Usage:      "[--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--dry-run] [--check] [--force] [--json]",
+					Usage:      "[--home DIR] [--source FILE] [--skills-src DIR ...] [--all-skills] [--hook-cmd CMD] [--olane-hook-cmd CMD] [--no-olane-hook] [--mcp-cmd CMD] [--transport stdio|http] [--mcp-url URL] [--dry-run] [--check] [--force] [--json]",
 					Parameters: params,
 					Handle:     runTarget("machine", false, false),
 				},
@@ -161,7 +166,7 @@ func mtmSetupCommand() oden.Command {
 				oden.Command{
 					Name:       "mcp",
 					Summary:    "configure mtm mcp serve across Claude Code, Codex, Antigravity, and Gemini CLI",
-					Usage:      "[--home DIR] [--mcp-cmd CMD] [--dry-run] [--check] [--force] [--json]",
+					Usage:      "[--home DIR] [--mcp-cmd CMD] [--transport stdio|http] [--mcp-url URL] [--dry-run] [--check] [--force] [--json]",
 					Parameters: params,
 					Handle:     runTarget("mcp", false, false),
 				},
