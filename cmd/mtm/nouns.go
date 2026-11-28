@@ -43,6 +43,7 @@ var nounSpecs = []nounSpec{
 	{name: "repo", aliases: []string{"repos"}, kind: data.KindRepo, summary: "manage tracked git repositories"},
 	{name: "capture", aliases: []string{"captures"}, kind: data.KindCapture, summary: "manage captured dictation and composed prompts"},
 	{name: "message", aliases: []string{"messages", "msg"}, kind: data.KindMessage, summary: "inter-agent mailbox: send, inbox, ack and reply"},
+	{name: "clip", aliases: []string{"clips", "clipboard"}, kind: data.KindClip, summary: "shared clipboard: put, list and copy between the owner and agents"},
 	{name: "page", aliases: []string{"pages", data.KindPage}, kind: data.KindPage, summary: "manage UI pages"},
 	{name: "occurrence", aliases: []string{"occurrences", data.KindOccurrence}, kind: data.KindOccurrence, summary: "manage schedule occurrences"},
 }
@@ -95,6 +96,9 @@ var nounAliases = map[string]string{
 	"message":             data.KindMessage,
 	"messages":            data.KindMessage,
 	"msg":                 data.KindMessage,
+	"clip":                data.KindClip,
+	"clips":               data.KindClip,
+	"clipboard":           data.KindClip,
 	"page":                data.KindPage,
 	"pages":               data.KindPage,
 	"ui.page":             data.KindPage,
@@ -642,6 +646,10 @@ func buildNounCommand(spec nounSpec, g globalOpts) oden.Command {
 
 	if kind == data.KindMessage {
 		children = append(children, mtmMessageCommands(g)...)
+	}
+
+	if kind == data.KindClip {
+		children = withClipCommands(children, g)
 	}
 
 	if kind == data.KindQuestion {
