@@ -97,6 +97,7 @@ func setupInsertPickerFixture(t *testing.T) (*App, *Driver, *data.Store, string)
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	a.SetComposerSkills([]composerCompletion{
 		{Trigger: "$", Label: "$tdd-loop", Insert: "tdd-loop", Detail: "Test-driven loop", Kind: "skill"},
 	})

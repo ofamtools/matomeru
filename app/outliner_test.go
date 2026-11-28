@@ -46,6 +46,7 @@ func TestOutlineInPlaceVimAndScrollOff(t *testing.T) {
 	}
 
 	d := NewDriver(a, 100, 24)
+	d.Keys("2")
 	d.Keys("T")
 	if a.Modal() != "outline" || a.Mode() != ModeOutline {
 		t.Fatalf("T did not open outline: modal=%q mode=%q", a.Modal(), a.Mode())

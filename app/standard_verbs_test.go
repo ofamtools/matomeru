@@ -60,7 +60,7 @@ func TestStandardVerbsRegistrationAndLegacyKeepActions(t *testing.T) {
 
 func TestStandardCycleDirectionWrappingAndTargeting(t *testing.T) {
 	t.Run("work index and show focused + targeted", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Keys("2")
 		_ = a.nav.presets.Save(workTable, table.Preset{Name: "p-one", Filter: "tier"})
 		_ = a.nav.presets.Save(workTable, table.Preset{Name: "p-two", Group: "workStatus"})
@@ -105,7 +105,7 @@ func TestStandardCycleDirectionWrappingAndTargeting(t *testing.T) {
 	})
 
 	t.Run("explicit ViewNode.ByID targeting while another node is focused", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Keys("1")
 		// Focus is on panes.rail.table; explicitly target site.toc via ViewNode.ByID!
 		if a.Focus() != railTable {
@@ -153,7 +153,7 @@ func TestStandardCycleDirectionWrappingAndTargeting(t *testing.T) {
 	})
 
 	t.Run("queue, files, jobs, and hints cyclers wrap forward and backward", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 
 		// Files tabs: focused + explicit target + prev/next wrap.
 		d.Keys("g", "d")
@@ -234,7 +234,7 @@ func TestStandardCycleDirectionWrappingAndTargeting(t *testing.T) {
 
 func TestStandardFoldTargetsFocusedAndExplicit(t *testing.T) {
 	t.Run("work tree fold actions", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Keys("2")
 		if !a.inWorkTree(a.State()) {
 			t.Fatal("expected work tree active")
@@ -261,7 +261,7 @@ func TestStandardFoldTargetsFocusedAndExplicit(t *testing.T) {
 	})
 
 	t.Run("show detail fold targeted while focused on header", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Send(resize(120, 40))
 		d.Keys("2", "E")
 		if a.Focus() != showHeader {
@@ -285,7 +285,7 @@ func TestStandardFoldTargetsFocusedAndExplicit(t *testing.T) {
 	})
 
 	t.Run("TOC group fold targeted while focused on rail", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Keys("1")
 		if a.Focus() != railTable {
 			t.Fatalf("focus = %q, want %q", a.Focus(), railTable)
@@ -302,7 +302,7 @@ func TestStandardFoldTargetsFocusedAndExplicit(t *testing.T) {
 	})
 
 	t.Run("project nav section fold targeted while focused elsewhere", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Keys("1", "g", "g")
 		if _, _, onProj := a.selectedRailProject(); !onProj {
 			t.Fatal("expected rail selection on a project header")
@@ -325,7 +325,7 @@ func TestStandardFoldTargetsFocusedAndExplicit(t *testing.T) {
 	})
 
 	t.Run("table group fold on grouped panes rail", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		d.Keys("1", "g", "g")
 		tbl := a.rail()
 		if tbl.GroupField == "" {
@@ -347,7 +347,7 @@ func TestStandardFoldTargetsFocusedAndExplicit(t *testing.T) {
 }
 
 func TestStandardToggleTargetsFocusedAndExplicit(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. Work layout toggle (focused + targeted).
 	d.Keys("2")

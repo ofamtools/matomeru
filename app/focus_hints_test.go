@@ -33,7 +33,7 @@ func TestFocusHintsInlineAndDrilldown(t *testing.T) {
 			modeName = "compactTOC=false"
 		}
 		t.Run(modeName, func(t *testing.T) {
-			a, d := demo(t)
+			a, d := demoLegacy(t)
 			a.cfg.userSettings[SetCompactTOC] = compactTOC
 			a.cfg.userSettings[SetFocusHintsDrilldown] = true
 			a.reloadSettings()
@@ -215,7 +215,7 @@ func TestFocusHintsInlineAndDrilldown(t *testing.T) {
 
 func TestFocusHintsFlatOptOutAndStyleSettings(t *testing.T) {
 	t.Run("default hints.focusDrilldown=false shows direct leaf hints and tabs in one step", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		if a.focusHintsDrilldown() {
 			t.Fatal("expected SetFocusHintsDrilldown to default to false")
 		}
@@ -264,7 +264,7 @@ func TestFocusHintsFlatOptOutAndStyleSettings(t *testing.T) {
 	})
 
 	t.Run("hints.focusStyle=overlay renders overlay with clean rendered titles and no inline badges", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		a.cfg.userSettings[SetFocusHintsStyle] = FocusHintsOverlay
 		a.reloadSettings()
 		a.applySettings()
@@ -294,7 +294,7 @@ func TestFocusHintsFlatOptOutAndStyleSettings(t *testing.T) {
 	})
 
 	t.Run("hints.focusStyle=both renders both inline badges and overlay", func(t *testing.T) {
-		a, d := demo(t)
+		a, d := demoLegacy(t)
 		a.cfg.userSettings[SetFocusHintsStyle] = FocusHintsBoth
 		a.reloadSettings()
 		a.applySettings()

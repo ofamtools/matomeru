@@ -126,7 +126,7 @@ func TestInactiveProjectTabUnreadDoesNotBuildDurableSnapshot(t *testing.T) {
 
 	a.ensureProjectTabOpen(projA.ID)
 	a.ensureProjectTabOpen(projB.ID)
-	d.Keys("6") // focus ActiveTab (projA)
+	d.Keys("4") // focus ActiveTab (projA)
 	pc := a.projectCtrl()
 	pc.clearWorkspaceCaches("")
 	pc.durableBuilds = 0
@@ -239,7 +239,7 @@ func TestCmdTermInputLivePassthroughSkipsPortalRebuild(t *testing.T) {
 
 	// Open the project tab and attach live into its child pane terminal.
 	a.ensureProjectTabOpen(proj.ID)
-	d.Keys("6")
+	d.Keys("4")
 	a.Shell.State = a.openProjectChildPane(a.State(), proj.ID, pane.ID, true)
 	a.viewMemo.gen++
 	_ = a.View(a.State())
@@ -300,7 +300,7 @@ func TestProjectNavTelemetryTickAndHomeMinuteCache(t *testing.T) {
 	d := NewDriver(a, 140, 40)
 
 	a.ensureProjectTabOpen(proj.ID)
-	d.Keys("6")
+	d.Keys("4")
 	_ = d.Frame()
 
 	pc := a.projectCtrl()
@@ -362,7 +362,7 @@ func TestProjectSectionSelectFilterAndSearchSingleBuild(t *testing.T) {
 
 	projID := f.projects[0].ID
 	a.ensureProjectTabOpen(projID)
-	d.Keys("6")
+	d.Keys("4")
 	_ = d.Frame()
 
 	// Hover the "context" section header in project.nav first (just like moving via j/k).
@@ -449,7 +449,7 @@ func TestProjectNotesAndDocsResolveWorkspaceRefTitlesAndSyncPath(t *testing.T) {
 	// Verify syncPath skips Store.Get for tasks and resolves filePath for documents.
 	d := NewDriver(a, 140, 40)
 	a.ensureProjectTabOpen(projRef.ID)
-	d.Keys("6")
+	d.Keys("4")
 	_ = d.Frame()
 	if reg := a.Register(core.RegPath); !strings.HasPrefix(reg, "task:") {
 		t.Fatalf("syncPath on project task = %q, want task:...", reg)
@@ -534,7 +534,7 @@ func setupPortalBenchFixture(b *testing.B) (*App, *Driver, []data.Record, []data
 	for _, p := range projects {
 		a.ensureProjectTabOpen(p.ID)
 	}
-	d.Keys("6")
+	d.Keys("4")
 	_ = d.Frame()
 	return a, d, projects, panes
 }

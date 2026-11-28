@@ -241,7 +241,7 @@ func TestSpacePanesInstantTerminalAndAgentForm(t *testing.T) {
 		t.Fatalf("CheckBindings reported %d error(s): %+v", len(rep.Errors), rep.Errors)
 	}
 
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	host := newLaunchCaptureHost()
 	a.panes.Host = host
 	a.panes.Term = ptyhost.NewController(host)

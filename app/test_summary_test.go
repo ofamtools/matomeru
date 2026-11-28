@@ -32,7 +32,7 @@ func TestTestSummaryRunOutput(t *testing.T) {
 	}
 	t.Cleanup(func() { a.Close() })
 	d := NewDriver(a, 140, 40)
-	d.Keys("3")
+	d.Keys("2")
 	root := a.View(a.State())
 	strip := root.Find(runTestSummaryID + ".strip")
 	if strip == nil {

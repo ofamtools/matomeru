@@ -9,7 +9,7 @@ import (
 )
 
 func TestTaskLineageRewriteBindingAndMenus(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2")
 	for _, id := range []string{CmdTaskRewrite, CmdTaskSplit, CmdTaskJoin} {
 		if !slices.ContainsFunc(a.paletteEntries(), func(entry palette.Entry) bool { return entry.Spec.ID == id }) {

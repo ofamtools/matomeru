@@ -44,6 +44,8 @@ var featuresPageReferences = map[string][]string{
 }
 
 var featuresPageOptOut = map[string]string{
+	SpacePanes:      SetShowLegacyPanesWorkPages,
+	SpaceWork:       SetShowLegacyPanesWorkPages,
 	"project_pages": SetProjectWorkspaceInPanes,
 	SpaceFeatures:   SetSelfHostedFeaturesEnabled,
 }

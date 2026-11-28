@@ -60,7 +60,7 @@ func TestTreeVerbOnNavRailActsOnPageTree(t *testing.T) {
 // Focus on the panes rail beside the pane site: terminal.attach types in the
 // page's terminal (it used to say "no terminal is focused").
 func TestTerminalAttachFromRailUsesPageTerminal(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("1")
 	_ = d.Frame()
 	d.Send(core.CommandEvent{Command: core.Command{ID: CmdTermAttach, Actor: User}})

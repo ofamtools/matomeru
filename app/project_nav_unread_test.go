@@ -449,8 +449,8 @@ func TestProjectHeaderActivityBadgesAndDynamicProjectTabUnread(t *testing.T) {
 		}
 	}
 
-	// Open 6 Nebula dynamic Project Tab, switch back to 1 Panes, and verify dynamic tab has tab.Unread = true!
-	d.Keys("5", "enter")
+	// Open dynamic Project Tab (slot 4), switch back to Projects (slot 1), and verify dynamic tab has tab.Unread = true!
+	d.Keys("1", "enter")
 	tabID := projectTabID(f.proj.ID)
 	if a.Space() != tabID {
 		t.Fatalf("expected project tab %q, got %q", tabID, a.Space())
@@ -471,12 +471,12 @@ func TestProjectHeaderActivityBadgesAndDynamicProjectTabUnread(t *testing.T) {
 		t.Fatalf("dynamic Project Tab should have Unread=true when project has unread items: %+v", projTab)
 	}
 
-	// Clear needs_you telemetry and press R on Home inside 6 Nebula to mark all items read!
+	// Clear needs_you telemetry and press R on Home inside Nebula tab to mark all items read!
 	a.rt.live.telemetryMu.Lock()
 	a.rt.live.telemetry = nil
 	a.rt.live.telemetrySeq.Add(1)
 	a.rt.live.telemetryMu.Unlock()
-	d.Keys("6")
+	d.Keys("4")
 	a.Shell.State = withFocus(a.State(), projectNavPrefix+"home")
 	a.viewMemo.gen++
 	d.Keys("R")
@@ -508,7 +508,7 @@ func TestProjectNavOwnerCreatedAndEditedTasksNeverSurfaceAsNew(t *testing.T) {
 	d.Type("Owner Inline Task")
 	d.Keys("esc")
 	d.Keys("q")
-	if a.Modal() != "" || a.Space() != SpacePanes {
+	if a.Modal() != "" || a.Space() != SpaceProjects {
 		t.Fatalf("after closing outline: modal=%q mode=%q space=%q focus=%q", a.Modal(), a.Mode(), a.Space(), a.Focus())
 	}
 

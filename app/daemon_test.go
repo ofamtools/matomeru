@@ -109,6 +109,7 @@ func TestWave2DaemonResetAndStartupReconciliation(t *testing.T) {
 	if _, ok := a.panes.Host.(*daemon.HostAdapter); !ok {
 		t.Fatalf("setupLive did not wire daemon.HostAdapter: got %T", a.panes.Host)
 	}
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	pane, _, err := store.Create(data.CreateInput{Kind: data.KindPane, Fields: map[string]any{
@@ -137,6 +138,7 @@ func TestWave2DaemonResetAndStartupReconciliation(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { b.Close() })
+	enableLegacyPagesForTest(b, SpacePanes)
 	bd := NewDriver(b, 120, 36)
 
 	if len(b.rail().Rows) != 1 || b.rail().Rows[0].Ref.ID != pane.ID {
@@ -251,6 +253,7 @@ func TestWave2HarnessDiscoveryFormChoicesAndLaunch(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	// Wait for the async o-ai background discovery goroutine and deliver its wakeup.
@@ -372,6 +375,7 @@ func TestWave2LiveTelemetryAndBlockingApprovals(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	railOrder := func() []string {

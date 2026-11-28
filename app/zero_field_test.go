@@ -31,7 +31,7 @@ func zfKeys(t *testing.T, a *App, verb, arg string) []string {
 }
 
 func TestZeroFieldUnifiedModalCycleAndApplyOnEsc(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2", "g", "t")
 
 	d.Keys("f")
@@ -71,7 +71,7 @@ func TestZeroFieldUnifiedModalCycleAndApplyOnEsc(t *testing.T) {
 }
 
 func TestGenericPresetSaveAndApply(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2", "g", "t")
 	d.Keys("g", "z", "g")
 	d.Keys(zfKeys(t, a, zfVerbField, "workStatus")...)
@@ -113,7 +113,7 @@ func zfRenderedHints(m *zeroFieldModal) map[string]bool {
 // no single key starts a chord, every drawn hint is an action (or one of
 // the modal's bindings), and typing an action's keys runs that action.
 func TestZeroFieldHintsDisjointAndRoundTrip(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2", "g", "t")
 	if a.genericPresets == nil {
 		a.initGenericPresets()
@@ -231,7 +231,7 @@ func TestZeroFieldHintsDisjointAndRoundTrip(t *testing.T) {
 // stores the exact reference, and Apply and a replayed preset keep the
 // same rows.
 func TestZeroFieldResolvedRefChipAppliesAndReplays(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2", "g", "t")
 	d.Keys("f")
 	d.Keys(zfKeys(t, a, zfVerbField, "parent")...)
@@ -323,7 +323,7 @@ func TestZeroFieldPreviewApplyAndPresetKeepTheSameRecords(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			a, d := demo(t)
+			a, d := demoLegacy(t)
 			d.Keys("2", "g", "t")
 			kind := a.workKind()
 			query := data.QuerySpec{Tokens: tc.tokens}

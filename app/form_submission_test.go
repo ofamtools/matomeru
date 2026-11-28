@@ -13,7 +13,7 @@ import (
 // statuses in one Edit form submit: it writes one change set, and one undo
 // takes every part of it back.
 func TestFormSubmitIsOneUndoStep(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2")
 	task := titled(t, a, data.KindTask, "ochazuke-v2")
 	d.Keys("g", "g", "e")

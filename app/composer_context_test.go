@@ -95,6 +95,7 @@ func TestComposerOfficialProjectContextAutoSelectToggleAndCherryPick(t *testing.
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 160, 40)
 
 	// 1. Opening composer auto-selects ONLY the 2 official items (never scraped!).
@@ -263,6 +264,7 @@ func TestComposerProjectContextAutoInjectSettingDisabled(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 160, 40)
 
 	// Starts opted out by default when SetContextAutoInject is false.

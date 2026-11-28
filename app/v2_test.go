@@ -98,7 +98,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetInputReadlinePriority: true, SetInputFilterScrollMotions: true, SetSplitResize: true, SetProjectNavCompact: true, SetRepoAutoHarvestPanes: true, SetRichAddToQueue: true, SetTOCStyle: views.TOCStyleAuto, SetSearchHighlight: true,
 		SetOutlineAutoSuggest: true, SetFeaturesOutline: true, SetProjectNavPriorityOrder: true, SetProjectNavMode: views.ProjectNavModeSections, SetProjectSectionPickerNested: true,
 		SetCaptureComposeEnabled: true, SetPinnedAgentChrome: true, SetFeaturesDomainNav: true, SetYankDefaultFormat: YankFormatRef, SetPasteContextual: true,
-		SetRemindersTopNavTab: true, SetReminderToasts: true, SetOutlineRescoping: true}
+		SetRemindersTopNavTab: true, SetReminderToasts: true, SetOutlineRescoping: true, SetShowLegacyPanesWorkPages: false}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -130,7 +130,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		d.Keys(keys...)
 		d.Keys("esc", "esc")
 	}
-	d.Keys("3")
+	d.Keys("2")
 	if !strings.Contains(d.Frame(), "Flags") {
 		t.Fatal("no flags column to begin with")
 	}
@@ -139,11 +139,11 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		t.Fatalf("index.flagsColumn off still shows the column:\n%s", d.Frame())
 	}
 	set(SetBorderStyle, "l")
-	d.Keys("3") // two panels: the one without the focus shows the plain frame
+	d.Keys("2") // two panels: the one without the focus shows the plain frame
 	if a.Shell.Theme.BorderStyle != ui.BorderSharp || strings.Contains(d.Frame(), "╭") || !strings.Contains(d.Frame(), "┌") {
 		t.Fatalf("border style %q:\n%s", a.Shell.Theme.BorderStyle, d.Frame())
 	}
-	d.Keys("2")
+	d.Send(core.CommandEvent{Command: core.Command{ID: core.CmdPageOpen, Args: map[string]any{"id": SpaceWork}, Actor: User}})
 	set(SetMatchMode, "l")
 	if a.nav.tables[workTable].MatchMode != "fuzzy" {
 		t.Fatalf("match mode of the open table = %q", a.nav.tables[workTable].MatchMode)
@@ -165,7 +165,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 	}
 	d.Keys("esc", "esc")
 	set(SetRailAutoWiden, "space")
-	d.Keys("1")
+	d.Keys("I")
 	if w := a.Shell.State.Layout.Rects["panes.rail"].W; w < 45 {
 		t.Fatalf("the focused rail is %d wide, want it widened", w)
 	}
@@ -246,7 +246,8 @@ func TestBindingEditor(t *testing.T) {
 			t.Fatalf("filter %q shows %d bindings, want %d (mode %s)", q, got, want, a.Mode())
 		}
 	}
-	d.Keys("2", "B")
+	d.Send(core.CommandEvent{Command: core.Command{ID: core.CmdPageOpen, Args: map[string]any{"id": SpaceWork}, Actor: User}})
+	d.Keys("B")
 	if a.Modal() != "bindings" || a.Mode() != ModeBindings || len(a.bind.bindEd.Filtered()) != len(DefaultBindings()) {
 		t.Fatalf("B: modal %q mode %s", a.Modal(), a.Mode())
 	}
@@ -279,7 +280,8 @@ func TestBindingEditor(t *testing.T) {
 	}
 	// The next start reads the overrides.
 	b, bd := configured(t, dir)
-	bd.Keys("2", "g", "x")
+	bd.Send(core.CommandEvent{Command: core.Command{ID: core.CmdPageOpen, Args: map[string]any{"id": SpaceWork}, Actor: User}})
+	bd.Keys("g", "x")
 	if rec, _ := b.Store.Get(titled(t, b, data.KindTask, "ochazuke-v2").Ref()); !rec.IsStarred() || len(b.bind.userBindings) != 2 {
 		t.Fatalf("the next start does not have g x (%d user rows)", len(b.bind.userBindings))
 	}
@@ -432,7 +434,7 @@ func TestBrowseAnyNounAndAllProps(t *testing.T) {
 // m moves any record to a task, and a task to another task or the root; a
 // task is never offered itself or its own subtasks.
 func TestAssign(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	tier := titled(t, a, data.KindTask, "Tier 1: core, ui, tea")
 	d.Keys("2", "/")
 	d.Type("Tier 1:")
@@ -480,7 +482,7 @@ func TestAssign(t *testing.T) {
 // W goes to the pane that waits; ctrl+a L opens the lane of the pane, and
 // says so when it has none.
 func TestAttentionAndLaneKeys(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	pane := titled(t, a, data.KindPane, "claude: wave 5B")
 	d.Keys("2", "W")
 	if sel, _ := a.SelectedPane(); a.Space() != SpacePanes || sel == nil || sel.ID != pane.ID || a.Focus() != "q-live-terminal" {

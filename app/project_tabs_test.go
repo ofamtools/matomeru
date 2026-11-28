@@ -104,10 +104,10 @@ func setupMultiProjectFixture(t *testing.T) (*App, *Driver, data.Record, data.Re
 func TestProjectsSpaceDirectorySortingAndLivePreview(t *testing.T) {
 	a, d, alpha, beta, gamma, _ := setupMultiProjectFixture(t)
 
-	// Press 5 to open permanent 5 Projects space.
-	d.Keys("5")
+	// Default landing is Projects (slot 1); pressing 1 keeps/opens Projects space.
+	d.Keys("1")
 	if a.Space() != SpaceProjects || a.Focus() != projectsDirTable {
-		t.Fatalf("5 did not open Projects space: space=%q focus=%q", a.Space(), a.Focus())
+		t.Fatalf("1 did not open Projects space: space=%q focus=%q", a.Space(), a.Focus())
 	}
 
 	root := a.View(a.State())
@@ -152,7 +152,7 @@ func TestProjectsSpaceDirectorySortingAndLivePreview(t *testing.T) {
 	if a.Space() != projectTabID(alpha.ID) {
 		t.Fatalf("enter on Alpha did not open project tab: space=%q", a.Space())
 	}
-	d.Keys("5")
+	d.Keys("1")
 	tbl = a.nav.tables[projectsDirTable]
 	if tbl == nil || len(tbl.Rows) == 0 || tbl.Rows[0].Ref.ID != alpha.ID {
 		t.Fatalf("expected recently used Alpha to sort first, got %+v", tbl.Rows[0].Ref)
@@ -163,8 +163,8 @@ func TestProjectTabWorkspaceSectionsOutlineAndQuickNote(t *testing.T) {
 	f := setupProjectWorkspaceFixture(t)
 	a, d := f.app, f.driver
 
-	// Open 5 Projects and press enter on Apollo to open 6 Apollo dynamic tab.
-	d.Keys("5", "enter")
+	// Open Projects (slot 1) and press enter on Apollo to open 4 Apollo dynamic tab.
+	d.Keys("1", "enter")
 	wantSpace := projectTabID(f.proj.ID)
 	if a.Space() != wantSpace {
 		t.Fatalf("enter on Apollo did not open dynamic Project Tab: space=%q want=%q", a.Space(), wantSpace)
@@ -172,16 +172,16 @@ func TestProjectTabWorkspaceSectionsOutlineAndQuickNote(t *testing.T) {
 
 	root := a.View(a.State())
 	tabsNode := root.Find("spaces")
-	if tabsNode == nil || len(tabsNode.Children) != 7 {
-		t.Fatalf("expected 7 top-bar tabs (1..5 + Apollo + Reminders), got %d", len(tabsNode.Children))
+	if tabsNode == nil || len(tabsNode.Children) != 5 {
+		t.Fatalf("expected 5 top-bar tabs (Projects, Runs, Extensions + Apollo + Reminders), got %d", len(tabsNode.Children))
 	}
-	tab6 := tabsNode.Children[5]
-	if tab6.Scope != wantSpace || !strings.Contains(tab6.Title, "Apollo") {
-		t.Fatalf("unexpected 6th tab metadata: id=%q scope=%q title=%q", tab6.ID, tab6.Scope, tab6.Title)
+	tab4 := tabsNode.Children[3]
+	if tab4.Scope != wantSpace || !strings.Contains(tab4.Title, "Apollo") {
+		t.Fatalf("unexpected 4th tab metadata: id=%q scope=%q title=%q", tab4.ID, tab4.Scope, tab4.Title)
 	}
-	tabInner := tab6.Find("project.tab." + f.proj.ID)
+	tabInner := tab4.Find("project.tab." + f.proj.ID)
 	if tabInner == nil || tabInner.Scope != views.ScopeProjectTab {
-		t.Fatalf("expected inner ProjectTab scope wrapper, got %+v", tab6.Children)
+		t.Fatalf("expected inner ProjectTab scope wrapper, got %+v", tab4.Children)
 	}
 	if tabInner.Facts["isProjectTab"] != true || tabInner.Facts["canCloseTab"] != true {
 		t.Fatalf("missing ProjectTab facts: %+v", tabInner.Facts)
@@ -259,8 +259,8 @@ func TestProjectTabWorkspaceSectionsOutlineAndQuickNote(t *testing.T) {
 func TestProjectTabInlineChildPaneView(t *testing.T) {
 	a, d, _, beta, _, betaPane := setupMultiProjectFixture(t)
 
-	// Open 5 Projects -> enter on Beta (first row) -> opens 6 Beta.
-	d.Keys("5", "enter")
+	// Open Projects (slot 1) -> enter on Beta (first row) -> opens slot 4 Beta.
+	d.Keys("1", "enter")
 	tabSpace := projectTabID(beta.ID)
 	if a.Space() != tabSpace {
 		t.Fatalf("expected %q, got %q", tabSpace, a.Space())
@@ -334,13 +334,13 @@ func TestProjectTabInlineChildPaneView(t *testing.T) {
 func TestMultipleProjectTabsNavigationClosingAndOptOuts(t *testing.T) {
 	a, d, _, beta, gamma, betaPane := setupMultiProjectFixture(t)
 
-	// Open 6 Beta, then return to 5 Projects and open 7 Gamma.
-	d.Keys("5", "enter")
+	// Open slot 4 Beta, then return to Projects (slot 1) and open slot 5 Gamma.
+	d.Keys("1", "enter")
 	betaTab := projectTabID(beta.ID)
 	if a.Space() != betaTab {
 		t.Fatalf("expected %q, got %q", betaTab, a.Space())
 	}
-	d.Keys("5", "j", "enter")
+	d.Keys("1", "j", "enter")
 	gammaTab := projectTabID(gamma.ID)
 	if a.Space() != gammaTab {
 		t.Fatalf("expected %q, got %q", gammaTab, a.Space())
@@ -349,50 +349,50 @@ func TestMultipleProjectTabsNavigationClosingAndOptOuts(t *testing.T) {
 		t.Fatalf("top bar missing Beta / Gamma:\n%s", frame)
 	}
 
-	// Switch with digits 5, 6, 7 and [ / ] cycling.
-	d.Keys("5")
+	// Switch with digits 1, 4, 5 and [ / ] cycling.
+	d.Keys("1")
 	if a.Space() != SpaceProjects {
-		t.Fatalf("5 -> %q, want %q", a.Space(), SpaceProjects)
+		t.Fatalf("1 -> %q, want %q", a.Space(), SpaceProjects)
 	}
-	d.Keys("6")
+	d.Keys("4")
 	if a.Space() != betaTab {
-		t.Fatalf("6 -> %q, want %q", a.Space(), betaTab)
+		t.Fatalf("4 -> %q, want %q", a.Space(), betaTab)
 	}
-	d.Keys("7")
+	d.Keys("5")
 	if a.Space() != gammaTab {
-		t.Fatalf("7 -> %q, want %q", a.Space(), gammaTab)
+		t.Fatalf("5 -> %q, want %q", a.Space(), gammaTab)
 	}
 	d.Keys("]")
 	if a.Space() != SpaceReminders {
 		t.Fatalf("] from last dynamic tab -> %q, want %q", a.Space(), SpaceReminders)
 	}
 	d.Keys("]")
-	if a.Space() != SpacePanes {
-		t.Fatalf("] from Reminders -> %q, want %q", a.Space(), SpacePanes)
+	if a.Space() != SpaceProjects {
+		t.Fatalf("] from Reminders -> %q, want %q", a.Space(), SpaceProjects)
 	}
 	d.Keys("[")
 	if a.Space() != SpaceReminders {
-		t.Fatalf("[ from Panes -> %q, want %q", a.Space(), SpaceReminders)
+		t.Fatalf("[ from Projects -> %q, want %q", a.Space(), SpaceReminders)
 	}
 	d.Keys("[")
 	if a.Space() != gammaTab {
 		t.Fatalf("[ from Reminders -> %q, want %q", a.Space(), gammaTab)
 	}
 
-	// Close 7 Gamma with x -> returns cleanly to 5 Projects while 6 Beta stays open.
+	// Close Gamma with x -> returns cleanly to Projects while Beta stays open.
 	d.Keys("x")
 	if a.Space() != SpaceProjects {
-		t.Fatalf("x on 7 Gamma -> %q, want %q", a.Space(), SpaceProjects)
+		t.Fatalf("x on Gamma -> %q, want %q", a.Space(), SpaceProjects)
 	}
 	if len(a.projectCtrl().openTabs) != 1 || a.projectCtrl().openTabs[0] != beta.ID {
 		t.Fatalf("openTabs after closing Gamma = %v, want [%s]", a.projectCtrl().openTabs, beta.ID)
 	}
 
-	// Opt-out 1: projects.childPaneView.enabled = false -> enter on pane jumps to 1 Panes.
+	// Opt-out 1: projects.childPaneView.enabled = false -> enter on pane jumps to Panes.
 	a.cfg.userSettings[SetProjectsChildPaneView] = false
 	a.reloadSettings()
 	a.applySettings()
-	d.Keys("6")
+	d.Keys("4")
 	d.Send(core.CommandEvent{Command: core.Command{
 		ID:    CmdProjectSectionSelect,
 		Args:  map[string]any{"section": "panes"},
@@ -400,37 +400,37 @@ func TestMultipleProjectTabsNavigationClosingAndOptOuts(t *testing.T) {
 	}})
 	d.Keys("enter")
 	if a.Space() != SpacePanes {
-		t.Fatalf("childPaneView=false should jump to 1 Panes, got space=%q", a.Space())
+		t.Fatalf("childPaneView=false should jump to Panes, got space=%q", a.Space())
 	}
 	if sel, ok := a.SelectedPane(); !ok || sel == nil || sel.ID != betaPane.ID {
-		t.Fatalf("expected betaPane selected in 1 Panes, got %v", sel)
+		t.Fatalf("expected betaPane selected in Panes, got %v", sel)
 	}
 	// Exit terminal mode after jumpToPane(..., true).
 	d.Keys("ctrl+a", "d")
 
-	// Opt-out 2: projects.dynamicTabs.enabled = false -> 6+ tabs hidden, enter in 5 Projects falls back to projectHomeOpen.
+	// Opt-out 2: projects.dynamicTabs.enabled = false -> dynamic tabs hidden, enter in Projects falls back to projectHomeOpen.
 	a.cfg.userSettings[SetProjectsDynamicTabs] = false
 	a.reloadSettings()
 	a.applySettings()
-	d.Keys("5", "g", "g")
-	if strings.Contains(d.Frame(), "6 Beta") {
-		t.Fatalf("dynamicTabs=false should hide 6 Beta tab:\n%s", d.Frame())
+	d.Keys("1", "g", "g")
+	if strings.Contains(d.Frame(), "4 Beta") {
+		t.Fatalf("dynamicTabs=false should hide Beta tab:\n%s", d.Frame())
 	}
 	d.Keys("enter")
 	if a.Space() != SpacePanes {
-		t.Fatalf("dynamicTabs=false enter in 5 Projects should fall back to 1 Panes project overview, got %q", a.Space())
+		t.Fatalf("dynamicTabs=false enter in Projects should fall back to Panes project overview, got %q", a.Space())
 	}
 
-	// Opt-out 3: projects.topNavTab.enabled = false -> 5 Projects hidden, ] from 4 Extensions advances to Reminders then wraps to 1 Panes.
+	// Opt-out 3: projects.topNavTab.enabled = false -> Projects hidden, ] from Extensions (slot 2) advances to Reminders then wraps to Runs.
 	a.cfg.userSettings[SetProjectsTopNavTab] = false
 	a.reloadSettings()
 	a.applySettings()
-	d.Keys("4")
-	if strings.Contains(d.Frame(), "5 Projects") {
-		t.Fatalf("topNavTab=false should hide 5 Projects tab:\n%s", d.Frame())
+	d.Keys("2")
+	if strings.Contains(d.Frame(), "1 Projects") {
+		t.Fatalf("topNavTab=false should hide Projects tab:\n%s", d.Frame())
 	}
 	d.Keys("]", "]")
-	if a.Space() != SpacePanes {
-		t.Fatalf("topNavTab=false ] ] from Extensions -> %q, want %q", a.Space(), SpacePanes)
+	if a.Space() != SpaceRuns {
+		t.Fatalf("topNavTab=false ] ] from Extensions -> %q, want %q", a.Space(), SpaceRuns)
 	}
 }

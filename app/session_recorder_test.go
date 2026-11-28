@@ -54,6 +54,7 @@ func newRecorderTestApp(t *testing.T, settings map[string]any, dataDir string) (
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 40)
 	return a, d
 }

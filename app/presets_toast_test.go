@@ -85,6 +85,7 @@ func TestWave4ConfirmationModalQuitAndDaemonReset(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { da.Close() })
+	enableLegacyPagesForTest(da, SpacePanes)
 	dd := NewDriver(da, 120, 36)
 
 	for _, title := range []string{"live-1", "live-2"} {
@@ -158,7 +159,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "mtm-cfg")
 	a, d := configured(t, dir)
 	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTable
-	a.reloadSettings()
+	enableLegacyPagesForTest(a, SpacePanes)
 
 	// Configure work.table with filter + sort + group and save via g v -> s.
 	d.Keys("2", "/")
@@ -252,6 +253,7 @@ func TestWave4TablePresetsKeyedByTableIDAndPersist(t *testing.T) {
 
 	// Reload a brand-new App over the same ConfigDir and verify ApplyDefault runs automatically.
 	b, bd := configured(t, dir)
+	enableLegacyPagesForTest(b, SpacePanes)
 	bd.Keys("2")
 	if wt := b.nav.tables[workTable]; wt == nil || wt.Query != "tier" || wt.SortField != "title" || wt.SortDir != table.SortAsc || wt.GroupField != "workStatus" {
 		t.Fatalf("reloaded work.table did not auto-apply default preset: %+v", wt)
@@ -299,6 +301,7 @@ func TestWave4ActionsJSONAndNamespaceGroupedRecordActions(t *testing.T) {
 	}
 
 	a, d := configured(t, dir)
+	enableLegacyPagesForTest(a, SpacePanes)
 
 	// Verify user actions appear in Palette (:).
 	d.Keys(":")
@@ -432,7 +435,7 @@ func TestWave4ToastsRenderExpireAndOptOut(t *testing.T) {
 }
 
 func TestWave4TreeGuidesAndFocusJumpHints(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. Tree guide lines: ui.treeGuides = true (default) vs false on Outline (T).
 	d.Keys("T")

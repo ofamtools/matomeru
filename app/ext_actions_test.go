@@ -161,7 +161,7 @@ esac
 }
 
 func TestVisualSettingsOptOutRebuildsTablesImmediately(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("2", "g", "n", "/")
 	d.Type("lanes")
 	d.Keys("enter")

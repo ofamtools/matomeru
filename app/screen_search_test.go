@@ -10,7 +10,7 @@ import (
 )
 
 func TestSearchVsFilterOnShowPageAndCollections(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	note, _, err := a.Store.Create(data.CreateInput{
 		Kind: data.KindNote,

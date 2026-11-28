@@ -48,11 +48,12 @@ func newPickerTestApp(t *testing.T, fs pathpicker.FS) (*App, *Driver) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	return a, NewDriver(a, 120, 36)
 }
 
 func TestPickerNormalModeNavigationAndFilterTransitions(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// Standard picker (g n) starts in ModePicker (Normal Mode).
 	d.Keys("g", "n")
@@ -256,7 +257,7 @@ func TestPathPickerNormalModeOverhaul(t *testing.T) {
 }
 
 func TestPickerDefaultModeSetting(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. Default ("normal"): standard pickers start in ModePicker, Palette starts in ModePickerFilter.
 	if got := a.cfg.Settings.String(SetPickerDefaultMode, ""); got != PickerDefaultModeNormal {

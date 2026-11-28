@@ -127,8 +127,8 @@ func TestOutlineAutoSuggestCleanSlateReAnchorWithoutDumpingChildren(t *testing.T
 	t.Cleanup(func() { a.Close() })
 	d := NewDriver(a, 120, 32)
 
-	// Open clean slate (`b`): completely blank canvas hiding Project Phoenix and its legacy children.
-	d.Keys("b")
+	// Open clean slate (`b`) from Runs (no background project list): completely blank canvas hiding Project Phoenix and its legacy children.
+	d.Keys("2", "b")
 	blank := d.Frame()
 	if strings.Contains(blank, "Project Phoenix") || strings.Contains(blank, "Legacy Child A") {
 		t.Fatalf("clean slate leaked prior project before typing:\n%s", blank)

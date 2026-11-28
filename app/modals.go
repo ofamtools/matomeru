@@ -703,19 +703,38 @@ func (a *App) paletteEntries() []palette.Entry {
 			Defaults: defaults,
 		})
 	}
-	// A space or dynamic Project Tab is a page.open with its ID: one palette row each.
-	for i, tb := range a.topTabs() {
+	entries = append(entries, a.paletteSpaceEntries()...)
+	return entries
+}
+
+func (a *App) paletteSpaceEntries() []palette.Entry {
+	tabs := a.topTabs()
+	entries := make([]palette.Entry, 0, len(tabs)+len(spaces))
+	listed := make(map[string]bool, len(tabs))
+	for i, tb := range tabs {
+		listed[tb.id] = true
 		defaults := map[string]any{"id": tb.id}
-		title := "space." + tb.id
-		desc := "Go to the " + tb.title + " space"
+		title, desc := "space."+tb.id, "Go to the "+tb.title+" space"
 		if tb.dynamic {
-			title = "tab." + tb.title
-			desc = "Switch to project tab " + tb.title
+			title, desc = "tab."+tb.title, "Switch to project tab "+tb.title
 		}
 		entries = append(entries, palette.Entry{
 			Spec: core.CommandSpec{ID: core.CmdPageOpen, Description: desc},
 			Item: picker.Item{ID: "space." + tb.id, Title: title, Subtitle: desc,
 				Data: defaults, Badges: []ui.Badge{{Text: fmt.Sprint(i + 1)}}},
+			Defaults: defaults,
+		})
+	}
+	for _, sp := range spaces {
+		if listed[sp.id] {
+			continue
+		}
+		defaults := map[string]any{"id": sp.id}
+		desc := "Go to the legacy " + sp.title + " space"
+		entries = append(entries, palette.Entry{
+			Spec: core.CommandSpec{ID: core.CmdPageOpen, Description: desc},
+			Item: picker.Item{ID: "space." + sp.id, Title: "space." + sp.id, Subtitle: desc,
+				Data: defaults, Badges: []ui.Badge{{Text: "legacy", Tone: "muted"}}},
 			Defaults: defaults,
 		})
 	}

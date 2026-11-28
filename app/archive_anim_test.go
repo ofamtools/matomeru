@@ -30,6 +30,7 @@ func newClockedDemoApp(t *testing.T, start time.Time) (*App, *Driver, func(time.
 		t.Fatalf("New: %v", err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 	advance := func(dt time.Duration) {
 		now = now.Add(dt)

@@ -28,7 +28,7 @@ func laneBarIDs(a *App) []string {
 // focusable lane-bar node: d dismisses the focused one, D opens a picker that
 // can dismiss all completed bars, and the opt-out shows the active bar alone.
 func TestLaneBarsKeepCompletedFocusDismissAndPicker(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	setSettingForTest(t, a, SetLaneBar, true)
 	pane, ok := a.SelectedPane()
 	if !ok || findNode(a, views.LaneBarID) == nil {

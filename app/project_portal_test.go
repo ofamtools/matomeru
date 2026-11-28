@@ -40,6 +40,7 @@ func TestProjectPortalOpenAndStayLiveFromTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 36)
 
 	// Move onto the pane row in 1 Panes rail and press P in normal mode: opens Project Portal Tab.

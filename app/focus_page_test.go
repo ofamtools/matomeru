@@ -213,7 +213,7 @@ func TestFocusPriorityProjectsFilterTheTaskOutline(t *testing.T) {
 		t.Fatal("the outline's cache key ignores the priority filter")
 	}
 	// The outline overlay says so too, and shows only what the filter keeps.
-	f.driver.Keys("T")
+	f.driver.Keys("2", "T")
 	if frame := f.driver.Frame(); !strings.Contains(frame, "focus: 1 priority today") || !strings.Contains(frame, "Apollo") || strings.Contains(frame, "Borealis") {
 		t.Fatalf("the outline in focus mode:\n%s", frame)
 	}

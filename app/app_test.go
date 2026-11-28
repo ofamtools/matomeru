@@ -79,7 +79,7 @@ func TestSeedDemo(t *testing.T) {
 
 // The rail follows the owner's prompts and nothing else.
 func TestRailFollowsOwnerPrompts(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	first := titled(t, a, data.KindPane, "claude: wave 5B")
 	second := titled(t, a, data.KindPane, "nvim: core/keymap.go")
 	order := func() []string {
@@ -120,7 +120,7 @@ func TestRailFollowsOwnerPrompts(t *testing.T) {
 
 // N on a record writes a note about it; the note shows on its Show page.
 func TestNewNoteIsAboutTheFocusedRecord(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	task := titled(t, a, data.KindTask, "matomeru-v2")
 	d.Keys("2", "j", "N")
 	if a.Modal() != "form" || !strings.Contains(d.Frame(), "New note") {
@@ -151,7 +151,7 @@ func TestNewNoteIsAboutTheFocusedRecord(t *testing.T) {
 
 // A path field opens the path picker; changes stage in the form until ctrl+s.
 func TestEditPathFieldUsesThePathPicker(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	task := titled(t, a, data.KindTask, "ochazuke-v2")
 	d.Keys("2", "e", "j", "j", "j", "j", "j", "enter")
 	if a.Modal() != "path" || a.activePathPicker() == nil {
@@ -195,7 +195,7 @@ func TestEditPathFieldUsesThePathPicker(t *testing.T) {
 
 // A table filters, sorts and groups on any field, shown or not.
 func TestListsWorkOnAnyField(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	a.cfg.userSettings[SetZeroFieldQueryDefault] = false
 	a.reloadSettings()
 	a.applySettings()
@@ -339,7 +339,7 @@ func TestUserConfig(t *testing.T) {
 	write("settings.json", `{"startSpace": `)
 	write("bindings.json", `[{"mode": "nope", "keys": ["X"], "command": "no.such.command"}]`)
 	b, err := New(store, Options{ConfigDir: dir})
-	if err != nil || len(b.Warnings) < 2 || b.Space() != SpacePanes || !strings.Contains(b.Status(), "settings.json") {
+	if err != nil || len(b.Warnings) < 2 || b.Space() != SpaceProjects || !strings.Contains(b.Status(), "settings.json") {
 		t.Fatalf("broken config: err %v, warnings %v, space %s", err, b.Warnings, b.Space())
 	}
 }

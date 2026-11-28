@@ -80,7 +80,8 @@ func TestOutlineScopeProjectPortalDefaultMultiLevelStepUpAndRoot(t *testing.T) {
 	t.Cleanup(func() { a.Close() })
 	setSettingForTest(t, a, SetOutlineStartCollapsed, false)
 
-	s := withPage(a.State(), SpacePanes, projectOutlineTree, ModeNormal)
+	s := withPage(a.State(), projectTabID(projA.ID), projectOutlineTree, ModeNormal)
+	s.ActivePage = projectTabID(projA.ID)
 
 	// 1. Project Portal Tasks Outline defaults its root to the active Project.
 	panel := a.projectOutlineView(&s, projA.ID)
@@ -181,8 +182,10 @@ func TestOutlineScopeStandaloneOutlineAndWorkTree(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	setSettingForTest(t, a, SetShowLegacyPanesWorkPages, true)
 	setSettingForTest(t, a, SetOutlineStartCollapsed, false)
 	d := NewDriver(a, 120, 32)
+	d.Keys("1")
 
 	// 1. Standalone Outline modal (T): starts unhoisted at full workspace root.
 	d.Keys("T")
@@ -291,14 +294,17 @@ func TestOutlineScopeOptOutSettingAndBindingsSpecs(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	setSettingForTest(t, a, SetShowLegacyPanesWorkPages, true)
 	setSettingForTest(t, a, SetOutlineStartCollapsed, false)
 	d := NewDriver(a, 120, 32)
+	d.Keys("1")
 
 	if !a.outlineRescopingEnabled() {
 		t.Fatal("ui.outlineRescoping should default to true")
 	}
 	// Hoist in both standalone Outline and Project Portal.
-	sProj := withPage(a.State(), SpacePanes, projectOutlineTree, ModeNormal)
+	sProj := withPage(a.State(), projectTabID(projA.ID), projectOutlineTree, ModeNormal)
+	sProj.ActivePage = projectTabID(projA.ID)
 	_ = a.projectOutlineView(&sProj, projA.ID)
 	projTM := a.trees.projectModel(projA.ID)
 	projTM.SelectedID = subB.ID

@@ -11,7 +11,7 @@ import (
 )
 
 func TestUniversalFilterableAcrossProjectTasksOutlineWorkTreeNavAndBindings(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	proj, _, err := a.Store.Create(data.CreateInput{
 		Kind:   data.KindTask,
 		Fields: map[string]any{"title": "Filter Project"},
@@ -132,7 +132,7 @@ func TestUniversalFilterableAcrossProjectTasksOutlineWorkTreeNavAndBindings(t *t
 }
 
 func TestFilterBarBottomLeft(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	proj, _, err := a.Store.Create(data.CreateInput{
 		Kind:   data.KindTask,
 		Fields: map[string]any{"title": "Very Long Project Workspace Name For Breadcrumb Testing"},
@@ -257,7 +257,7 @@ func TestFilterBarBottomLeft(t *testing.T) {
 }
 
 func TestW1DataDrivenFilterModalInheritanceAndShowHints(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// 1. ModeGlobal inheritance: opening ':' palette inside Binding Editor ('B') works without modal blocks.
 	d.Keys("2", "B")
@@ -341,7 +341,7 @@ func TestW1DataDrivenFilterModalInheritanceAndShowHints(t *testing.T) {
 }
 
 func TestFilterBindingAbsentOnNonFilterableViews(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// Open a Show page (non-filterable view).
 	d.Keys("2", "E")

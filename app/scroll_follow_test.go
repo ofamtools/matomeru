@@ -78,9 +78,9 @@ func walkScrollFollow(t *testing.T, a *App, d *Driver, scrollID string) {
 func TestFeaturesNavScrollFollowPadding(t *testing.T) {
 	a, _ := newFeaturesTestApp(t, Options{FS: matomeruCheckoutFS("/home/dev", "/home/dev/proj/matomeru")})
 	d := NewDriver(a, 150, 24)
-	d.Keys("6")
+	d.Keys("4")
 	if a.Space() != SpaceFeatures {
-		t.Fatalf("slot 6 did not open SpaceFeatures: space=%q", a.Space())
+		t.Fatalf("slot 4 did not open SpaceFeatures: space=%q", a.Space())
 	}
 	d.Frame()
 	walkScrollFollow(t, a, d, "features.nav.scroll")

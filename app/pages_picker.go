@@ -51,72 +51,77 @@ func (a *App) schemaCount(kind string) int {
 	return 0
 }
 
+type appPageEntry struct {
+	id, title, subtitle, key string
+	keywords                 []string
+}
+
+var appSpacePickMeta = map[string]appPageEntry{
+	SpacePanes:      {title: "Panes", subtitle: "Live terminals, pane sites, and project overviews", keywords: []string{"app", "space", "panes", "terminals"}},
+	SpaceWork:       {title: "Work", subtitle: "Tasks tree and global noun views", keywords: []string{"app", "space", "work", "tasks"}},
+	SpaceRuns:       {title: "Runs", subtitle: "Command runs and captured output", keywords: []string{"app", "space", "runs"}},
+	SpaceExtensions: {title: "Extensions", subtitle: "Discovered o-* tools and setup", keywords: []string{"app", "space", "extensions"}},
+	SpaceProjects:   {title: "Projects", subtitle: "All projects directory with live Home overview preview", keywords: []string{"app", "space", "projects", "directory"}},
+	SpaceReminders:  {title: "Reminders", subtitle: "Daily check-offs, scheduled notifications, and history log", keywords: []string{"app", "space", "reminders", "daily", "notifications", "alerts", "schedule"}},
+	SpaceFeatures:   {title: "Features", subtitle: "Self-hosted Matomeru features, noun verbs, organized groups, and wishlist capture", keywords: []string{"app", "space", "features", "wishlist", "self-hosted"}},
+}
+
+var appOverlayPickEntries = []appPageEntry{
+	{id: pagePickAppPrefix + "space:" + SpaceReminders, title: "Reminders", subtitle: "Daily check-offs, scheduled notifications, and history log", key: "g M", keywords: []string{"app", "space", "reminders", "daily", "notifications", "alerts", "schedule"}},
+	{id: pagePickAppPrefix + "space:" + SpaceCaptures, title: "Captures", subtitle: "Persistent dictation & composed prompt capture log", key: "g L", keywords: []string{"app", "space", "captures", "dictation", "compose", "log"}},
+	{id: pagePickAppPrefix + "about", title: "About", subtitle: "Build versions, daemon PIDs, storage paths, and harnesses", key: "g A", keywords: []string{"app", "about", "diagnostics", "version"}},
+	{id: pagePickAppPrefix + "settings", title: "Settings", subtitle: "Theme, layout, confirmations, and preferences", key: "S", keywords: []string{"app", "settings", "config"}},
+	{id: pagePickAppPrefix + "bindings", title: "Bindings", subtitle: "Browse, filter, rebind, and reset key bindings", key: "B", keywords: []string{"app", "bindings", "keys", "keymap"}},
+	{id: pagePickAppPrefix + "outline", title: "Outline", subtitle: "Full task hierarchy outline overlay", key: "T", keywords: []string{"app", "outline", "tree"}},
+	{id: pagePickAppPrefix + "inspector", title: "Inspector", subtitle: "Inspect registered actions, parameters, and modes", key: ": inspect", keywords: []string{"app", "inspector", "actions", "modes"}},
+}
+
+func (a *App) pagesPickAppItems() []picker.Item {
+	tabs := a.topTabs()
+	items := make([]picker.Item, 0, len(tabs)+len(appOverlayPickEntries)+len(spaces))
+	listed := make(map[string]bool, len(tabs))
+	appendEntry := func(id, title, subtitle, badge, badgeTone string, keywords []string) {
+		badges := []ui.Badge{{Text: "[app]", Tone: "info"}}
+		if badge != "" {
+			badges = append(badges, ui.Badge{Text: badge, Tone: badgeTone})
+		}
+		items = append(items, picker.Item{ID: id, Title: title, Subtitle: subtitle, Badges: badges, Keywords: keywords})
+	}
+	for i, tb := range tabs {
+		listed[tb.id] = true
+		if tb.dynamic {
+			continue
+		}
+		meta := appSpacePickMeta[tb.id]
+		appendEntry(pagePickAppPrefix+"space:"+tb.id, firstNonEmpty(meta.title, tb.title), meta.subtitle, fmt.Sprint(i+1), "muted", meta.keywords)
+	}
+	for _, ap := range appOverlayPickEntries {
+		if listed[strings.TrimPrefix(ap.id, pagePickAppPrefix+"space:")] {
+			continue
+		}
+		appendEntry(ap.id, ap.title, ap.subtitle, ap.key, "muted", ap.keywords)
+	}
+	for _, sp := range spaces {
+		if listed[sp.id] {
+			continue
+		}
+		meta := appSpacePickMeta[sp.id]
+		appendEntry(pagePickAppPrefix+"space:"+sp.id, firstNonEmpty(meta.title, sp.title), meta.subtitle, "legacy", "muted", meta.keywords)
+	}
+	for i, tb := range tabs {
+		if !tb.dynamic {
+			continue
+		}
+		appendEntry(pagePickAppPrefix+"space:"+tb.id, tb.title, "Open Project Tab", fmt.Sprint(i+1), "accent", []string{"app", "project", "tab", tb.title, tb.projectID})
+	}
+	return items
+}
+
 // pagesPick opens the unified `'` Pages picker containing three clearly badged
 // groups: [app] App pages, [pane] Pane site & MCP pages, and [noun] Global noun
 // pages (including all mounted extension nouns). Never empty.
 func (a *App) pagesPick(s core.State, _ core.Command) core.StepResult {
-	var items []picker.Item
-
-	// Group 1: [app] App pages (spaces + core overlays).
-	appPages := []struct {
-		id, title, subtitle, key string
-		keywords                 []string
-	}{
-		{pagePickAppPrefix + "space:" + SpacePanes, "Panes", "Live terminals, pane sites, and project overviews", "1", []string{"app", "space", "panes", "terminals"}},
-		{pagePickAppPrefix + "space:" + SpaceWork, "Work", "Tasks tree and global noun views", "2", []string{"app", "space", "work", "tasks"}},
-		{pagePickAppPrefix + "space:" + SpaceRuns, "Runs", "Command runs and captured output", "3", []string{"app", "space", "runs"}},
-		{pagePickAppPrefix + "space:" + SpaceExtensions, "Extensions", "Discovered o-* tools and setup", "4", []string{"app", "space", "extensions"}},
-		{pagePickAppPrefix + "space:" + SpaceReminders, "Reminders", "Daily check-offs, scheduled notifications, and history log", "g M", []string{"app", "space", "reminders", "daily", "notifications", "alerts", "schedule"}},
-		{pagePickAppPrefix + "space:" + SpaceCaptures, "Captures", "Persistent dictation & composed prompt capture log", "g L", []string{"app", "space", "captures", "dictation", "compose", "log"}},
-		{pagePickAppPrefix + "about", "About", "Build versions, daemon PIDs, storage paths, and harnesses", "g A", []string{"app", "about", "diagnostics", "version"}},
-		{pagePickAppPrefix + "settings", "Settings", "Theme, layout, confirmations, and preferences", "S", []string{"app", "settings", "config"}},
-		{pagePickAppPrefix + "bindings", "Bindings", "Browse, filter, rebind, and reset key bindings", "B", []string{"app", "bindings", "keys", "keymap"}},
-		{pagePickAppPrefix + "outline", "Outline", "Full task hierarchy outline overlay", "T", []string{"app", "outline", "tree"}},
-		{pagePickAppPrefix + "inspector", "Inspector", "Inspect registered actions, parameters, and modes", ": inspect", []string{"app", "inspector", "actions", "modes"}},
-	}
-	insertAt := 4
-	if a.projectsTopNavTabEnabled() {
-		appPages = append(appPages[:insertAt], append([]struct {
-			id, title, subtitle, key string
-			keywords                 []string
-		}{
-			{pagePickAppPrefix + "space:" + SpaceProjects, "Projects", "All projects directory with live Home overview preview", "5", []string{"app", "space", "projects", "directory"}},
-		}, appPages[insertAt:]...)...)
-		insertAt++
-	}
-	if a.featuresPageActive() {
-		appPages = append(appPages[:insertAt], append([]struct {
-			id, title, subtitle, key string
-			keywords                 []string
-		}{
-			{pagePickAppPrefix + "space:" + SpaceFeatures, "Features", "Self-hosted Matomeru features, noun verbs, organized groups, and wishlist capture", fmt.Sprint(insertAt + 1), []string{"app", "space", "features", "wishlist", "self-hosted"}},
-		}, appPages[insertAt:]...)...)
-	}
-	for _, ap := range appPages {
-		badges := []ui.Badge{{Text: "[app]", Tone: "info"}}
-		if ap.key != "" {
-			badges = append(badges, ui.Badge{Text: ap.key, Tone: "muted"})
-		}
-		items = append(items, picker.Item{
-			ID:       ap.id,
-			Title:    ap.title,
-			Subtitle: ap.subtitle,
-			Badges:   badges,
-			Keywords: ap.keywords,
-		})
-	}
-	for i, tb := range a.topTabs() {
-		if !tb.dynamic {
-			continue
-		}
-		items = append(items, picker.Item{
-			ID:       pagePickAppPrefix + "space:" + tb.id,
-			Title:    tb.title,
-			Subtitle: "Open Project Tab",
-			Badges:   []ui.Badge{{Text: "[app]", Tone: "info"}, {Text: fmt.Sprint(i + 1), Tone: "accent"}},
-			Keywords: []string{"app", "project", "tab", tb.title, tb.projectID},
-		})
-	}
+	items := a.pagesPickAppItems()
 
 	// Group 2: [pane] Pane site & MCP pages (unread/open questions first, plus each pane's Screen).
 	if res, err := a.Router.ListPages(mcpui.ListPagesArgs{}); err == nil {

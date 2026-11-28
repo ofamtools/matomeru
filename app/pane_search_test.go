@@ -21,7 +21,7 @@ func TestPaneSearchBindingsAndLeaderParity(t *testing.T) {
 		t.Fatalf("default bindings have errors: %+v", rep.Errors)
 	}
 
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 
 	// F in ModeNormal opens global pane search in filter mode.
 	d.Keys("F")
@@ -140,12 +140,13 @@ func TestPaneSearchSourcesJumpAndOptOutSettings(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		a.cfg.userSettings[SetShowLegacyPanesWorkPages] = true
 		for k, v := range settings {
 			a.cfg.userSettings[k] = v
 		}
-		if len(settings) > 0 {
-			a.reloadSettings()
-		}
+		a.reloadSettings()
+		a.applySettings()
+		a.Shell.State = a.openSpace(a.State(), SpacePanes)
 		a.rt.live.frames[pScroll.ID] = ptyhost.Frame{
 			ID:         pScroll.ID,
 			Revision:   3,

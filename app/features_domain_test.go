@@ -41,9 +41,9 @@ func TestFeaturesDomainNavEverythingIndicatorsAndOptOut(t *testing.T) {
 	fs, readFile := matomeruCheckoutWithCodeFS("/home/dev", "/home/dev/proj/matomeru")
 	a, d := newFeaturesTestApp(t, Options{FS: fs, ReadFile: readFile})
 
-	d.Keys("6")
+	d.Keys("4")
 	if a.Space() != SpaceFeatures {
-		t.Fatalf("slot 6 did not open SpaceFeatures: %q", a.Space())
+		t.Fatalf("slot 4 did not open SpaceFeatures: %q", a.Space())
 	}
 
 	snap := a.collectFeaturesSnapshot()
@@ -171,7 +171,7 @@ func TestFeaturesViewInCodeOpensVimCodeViewerFromUnifiedOutlineAndLegacyView(t *
 	fs, readFile := matomeruCheckoutWithCodeFS("/home/dev", "/home/dev/proj/matomeru")
 	a, d := newFeaturesTestApp(t, Options{FS: fs, ReadFile: readFile})
 
-	d.Keys("6")
+	d.Keys("4")
 	d.Send(core.CommandEvent{Command: core.Command{
 		ID: CmdFeaturesNavSelect, Args: map[string]any{"key": "domain:indicators"}, Actor: User,
 	}})

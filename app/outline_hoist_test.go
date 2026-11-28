@@ -30,6 +30,7 @@ func TestOutlineStartCollapsedDefaultOptOutAndLiveToggle(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 32)
 
 	d.Keys("2")
@@ -137,6 +138,7 @@ func TestOutlineCleanSlateVisualIsolationAndDraftCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 32)
 
 	// 1. Pressing `b` from 1 Panes opens an instant blank clean-slate canvas without hoisting or creating placeholder rows.
@@ -399,6 +401,7 @@ func TestTreeHoistKeysOutdentClampAndIndependentStacks(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { a.Close() })
+	enableLegacyPagesForTest(a, SpacePanes)
 	d := NewDriver(a, 120, 32)
 
 	// 1. Hoist in 2 Work tree with `=`, verify breadcrumb badge and outdent clamp, unhoist with `-` and `esc`.

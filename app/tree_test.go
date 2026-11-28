@@ -220,7 +220,7 @@ func TestUniversalTreeLanesDefaultsEditFoldIndentStatusAndToggle(t *testing.T) {
 }
 
 func TestWorkTreeSlashFilterInitializesTable(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	a.cfg.userSettings[SetWorkTasksLayout] = WorkTasksLayoutTree
 	a.cfg.userSettings[SetFilterInPlaceTree] = false
 	a.reloadSettings()

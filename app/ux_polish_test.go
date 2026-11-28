@@ -178,7 +178,7 @@ func TestPaletteSmartEnterAndPickers(t *testing.T) {
 }
 
 func TestNewHereOnPanesOpensNewPaneForm(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("1", "n")
 	if rf := a.activeRecordForm(); a.Modal() != "form" || rf == nil || rf.kind != data.KindPane {
 		t.Fatalf("n on 1 Panes opened modal=%q form=%+v, want kind=pane", a.Modal(), rf)
@@ -200,7 +200,7 @@ func TestNewHereOnPanesOpensNewPaneForm(t *testing.T) {
 }
 
 func TestPanesTOCToggleAndReaderTOC(t *testing.T) {
-	a, d := demo(t)
+	a, d := demoLegacy(t)
 	d.Keys("1")
 	if !strings.Contains(d.Frame(), "Pages") {
 		t.Fatalf("Pages TOC rail not visible initially:\n%s", d.Frame())
