@@ -412,15 +412,18 @@ func ledgerContentRegion(panel ui.ViewNode, regionNum int, opts ShowOptions, sta
 		lineCount = strings.Count(trimmed, "\n") + 1
 	}
 	heading := fmt.Sprintf("%d %s", regionNum, strings.ToUpper(panel.Title))
-	meta := fmt.Sprintf("%d lines · in full", lineCount)
-	if lineCount == 1 {
-		meta = "1 line · in full"
+	meta := ""
+	if lineCount > 0 {
+		meta = fmt.Sprintf("   %d lines · in full", lineCount)
+		if lineCount == 1 {
+			meta = "   1 line · in full"
+		}
 	}
 	headerLine := ui.ViewNode{
 		ID:   panel.ID + ".heading",
 		Kind: ui.KindText,
 		Props: map[string]any{
-			"text": heading + "   " + meta,
+			"text": heading + meta,
 			"spans": []ui.ToneSpan{
 				{From: 0, To: len([]rune(heading)), Tone: "accent"},
 				{From: len([]rune(heading)), Tone: "muted"},

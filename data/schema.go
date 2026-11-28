@@ -122,6 +122,7 @@ const (
 	ShowFormatCode     = "code"
 	ShowFormatText     = "text"
 	ShowFormatList     = "list"
+	ShowFormatViewNode = "viewNode"
 )
 
 // FieldRole values declare a field's structural role on Show pages, lists, and
@@ -699,7 +700,10 @@ func DefaultSchemas() *Registry {
 				{Name: "pageKind", Type: core.ParamString, Default: "custom", Description: "what the page is for",
 					Enum: []string{"screen", "questions", "decisions", "plan", "response", "custom", "outline", "signals"}},
 				{Name: "pinned", Type: core.ParamBool, Description: "kept at the top of the table of contents"},
-				{Name: "root", Type: core.ParamObject, Description: "the page's ViewNode tree"},
+				{Name: "root", Type: core.ParamObject, ShowFormat: ShowFormatViewNode, Description: "the page's ViewNode tree"},
+				strFmt("markdown", "Markdown content for a page without a canvas", ShowFormatMarkdown),
+				strFmt("body", "inline page body", ShowFormatMarkdown),
+				strFmt("summary", "page summary", ShowFormatMarkdown),
 				str("viewedAt", "when the owner last viewed the page (RFC 3339)"),
 				refTo("pane", KindPane, "pane whose site holds the page"),
 				refTo("task", KindTask, "task the page belongs to"),

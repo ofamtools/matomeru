@@ -104,28 +104,39 @@ func (a *App) jumpToPane(s core.State, paneID string, enterLive bool) core.State
 	return withPage(s, SpacePanes, tocPrefix+views.ScreenPageID, ModeNormal)
 }
 
-// jumpToPage shows a page in its pane's site: the pane is selected in the
-// rail, the page opened and marked as viewed.
+// jumpToPage opens a stored page from the picker or search.
 func (a *App) jumpToPage(s core.State, pageID string) core.State {
+	next, _ := a.navigateToPage(s, pageID)
+	return next
+}
+
+// navigateToPage selects the page's actual pane site when available. A page
+// with no selectable pane still has a canvas on its record's Show page.
+func (a *App) navigateToPage(s core.State, pageID string) (core.State, bool) {
 	ref := core.Ref{Kind: data.KindPage, ID: pageID}
 	page, err := a.Store.Get(ref)
 	if err != nil {
 		a.fail("open page", err)
-		return s
+		return s, false
 	}
-	pane, ok := page.RefField("pane")
-	if !ok {
-		return a.show(s, ref) // a page with no pane has only its Show page
-	}
-	rail := a.rail()
-	if !selectRow(rail, data.RefText(pane)) {
-		rail.Query = "" // the rail's filter hides the pane: drop it
-		selectRow(rail, data.RefText(pane))
+	pane, hasPane := page.RefField("pane")
+	if !hasPane || !a.selectPagePane(pane) {
+		return a.show(s, ref), false
 	}
 	s = a.dropModals(s)
 	s.ActivePage = SpacePanes
 	a.clearFilter("toc")
-	return a.openPage(withPage(s, SpacePanes, tocPrefix+pageID, ModeNormal), pane.ID, *page)
+	return a.openPage(withPage(s, SpacePanes, tocPrefix+pageID, ModeNormal), pane.ID, *page), true
+}
+
+func (a *App) selectPagePane(pane core.Ref) bool {
+	rail := a.rail()
+	id := data.RefText(pane)
+	if selectRow(rail, id) {
+		return true
+	}
+	rail.Query = "" // the rail's filter hides the pane: drop it
+	return selectRow(rail, id)
 }
 
 // openPage makes page the one a pane's site shows. Looking at it marks it viewed.

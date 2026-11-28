@@ -199,29 +199,11 @@ func (a *App) activateInlineLink(s core.State, lnk ui.InlineLink) core.StepResul
 }
 
 func (a *App) openCanvasRefPage(s core.State, pageID string) core.State {
-	pageRef := core.Ref{Kind: data.KindPage, ID: pageID}
-	page, err := a.Store.Get(pageRef)
-	if err != nil {
-		a.fail("open page", err)
+	s, inPane := a.navigateToPage(s, pageID)
+	if !inPane {
 		return s
 	}
-	paneID := ""
-	if pRef, ok := page.RefField("pane"); ok && pRef.ID != "" {
-		paneID = pRef.ID
-		rail := a.rail()
-		if !selectRow(rail, data.RefText(pRef)) {
-			rail.Query = ""
-			selectRow(rail, data.RefText(pRef))
-		}
-	} else if pane, ok := a.SelectedPane(); ok && pane != nil {
-		paneID = pane.ID
-	}
-	if paneID == "" {
-		return a.show(withMode(s, ModeNormal), pageRef)
-	}
-	s.ActivePage = SpacePanes
-	s = a.openPage(s, paneID, *page)
-	a.setPageScrollOffset(page.ID, 0)
+	a.setPageScrollOffset(pageID, 0)
 	a.viewMemo.gen++
 	if a.cfg != nil && a.cfg.Settings != nil && a.cfg.Settings.Bool(SetPageLockScroll, true) {
 		focus := views.PageScrollID
@@ -230,7 +212,7 @@ func (a *App) openCanvasRefPage(s core.State, pageID string) core.State {
 		}
 		return withMode(withFocus(s, focus), ModePage)
 	}
-	return withMode(withFocus(s, tocPrefix+page.ID), ModeNormal)
+	return withMode(withFocus(s, tocPrefix+pageID), ModeNormal)
 }
 
 func (a *App) canvasTabSelect(s core.State, c core.Command) core.StepResult {

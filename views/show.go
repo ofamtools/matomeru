@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/internal/pageview"
 	"ofam.dev/ochazuke/core"
 	"ofam.dev/ochazuke/ui"
 )
@@ -434,6 +435,10 @@ func buildContentPanel(schema data.Schema, name, format, raw string) ui.ViewNode
 			Props: map[string]any{"text": raw, "wrap": true},
 		}
 	}
+	return showContentPanel(schema, name, format, raw, child)
+}
+
+func showContentPanel(schema data.Schema, name, format, raw string, child ui.ViewNode) ui.ViewNode {
 	title := fieldTitle(schema, name)
 	facts := map[string]any{
 		"contentField": name,
@@ -456,6 +461,35 @@ func buildContentPanel(schema data.Schema, name, format, raw string) ui.ViewNode
 		Facts:     facts,
 		Children:  []ui.ViewNode{child},
 	}
+}
+
+// structuredContentPanel renders fields whose values use a format other than plain text.
+func structuredContentPanel(schema data.Schema, name, format string, value any) (ui.ViewNode, bool) {
+	switch format {
+	case data.ShowFormatList:
+		if list := formatListContent(value); list != "" {
+			return buildContentPanel(schema, name, format, list), true
+		}
+	case data.ShowFormatViewNode:
+		root, err := pageview.Decode(value)
+		if err != nil {
+			root = text("", "This tree cannot be read: "+err.Error(), "error")
+		}
+		if root.Kind != "" {
+			return showContentPanel(schema, name, format, "", inlineShowTree(root)), true
+		}
+	default:
+		return ui.ViewNode{}, false
+	}
+	return ui.ViewNode{}, true
+}
+
+// Show already scrolls, so the authored outer viewport fills its natural height.
+func inlineShowTree(root ui.ViewNode) ui.ViewNode {
+	if root.Kind == ui.KindScroll {
+		root.Box.FixedH, root.Box.MinH, root.Box.MaxH, root.Box.Flex = 0, 0, 0, 0
+	}
+	return flowCanvasTree(root)
 }
 
 // contentPanels builds readable full-content panels from declarative schema
@@ -535,18 +569,18 @@ func contentPanels(schema data.Schema, rec data.Record, opts ShowOptions) ([]ui.
 		if !ok || v == nil {
 			continue
 		}
+		if panel, handled := structuredContentPanel(schema, name, format, v); handled {
+			if panel.ID != "" {
+				out = append(out, panel)
+				rendered[name] = true
+			}
+			continue
+		}
+
 		if _, isRef := data.AsRef(v); isRef {
 			continue
 		}
 		if f != nil && f.Type == core.ParamRef {
-			continue
-		}
-
-		if format == data.ShowFormatList {
-			if formatted := formatListContent(v); formatted != "" {
-				out = append(out, buildContentPanel(schema, name, data.ShowFormatList, formatted))
-				rendered[name] = true
-			}
 			continue
 		}
 

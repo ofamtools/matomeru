@@ -1,13 +1,15 @@
 package views
 
 import (
-	"encoding/json"
+	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
 
 	"ofam.dev/matomeru/data"
+	"ofam.dev/matomeru/internal/pageview"
 	"ofam.dev/ochazuke/layout"
 	"ofam.dev/ochazuke/traits"
 	"ofam.dev/ochazuke/ui"
@@ -35,21 +37,6 @@ const (
 )
 
 func isScreen(page data.Record) bool { return page.Text("pageKind") == "screen" }
-
-// pageRoot decodes the ViewNode tree stored in a page's root field.
-func pageRoot(page data.Record) (ui.ViewNode, error) {
-	var root ui.ViewNode
-	v, ok := page.Value("root")
-	if !ok || v == nil {
-		return ui.ViewNode{Kind: ui.KindVStack}, nil
-	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return root, err
-	}
-	err = json.Unmarshal(b, &root)
-	return root, err
-}
 
 // tocRank orders the table of contents: Screen, Questions, other pinned
 // pages, then response and custom pages (newest first within each rank).
@@ -440,7 +427,7 @@ func buildSiteContent(pane, active data.Record, opts SiteOptions) ui.ViewNode {
 		content.Badges = []ui.Badge{{Text: "live", Tone: "success"}}
 		return content
 	}
-	root, err := pageRoot(active)
+	root, err := pageview.Root(active)
 	if err != nil {
 		content.Children = []ui.ViewNode{text("", "This page's tree cannot be read: "+err.Error(), "error")}
 		return content
@@ -452,28 +439,45 @@ func buildSiteContent(pane, active data.Record, opts SiteOptions) ui.ViewNode {
 	if opts.PageScrollLocked {
 		content.Badges = append(content.Badges, ui.Badge{Text: "reading · esc leaves", Tone: "accent"})
 	}
-	if root.Kind == ui.KindScroll {
-		root.ID = PageScrollID
-		root.Focusable = true
-		if root.Scope == "" {
-			root.Scope = data.KindPage
-		}
-		if root.Props == nil {
-			root.Props = map[string]any{}
-		}
-		root.Props["offset"] = opts.PageScrollOffset
-		content.Children = []ui.ViewNode{root}
-		return content
-	}
-	content.Children = []ui.ViewNode{{
-		ID:        PageScrollID,
-		Kind:      ui.KindScroll,
-		Scope:     data.KindPage,
-		Focusable: true,
-		Props:     map[string]any{"offset": opts.PageScrollOffset},
-		Children:  []ui.ViewNode{root},
-	}}
+	content.Children = []ui.ViewNode{PageViewport(root, opts.PageScrollOffset)}
 	return content
+}
+
+// PageViewport fills the space reserved by the host page. An authored root
+// scroll supplies the contents and chrome of that viewport, including its gap
+// and padding. The host supplies the viewport height and scroll offset.
+func PageViewport(root ui.ViewNode, offset int) ui.ViewNode {
+	if root.Kind != ui.KindScroll {
+		root = ui.ViewNode{Kind: ui.KindScroll, Children: []ui.ViewNode{root}}
+	}
+	root.ID = PageScrollID
+	root.Scope = cmp.Or(root.Scope, data.KindPage)
+	root.Focusable = true
+	root.Box.FixedH, root.Box.MinH, root.Box.MaxH, root.Box.Flex = 0, 0, 0, 1
+	root.Children = flowCanvasChildren(root.Children)
+	props := map[string]any{}
+	maps.Copy(props, root.Props)
+	props["offset"] = offset
+	root.Props = props
+	return root
+}
+
+// An unbounded inner scroll participates in the enclosing viewport's flow.
+// A VStack measures the full content, including the scroll's original chrome.
+func flowCanvasTree(root ui.ViewNode) ui.ViewNode {
+	if root.Kind == ui.KindScroll && root.Box.FixedH <= 0 && root.Box.MaxH <= 0 {
+		root.Kind = ui.KindVStack
+	}
+	root.Children = flowCanvasChildren(root.Children)
+	return root
+}
+
+func flowCanvasChildren(children []ui.ViewNode) []ui.ViewNode {
+	out := slices.Clone(children)
+	for i := range out {
+		out[i] = flowCanvasTree(out[i])
+	}
+	return out
 }
 
 func tocGroupHeader(groupKey, label string, count int, collapsed bool) ui.ViewNode {
