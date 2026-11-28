@@ -329,6 +329,9 @@ func New(store *data.Store, opts Options) (*App, error) {
 			"splitResize":              a.splitResizeEnabled(),
 			"outlineRescoping":         a.outlineRescopingEnabled(),
 			"hasSearch":                a.hasPageSearch(),
+			"scopeMode":                a.activeScopeMode(),
+			"pinnedProject":            a.pinnedProjectID(),
+			"pinnedProjectTitle":       a.pinnedProjectTitle(),
 			factListTarget:             a.listTargetFact(s),
 			factTreeTarget:             a.treeTargetFact(),
 			factSelectTarget:           a.selectTargetFact(s),
@@ -943,6 +946,7 @@ func (a *App) register() {
 	a.registerThreads()
 	a.registerSessions()
 	a.registerFocus()
+	a.registerScopeMode()
 	a.registerCaptures()
 	a.registerReminders()
 	a.registerIdeas()

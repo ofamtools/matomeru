@@ -33,6 +33,7 @@ type CapturesPageSpec struct {
 	FilterQuery      string
 	PinnedAgentTitle string
 	PinnedCount      int
+	ScopeLabel       string
 	Now              time.Time
 }
 
@@ -86,6 +87,7 @@ func capturePageFacts(spec CapturesPageSpec, selected int, filtering bool) map[s
 		"archived":       false,
 		"hasBody":        false,
 		"hasPinnedAgent": strings.TrimSpace(spec.PinnedAgentTitle) != "",
+		"scopeLabel":     strings.TrimSpace(spec.ScopeLabel),
 	}
 	if selected >= 0 {
 		row := spec.Rows[selected]
@@ -100,6 +102,9 @@ func capturePageFacts(spec CapturesPageSpec, selected int, filtering bool) map[s
 func capturesBanner(spec CapturesPageSpec) ui.ViewNode {
 	var line spanLine
 	line.write(" ✦ Captures ", "accent")
+	if sc := strings.TrimSpace(spec.ScopeLabel); sc != "" {
+		line.write("["+sc+"] ", "accent")
+	}
 	line.write(fmt.Sprintf("%d total", spec.Total), "")
 	if spec.CapturedCount > 0 {
 		line.write(fmt.Sprintf(" · ● %d captured", spec.CapturedCount), "accent")

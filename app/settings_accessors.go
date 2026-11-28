@@ -246,6 +246,17 @@ func (a *App) builtinCustomActionsEnabled() bool {
 	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetBuiltinCustomActions, true)
 }
 
+func (a *App) scopeModeChromeEnabled() bool {
+	return a == nil || a.cfg == nil || a.cfg.Settings == nil || a.cfg.Settings.Bool(SetScopeModeChrome, true)
+}
+
+func (a *App) scopeModeDefault() string {
+	if a == nil || a.cfg == nil || a.cfg.Settings == nil {
+		return data.ScopeModeGlobal
+	}
+	return data.NormalizeScopeMode(a.cfg.Settings.String(SetScopeModeDefault, data.ScopeModeGlobal))
+}
+
 // ConfigExport is the configuration in effect: the defaults with the user's
 // files laid over them.
 type ConfigExport struct {

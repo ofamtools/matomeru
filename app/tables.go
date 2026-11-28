@@ -61,7 +61,7 @@ func (a *App) records(id, kind string) *table.Model {
 	styleOpts := a.styleOptions()
 	if _, isExt := a.ext.extCatalogs[kind]; !isExt && a.Store != nil {
 		rev := a.storeRev()
-		key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t|%s|%t|%s", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog(), a.archiveAnimCacheKey(), styleOpts.FlagsOnLeft, styleOpts.ColorByRecency)
+		key := fmt.Sprintf("%s|%d|%t|%t|%t|%t|%t|%s|%t|%s%s", kind, rev, a.nav.showArchived, a.cfg.Settings.Bool(SetFlagsColumn, true), styleOpts.RowSemanticStyling, styleOpts.StatusIcons, a.showExtensionCatalog(), a.archiveAnimCacheKey(), styleOpts.FlagsOnLeft, styleOpts.ColorByRecency, a.scopeTableCacheKey(kind))
 		if a.nav.recCacheKeys != nil && a.nav.recCacheKeys[id] == key && a.nav.tables[id] != nil {
 			a.pageSize(a.nav.tables[id], id)
 			a.registerTableFilterable(id, a.nav.tables[id])
@@ -75,7 +75,7 @@ func (a *App) records(id, kind string) *table.Model {
 		}()
 	}
 	schema := a.schema(kind)
-	items := a.tableQuery(id, schema).Filter(a.tableCandidates(kind))
+	items := a.scopeTableRecords(schema, a.tableQuery(id, schema).Filter(a.tableCandidates(kind)))
 	fresh := views.TableFromRecordsWith(schema, items, styleOpts)
 	// A reference shows the record it points at, not its ID.
 	names := a.refCellLabels(schema, items)

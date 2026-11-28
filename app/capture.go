@@ -192,7 +192,7 @@ func (a *App) openCaptureCompose(s core.State, c core.Command) core.StepResult {
 	source := normalizeCaptureSource(c.Arg("source"))
 	initialText := c.Arg("initialText")
 	targetPaneID := strings.TrimSpace(c.Arg("pane"))
-	projectID := a.activePortalProjectID(s)
+	projectID := a.defaultCaptureProjectID(s)
 
 	if captureID != "" && a.Store != nil {
 		if rec, err := a.Store.Get(core.Ref{Kind: data.KindCapture, ID: captureID}); err == nil && rec != nil {
