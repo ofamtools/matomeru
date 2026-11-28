@@ -33,6 +33,8 @@ type FeaturesNavItem struct {
 	Badge   string
 	Tone    string
 	Count   int
+	// Status is the noun's catalog status: "" (live), "existing" or "planned".
+	Status  string
 	Planned bool
 	Active  bool
 }
@@ -344,11 +346,13 @@ func featuresNavItemRow(item FeaturesNavItem, activeKey string) ui.ViewNode {
 			"focusedText": focusedText,
 		},
 		Facts: map[string]any{
-			"navItem": item.Key,
-			"section": item.Section,
-			"planned": item.Planned,
-			"active":  isActive,
-			"count":   item.Count,
+			"navItem":    item.Key,
+			"section":    item.Section,
+			"planned":    item.Planned,
+			"existing":   item.Status == "existing",
+			"nounStatus": item.Status,
+			"active":     isActive,
+			"count":      item.Count,
 		},
 	}
 }

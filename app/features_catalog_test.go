@@ -1,6 +1,8 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -61,8 +63,92 @@ func TestFeaturesCatalogContainsAllPagesAnd16Plus3Nouns(t *testing.T) {
 			t.Errorf("planned noun %q should list planned verbs", kind)
 		}
 	}
-	if len(nouns) != len(currentNouns)+len(plannedNouns) {
-		t.Fatalf("noun catalog count = %d, want %d (16 current + 3 planned)", len(nouns), len(currentNouns)+len(plannedNouns))
+	if len(nouns) < len(currentNouns)+len(plannedNouns) {
+		t.Fatalf("noun catalog count = %d, want at least %d (16 current + 3 planned)", len(nouns), len(currentNouns)+len(plannedNouns))
+	}
+}
+
+// TestFeaturesNounCatalogStatuses covers the catalog's data contract: unique
+// kinds, a truthful Planned flag, live entries only for registered schemas,
+// existing nouns that point at real files, and planned nouns with a source.
+func TestFeaturesNounCatalogStatuses(t *testing.T) {
+	a, _ := newFeaturesTestApp(t, Options{})
+	seen := map[string]bool{}
+	byStatus := map[string][]string{}
+	lastRank := 0
+	for _, entry := range defaultFeaturesNounCatalog() {
+		if seen[entry.Kind] {
+			t.Errorf("duplicate noun kind %q", entry.Kind)
+		}
+		seen[entry.Kind] = true
+		byStatus[entry.Status] = append(byStatus[entry.Status], entry.Kind)
+		if entry.Planned != (entry.Status == NounStatusPlanned) {
+			t.Errorf("%q: Planned=%v does not match Status=%q", entry.Kind, entry.Planned, entry.Status)
+		}
+		if rank := nounStatusRank(entry.Status); rank < lastRank {
+			t.Errorf("%q (%q) is out of order: live, existing, planned", entry.Kind, entry.Status)
+		} else {
+			lastRank = rank
+		}
+		if entry.Title == "" || entry.Icon == "" || entry.Summary == "" || len(entry.PlannedVerbs) == 0 {
+			t.Errorf("incomplete noun catalog entry %q", entry.Kind)
+		}
+		_, registered := a.Store.Registry().Get(entry.Kind)
+		switch entry.Status {
+		case NounStatusLive:
+			if !registered && entry.Kind != "directory" {
+				t.Errorf("live noun %q has no registered schema", entry.Kind)
+			}
+		case NounStatusExisting:
+			if registered {
+				t.Errorf("existing noun %q collides with a registered schema; make it live", entry.Kind)
+			}
+			if len(entry.Sources) == 0 {
+				t.Errorf("existing noun %q names no source file", entry.Kind)
+			}
+			for _, src := range entry.Sources {
+				if _, err := os.Stat(filepath.Join("..", src)); err != nil {
+					t.Errorf("existing noun %q: source %q is not in the repo", entry.Kind, src)
+				}
+			}
+		case NounStatusPlanned:
+			if registered {
+				t.Errorf("planned noun %q collides with a registered schema; make it live", entry.Kind)
+			}
+		default:
+			t.Errorf("%q: unknown status %q", entry.Kind, entry.Status)
+		}
+	}
+	for _, kind := range []string{"concept", "queue", "repo", "capture"} {
+		if !slices.Contains(byStatus[NounStatusLive], kind) {
+			t.Errorf("newly-live schema %q has no live catalog entry", kind)
+		}
+	}
+	for _, kind := range []string{"project", "preset", "binding", "setting", "harness", "macro", "bookmark", "session"} {
+		if !slices.Contains(byStatus[NounStatusExisting], kind) {
+			t.Errorf("missing existing in-app noun %q", kind)
+		}
+	}
+	planned := byStatus[NounStatusPlanned]
+	if len(planned) < 4 || !slices.Equal(planned[:3], []string{"pr", "worktree", "tag"}) {
+		t.Fatalf("planned nouns must start with pr, worktree, tag and add more: %v", planned)
+	}
+	for _, kind := range planned[3:] {
+		if entry, _ := lookupFeaturesNounCatalog(kind); len(entry.Sources) == 0 {
+			t.Errorf("planned noun %q names no source note or task", kind)
+		}
+	}
+}
+
+// A chrome-prefixed command counts as a verb only for the noun whose catalog
+// entry claims that prefix.
+func TestDomainVerbsForNounClaimsChromePrefix(t *testing.T) {
+	specs := []core.CommandSpec{{ID: "macro.start", Description: "Record a macro"}}
+	if impl, _ := domainVerbsForNoun("macro", specs, nil); len(impl) != 1 || impl[0].ID != "macro.start" {
+		t.Fatalf("macro should own macro.start: %+v", impl)
+	}
+	if impl, _ := domainVerbsForNoun("task", specs, nil); len(impl) != 0 {
+		t.Fatalf("task must not list chrome verbs: %+v", impl)
 	}
 }
 

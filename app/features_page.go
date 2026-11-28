@@ -205,19 +205,34 @@ func (a *App) buildFeaturesPageNavItems(snap featuresSnapshot, activeKey string,
 	return pageItems
 }
 
+// featuresNounStatus resolves a noun's catalog status: a registered schema is
+// always live, and an unregistered noun is planned unless cataloged existing.
+func featuresNounStatus(isLive bool, cat featuresNounCatalogEntry) string {
+	if isLive {
+		return NounStatusLive
+	}
+	if cat.Status == NounStatusExisting {
+		return NounStatusExisting
+	}
+	return NounStatusPlanned
+}
+
 func (a *App) featuresNounNavItem(kind string, liveByKind map[string]data.Schema, snap featuresSnapshot, activeKey string) views.FeaturesNavItem {
 	sc, isLive := liveByKind[kind]
-	cat, hasCat := lookupFeaturesNounCatalog(kind)
-	planned := !isLive && (!hasCat || cat.Planned)
+	cat, _ := lookupFeaturesNounCatalog(kind)
+	status := featuresNounStatus(isLive, cat)
 	label := cat.Title
 	if isLive {
 		label = firstNonEmpty(sc.Plural, sc.Title, label)
 	}
 	impl, _ := domainVerbsForNoun(kind, snap.specs, snap.keysByID)
 	badge, tone := "", ""
-	if planned {
+	switch {
+	case status == NounStatusExisting:
+		badge, tone = "existing", "success"
+	case status == NounStatusPlanned:
 		badge, tone = "planned", "warning"
-	} else if a.isExternalKind(kind) {
+	case a.isExternalKind(kind):
 		badge, tone = "ext", "info"
 	}
 	itemKey := featureNounKey(kind).String()
@@ -229,7 +244,8 @@ func (a *App) featuresNounNavItem(kind string, liveByKind map[string]data.Schema
 		Badge:   badge,
 		Tone:    tone,
 		Count:   len(impl),
-		Planned: planned,
+		Status:  status,
+		Planned: status == NounStatusPlanned,
 		Active:  activeKey == itemKey,
 	}
 }
@@ -254,12 +270,24 @@ func (a *App) buildFeaturesNounNavItems(snap featuresSnapshot, activeKey string,
 		validKeys[item.Key] = true
 		nounItems = append(nounItems, item)
 	}
-	for _, cat := range defaultFeaturesNounCatalog() {
-		appendNoun(cat.Kind)
+	// Live nouns first (catalog order, then any other registered schema),
+	// then existing in-app nouns, then planned nouns.
+	catalog := defaultFeaturesNounCatalog()
+	for _, cat := range catalog {
+		if _, isLive := liveByKind[cat.Kind]; isLive {
+			appendNoun(cat.Kind)
+		}
 	}
 	slices.SortFunc(liveSchemas, func(x, y data.Schema) int { return strings.Compare(x.Kind, y.Kind) })
 	for _, sc := range liveSchemas {
 		appendNoun(sc.Kind)
+	}
+	for _, status := range []string{NounStatusExisting, NounStatusPlanned} {
+		for _, cat := range catalog {
+			if featuresNounStatus(false, cat) == status {
+				appendNoun(cat.Kind)
+			}
+		}
 	}
 	return nounItems
 }
@@ -388,9 +416,13 @@ func (a *App) buildFeaturesComponentDetail(snap featuresSnapshot, fk featureKey,
 
 func (a *App) featuresNounDetailBadges(kind string, isLive bool, implCount, plannedCount int) []ui.Badge {
 	var badges []ui.Badge
-	if !isLive {
+	cat, _ := lookupFeaturesNounCatalog(kind)
+	switch featuresNounStatus(isLive, cat) {
+	case NounStatusExisting:
+		badges = append(badges, ui.Badge{Text: "existing · needs schema", Tone: "success"})
+	case NounStatusPlanned:
 		badges = append(badges, ui.Badge{Text: "planned", Tone: "warning"})
-	} else {
+	default:
 		badges = append(badges, ui.Badge{Text: "live schema", Tone: "success"})
 		if a.isExternalKind(kind) {
 			badges = append(badges, ui.Badge{Text: "extension", Tone: "info"})
