@@ -49,7 +49,10 @@ func TestFeaturesItemizationProjectsSchemasAndTrackedConcepts(t *testing.T) {
 		{Name: "format", Type: "string", Role: data.FieldRoleProp, Default: "short", Enum: "short, long", Description: "Output format"},
 		{Name: "compression", Description: "Enable compressed output", Suggested: true},
 	}
-	if !slices.Equal(noun.Props, want) || len(noun.Concepts) != 1 || noun.Concepts[0].ID != prop.ID {
+	// The noun's own detail adds the universal record fields after its schema
+	// fields; suggested props stay last.
+	nounWant := slices.Concat(want[:2], featuresUniversalRecordProps, want[2:])
+	if !slices.Equal(noun.Props, nounWant) || len(noun.Concepts) != 1 || noun.Concepts[0].ID != prop.ID {
 		t.Fatalf("blueprint detail props %+v, concepts %+v", noun.Props, noun.Concepts)
 	}
 	page := a.buildFeaturesDetail(snap, "page:"+SpacePanes)

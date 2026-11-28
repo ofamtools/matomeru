@@ -78,9 +78,15 @@ var domainGroupCatalog = []domainGroupMeta{
 	},
 }
 
+// domainGroupMetas lists every domain classification in nav order: the
+// original classes, then the named repeated-concept groups.
+func domainGroupMetas() []domainGroupMeta {
+	return slices.Concat(domainGroupCatalog, namedDomainGroupCatalog)
+}
+
 func lookupDomainGroupMeta(key string) (domainGroupMeta, bool) {
 	k := strings.TrimSpace(key)
-	for _, meta := range domainGroupCatalog {
+	for _, meta := range domainGroupMetas() {
 		if meta.Key == k {
 			return meta, true
 		}
@@ -411,17 +417,19 @@ func staticDomainOccurrences() []views.DomainOccurrence {
 	out = append(out, staticDomainComponents()...)
 	out = append(out, staticDomainBadgesAndSignals()...)
 	out = append(out, staticDomainVerbsModesViews()...)
+	out = append(out, namedDomainOccurrences()...)
 	return out
 }
 
 func (a *App) collectDomainGroups(repoPath string) []views.DomainGroup {
 	occurrences := a.mergedDomainOccurrences(repoPath)
-	byClass := make(map[string][]views.DomainOccurrence, len(domainGroupCatalog))
+	metas := domainGroupMetas()
+	byClass := make(map[string][]views.DomainOccurrence, len(metas))
 	for _, occ := range occurrences {
 		byClass[occ.Classification] = append(byClass[occ.Classification], occ)
 	}
-	groups := make([]views.DomainGroup, 0, len(domainGroupCatalog))
-	for _, meta := range domainGroupCatalog {
+	groups := make([]views.DomainGroup, 0, len(metas))
+	for _, meta := range metas {
 		items := byClass[meta.Key]
 		groups = append(groups, views.DomainGroup{
 			Key:     meta.Key,
@@ -472,6 +480,10 @@ func (a *App) buildFeaturesDomainNavItems(snap featuresSnapshot, activeKey strin
 func (a *App) buildFeaturesDomainDetail(snap featuresSnapshot, fk featureKey) views.FeaturesDetailSpec {
 	key, activeKey := fk.Name, fk.String()
 	thoughts := a.domainRawThoughts(snap, key)
+	var props []views.FeaturesPropRow
+	if a.featuresItemizationEnabled() {
+		props = featuresDomainPropRows(key)
+	}
 	if key == DomainEverythingKey {
 		total := totalDomainOccurrences(snap.domainGroups)
 		return views.FeaturesDetailSpec{
@@ -479,10 +491,11 @@ func (a *App) buildFeaturesDomainDetail(snap featuresSnapshot, fk featureKey) vi
 			Key:          activeKey,
 			Title:        "Everything",
 			Subtitle:     "Domain · Complete non-segmented codebase index",
-			Summary:      "Every recurring domain classification across Matomeru (Indicators, Components, Badges, Signals, Verbs, Modes, Views) with verified file:start-end locations. Press enter or C on any row to View in Code.",
+			Summary:      "Every recurring domain classification across Matomeru (Indicators, Components, Badges, Signals, Verbs, Modes, Views, Traits, Chrome, Pickers, Gutters, Themes) with verified file:start-end locations. Press enter or C on any row to View in Code.",
 			Badges:       []ui.Badge{{Text: "everything", Tone: "accent"}, {Text: fmt.Sprintf("%d classes", len(snap.domainGroups)), Tone: "info"}, {Text: fmt.Sprintf("%d occurrences", total), Tone: "muted"}},
 			DomainGroups: snap.domainGroups,
 			RawThoughts:  thoughts,
+			Props:        props,
 			Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
 				return featuresConceptTargets(rec, key, activeKey)
 			}),
@@ -501,6 +514,7 @@ func (a *App) buildFeaturesDomainDetail(snap featuresSnapshot, fk featureKey) vi
 			Badges:       []ui.Badge{{Text: "domain", Tone: "accent"}, {Text: fmt.Sprintf("%d occurrences", len(g.Items)), Tone: "info"}},
 			DomainGroups: []views.DomainGroup{g},
 			RawThoughts:  thoughts,
+			Props:        props,
 			Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
 				return featuresConceptTargets(rec, key, activeKey)
 			}),
@@ -513,6 +527,7 @@ func (a *App) buildFeaturesDomainDetail(snap featuresSnapshot, fk featureKey) vi
 		Subtitle:    "Domain · " + key,
 		Summary:     "Domain classification catalog.",
 		RawThoughts: thoughts,
+		Props:       props,
 	}
 }
 

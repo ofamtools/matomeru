@@ -376,6 +376,7 @@ func (a *App) buildFeaturesPageDetail(snap featuresSnapshot, fk featureKey, item
 		CanSuggestView: itemized,
 	}
 	if itemized {
+		detail.Props = featuresPagePropRows(pk)
 		detail.Views = featuresViewsWithSuggestions(featuresPageViews(pk, detail), snap.concepts, pk, activeKey)
 	}
 	if a.featuresDomainNavEnabled() {
@@ -404,6 +405,7 @@ func (a *App) buildFeaturesComponentDetail(snap featuresSnapshot, fk featureKey,
 	return views.FeaturesDetailSpec{
 		Kind: string(featureKeyComponent), Key: activeKey, Title: component.View.Name, Subtitle: "Component · " + page.Title,
 		RawThoughts:   thoughts,
+		Props:         featuresComponentPropRows(key),
 		ItemizedNouns: a.featuresItemizedNouns(component.Nouns, snap.concepts),
 		Views:         featuresViewsWithSuggestions([]views.FeaturesViewRow{component.View}, snap.concepts, key, activeKey),
 		DomainGroups:  domainGroups,
@@ -477,7 +479,7 @@ func (a *App) buildFeaturesNounDetail(snap featuresSnapshot, fk featureKey, item
 	}
 	var props []views.FeaturesPropRow
 	if itemized {
-		props = featuresPropRows(sc, kind, snap.concepts)
+		props = featuresNounPropRows(sc, isLive, kind, snap.concepts, true)
 	}
 	var domainGroups []views.DomainGroup
 	if a.featuresDomainNavEnabled() {
@@ -511,6 +513,10 @@ func (a *App) buildFeaturesGroupDetail(snap featuresSnapshot, fk featureKey) (vi
 			continue
 		}
 		taskSchema := a.schema(data.KindTask)
+		var props []views.FeaturesPropRow
+		if a.featuresItemizationEnabled() {
+			props = featuresRecordPropRows(taskSchema, g)
+		}
 		var tags []string
 		for _, p := range stringListField(g, "targetPages") {
 			tags = append(tags, featurePageKey(p).String())
@@ -529,6 +535,7 @@ func (a *App) buildFeaturesGroupDetail(snap featuresSnapshot, fk featureKey) (vi
 			TargetTags:         tags,
 			LinkedLanes:        a.groupLinkedLanes(g, snap.lanes),
 			RawThoughts:        a.groupProvenanceRawThoughts(g),
+			Props:              props,
 			ItemizedNouns:      a.featuresItemizedNouns(stringListField(g, "targetNouns"), snap.concepts),
 			Concepts:           a.featuresGroupConcepts(snap.concepts, g),
 		}, true
@@ -544,9 +551,14 @@ func (a *App) buildFeaturesConceptDetail(snap featuresSnapshot, fk featureKey) v
 			thoughts = append(thoughts, a.linkedItemFromRecord(rt))
 		}
 	}
+	var props []views.FeaturesPropRow
+	if a.featuresItemizationEnabled() {
+		props = append(featuresSchemaPropRows(a.schema(data.KindConcept)), featuresUniversalRecordProps...)
+	}
 	return views.FeaturesDetailSpec{
 		Kind: string(featureKeyConcept), Key: activeKey, Title: views.Label(kind) + " concepts",
 		RawThoughts: thoughts,
+		Props:       props,
 		Concepts: a.featuresConceptItems(snap.concepts, func(rec data.Record) bool {
 			return rec.Text(data.FieldConceptKind) == kind
 		}),

@@ -111,6 +111,9 @@ type featuresNounCatalogEntry struct {
 	Highlights     []string
 	Keywords       []string
 	PlannedVerbs   []featuresPlannedVerb
+	// Props are the declared key properties of an existing or planned noun
+	// (a live noun's props come from its data.Schema).
+	Props []views.FeaturesPropRow
 }
 
 func pageEntry(key, title, icon, summary string, highlights, keywords []string) featuresPageCatalogEntry {

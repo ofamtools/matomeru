@@ -19,6 +19,9 @@ var featuresNounCatalog = sync.OnceValue(func() []featuresNounCatalogEntry {
 		existingFeaturesNounCatalog(),
 		plannedFeaturesNounCatalog(),
 	)
+	for i := range all {
+		all[i].Props = featuresDeclaredNounProps[all[i].Kind]
+	}
 	// Stable, so pr, worktree and tag stay the first planned nouns.
 	slices.SortStableFunc(all, func(x, y featuresNounCatalogEntry) int {
 		return nounStatusRank(x.Status) - nounStatusRank(y.Status)

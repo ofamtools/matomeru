@@ -719,3 +719,84 @@ func TestFeaturesPageQuickCaptureAndOrganizedGroupProvenance(t *testing.T) {
 		t.Fatalf("expected 2 thoughts after exiting clean-slate, got %d", len(tm.Nodes[0].Children))
 	}
 }
+
+// TestFeaturesPropsNeverEmptyAcrossNav opens every page, noun and domain item
+// of the Features nav and expects non-empty Props, shown unfolded, and none
+// once itemization is turned off.
+func TestFeaturesPropsNeverEmptyAcrossNav(t *testing.T) {
+	a, d := newFeaturesTestApp(t, Options{FS: matomeruCheckoutFS("/home/dev", "/home/dev/proj/matomeru")})
+	d.Keys("6")
+	snap := a.collectFeaturesSnapshot()
+	navGroups, valid := a.buildFeaturesNav(snap, a.featuresCtrl().activeItemKey())
+
+	for _, key := range []string{"domain:traits", "domain:chrome", "domain:pickers", "domain:gutters", "domain:themes"} {
+		if !valid[key] {
+			t.Errorf("Features nav is missing %q", key)
+		}
+	}
+	checked := map[string]int{}
+	for _, group := range navGroups {
+		if group.Key != "pages" && group.Key != "nouns" && group.Key != featuresDomainNavGroup {
+			continue
+		}
+		for _, item := range group.Items {
+			checked[group.Key]++
+			detail := a.buildFeaturesDetail(snap, item.Key)
+			if len(detail.Props) == 0 {
+				t.Errorf("%s: Props are empty", item.Key)
+			}
+			for _, row := range detail.Props {
+				if row.Name == "" {
+					t.Errorf("%s: unnamed prop row %+v", item.Key, row)
+				}
+			}
+		}
+	}
+	if checked["pages"] < 14 || checked["nouns"] < 60 || checked[featuresDomainNavGroup] != len(domainGroupMetas())+1 {
+		t.Fatalf("nav items checked = %v", checked)
+	}
+	for _, component := range featuresComponentCatalog {
+		if detail := a.buildFeaturesDetail(snap, featureComponentKey(component.Key).String()); len(detail.Props) == 0 {
+			t.Errorf("component %s: Props are empty", component.Key)
+		}
+	}
+
+	hasProp := func(detail views.FeaturesDetailSpec, name, role string) bool {
+		return slices.ContainsFunc(detail.Props, func(r views.FeaturesPropRow) bool { return r.Name == name && r.Role == role })
+	}
+	task := a.buildFeaturesDetail(snap, "noun:task")
+	for _, name := range []string{"id", "kind", "archiveStatus", "starStatus", "createdAt", "updatedAt", "relations"} {
+		if !hasProp(task, name, featuresPropRoleUniversal) {
+			t.Errorf("live noun task: missing universal field %q", name)
+		}
+	}
+	if len(task.Props) < len(a.schema(data.KindTask).Fields)+7 {
+		t.Errorf("live noun task: %d props, want every schema field plus the universal fields", len(task.Props))
+	}
+	if !hasProp(a.buildFeaturesDetail(snap, "noun:preset"), "query", featuresPropRoleCurrent) ||
+		!hasProp(a.buildFeaturesDetail(snap, "noun:pr"), "checks", featuresPropRolePlanned) {
+		t.Error("existing and planned nouns must show their declared props")
+	}
+	panes := a.buildFeaturesDetail(snap, "page:"+SpacePanes)
+	if !hasProp(panes, SetShowTOC, featuresPropRoleSetting) || !hasProp(panes, "atBottom", featuresPropRoleFact) || !hasProp(panes, railTable, featuresPropRoleSurface) {
+		t.Errorf("page panes: want settings, facts and ViewNode surfaces, got %+v", panes.Props)
+	}
+	if themes := a.buildFeaturesDetail(snap, "domain:themes"); !hasProp(themes, "focus.border", featuresPropRoleToken) || len(themes.DomainGroups) != 1 || len(themes.DomainGroups[0].Items) < 5 {
+		t.Errorf("domain themes: want theme tokens and occurrences, got %+v", themes.Props)
+	}
+
+	// The Props section starts unfolded; the props of related nouns start
+	// folded under it.
+	tm := a.syncFeaturesOutlineTree(snap, "page:"+SpaceWork, a.buildFeaturesDetail(snap, "page:"+SpaceWork))
+	if tm.Folded[featSecProps] || !tm.Folded[featPropNounIDPrefix+data.KindTask] {
+		t.Errorf("default Props fold state = %+v", tm.Folded)
+	}
+
+	a.cfg.userSettings[SetFeaturesItemization] = false
+	a.reloadSettings()
+	for _, key := range []string{"noun:task", "noun:pr", "page:" + SpacePanes, "domain:traits"} {
+		if detail := a.buildFeaturesDetail(snap, key); len(detail.Props) != 0 {
+			t.Errorf("%s: Props shown with features.itemization off", key)
+		}
+	}
+}

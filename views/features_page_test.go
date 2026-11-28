@@ -365,3 +365,70 @@ func TestFeaturesPageViewInlineNoteBoxRestingAndEditing(t *testing.T) {
 		"Existing thought below box",
 	)
 }
+
+// TestFeaturesPageViewPropsAndNamedDomainGroupsRenderFromData renders the
+// named repeated-concept domain groups, and Props for every kind of detail,
+// from plain data: the view has no branch per group or per kind.
+func TestFeaturesPageViewPropsAndNamedDomainGroupsRenderFromData(t *testing.T) {
+	props := []FeaturesPropRow{
+		{Name: "ui.theme", Type: "string", Role: "setting", Default: "dark", Enum: "dark, light", Description: "colour theme"},
+		{Name: "atBottom", Type: "bool", Role: "fact", Description: "The list is at its last row"},
+		{Name: "focus.border", Type: "tone", Role: "theme token", Description: "Border of the focused panel"},
+	}
+	groups := []DomainGroup{
+		{Key: "traits", Title: "Traits", Icon: "⚙"},
+		{Key: "chrome", Title: "Chrome", Icon: "▔"},
+		{Key: "pickers", Title: "Pickers / Modals", Icon: "⌕"},
+		{Key: "gutters", Title: "Gutters", Icon: "▏"},
+		{Key: "themes", Title: "Themes / Tokens", Icon: "◐"},
+	}
+	for i := range groups {
+		groups[i].Summary = groups[i].Title + " summary"
+		groups[i].Items = []DomainOccurrence{{
+			ID: groups[i].Key + ".one", Classification: groups[i].Key, Name: groups[i].Title + " occurrence", Glyph: "●", Tone: "accent",
+			Location: CodeLocation{File: "app/chrome.go", StartLine: 18, EndLine: 68, Symbol: "chromeSeparatorNode"},
+		}}
+	}
+
+	for _, group := range groups {
+		root := FeaturesPageView(FeaturesPageSpec{
+			ActiveKey: "domain:" + group.Key,
+			Detail: FeaturesDetailSpec{
+				Kind: "domain", Key: "domain:" + group.Key, Title: group.Title,
+				DomainGroups: []DomainGroup{group}, Props: props,
+			},
+		})
+		section := root.Find("features.section.domain." + group.Key)
+		if section == nil {
+			t.Fatalf("domain group %q did not render a section", group.Key)
+		}
+		heading := root.Find("features.section.domain." + group.Key + ".title")
+		if heading == nil || !strings.Contains(heading.Props["text"].(string), group.Title) {
+			t.Fatalf("domain group %q heading = %+v", group.Key, heading)
+		}
+		if root.Find("features.section.props.row.2") == nil {
+			t.Fatalf("domain group %q did not render its Props", group.Key)
+		}
+	}
+
+	for _, kind := range []string{"page", "component", "noun", "domain", "group", "concept"} {
+		root := FeaturesPageView(FeaturesPageSpec{
+			ActiveKey: kind + ":x",
+			Detail:    FeaturesDetailSpec{Kind: kind, Key: kind + ":x", Title: "X", Props: props},
+		})
+		heading := root.Find("features.section.props.title")
+		if heading == nil || !strings.Contains(heading.Props["text"].(string), "Props (3)") {
+			t.Fatalf("%s detail: Props heading = %+v", kind, heading)
+		}
+		row := root.Find("features.section.props.row.0")
+		if row == nil || !row.Focusable {
+			t.Fatalf("%s detail: first prop row = %+v", kind, row)
+		}
+		text, _ := row.Props["text"].(string)
+		for _, want := range []string{"ui.theme", "setting", "default dark", "choices dark, light", "colour theme"} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("%s detail: prop row %q is missing %q", kind, text, want)
+			}
+		}
+	}
+}
