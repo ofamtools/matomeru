@@ -51,6 +51,7 @@ func CommandSpecs() []core.CommandSpec {
 	base = append(base, jobsSpecs()...)
 	base = append(base, taskLineageSpecs()...)
 	base = append(base, splitResizeSpecs()...)
+	base = append(base, SchemaCommandSpecs()...)
 	base = append(base,
 		core.CommandSpec{
 			ID:          CmdFeaturesSuggestProp,

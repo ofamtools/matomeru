@@ -280,7 +280,7 @@ func mtmDaemonCommand(g globalOpts) oden.Command {
 }
 
 func runDaemonServe(ctx context.Context, g globalOpts, socketFlag, mcpAddr string) error {
-	store, err := openStoreWithSeed(g)
+	store, schemas, err := openConfiguredStore(g)
 	if err != nil {
 		return err
 	}
@@ -288,10 +288,11 @@ func runDaemonServe(ctx context.Context, g globalOpts, socketFlag, mcpAddr strin
 
 	sock := daemon.ResolveSocketPath(socketFlag)
 	srv, err := daemon.New(daemon.Config{
-		SocketPath: sock,
-		MCPAddr:    mcpAddr,
-		Store:      store,
-		HooksPath:  daemon.HooksPath(configDir()),
+		SocketPath:     sock,
+		MCPAddr:        mcpAddr,
+		Store:          store,
+		HooksPath:      daemon.HooksPath(configDir()),
+		RefreshSchemas: schemas.Refresh,
 	})
 	if err != nil {
 		return err

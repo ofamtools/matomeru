@@ -46,6 +46,8 @@ type Config struct {
 	// Store is the shared data.Store for HTTP MCP and the background scheduler.
 	// Optional: if nil, PTY hosting and hook telemetry still run.
 	Store *data.Store
+	// RefreshSchemas updates the shared registry from user configuration.
+	RefreshSchemas func() error
 	// Router is an optional mcpui.Router; if nil and Store != nil, mcpui.New(Store) is used.
 	Router *mcpui.Router
 	// Host is the PTY host backing panes. Default: ptyhost.NewLocalHost().
@@ -318,6 +320,7 @@ func (s *Server) Start(ctx context.Context) error {
 			return fmt.Errorf("daemon: listen mcp http %s: %w", s.cfg.MCPAddr, err)
 		}
 		box := mcpui.NewToolbox(s.cfg.Store, s.cfg.Router)
+		box.RefreshSchemas = s.cfg.RefreshSchemas
 		if box.PaneSearch != nil {
 			box.PaneSearch.LiveData = s.paneSearchLiveData
 		}

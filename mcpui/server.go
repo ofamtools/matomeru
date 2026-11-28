@@ -65,6 +65,8 @@ type Toolbox struct {
 	Tasks      *TaskTools
 	Context    *ContextTools
 	Getenv     func(string) string
+	// RefreshSchemas may refresh the registry before a call in a long-lived process.
+	RefreshSchemas func() error
 }
 
 // NewToolbox returns the toolbox over store. A nil router gets a new one.
@@ -226,6 +228,7 @@ func (b *Toolbox) envDefaults(getenv func(string) string, name string, raw json.
 
 // Call runs one tool by name with JSON arguments.
 func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw json.RawMessage) (any, error) {
+	b.refreshSchemas()
 	getenv := b.envFunc(ctx)
 	lanes := b.lanesFor(ctx, getenv)
 	switch {
@@ -257,6 +260,12 @@ func (b *Toolbox) Call(ctx context.Context, actor core.Actor, name string, raw j
 		return ctxTools.Call(ctx, actor, name, raw)
 	}
 	return b.Router.Call(ctx, actor, name, b.envDefaults(getenv, name, raw))
+}
+
+func (b *Toolbox) refreshSchemas() {
+	if b.RefreshSchemas != nil {
+		_ = b.RefreshSchemas() // invalid edits leave the last valid registry in use
+	}
 }
 
 // lanesFor returns a copy of the lane tools whose environment prefers the

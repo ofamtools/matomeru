@@ -223,7 +223,7 @@ func openStore(path string) (*data.Store, error) {
 	return data.Open(path)
 }
 
-func openStoreWithSeed(g globalOpts) (*data.Store, error) {
+func openSeededStore(g globalOpts) (*data.Store, error) {
 	store, err := openStore(g.db)
 	if err != nil {
 		return nil, err
@@ -583,12 +583,14 @@ func mtmMCPCommand(g globalOpts) oden.Command {
 					if len(p.Positional()) != 0 {
 						return errors.New("usage: mtm mcp serve")
 					}
-					store, err := openStoreWithSeed(g)
+					store, source, err := openConfiguredStore(g)
 					if err != nil {
 						return err
 					}
 					defer store.Close()
-					err = mcpui.ServeStdioWithToolbox(c.Context, c.Stdin, c.Stdout, newCLIToolbox(g, store))
+					box := newCLIToolbox(g, store)
+					box.RefreshSchemas = source.Refresh
+					err = mcpui.ServeStdioWithToolbox(c.Context, c.Stdin, c.Stdout, box)
 					if errors.Is(err, context.Canceled) {
 						return nil // interrupted: a normal end for a server
 					}
