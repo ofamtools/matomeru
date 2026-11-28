@@ -273,6 +273,7 @@ const (
 	SetShowLegacyPanesWorkPages        = "ui.showLegacyPanesWorkPages"
 	SetPageHydrateRefCards             = "pages.hydrateRefCards"
 	SetFinalViewDimAncestors           = "ui.finalViewDimAncestors"
+	SetOpenShowInTab                   = "ui.openShowInTab"
 	HintsActionCopy                    = "copy"
 	HintsActionInsert                  = "insert"
 	HintsActionOpen                    = "open"
@@ -486,6 +487,7 @@ func SettingSpecs() []core.ParamSpec {
 		flag(SetPageHydrateRefCards, true, "hydrate noun/record reference cards inside ui.page views with live store data (off: render raw fallback cards)"),
 		flag(SetBuiltinCustomActions, true, "include built-in parameterized custom action recipes (Google Search, MTM Web Viewer, g U Upgrade Preview) in the Custom Actions picker (g a)"),
 		flag(SetFinalViewDimAncestors, true, "dim non-matching ancestor rows kept as hierarchy scaffolding in hide-final and only-final views"),
+		flag(SetOpenShowInTab, true, "open full-page Show views in a new closable top-chrome tab (q closes back to previous page; off reuses 2 Work)"),
 	}
 }
 

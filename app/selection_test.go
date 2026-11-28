@@ -450,7 +450,7 @@ func TestGlobalJumpListCtrlOAndCtrlIAndPathPickerGO(t *testing.T) {
 		t.Fatalf("1st ctrl+o space = %q, want runs", a.Space())
 	}
 	d.Keys("ctrl+o")
-	if shown, ok := a.Showing(); a.Space() != SpaceWork || !ok || shown != project.Ref() {
+	if shown, ok := a.Showing(); !isViewTabID(a.Space()) || !ok || shown != project.Ref() {
 		t.Fatalf("2nd ctrl+o: space=%q showing=%v ref=%v", a.Space(), ok, shown)
 	}
 	d.Keys("ctrl+o")
@@ -468,7 +468,7 @@ func TestGlobalJumpListCtrlOAndCtrlIAndPathPickerGO(t *testing.T) {
 		t.Fatalf("1st ctrl+i: space=%q showing=%v, want work index", a.Space(), ok)
 	}
 	d.Keys("ctrl+i")
-	if shown, ok := a.Showing(); a.Space() != SpaceWork || !ok || shown != project.Ref() {
+	if shown, ok := a.Showing(); !isViewTabID(a.Space()) || !ok || shown != project.Ref() {
 		t.Fatalf("2nd ctrl+i: space=%q showing=%v ref=%v", a.Space(), ok, shown)
 	}
 	d.Keys("ctrl+i")

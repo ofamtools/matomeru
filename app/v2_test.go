@@ -99,7 +99,7 @@ func TestSettingsApplyAndPersist(t *testing.T) {
 		SetOutlineAutoSuggest: true, SetFeaturesOutline: true, SetProjectNavPriorityOrder: true, SetProjectNavMode: views.ProjectNavModeSections, SetProjectSectionPickerNested: true,
 		SetCaptureComposeEnabled: true, SetPinnedAgentChrome: true, SetFeaturesDomainNav: true, SetYankDefaultFormat: YankFormatRef, SetPasteContextual: true,
 		SetRemindersTopNavTab: true, SetReminderToasts: true, SetOutlineRescoping: true, SetShowLegacyPanesWorkPages: false,
-		SetProjectsHomeStarredGrid: true, SetProjectsHomeCardMaxHeight: defaultHomeCardMaxHeight, SetPageHydrateRefCards: true, SetBuiltinCustomActions: true, SetFinalViewDimAncestors: true}
+		SetProjectsHomeStarredGrid: true, SetProjectsHomeCardMaxHeight: defaultHomeCardMaxHeight, SetPageHydrateRefCards: true, SetBuiltinCustomActions: true, SetFinalViewDimAncestors: true, SetOpenShowInTab: true}
 	defaults := DefaultSettings()
 	specs := SettingSpecs()
 	if len(specs) != len(want) {
@@ -508,7 +508,7 @@ func TestAttentionAndLaneKeys(t *testing.T) {
 	}
 	d.Keys("ctrl+a", "L")
 	lane, showing := a.Showing()
-	if !showing || lane.Kind != data.KindLane || a.Mode() != ModeNormal || a.Space() != SpaceWork {
+	if !showing || lane.Kind != data.KindLane || a.Mode() != ModeNormal || !isViewTabID(a.Space()) {
 		t.Fatalf("ctrl+a L from the terminal: showing %v %v in %s/%s", showing, lane, a.Space(), a.Mode())
 	}
 	if rec, _ := a.Store.Get(lane); rec.Text("title") != "Matomeru v2 Step 2" {

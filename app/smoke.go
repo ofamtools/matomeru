@@ -259,7 +259,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	}
 	k.Keys("enter")
 	up, _ := a.Showing()
-	k.check("its parent link leads back up to the project (a third page)", up == project.Ref() && len(a.nav.history) == 3)
+	k.check("its parent link leads back up to the project (a third page)", up == project.Ref() && a.showHistoryLen(a.State()) == 3)
 	k.Keys("backspace")
 	back, _ := a.Showing()
 	k.check("backspace goes back one page, focus where it was", back == sub && a.Focus() == "show.field.parent")
@@ -373,7 +373,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.check("esc closes it", a.Modal() == "")
 	k.Keys("T", "j", "E")
 	jumped, _ := a.Showing()
-	k.check("T j E jumps to that task's Show page", a.Modal() == "" && a.Space() == SpaceWork && jumped == sub)
+	k.check("T j E jumps to that task's Show page", a.Modal() == "" && isViewTabID(a.Space()) && jumped == sub)
 	k.Keys("H", "'")
 	k.check("' opens the page picker over every pane", a.Modal() == "pages" && a.Mode() == ModePickerFilter && k.has("Pages", "Questions", "Plan: keymap resolution"))
 	k.Keys("esc", "esc", "esc")
@@ -425,7 +425,7 @@ func RunSmoke(out io.Writer, dump bool) error {
 	k.Keys("ctrl+a", "L")
 	laneRef, _ := a.Showing()
 	k.check("ctrl+a L opens the pane's lane: its timeline and sublanes",
-		a.Space() == SpaceWork && laneRef.Kind == data.KindLane && k.has("Matomeru v2 Step 2", "Timeline", "◇ decision", "◆ milestone", "Sublanes", "lane-schema"))
+		isViewTabID(a.Space()) && laneRef.Kind == data.KindLane && k.has("Matomeru v2 Step 2", "Timeline", "◇ decision", "◆ milestone", "Sublanes", "lane-schema"))
 	k.keep("Lane Show page")
 	k.Keys("g", "n")
 	k.check("g n lists every noun with its count", a.Modal() == "nouns" && k.has("Nouns", "Tasks", "Lanes", "Panes", "Pages", "Notes", "Documents", "Schedules", "Occurrences", "Runs", "Extensions"))

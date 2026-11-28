@@ -904,6 +904,7 @@ func DefaultBindings() []core.Binding {
 	out = append(out, projectPortalBindings()...)
 	out = append(out, noteDeckBindings()...)
 	out = append(out, projectTabsBindings()...)
+	out = append(out, viewTabsBindings()...)
 	out = append(out, projectPanesSectionBindings()...)
 	out = append(out, featuresPageBindings()...)
 	out = append(out, jobsBindings()...)

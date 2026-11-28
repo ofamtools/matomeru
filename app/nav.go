@@ -44,6 +44,7 @@ type NavController struct {
 	browseKind            string
 	history               []historyEntry
 	histPos               int
+	viewTabs              []*viewTab
 	showScrollRef         core.Ref
 	showRelatedOff        *int // explicit offset while the user scrolls show.related; nil: the renderer follows focus
 	showPropsOff          *int // explicit offset while the user scrolls show.props.scroll; nil: the renderer follows focus
@@ -120,6 +121,9 @@ func (a *App) focusables(s core.State) []fnode {
 }
 
 func (a *App) defaultFocus(s core.State) string {
+	if isViewTabID(s.ActivePage) {
+		return showHeader
+	}
 	if s.ActivePage == SpaceWork && a.nav.histPos >= 0 {
 		return showHeader
 	}
@@ -441,8 +445,11 @@ func (a *App) stepBounded(s core.State, delta int, allowSpill bool) core.State {
 }
 
 func (a *App) activeShowRef(s core.State) (core.Ref, bool) {
+	if vt := a.viewTabByID(s.ActivePage); vt != nil {
+		return vt.currentRef(), true
+	}
 	if s.ActivePage == SpaceWork {
-		return a.Showing()
+		return a.workShowing()
 	}
 	if isProjectTab(s.ActivePage) {
 		focus := s.ActiveFrame().FocusID
@@ -612,8 +619,11 @@ func (a *App) currentJump(s core.State) jumpEntry {
 	focus := s.Pages[page].FocusID
 	var ref core.Ref
 	histPos := -1
-	if page == SpaceWork {
-		if r, ok := a.Showing(); ok {
+	if vt := a.viewTabByID(page); vt != nil {
+		ref = vt.currentRef()
+		histPos = vt.histPos
+	} else if page == SpaceWork {
+		if r, ok := a.workShowing(); ok {
 			ref = r
 			histPos = a.nav.histPos
 		}
@@ -647,7 +657,7 @@ func (a *App) recordJump(from, to jumpEntry) {
 
 func (a *App) openSpace(s core.State, id string) core.State {
 	switch {
-	case id == SpaceJobs || slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == id }), standalonePages[id].render != nil:
+	case id == SpaceJobs || slices.ContainsFunc(spaces, func(sp spaceDef) bool { return sp.id == id }), a.isStandaloneOrViewTab(id):
 	case id == SpaceProjects:
 		if !a.projectsTopNavTabEnabled() {
 			a.say("Projects tab is disabled (projects.topNavTab.enabled=false)")
@@ -681,6 +691,7 @@ func (a *App) openSpace(s core.State, id string) core.State {
 		return s
 	}
 	from := a.currentJump(s)
+	a.saveViewTabFocus(s)
 	s = a.dropModals(s)
 	s.ActivePage = id
 	if isProjectTab(id) && s.Pages[id].ID == "" {
@@ -732,17 +743,21 @@ func (a *App) arrive(s core.State) core.State {
 	return withPage(s, SpaceWork, focus, ModeNormal)
 }
 
-// show pushes a record's Show page onto the Work space's history, as a
-// browser does: what was ahead of the current page is dropped.
+// show opens a record's Show page: as a non-destructive closable top-chrome
+// tab when ui.openShowInTab is enabled, or onto the legacy Work history stack
+// when opted out.
 func (a *App) show(s core.State, ref core.Ref) core.State {
 	_ = a.ensureShadow(ref)
 	if _, err := a.Store.Get(ref); err != nil {
 		a.fail("open "+data.RefText(ref), err)
 		return s
 	}
+	if a.openShowInTabEnabled() {
+		return a.openShowViewTab(s, ref)
+	}
 	from := a.currentJump(s)
 	s = a.dropModals(s)
-	if cur, ok := a.Showing(); !ok || cur != ref {
+	if cur, ok := a.workShowing(); !ok || cur != ref {
 		a.leave(s)
 		a.nav.history = append(a.nav.history[:a.nav.histPos+1], historyEntry{ref: ref, focus: showHeader})
 		a.nav.histPos = len(a.nav.history) - 1
@@ -757,6 +772,9 @@ func (a *App) show(s core.State, ref core.Ref) core.State {
 
 func (a *App) historyTravel(s core.State, c core.Command, delta int) core.StepResult {
 	if c.Arg("scope") == "work" {
+		if vt := a.viewTabByID(s.ActivePage); vt != nil {
+			return core.Next(a.viewTabTravel(s, vt, delta))
+		}
 		return core.Next(a.travel(s, delta))
 	}
 	return core.Next(a.jumpTravel(s, delta))
@@ -784,6 +802,7 @@ func (a *App) jumpTravel(s core.State, delta int) core.State {
 		return s
 	}
 	a.nav.jumps[a.nav.jumpPos].focus = s.Pages[s.ActivePage].FocusID
+	a.saveViewTabFocus(s)
 	if s.ActivePage == SpaceWork {
 		a.leave(s)
 	}
@@ -794,7 +813,7 @@ func (a *App) jumpTravel(s core.State, delta int) core.State {
 	defer func() { a.nav.jumping = false }()
 
 	s = a.dropModals(s)
-	targetPage := entry.page
+	targetPage := a.prepareJumpViewTab(entry)
 	if targetPage == SpaceProjects && !a.projectsTopNavTabEnabled() {
 		targetPage = SpacePanes
 	} else if targetPage == SpaceFeatures && !a.featuresPageActive() {

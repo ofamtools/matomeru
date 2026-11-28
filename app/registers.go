@@ -535,7 +535,7 @@ func macroBindings() []core.Binding {
 		hidden(with(bind(ModeNormal, "", "@ @", CmdMacroReplay, "replay the last macro"), map[string]any{"reg": "@"})),
 	}
 	for r := 'a'; r <= 'z'; r++ {
-		rec := when(with(bind(ModeNormal, "", "q "+string(r), CmdMacroRecord, "record a macro"), map[string]any{"reg": string(r)}), "!facts.recording && mode == \"normal\"")
+		rec := when(with(bind(ModeNormal, "", "q "+string(r), CmdMacroRecord, "record a macro"), map[string]any{"reg": string(r)}), "!facts.recording && !facts.closableTab && mode == \"normal\"")
 		play := with(bind(ModeNormal, "", "@ "+string(r), CmdMacroReplay, "replay a macro"), map[string]any{"reg": string(r)})
 		// One row of each shows in the footer and the help; the rest are the same.
 		rec.Hidden, play.Hidden = r != 'a', r != 'a'

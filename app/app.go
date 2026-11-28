@@ -318,6 +318,7 @@ func New(store *data.Store, opts Options) (*App, error) {
 			"enterOpensShow":           a.enterOpensShow(),
 			"hlFolds":                  a.treeHLFolds(),
 			"isProjectTab":             isProjectTab(s.ActivePage),
+			"closableTab":              a.isActiveViewTab(s),
 			"inChildPaneView":          a.activeChildPaneID(s) != "" && a.projectChildPaneViewEnabled(),
 			"featuresPageActive":       a.featuresPageActive(),
 			"showLegacyPanesWorkPages": a.showLegacyPanesWorkPages(),
@@ -411,12 +412,23 @@ func (a *App) Modal() string {
 	return ""
 }
 
-// Showing is the record whose Show page the Work space is on.
-func (a *App) Showing() (core.Ref, bool) {
-	if a.nav.histPos < 0 || a.nav.histPos >= len(a.nav.history) {
+// workShowing is the record whose Show page the legacy Work space stack is on.
+func (a *App) workShowing() (core.Ref, bool) {
+	if a.nav == nil || a.nav.histPos < 0 || a.nav.histPos >= len(a.nav.history) {
 		return core.Ref{}, false
 	}
 	return a.nav.history[a.nav.histPos].ref, true
+}
+
+// Showing is the record whose Show page is currently open (either in an active
+// closable view tab or on the legacy Work Show stack).
+func (a *App) Showing() (core.Ref, bool) {
+	if a.Shell != nil {
+		if vt := a.viewTabByID(a.Shell.State.ActivePage); vt != nil {
+			return vt.currentRef(), true
+		}
+	}
+	return a.workShowing()
 }
 
 // SelectedPane is the pane the rail has selected.
@@ -888,6 +900,7 @@ func (a *App) register() {
 	a.initNoteDeck()
 	a.registerCodeViewerHandlers()
 	a.registerProjectTabsHandlers()
+	a.registerViewTabsHandlers()
 	a.registerFeaturesPageHandlers()
 	a.registerComposerContextHandlers()
 	a.registerInsertPickerHandlers()

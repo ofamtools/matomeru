@@ -230,8 +230,8 @@ func TestPageRefCardsHydrateLiveUpdateAndDeepLink(t *testing.T) {
 		t.Fatalf("enter on hydrated lane ref card in ModePage: showing=(%v, %v), want %v (page=%s focus=%s mode=%s)",
 			showing, hasShow, rootLane.Ref(), a.Space(), a.Focus(), a.Mode())
 	}
-	if a.Space() != SpaceWork || a.Mode() != ModeNormal {
-		t.Fatalf("after deep link to lane: space=%q mode=%q, want work/normal", a.Space(), a.Mode())
+	if !isViewTabID(a.Space()) || a.Mode() != ModeNormal {
+		t.Fatalf("after deep link to lane: space=%q mode=%q, want view tab/normal", a.Space(), a.Mode())
 	}
 
 	// 5. Deep-link navigation on enter in ModeNormal (with pageLockScroll off): task ref card -> Task Show page.

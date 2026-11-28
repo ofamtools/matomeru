@@ -698,7 +698,7 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 		switch {
 		case kind == data.KindTask:
 			// On a task's Show page (or when targeting a task directly) a new task is its subtask.
-			if cur, ok := a.Showing(); ok && cur.Kind == data.KindTask && s.ActivePage == SpaceWork {
+			if cur, ok := a.showingOnPage(s); ok && cur.Kind == data.KindTask {
 				setField("parent", cur)
 			} else if c.Target != nil && c.Target.Kind == data.KindTask && c.Target.ID != "" {
 				setField("parent", *c.Target)
@@ -808,6 +808,16 @@ func (a *App) create(s core.State, c core.Command) core.StepResult {
 	return core.Next(a.pushModal(s, rf))
 }
 
+func (a *App) showingOnPage(s core.State) (core.Ref, bool) {
+	if vt := a.viewTabByID(s.ActivePage); vt != nil {
+		return vt.currentRef(), true
+	}
+	if s.ActivePage == SpaceWork {
+		return a.workShowing()
+	}
+	return core.Ref{}, false
+}
+
 func (a *App) newHere(s core.State, c core.Command) core.StepResult {
 	if s.ActivePage == SpacePanes {
 		c.Args = map[string]any{"kind": data.KindPane}
@@ -815,7 +825,7 @@ func (a *App) newHere(s core.State, c core.Command) core.StepResult {
 	}
 	// On a Show page, focus on or inside a related section creates (or
 	// attaches) one of that section's kind linked to the shown record.
-	if cur, showing := a.Showing(); showing && s.ActivePage == SpaceWork {
+	if cur, showing := a.showingOnPage(s); showing {
 		for _, f := range ui.ContextChain(a.View(s), s.ActiveFrame().FocusID, nil) {
 			if rel, _ := f.Facts["relationKind"].(string); rel == data.RelDirectory {
 				target := cur

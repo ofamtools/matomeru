@@ -181,6 +181,7 @@ func (a *App) tabsMemoKey(s core.State) string {
 	b.WriteString(a.splitRatiosMemoKey())
 	b.WriteString(a.pageSearchViewKey(s))
 	b.WriteString(a.remindersMemoKey())
+	b.WriteString(a.viewTabsMemoKey())
 	return b.String()
 }
 
@@ -618,6 +619,9 @@ func (a *App) hintLine(s core.State, chain []core.ContextFrame) string {
 // --- spaces ---------------------------------------------------------------------
 
 func (a *App) spaceForTab(s core.State, tb topTabDef) ui.ViewNode {
+	if tb.viewTab {
+		return a.viewTabSpace(s, tb.id)
+	}
 	if tb.dynamic {
 		return a.projectTabSpaceWithTitle(s, tb.projectID, tb.projectTitle())
 	}
@@ -833,7 +837,7 @@ func (a *App) showOptionsFor(ref core.Ref) views.ShowOptions {
 }
 
 func (a *App) workSpace(s core.State) ui.ViewNode {
-	ref, showing := a.Showing()
+	ref, showing := a.workShowing()
 	kind := a.workKind()
 	if !showing {
 		if a.inWorkTree(s) {
