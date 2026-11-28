@@ -127,7 +127,7 @@ func propsPanel(snap data.ShowSnapshot, opts ShowOptions, omitted map[string]boo
 			links = append(links, link)
 			shown = "→ " + link.Title
 		} else if has && v != nil {
-			if s := firstLine(data.Text(v), 80); s != "" {
+			if s := oneLine(data.Text(v), 80); s != "" {
 				shown = s
 			}
 		}
@@ -219,6 +219,11 @@ type ShowOptions struct {
 	RelatedScrollOffset *int
 	// PropsScrollOffset is the same for show.props.scroll.
 	PropsScrollOffset *int
+	// KeepHeaderFieldsInProps repeats fields across the header and Props:
+	// status columns stay Props rows beside their header badges, and the
+	// header summary line may repeat a field Props lists. false (the default)
+	// shows every field once: status in the header, other fields in Props.
+	KeepHeaderFieldsInProps bool
 	// DeclarativePresentations draws references from their noun's declared
 	// presentation forms (data.ResolvedPresentation): a title, or
 	// "(missing task)" for a dead one, and never kind:id. false keeps the
@@ -605,18 +610,6 @@ func contentPanels(schema data.Schema, rec data.Record, opts ShowOptions) ([]ui.
 	return out, rendered
 }
 
-func headerSummary(schema data.Schema, rec data.Record, rendered map[string]bool) string {
-	for _, field := range []string{"description", "summary", "body", "command", "filePath", "cwd", "cron", "outcomeStatus"} {
-		if field == schema.SummaryField || rendered[field] {
-			continue
-		}
-		if s := firstLine(rec.Text(field), 120); s != "" {
-			return s
-		}
-	}
-	return ""
-}
-
 // ShowViewWith is ShowView with options. It dispatches to the borderless
 // single-column Ledger Outline presenter by default (or the classic 2-column
 // split when opts.Layout == ShowLayoutClassic).
@@ -698,8 +691,9 @@ func showViewClassic(snap data.ShowSnapshot, sections []section, focusID string,
 	}
 	related := ui.ViewNode{ID: "show.related", Kind: ui.KindScroll, Props: showScrollProps(ref, opts.RelatedScrollOffset),
 		Children: []ui.ViewNode{{Kind: ui.KindVStack, Children: panels}}}
+	summary := headerSummary(schema, *rec, renderedFields, opts, classicPropsLists)
 	body := ui.ViewNode{ID: "show.body", Kind: ui.KindSplit, Ratio: 0.42, Gap: 1, Children: []ui.ViewNode{
-		propsPanel(snap, opts, renderedFields),
+		propsPanel(snap, opts, propsOmitted(renderedFields, headerFields(schema, opts))),
 		related,
 	}}
 
@@ -740,8 +734,8 @@ func showViewClassic(snap data.ShowSnapshot, sections []section, focusID string,
 		header.Children = []ui.ViewNode{*chips}
 		header.Facts = map[string]any{"copy": fullTitle}
 	}
-	if s := headerSummary(schema, *rec, renderedFields); s != "" {
-		header.Props = map[string]any{"summary": s}
+	if summary != "" {
+		header.Props = map[string]any{"summary": summary}
 	}
 
 	facts := statusFacts(schema, *rec)

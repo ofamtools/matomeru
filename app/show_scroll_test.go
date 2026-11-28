@@ -336,3 +336,38 @@ func TestShowLedgerFoldYankRegionsAndClassicOptOut(t *testing.T) {
 		t.Fatal("show.layout=classic opt-out did not restore legacy 2-column Show layout")
 	}
 }
+
+func TestShowLongRelationTitleDrawsOnOneRow(t *testing.T) {
+	for _, size := range [][2]int{{80, 24}, {120, 36}} {
+		a, _ := demo(t)
+		d := NewDriver(a, size[0], size[1])
+		parent, _, err := a.Store.Create(data.CreateInput{Kind: data.KindTask, ID: "voice-parent",
+			Fields: map[string]any{"title": "Voice notes"}}, User)
+		if err != nil {
+			t.Fatal(err)
+		}
+		long := strings.Repeat("dictated owner voice note about lanes panes and relation rows ", 4)
+		if _, _, err := a.Store.Create(data.CreateInput{Kind: data.KindTask, ID: "voice-child",
+			Fields: map[string]any{"title": long + "\nsecond dictated line", "parent": parent.Ref()}}, User); err != nil {
+			t.Fatal(err)
+		}
+		d.Send(core.CommandEvent{Command: core.Command{ID: "record.open", Source: "test", Actor: User,
+			Args: map[string]any{"ref": map[string]any{"kind": parent.Kind, "id": parent.ID}}}})
+		frame := d.Frame()
+		found := false
+		for _, line := range strings.Split(frame, "\n") {
+			if strings.Contains(line, "dictated owner voice") {
+				found = true
+				if !strings.Contains(line, "…") || !strings.Contains(line, "voice-") {
+					t.Errorf("%dx%d: long relation row is not cut to one row with its id:\n%s", size[0], size[1], frame)
+				}
+			}
+			if strings.Contains(line, "second dictated line") {
+				t.Errorf("%dx%d: a relation title's second line leaked onto its own row:\n%s", size[0], size[1], frame)
+			}
+		}
+		if !found {
+			t.Errorf("%dx%d: long relation row not drawn:\n%s", size[0], size[1], frame)
+		}
+	}
+}

@@ -272,9 +272,11 @@ func ledgerPropsRegion(snap data.ShowSnapshot, opts ShowOptions, omitted map[str
 			} else if opts.DeclarativePresentations {
 				title = refPresentation(other, target).Label
 			}
-			line := fmt.Sprintf("%s%-14s → %s (%s)", prefixFor(), label, title, data.RefText(target))
+			pref := prefixFor()
+			shownTitle := fitRefTitle(title, target, runeLen(pref), opts)
+			line := fmt.Sprintf("%s%-14s → %s (%s)", pref, label, shownTitle, data.RefText(target))
 			if opts.DeclarativePresentations {
-				line = fmt.Sprintf("%s%-14s → %s", prefixFor(), label, title)
+				line = fmt.Sprintf("%s%-14s → %s", pref, label, shownTitle)
 			}
 			copyLines = append(copyLines, label+": "+data.RefText(target))
 			t := target
@@ -288,6 +290,7 @@ func ledgerPropsRegion(snap data.ShowSnapshot, opts ShowOptions, omitted map[str
 				Badges:    append([]ui.Badge{{Text: label, Tone: "accent"}}, statusBadges...),
 				Props: map[string]any{
 					"text": line,
+					"wrap": false,
 					"spans": []ui.ToneSpan{
 						{From: 0, To: len([]rune(prefixForEmpty(stacked, mw))), Tone: "muted"},
 					},
@@ -311,10 +314,12 @@ func ledgerPropsRegion(snap data.ShowSnapshot, opts ShowOptions, omitted map[str
 		if raw == "" {
 			continue
 		}
-		shown := firstLine(raw, 88)
-		if _, local := rec.Local[name]; local {
-			shown += "  (local)"
+		pref := prefixFor()
+		local := ""
+		if _, isLocal := rec.Local[name]; isLocal {
+			local = "  (local)"
 		}
+		shown := oneLine(raw, rowBudget(opts.Width, runeLen(pref)+15+runeLen(local)+2, 88, 12)) + local
 		tokenType := "text"
 		tone := ""
 		facts := map[string]any{
@@ -336,7 +341,6 @@ func ledgerPropsRegion(snap data.ShowSnapshot, opts ShowOptions, omitted map[str
 		facts["tokenType"] = tokenType
 		copyLines = append(copyLines, label+": "+raw)
 
-		pref := prefixFor()
 		line := fmt.Sprintf("%s%-14s %s", pref, label, shown)
 		valStart := len([]rune(pref)) + 15
 		var spans []ui.ToneSpan
@@ -352,18 +356,13 @@ func ledgerPropsRegion(snap data.ShowSnapshot, opts ShowOptions, omitted map[str
 			Kind:      ui.KindText,
 			Focusable: true,
 			Title:     shown,
-			Props:     map[string]any{"text": line, "spans": spans},
+			Props:     map[string]any{"text": line, "wrap": false, "spans": spans},
 			Facts:     facts,
 		})
 	}
 
 	if opts.ShowMetadata {
-		metaLine := fmt.Sprintf("%sCreated %s (%s) · Updated %s (%s) · Revision %d",
-			prefixFor(),
-			rec.CreatedAt.Local().Format(timeLayout), formatRelativeAge(rec.CreatedAt, now),
-			rec.UpdatedAt.Local().Format(timeLayout), formatRelativeAge(rec.UpdatedAt, now),
-			rec.ChangeSetNumber,
-		)
+		metaLine := ledgerMetaLine(prefixFor(), rec, now, opts.Width)
 		rows = append(rows, ui.ViewNode{
 			ID:    "show.prop.meta",
 			Kind:  ui.KindText,
@@ -586,11 +585,9 @@ func ledgerConnectionsRegion(sections []section, regionNum int, opts ShowOptions
 					markerText = "  "
 				}
 			}
-			bodyText := fmt.Sprintf("%s%s %s", markerText, glyph, firstLine(title, 64))
-			suffix := shortRefID(entry.ref.ID)
-			if cols != "" {
-				suffix = cols + "  " + suffix
-			}
+			fixedLen := runeLen(pref) + runeLen(markerText) + runeLen(glyph) + 1 + 3
+			rowTitle, suffix := fitEntryRow(title, cols, shortRefID(entry.ref.ID), fixedLen, opts.Width)
+			bodyText := fmt.Sprintf("%s%s %s", markerText, glyph, rowTitle)
 			line := fmt.Sprintf("%s%s   %s", pref, bodyText, suffix)
 
 			prefLen := len([]rune(pref))
@@ -623,7 +620,7 @@ func ledgerConnectionsRegion(sections []section, regionNum int, opts ShowOptions
 				Focusable: true,
 				Unread:    unread,
 				Title:     title,
-				Props:     map[string]any{"text": line, "spans": spans},
+				Props:     map[string]any{"text": line, "wrap": false, "spans": spans},
 				Facts:     facts,
 			})
 		}
@@ -811,8 +808,10 @@ func showViewLedger(snap data.ShowSnapshot, sections []section, focusID string, 
 	var regionIndex []string
 	regionNum := 1
 
-	// 1. Props
-	regions = append(regions, ledgerPropsRegion(snap, opts, renderedFields, stacked, now))
+	// 1. Props (without the fields the header already shows)
+	summary := headerSummary(schema, rec, renderedFields, opts, ledgerPropsLists(schema))
+	omitted := propsOmitted(renderedFields, headerFields(schema, opts))
+	regions = append(regions, ledgerPropsRegion(snap, opts, omitted, stacked, now))
 	regionIndex = append(regionIndex, fmt.Sprintf("%d Props", regionNum))
 	regionNum++
 
@@ -882,17 +881,11 @@ func showViewLedger(snap data.ShowSnapshot, sections []section, focusID string, 
 			badgeParts = append(badgeParts, b.Text)
 		}
 	}
-	headerLines := append(showTitleLines(title, opts), ui.ViewNode{
-		ID:   "show.header.meta",
-		Kind: ui.KindText,
-		Props: map[string]any{
-			"text":  " " + strings.Join(badgeParts, "  ·  ") + "    " + strings.Join(regionIndex, " · "),
-			"spans": []ui.ToneSpan{{From: 0, Tone: "muted"}},
-		},
-	})
-	summary := headerSummary(schema, rec, renderedFields)
+	headerLines := append(showTitleLines(title, opts), headerMetaLines(badgeParts, regionIndex, opts.Width)...)
 	if summary != "" {
-		headerLines = append(headerLines, text("show.header.summary", " "+summary, "muted"))
+		line := text("show.header.summary", " "+oneLine(summary, rowBudget(opts.Width, 1, 120, 12)), "muted")
+		line.Props["wrap"] = false
+		headerLines = append(headerLines, line)
 	}
 	actions := []ui.ActionHint{{Key: "e", Label: "edit", Command: CmdEdit}, star, archive, snooze, open}
 	actionParts := make([]string, 0, len(actions))
