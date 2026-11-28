@@ -568,6 +568,8 @@ func DefaultSchemas() *Registry {
 		{Name: "dismissed", Label: "Dismissed", Tone: "muted", RowTone: "row.muted", Icon: "✕", IconTone: "muted", Position: 2, Ends: true},
 	}}
 
+	markdownBaseDir := FieldSpec{Name: "baseDir", Type: core.ParamPath, Description: "base directory for relative Markdown links; defaults to the document file directory, cwd, linked pane directory, or project directory"}
+
 	r := NewRegistry()
 	r.Register(
 		Schema{
@@ -702,6 +704,7 @@ func DefaultSchemas() *Registry {
 				{Name: "pinned", Type: core.ParamBool, Description: "kept at the top of the table of contents"},
 				{Name: "root", Type: core.ParamObject, ShowFormat: ShowFormatViewNode, Description: "the page's ViewNode tree"},
 				strFmt("markdown", "Markdown content for a page without a canvas", ShowFormatMarkdown),
+				markdownBaseDir,
 				strFmt("body", "inline page body", ShowFormatMarkdown),
 				strFmt("summary", "page summary", ShowFormatMarkdown),
 				str("viewedAt", "when the owner last viewed the page (RFC 3339)"),
@@ -721,6 +724,7 @@ func DefaultSchemas() *Registry {
 				{Name: "filePath", Type: core.ParamPath, ContentFile: true, Description: "file on disk"},
 				strFmt("summary", "what the document covers", ShowFormatMarkdown),
 				strFmt("body", "Markdown body, when the document is kept inline", ShowFormatMarkdown),
+				markdownBaseDir,
 				refTo("task", KindTask, "task the document belongs to"),
 			},
 			DefaultColumns: []string{"title", "filePath", "summary", "task"},

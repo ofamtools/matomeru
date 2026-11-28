@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -178,24 +177,6 @@ type SuggestCommandResult struct {
 	Command *data.Record `json:"command"`
 }
 
-// CreateDocumentArgs are the arguments of data.create_document.
-type CreateDocumentArgs struct {
-	ID       string `json:"id,omitempty"`
-	Title    string `json:"title,omitempty"`
-	FilePath string `json:"filePath,omitempty"`
-	Summary  string `json:"summary,omitempty"`
-	Body     string `json:"body,omitempty"`
-	Pane     string `json:"pane,omitempty"`
-	Task     string `json:"task,omitempty"`
-	By       string `json:"by,omitempty"`
-}
-
-// CreateDocumentResult is what data.create_document returns.
-type CreateDocumentResult struct {
-	Document *data.Record   `json:"document"`
-	Relation *data.Relation `json:"relation,omitempty"`
-}
-
 // AddContextArgs are the arguments of data.add_context.
 type AddContextArgs struct {
 	ID          string `json:"id,omitempty"`
@@ -364,6 +345,8 @@ func (d *DataTools) ToolSpecs() []ToolSpec {
 				"id":       text("document ID; generated when omitted"),
 				"title":    text("document title; defaults to the filePath basename when omitted"),
 				"filePath": text("path to the document file on disk"),
+				"baseDir":  text("base directory for relative Markdown links; defaults to the file or pane directory"),
+				"cwd":      text("alias for baseDir"),
 				"summary":  text("short summary of what the document covers"),
 				"body":     text("inline Markdown body"),
 				"pane":     text("pane ID that created the document; linked via created relation"),
@@ -726,12 +709,7 @@ func (d *DataTools) inheritPaneTask(paneID, taskID string) string {
 	if taskID != "" || paneID == "" {
 		return taskID
 	}
-	if pane, err := d.store.Get(paneRef(paneID)); err == nil {
-		if t, ok := pane.RefField("task"); ok {
-			return t.ID
-		}
-	}
-	return ""
+	return contentPaneTask(lookupContentPane(d.store, paneID), taskID)
 }
 
 // SuggestCommand is data.suggest_command: it creates a KindCommand record
@@ -769,58 +747,6 @@ func (d *DataTools) SuggestCommand(actor core.Actor, args SuggestCommandArgs) (*
 		return nil, err
 	}
 	return &SuggestCommandResult{Command: rec}, nil
-}
-
-// CreateDocument is data.create_document: it stores a KindDocument record,
-// inherits the pane's task when omitted, and links pane -> document via RelCreated.
-func (d *DataTools) CreateDocument(actor core.Actor, args CreateDocumentArgs) (*CreateDocumentResult, error) {
-	title := strings.TrimSpace(args.Title)
-	if title == "" && args.FilePath != "" {
-		title = filepath.Base(args.FilePath)
-	}
-	if title == "" {
-		return nil, errors.New("title or filePath is required")
-	}
-	taskID := d.inheritPaneTask(args.Pane, args.Task)
-	fields := map[string]any{"title": title}
-	if args.FilePath != "" {
-		fields["filePath"] = args.FilePath
-	}
-	if args.Summary != "" {
-		fields["summary"] = args.Summary
-	}
-	if args.Body != "" {
-		fields["body"] = args.Body
-	}
-	if taskID != "" {
-		fields["task"] = taskRef(taskID)
-	}
-	doc, _, err := d.store.Create(data.CreateInput{Kind: data.KindDocument, ID: args.ID, Fields: fields}, actor)
-	if err != nil {
-		return nil, err
-	}
-	if args.FilePath == "" && args.Body != "" {
-		if root := d.store.FilesRoot(); root != "" {
-			managedPath, werr := data.WriteManagedFile(root, data.CategoryDocuments, doc.ID, title, ".md", args.Body)
-			if werr != nil {
-				return nil, werr
-			}
-			if updated, _, perr := d.store.Patch(data.PatchInput{
-				Ref:     doc.Ref(),
-				Fields:  map[string]any{"filePath": managedPath},
-				Summary: "record managed file path",
-			}, actor); perr == nil && updated != nil {
-				doc = updated
-			}
-		}
-	}
-	out := &CreateDocumentResult{Document: doc}
-	if args.Pane != "" {
-		if out.Relation, _, err = d.store.Relate(data.RelateInput{From: paneRef(args.Pane), Kind: data.RelCreated, To: doc.Ref()}, actor); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
 }
 
 var validContextSources = []string{"prompt", "response", "screen", "tool", "curated"}
